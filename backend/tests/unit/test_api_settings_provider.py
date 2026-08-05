@@ -194,24 +194,27 @@ def test_doubao_seedream_auto_protocol_uses_native_images_api():
     mock_result.data = [MagicMock(b64_json=None, url='https://example.com/img.png')]
     mock_client.images.generate.return_value = mock_result
 
-    with patch('services.ai_providers.image.openai_provider.OpenAI', return_value=mock_client):
+    with patch('services.ai_providers.image.openai_provider.OpenAI'):
         provider = OpenAIImageProvider(
             api_key='volcengine-key',
             api_base='https://ark.cn-beijing.volces.com/api/plan/v3',
             model='doubao-seedream-5.0-lite',
             image_api_protocol='auto',
         )
-        with patch('requests.get') as mock_get:
-            import base64 as _b64
-            png_bytes = _b64.b64decode(
-                'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
-            )
-            mock_get.return_value.__enter__.return_value.content = png_bytes
-            provider.generate_image(
-                prompt='a cat',
-                aspect_ratio='16:9',
-                resolution='2K',
-            )
+    # Inject the mock client directly (mirrors test_openai_image_multi_reference)
+    # so the test is robust to module import-path differences in CI.
+    provider.client = mock_client
+    with patch('requests.get') as mock_get:
+        import base64 as _b64
+        png_bytes = _b64.b64decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+        )
+        mock_get.return_value.__enter__.return_value.content = png_bytes
+        provider.generate_image(
+            prompt='a cat',
+            aspect_ratio='16:9',
+            resolution='2K',
+        )
 
     mock_client.images.generate.assert_called_once()
     kwargs = mock_client.images.generate.call_args.kwargs
