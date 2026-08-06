@@ -97,6 +97,7 @@ const previewI18n = {
       noPages: "还没有页面", noPagesHint: "请先返回编辑页面添加内容", backToEdit: "返回编辑",
       generating: "正在生成中...", queued: "排队等待生成...", notGenerated: "尚未生成图片", generateThisPage: "生成此页",
       prevPage: "上一页", nextPage: "下一页", historyVersions: "历史版本",
+      play: "播放",
       versions: "版本", version: "版本", current: "当前", editPage: "编辑页面",
       regionSelect: "区域选图", endRegionSelect: "结束区域选图",
       inlineEditPromptPlaceholder: "描述想怎么改，或先在图上框选要改的部分…",
@@ -234,6 +235,7 @@ const previewI18n = {
       noPages: "No pages yet", noPagesHint: "Please go back to editor to add content first", backToEdit: "Back to Editor",
       generating: "Generating...", queued: "Queued for generation...", notGenerated: "Image not generated yet", generateThisPage: "Generate This Page",
       prevPage: "Previous", nextPage: "Next", historyVersions: "History Versions",
+      play: "Play",
       versions: "Versions", version: "Version", current: "Current", editPage: "Edit Page",
       regionSelect: "Region Select", endRegionSelect: "End Region Select",
       inlineEditPromptPlaceholder: "Describe the change, or box a region on the image first…",
@@ -292,6 +294,7 @@ import {
   Sparkles,
   ChevronDown,
   ChevronUp,
+  Play,
   X,
   Upload,
   Image as ImageIcon,
@@ -317,6 +320,7 @@ import { materialUrlToFile } from '@/components/shared/MaterialSelector';
 import { triggerDownload } from '@/api/client';
 import type { Material } from '@/api/endpoints';
 import { SlideCard } from '@/components/preview/SlideCard';
+import { SlidePlayer } from '@/components/preview/SlidePlayer';
 import { PagePropertiesDrawer, readStoredDrawerWidth } from '@/components/preview/PagePropertiesDrawer';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useExportTasksStore, type ExportTaskType } from '@/store/useExportTasksStore';
@@ -547,6 +551,42 @@ export const SlidePreview: React.FC = () => {
   }, [restoreActiveTasks]);
 
   const [selectedIndex, setSelectedIndex] = useState(0);
+  // 在线播放（近似全屏 overlay，可切换浏览器原生全屏）
+  const [isPlayerOpen, setIsPlayerOpen] = useState(false);
+  const playTriggerRef = useRef<HTMLElement | null>(null);
+  const handleOpenPlayer = () => {
+    playTriggerRef.current = document.activeElement as HTMLElement | null;
+    setIsPlayerOpen(true);
+  };
+  const handleClosePlayer = () => {
+    setIsPlayerOpen(false);
+    const trigger = playTriggerRef.current;
+    playTriggerRef.current = null;
+    const restoreFocus = (el: HTMLElement | null) => {
+      // 播放期间窗口跨 lg 断点时，触发按钮可能已 display:none，focus 是 no-op；
+      // fallback 到当前可见工具栏的播放按钮
+      const target =
+        el && el.offsetParent !== null
+          ? el
+          : Array.from(document.querySelectorAll<HTMLElement>('[data-play-trigger]')).find(
+              (btn) => btn.offsetParent !== null
+            );
+      target?.focus();
+    };
+    if (document.fullscreenElement) {
+      // 播放器卸载会移除全屏元素，浏览器随后自动退出全屏；等 fullscreenchange
+      // 确认退出完成后再还原焦点，避免在全屏退出前同步 focus 被浏览器覆盖
+      const restore = () => {
+        if (!document.fullscreenElement) {
+          document.removeEventListener('fullscreenchange', restore);
+          restoreFocus(trigger);
+        }
+      };
+      document.addEventListener('fullscreenchange', restore);
+    } else {
+      restoreFocus(trigger);
+    }
+  };
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [useTextStyleMode, setUseTextStyleMode] = useState(false);
@@ -2998,6 +3038,16 @@ export const SlidePreview: React.FC = () => {
                     title={t('preview.nextPage')}
                     aria-label={t('preview.nextPage')}
                   />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={<Play size={18} />}
+                    data-play-trigger
+                    onClick={handleOpenPlayer}
+                    className="rounded-full px-2"
+                    title={t('preview.play')}
+                    aria-label={t('preview.play')}
+                  />
                   <div className="mx-1 h-5 w-px bg-gray-200 dark:bg-border-primary" />
                   {imageVersions.length > 1 && (
                     <VersionHistoryMenu
@@ -3169,6 +3219,18 @@ export const SlidePreview: React.FC = () => {
                     <span className="px-2 md:px-4 text-xs md:text-sm text-gray-600 dark:text-foreground-tertiary whitespace-nowrap">
                       {selectedIndex + 1} / {currentProject.pages.length}
                     </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={<Play size={16} className="md:w-[18px] md:h-[18px]" />}
+                      data-play-trigger
+                      onClick={handleOpenPlayer}
+                      className="text-xs md:text-sm"
+                      title={t('preview.play')}
+                      aria-label={t('preview.play')}
+                    >
+                      <span>{t('preview.play')}</span>
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -3767,6 +3829,17 @@ export const SlidePreview: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      {/* 在线播放：近似全屏 overlay，支持切换浏览器原生全屏 */}
+      <SlidePlayer
+        key={isPlayerOpen ? 'open' : 'closed'}
+        open={isPlayerOpen}
+        initialIndex={selectedIndex}
+        pages={currentProject.pages}
+        aspectRatio={aspectRatio}
+        onClose={handleClosePlayer}
+        onIndexChange={setSelectedIndex}
+      />
 
     </div>
   );
