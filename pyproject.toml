@@ -35,6 +35,7 @@ dependencies = [
     "dashscope>=1.25.0",
     "zhipuai>=2.1.5.20250708",
     "volcengine-python-sdk[ark]>=5.0.9",
+    "PyJWT>=2.8.0",
     "PyPDF2>=3.0.0",
     "PyMuPDF>=1.24.0",
     "edge-tts>=6.1.0",

@@ -23,6 +23,7 @@ from typing import Any, Dict, Optional
 
 from .text import TextProvider, GenAITextProvider, OpenAITextProvider, AnthropicTextProvider, LazyLLMTextProvider, CodexTextProvider
 from .image import ImageProvider, GenAIImageProvider, OpenAIImageProvider, AnthropicImageProvider, LazyLLMImageProvider, CodexImageProvider
+from .lazyllm_env import TEXT2IMAGE_CAPABLE_LAZYLLM_VENDORS
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ __all__ = [
 ]
 
 # LazyLLM vendor names (used to distinguish from gemini/openai formats)
-LAZYLLM_VENDORS = {'qwen', 'doubao', 'deepseek', 'glm', 'siliconflow', 'sensenova', 'minimax', 'kimi'}
+LAZYLLM_VENDORS = {'qwen', 'doubao', 'deepseek', 'glm', 'siliconflow', 'sensenova', 'minimax', 'kimi', 'ppio', 'aiping'}
 
 
 def _get_openai_oauth_token() -> Optional[str]:
@@ -188,7 +189,11 @@ def _build_provider_config() -> Dict[str, Any]:
         vendor = fmt if fmt in LAZYLLM_VENDORS else None
         cfg['format'] = 'lazyllm'
         cfg['text_source'] = _resolve_setting('TEXT_MODEL_SOURCE') or vendor or 'deepseek'
-        cfg['image_source'] = _resolve_setting('IMAGE_MODEL_SOURCE') or vendor or 'doubao'
+        # Vendors without a text2image supplier (kimi/ppio/deepseek/...) cannot
+        # generate images; fall back to a capable vendor like text does.
+        cfg['image_source'] = _resolve_setting('IMAGE_MODEL_SOURCE') or (
+            vendor if vendor in TEXT2IMAGE_CAPABLE_LAZYLLM_VENDORS else None
+        ) or 'doubao'
         logger.info("Provider config — format: lazyllm, vendor: %s, text_source: %s, image_source: %s",
                      vendor, cfg['text_source'], cfg['image_source'])
 
