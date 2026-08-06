@@ -30,6 +30,31 @@ def test_create_app_respects_database_url_env(monkeypatch, tmp_path):
     flask_app = app_module.create_app()
 
     assert flask_app.config['SQLALCHEMY_DATABASE_URI'] == db_uri
+    assert flask_app.config['SQLALCHEMY_ENGINE_OPTIONS']['connect_args']['check_same_thread'] is False
+
+
+def test_mysql_engine_options_do_not_include_sqlite_connect_args(monkeypatch, tmp_path):
+    _set_test_env(monkeypatch, tmp_path)
+    app_module = _reload_app_module()
+
+    options = app_module._engine_options_for_database_url(
+        'mysql+pymysql://banana:secret@mysql:3306/banana_slides'
+    )
+
+    assert 'connect_args' not in options
+    assert options['pool_pre_ping'] is True
+    assert options['pool_recycle'] == 3600
+    assert options['pool_size'] == 10
+    assert options['max_overflow'] == 50
+    assert options['pool_timeout'] == 30
+
+
+def test_sqlalchemy_extension_has_no_constructor_engine_options(monkeypatch, tmp_path):
+    _set_test_env(monkeypatch, tmp_path)
+    _reload_app_module()
+    models_module = importlib.import_module('models')
+
+    assert models_module.db._engine_options == {}
 
 
 def test_create_app_accepts_relative_database_path_env(monkeypatch, tmp_path):
@@ -43,7 +68,7 @@ def test_create_app_accepts_relative_database_path_env(monkeypatch, tmp_path):
 
     flask_app = app_module.create_app()
 
-    assert flask_app.config['SQLALCHEMY_DATABASE_URI'] == f"sqlite:///{tmp_path / 'desktop.db'}"
+    assert flask_app.config['SQLALCHEMY_DATABASE_URI'] == f"sqlite:///{(tmp_path / 'desktop.db').as_posix()}"
 
 
 def test_create_app_prefers_database_path_over_database_url(monkeypatch, tmp_path):
@@ -57,7 +82,7 @@ def test_create_app_prefers_database_path_over_database_url(monkeypatch, tmp_pat
 
     flask_app = app_module.create_app()
 
-    assert flask_app.config['SQLALCHEMY_DATABASE_URI'] == f"sqlite:///{db_path}"
+    assert flask_app.config['SQLALCHEMY_DATABASE_URI'] == f"sqlite:///{db_path.as_posix()}"
 
 
 def test_create_app_defaults_werkzeug_log_level_to_info(monkeypatch, tmp_path):

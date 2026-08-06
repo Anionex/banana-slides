@@ -207,6 +207,7 @@ def test_desktop_backend_repairs_old_settings_schema_before_update(tmp_path):
             assert "text_thinking_budget" in settings_columns
             assert "outline_requirements" in project_columns
             assert "description_requirements" in project_columns
+            assert "page_count" in project_columns
             assert "thumb_path" in template_columns
             value = conn.execute("SELECT enable_text_reasoning FROM settings WHERE id = 1").fetchone()[0]
             assert value == 1

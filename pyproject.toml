@@ -30,6 +30,7 @@ dependencies = [
     "tenacity>=9.0.0",
     "alembic>=1.13.0",
     "flask-migrate>=4.0.0",
+    "gunicorn>=23.0.0",
     "img2pdf>=0.5.1",
     "lazyllm>=0.7.3",
     "dashscope>=1.25.0",
@@ -43,6 +44,7 @@ dependencies = [
     "opencv-python-headless>=4.13.0.92",
     "elevenlabs>=2.45.0",
     "onnxruntime>=1.18.0",
+    "pymysql>=1.1.1",
 ]
 
 [project.optional-dependencies]
@@ -62,7 +64,7 @@ banana-cli = "cli.banana_cli.__main__:main"
 include = ["cli*"]
 
 [tool.uv]
-index-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+index-url = "https://pypi.org/simple"
 
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]

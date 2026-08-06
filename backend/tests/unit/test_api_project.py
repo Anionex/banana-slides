@@ -23,6 +23,64 @@ class TestProjectCreate:
         data = assert_success_response(response, 201)
         assert 'project_id' in data['data']
         assert data['data']['status'] == 'DRAFT'
+
+    def test_create_project_persists_requested_page_count(self, client):
+        response = client.post('/api/projects', json={
+            'creation_type': 'idea',
+            'idea_prompt': '生成三页产品介绍',
+            'page_count': 3,
+        })
+
+        created = assert_success_response(response, 201)['data']
+        project = assert_success_response(
+            client.get(f"/api/projects/{created['project_id']}")
+        )['data']
+        assert project['page_count'] == 3
+
+    @pytest.mark.parametrize('page_count', [0, 101, True, '3'])
+    def test_create_project_rejects_invalid_page_count(self, client, page_count):
+        response = client.post('/api/projects', json={
+            'creation_type': 'idea',
+            'idea_prompt': '页数校验',
+            'page_count': page_count,
+        })
+
+        data = assert_error_response(response, 400)
+        assert data['error']['message'] == 'page_count must be an integer between 1 and 100'
+
+    def test_outline_prompt_requires_exact_requested_page_count(self):
+        from services.ai_service import ProjectContext
+        from services.prompts import get_outline_generation_prompt
+
+        prompt = get_outline_generation_prompt(ProjectContext({
+            'creation_type': 'idea',
+            'idea_prompt': '三页产品介绍',
+            'page_count': 3,
+        }), language='zh')
+
+        assert 'Generate exactly 3 slides' in prompt
+        assert 'exactly 3 pages in total' in prompt
+
+    def test_outline_prompt_keeps_legacy_context_without_page_count(self):
+        from services.prompts import get_outline_generation_prompt
+
+        legacy_context = type('LegacyContext', (), {
+            'idea_prompt': '兼容旧版大纲提示词上下文',
+            'outline_requirements': None,
+            'reference_files_content': [],
+        })()
+
+        prompt = get_outline_generation_prompt(legacy_context, language='zh')
+
+        assert 'Choose an appropriate number of slides for the request.' in prompt
+
+    def test_outline_result_is_truncated_to_requested_page_count(self):
+        from controllers.project_controller import _enforce_requested_page_count
+
+        project = type('ProjectStub', (), {'page_count': 3})()
+        pages = [{'title': f'Page {index}'} for index in range(5)]
+
+        assert _enforce_requested_page_count(project, pages) == pages[:3]
     
     def test_create_project_outline_mode(self, client):
         """测试从大纲创建项目"""
@@ -33,6 +91,36 @@ class TestProjectCreate:
         
         data = assert_success_response(response, 201)
         assert 'project_id' in data['data']
+
+    def test_platform_create_is_idempotent(self, client, app):
+        payload = {
+            'creation_type': 'idea',
+            'idea_prompt': '平台幂等创建',
+            'platform_project_id': 42,
+            'idempotency_key': 'ppt-project:42:create',
+        }
+
+        first = assert_success_response(client.post('/api/projects', json=payload), 201)['data']
+        replay = assert_success_response(client.post('/api/projects', json=payload), 200)['data']
+
+        assert replay['project_id'] == first['project_id']
+        with app.app_context():
+            from models import Project
+            assert Project.query.count() == 1
+
+    def test_platform_create_rejects_idempotency_hash_conflict(self, client):
+        payload = {
+            'creation_type': 'idea',
+            'idea_prompt': '第一个请求',
+            'platform_project_id': 43,
+            'idempotency_key': 'ppt-project:43:create',
+        }
+        assert_success_response(client.post('/api/projects', json=payload), 201)
+
+        payload['idea_prompt'] = '同一个键但不同内容'
+        conflict = assert_error_response(client.post('/api/projects', json=payload), 409)
+
+        assert conflict['error']['code'] == 'IDEMPOTENCY_CONFLICT'
 
     @pytest.mark.parametrize('payload, expected_message', [
         (
