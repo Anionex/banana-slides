@@ -593,7 +593,8 @@ test.describe('Page properties drawer - integration', () => {
     await page.getByTestId('drawer-title-input').fill('集成标题')
     await page.getByTestId('drawer-part-input').fill('第一章')
     await clearAndType(descriptionBox(page), '集成描述内容')
-    await clearAndType(extraFieldBox(page, '视觉元素'), '一张折线图')
+    // 展示层使用新契约字段名（设置经后端映射后返回新名）
+    await clearAndType(extraFieldBox(page, '配图与素材'), '一张折线图')
     await page.getByTestId('drawer-narration-toggle').click()
     await page.getByTestId('drawer-narration-input').fill('集成旁白讲稿')
 
@@ -605,7 +606,7 @@ test.describe('Page properties drawer - integration', () => {
     expect(firstPage.outline_content.title).toBe('集成标题')
     expect(firstPage.part).toBe('第一章')
     expect(firstPage.description_content.text).toBe('集成描述内容')
-    expect(firstPage.description_content.extra_fields).toEqual({ 视觉元素: '一张折线图' })
+    expect(firstPage.description_content.extra_fields).toEqual({ 配图与素材: '一张折线图' })
     expect(firstPage.narration_text).toBe('集成旁白讲稿')
 
     // And the drawer rehydrates from the server after a reload.
@@ -613,7 +614,7 @@ test.describe('Page properties drawer - integration', () => {
     await expect(page.getByTestId('drawer-title-input')).toHaveValue('集成标题')
     await expect(page.getByTestId('drawer-part-input')).toHaveValue('第一章')
     await expect(descriptionBox(page)).toHaveText('集成描述内容')
-    await expect(extraFieldBox(page, '视觉元素')).toHaveText('一张折线图')
+    await expect(extraFieldBox(page, '配图与素材')).toHaveText('一张折线图')
     await page.getByTestId('drawer-narration-toggle').click()
     await expect(page.getByTestId('drawer-narration-input')).toHaveValue('集成旁白讲稿')
   })

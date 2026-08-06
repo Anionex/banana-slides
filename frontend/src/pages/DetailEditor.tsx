@@ -134,7 +134,12 @@ import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal,
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { refineDescriptions, getTaskStatus, addPages, updateProject, getSettings, updateSettings } from '@/api/endpoints';
-import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtils';
+import {
+  exportProjectToMarkdown,
+  isInImagePrompt,
+  parseMarkdownPages,
+  resolveExtraFieldName,
+} from '@/utils/projectUtils';
 
 // 详细程度图标 — 暂时屏蔽，效果不够理想
 // const DETAIL_LEVEL_LINES: Record<string, number[]> = {
@@ -243,7 +248,9 @@ export const DetailEditor: React.FC = () => {
       if (stored) {
         const parsed = JSON.parse(stored);
         // 缓存结构损坏时回落到默认值，否则后续 map/indexOf 会崩
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          return [...new Set(parsed.filter((x): x is string => typeof x === 'string').map(resolveExtraFieldName))];
+        }
       }
       return DEFAULT_EXTRA_FIELDS;
     } catch { return DEFAULT_EXTRA_FIELDS; }
@@ -268,12 +275,16 @@ export const DetailEditor: React.FC = () => {
         const storedLevel = sessionStorage.getItem('banana-detail-level');
         if (storedLevel) setDetailLevel(storedLevel);
         setGenerationMode(s.description_generation_mode || 'streaming');
-        const activeFields = s.description_extra_fields || DEFAULT_EXTRA_FIELDS;
+        const activeFields = (s.description_extra_fields || DEFAULT_EXTRA_FIELDS).map(resolveExtraFieldName);
         setExtraFieldNames(activeFields);
         if (s.image_prompt_extra_fields) setImagePromptFields(s.image_prompt_extra_fields);
         // 合并活跃字段到可选池
         setAvailableFields(prev => {
-          const merged = [...new Set([...prev, ...activeFields])];
+          // 旧版本缓存可能残留旧字段名胶囊，统一等价到新名并去重
+          const normalized = [
+            ...new Set(prev.filter((x): x is string => typeof x === 'string').map(resolveExtraFieldName)),
+          ];
+          const merged = [...new Set([...normalized, ...activeFields])];
           localStorage.setItem('banana-available-extra-fields', JSON.stringify(merged));
           return merged;
         });
@@ -834,12 +845,14 @@ export const DetailEditor: React.FC = () => {
                                   setExtraFieldNames(next);
                                   saveSettingsDebounced({ description_extra_fields: next.length > 0 ? next : DEFAULT_EXTRA_FIELDS });
                                 }}
-                                inImagePrompt={imagePromptFields.includes(name)}
-                                imagePromptTooltip={imagePromptFields.includes(name) ? t('detail.imagePromptOn') : t('detail.imagePromptOff')}
+                                inImagePrompt={isInImagePrompt(name, imagePromptFields)}
+                                imagePromptTooltip={isInImagePrompt(name, imagePromptFields) ? t('detail.imagePromptOn') : t('detail.imagePromptOff')}
                                 onToggleImagePrompt={() => {
-                                  const next = imagePromptFields.includes(name)
-                                    ? imagePromptFields.filter(f => f !== name)
-                                    : [...imagePromptFields, name];
+                                  // 开关统一操作等价新名，旧名胶囊也能正确切换
+                                  const eff = resolveExtraFieldName(name);
+                                  const next = imagePromptFields.includes(eff)
+                                    ? imagePromptFields.filter(f => f !== eff)
+                                    : [...imagePromptFields, eff];
                                   setImagePromptFields(next);
                                   saveSettingsDebounced({ image_prompt_extra_fields: next });
                                 }}
@@ -864,8 +877,9 @@ export const DetailEditor: React.FC = () => {
                         onKeyDown={e => {
                           if (e.key === 'Enter' && newFieldName.trim()) {
                             e.preventDefault();
-                            const trimmed = newFieldName.trim();
-                            if (!availableFields.includes(trimmed) && availableFields.length < 10) {
+                            // 输入旧字段名时等价到新名，避免产生语义重复胶囊
+                            const trimmed = resolveExtraFieldName(newFieldName.trim());
+                            if (trimmed && !availableFields.includes(trimmed) && availableFields.length < 10) {
                               const nextPool = [...availableFields, trimmed];
                               setAvailableFields(nextPool);
                               localStorage.setItem('banana-available-extra-fields', JSON.stringify(nextPool));
@@ -881,9 +895,9 @@ export const DetailEditor: React.FC = () => {
                       <button
                         type="button"
                         className="p-1 rounded-md text-gray-400 hover:text-banana-500 hover:bg-gray-100 dark:hover:bg-background-hover transition-colors disabled:opacity-40"
-                        disabled={!newFieldName.trim() || availableFields.includes(newFieldName.trim()) || availableFields.length >= 10}
+                        disabled={!newFieldName.trim() || availableFields.includes(resolveExtraFieldName(newFieldName.trim())) || availableFields.length >= 10}
                         onClick={() => {
-                          const trimmed = newFieldName.trim();
+                          const trimmed = resolveExtraFieldName(newFieldName.trim());
                           if (trimmed && !availableFields.includes(trimmed) && availableFields.length < 10) {
                             const nextPool = [...availableFields, trimmed];
                             setAvailableFields(nextPool);

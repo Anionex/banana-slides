@@ -350,6 +350,139 @@ def test_unknown_custom_field_still_filtered():
     assert result == '页面正文'
 
 
+def test_legacy_settings_fields_auto_map_to_new_trio(client):
+    """存量设置里的老四字段读取时自动等价到新三字段，去重保序。"""
+    with client.application.app_context():
+        settings = Settings.get_settings()
+        settings.description_extra_fields = json.dumps(
+            ['视觉元素', '视觉焦点', '排版布局', '演讲者备注'], ensure_ascii=False
+        )
+        db.session.commit()
+
+        assert settings.get_description_extra_fields() == ['配图与素材', '版式与重点', '演讲者备注']
+
+
+def test_legacy_settings_mapping_keeps_custom_fields_and_order(client):
+    """映射只作用于已知旧字段名；自定义字段原样保留，顺序不变。"""
+    with client.application.app_context():
+        settings = Settings.get_settings()
+        settings.description_extra_fields = json.dumps(
+            ['品牌规范', '视觉元素', '演讲者备注', '排版布局'], ensure_ascii=False
+        )
+        db.session.commit()
+
+        assert settings.get_description_extra_fields() == ['品牌规范', '配图与素材', '演讲者备注', '版式与重点']
+
+
+def test_legacy_settings_mapping_does_not_persist_to_db(client):
+    """读时映射不落库：数据库里仍是原样，仅返回值为新契约字段。"""
+    with client.application.app_context():
+        settings = Settings.get_settings()
+        settings.description_extra_fields = json.dumps(['视觉元素', '排版布局'], ensure_ascii=False)
+        db.session.commit()
+
+        assert settings.get_description_extra_fields() == ['配图与素材', '版式与重点']
+        assert json.loads(settings.description_extra_fields) == ['视觉元素', '排版布局']
+
+
+def test_legacy_image_prompt_settings_fields_auto_map(client):
+    """存量 image_prompt 设置里的旧字段名读取时同样等价到新字段名。"""
+    with client.application.app_context():
+        settings = Settings.get_settings()
+        settings.image_prompt_extra_fields = json.dumps(['视觉元素', '排版布局'], ensure_ascii=False)
+        db.session.commit()
+
+        assert settings.get_image_prompt_extra_fields() == ['配图与素材', '版式与重点']
+
+
+def test_legacy_image_prompt_settings_keeps_speaker_notes(client):
+    """显式配置演讲者备注进生图时，映射后仍保留（不因映射回退默认集合）。"""
+    with client.application.app_context():
+        settings = Settings.get_settings()
+        settings.image_prompt_extra_fields = json.dumps(['视觉元素', '演讲者备注'], ensure_ascii=False)
+        db.session.commit()
+
+        assert settings.get_image_prompt_extra_fields() == ['配图与素材', '演讲者备注']
+
+
+def test_to_dict_never_emits_legacy_field_names(client):
+    """to_dict 是前端消费的契约面：存量旧名设置序列化后只出现新名。"""
+    with client.application.app_context():
+        settings = Settings.get_settings()
+        settings.description_extra_fields = json.dumps(['视觉元素', '视觉焦点', '排版布局', '演讲者备注'], ensure_ascii=False)
+        settings.image_prompt_extra_fields = json.dumps(['视觉元素', '视觉焦点'], ensure_ascii=False)
+        db.session.commit()
+
+        d = settings.to_dict()
+        assert d['description_extra_fields'] == ['配图与素材', '版式与重点', '演讲者备注']
+        assert d['image_prompt_extra_fields'] == ['配图与素材', '版式与重点']
+        for legacy in ('视觉元素', '视觉焦点', '排版布局'):
+            assert legacy not in d['description_extra_fields']
+            assert legacy not in d['image_prompt_extra_fields']
+
+
+def test_new_page_fields_match_legacy_image_prompt_settings(client):
+    """新 key 页面内容在存量旧名 image_prompt 设置下仍进入文生图 prompt（H1 回归）。"""
+    with client.application.app_context():
+        settings = Settings.get_settings()
+        settings.image_prompt_extra_fields = json.dumps(['视觉元素', '视觉焦点'], ensure_ascii=False)
+        db.session.commit()
+
+        desc = '正文'
+        content = {'extra_fields': {'配图与素材': '折线图', '版式与重点': '左文右图'}}
+        result = _append_extra_fields(desc, content)
+        assert '配图与素材：折线图' in result
+        assert '版式与重点：左文右图' in result
+
+
+def test_legacy_page_fields_still_match_legacy_image_prompt_settings(client):
+    """旧 key 页面内容在存量旧名 image_prompt 设置下仍进入文生图 prompt。"""
+    with client.application.app_context():
+        settings = Settings.get_settings()
+        settings.image_prompt_extra_fields = json.dumps(['视觉元素', '视觉焦点'], ensure_ascii=False)
+        db.session.commit()
+
+        desc = '正文'
+        content = {'extra_fields': {'视觉元素': '折线图', '视觉焦点': '左文右图'}}
+        result = _append_extra_fields(desc, content)
+        assert '视觉元素：折线图' in result
+        assert '视觉焦点：左文右图' in result
+
+
+def test_legacy_settings_mapping_edge_cases(client):
+    """映射边界：空列表、非法 JSON、非字符串条目、混合新旧名去重、排版建议。"""
+    with client.application.app_context():
+        settings = Settings.get_settings()
+
+        # 显式保存的空列表保持为空（用户合法选择）；非法 JSON 回退默认
+        settings.description_extra_fields = json.dumps([], ensure_ascii=False)
+        db.session.commit()
+        assert settings.get_description_extra_fields() == []
+
+        settings.description_extra_fields = 'not-json'
+        db.session.commit()
+        assert settings.get_description_extra_fields() == list(Settings.DEFAULT_EXTRA_FIELDS)
+
+        # image_prompt 设置同样遵循空列表保持为空、非法 JSON 回退默认
+        settings.image_prompt_extra_fields = json.dumps([], ensure_ascii=False)
+        db.session.commit()
+        assert settings.get_image_prompt_extra_fields() == []
+
+        settings.image_prompt_extra_fields = 'not-json'
+        db.session.commit()
+        assert settings.get_image_prompt_extra_fields() == list(Settings.DEFAULT_IMAGE_PROMPT_FIELDS)
+
+        # 非字符串条目丢弃；混合新旧名去重保留新名
+        settings.description_extra_fields = json.dumps(['配图与素材', '视觉元素', 42, '演讲者备注'], ensure_ascii=False)
+        db.session.commit()
+        assert settings.get_description_extra_fields() == ['配图与素材', '演讲者备注']
+
+        # 排版建议 等价到 版式与重点
+        settings.description_extra_fields = json.dumps(['排版建议'], ensure_ascii=False)
+        db.session.commit()
+        assert settings.get_description_extra_fields() == ['版式与重点']
+
+
 def test_settings_default_getters_return_new_fields(client):
     with client.application.app_context():
         settings = Settings.get_settings()

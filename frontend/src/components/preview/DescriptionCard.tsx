@@ -5,6 +5,7 @@ import { useImagePaste, buildMaterialsMarkdown } from '@/hooks/useImagePaste';
 import { Card, ContextualStatusBadge, Button, Modal, Skeleton, Markdown, MaterialSelector } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { useDescriptionGeneratingState } from '@/hooks/useGeneratingState';
+import { buildExtraFieldEntries, isInImagePrompt } from '@/utils/projectUtils';
 import type { Page, DescriptionContent, Material } from '@/types';
 
 // DescriptionCard 组件自包含翻译
@@ -133,9 +134,11 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
   const handleEdit = () => {
     // 在打开编辑对话框时，从当前的 page 获取最新值
     const currentText = getDescriptionText(page.description_content);
-    const currentExtraFields = getExtraFields(page.description_content);
     setEditContent(currentText);
-    setEditExtraFields({ ...currentExtraFields });
+    // 同义旧键（视觉焦点/排版布局→版式与重点）合并后的值写入主键，编辑会话内即收敛
+    setEditExtraFields(
+      Object.fromEntries(fieldEntries.filter((e) => e.value).map((e) => [e.raw, e.value]))
+    );
     setIsEditing(true);
   };
 
@@ -158,6 +161,8 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
 
   // 合并已有和配置中的字段名（按配置顺序，附加已有但不在配置中的）
   const allFieldNames = [...new Set([...extraFieldNames, ...Object.keys(extraFields)])];
+  // 展示层把存量旧键名等价显示为新契约名；数据操作仍绑定原始键
+  const fieldEntries = buildExtraFieldEntries(allFieldNames, extraFields);
 
   return (
     <>
@@ -199,21 +204,21 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
           ) : text ? (
             <div className="text-sm text-gray-700 dark:text-foreground-secondary">
               <Markdown>{text}</Markdown>
-              {allFieldNames.map(name => {
-                const value = extraFields[name];
+              {fieldEntries.map(entry => {
+                const value = entry.value;
                 if (!value) return null;
                 // 新字段 + 旧字段名（存量数据不迁移，仍需正常展示）
                 const FIELD_ICONS: Record<string, typeof Tag> = {
                   '配图与素材': Image, '版式与重点': Layout, '演讲者备注': MessageSquare,
                   '视觉元素': Image, '视觉焦点': Focus, '排版布局': Layout, '排版建议': Layout,
                 };
-                const FieldIcon = FIELD_ICONS[name] || Tag;
-                const notInImagePrompt = imagePromptFields && !imagePromptFields.includes(name);
+                const FieldIcon = FIELD_ICONS[entry.display] || Tag;
+                const notInImagePrompt = imagePromptFields && !isInImagePrompt(entry.display, imagePromptFields);
                 return (
-                  <div key={name} className="mt-3 pt-3 border-t border-gray-100 dark:border-border-primary">
+                  <div key={entry.raw} className="mt-3 pt-3 border-t border-gray-100 dark:border-border-primary">
                     <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-foreground-tertiary mb-1">
                       <FieldIcon size={12} />
-                      <span className="font-medium">{name}</span>
+                      <span className="font-medium">{entry.display}</span>
                       {notInImagePrompt && (
                         <span className="relative group/nip">
                           <ImageOff size={11} className="opacity-50" />
@@ -280,19 +285,19 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
             placeholder={t('descriptionCard.descriptionPlaceholder')}
           />
           {/* 额外字段编辑 */}
-          {allFieldNames.map(name => (
+          {fieldEntries.map(entry => (
             <MarkdownTextarea
-              key={name}
-              ref={el => { extraFieldRefs.current[name] = el; }}
-              label={name}
-              value={editExtraFields[name] || ''}
-              onChange={v => setEditExtraFields(prev => ({ ...prev, [name]: v }))}
+              key={entry.raw}
+              ref={el => { extraFieldRefs.current[entry.raw] = el; }}
+              label={entry.display}
+              value={editExtraFields[entry.raw] || ''}
+              onChange={v => setEditExtraFields(prev => ({ ...prev, [entry.raw]: v }))}
               onPaste={handlePaste}
               onFiles={handleFiles}
-              onFocus={() => focusExtraField(name)}
+              onFocus={() => focusExtraField(entry.raw)}
               showUploadButton={false}
               rows={2}
-              placeholder={name}
+              placeholder={entry.display}
             />
           ))}
           <div className="flex justify-end gap-3 pt-4">
