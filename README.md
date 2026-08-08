@@ -582,16 +582,6 @@ Python 3.10+ + Flask 3.0 + uv + SQLite
 -->
 
 
-<div align="center">
-
- <br>
-
-<a href="https://api.chatfire.site/login?inviteCode=A15CD6A0"><img width="200" alt="image" src="https://github.com/user-attachments/assets/d6bd255f-ba2c-4ea3-bd90-fef292fc3397" />
-</a>
-
-感谢AI火宝对本项目的赞助
- 
-</div>
 
 
 ## 致谢
