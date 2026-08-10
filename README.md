@@ -191,6 +191,7 @@
 | 🔄 进行中 | Agent 模式 |
 | ✅ 已完成 | TTS 讲解视频导出（中/英/日多音色、字幕） |
 
+
 ## 📦 使用方法
 
 ### （新）使用应用模板一键部署
@@ -548,7 +549,7 @@ Python 3.10+ + Flask 3.0 + uv + SQLite
 本项目采用 **GNU Affero General Public License v3.0（AGPL-3.0）** 开源，
 可自由用于个人学习、研究、试验、教育或非营利科研活动等非商业用途；闭源商业用途需获取授权。
 
-如有疑问或合作意向，可联系: davidyang042@gmail.com
+如有疑问或合作意向、获取多租户商业版本，可联系: davidyang042@gmail.com
 
 
 
