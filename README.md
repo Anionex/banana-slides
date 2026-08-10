@@ -563,10 +563,10 @@ Python 3.10+ + Flask 3.0 + uv + SQLite
 
 
 <div align="center">
-<a href="中文链接">
+<a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">
     <img src="./assets/huoshan.png" alt="火山引擎" width="150"/ >
     <p>感谢<strong>火山引擎 </strong>赞助了本项目<br>
-      方舟 Agent Plan 限时2.5折订阅，<a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">点击链接抢购</a></p>
+      </p>
 </a>
 </div>
 
