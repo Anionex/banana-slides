@@ -519,8 +519,6 @@ Python 3.10+ + Flask 3.0 + uv + SQLite
 
 <p>
   <a href="https://x.com/anion_ex"><img src="https://img.shields.io/badge/X-@anion__ex-000000?style=flat-square&logo=x&logoColor=white" alt="X (Twitter)"></a>
-  <a href="https://www.xiaohongshu.com/user/profile/62e8f580000000001902fc9d"><img src="https://img.shields.io/badge/小红书-Anion-FF2442?style=flat-square&logo=xiaohongshu&logoColor=white" alt="小红书"></a>
-  <a href="https://space.bilibili.com/477162339"><img src="https://img.shields.io/badge/Bilibili-Anion-00A1D6?style=flat-square&logo=bilibili&logoColor=white" alt="Bilibili"></a>
 </p>
 
 
@@ -548,7 +546,7 @@ Python 3.10+ + Flask 3.0 + uv + SQLite
 ## 📄 许可证
 
 本项目采用 **GNU Affero General Public License v3.0（AGPL-3.0）** 开源，
-可自由用于个人学习、研究、试验、教育或非营利科研活动等非商业用途；
+可自由用于个人学习、研究、试验、教育或非营利科研活动等非商业用途；商业用途需获取授权。
 
 如有疑问或合作意向，可联系: davidyang042@gmail.com
 
