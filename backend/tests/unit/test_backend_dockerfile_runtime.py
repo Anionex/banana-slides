@@ -31,6 +31,19 @@ def test_lazyllm_runtime_provider_dependencies_are_packaged():
     assert any(dep.startswith("dashscope>=") for dep in dependencies)
 
 
+def test_requests_socks_runtime_dependency_is_packaged():
+    project_root = Path(__file__).resolve().parents[3]
+    data = tomllib.loads(
+        (project_root / "pyproject.toml").read_text(encoding="utf-8")
+    )
+    dependencies = data["project"]["dependencies"]
+    spec = project_root / "backend" / "banana-slides.spec"
+    spec_content = spec.read_text(encoding="utf-8")
+
+    assert any(dep.startswith("requests[socks]") for dep in dependencies)
+    assert "'requests', 'socks', 'aiohttp'" in spec_content
+
+
 def test_desktop_backend_collects_dynamic_lazyllm_suppliers():
     spec = Path(__file__).resolve().parents[2] / "banana-slides.spec"
     content = spec.read_text(encoding="utf-8")
