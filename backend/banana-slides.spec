@@ -77,7 +77,7 @@ hiddenimports = [
     # Image processing
     'PIL._imagingtk', 'PIL._tkinter_finder', 'numpy',
     # Utilities
-    'requests', 'aiohttp', 'tenacity',
+    'requests', 'socks', 'aiohttp', 'tenacity',
     'concurrent', 'concurrent.futures',
 ]
 
