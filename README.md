@@ -509,7 +509,7 @@ Python 3.10+ + Flask 3.0 + uv + SQLite
 
 欢迎在群中提出新功能建议或反馈～
 
-<img width="312" alt="image" src="https://github.com/user-attachments/assets/dd71fdb5-1ee8-4129-8596-f6e11b7962a0" />
+<img width="312" alt="image" src="https://github.com/user-attachments/assets/ae18242f-fb3d-4a76-94fc-49a131d44f81" />
 
 
 
