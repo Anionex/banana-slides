@@ -46,6 +46,10 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # 复制 nginx 配置文件
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
+# 修正静态资源权限（避免 build 出来是 600，nginx www-data 读不到 403）
+RUN chmod -R a+r /usr/share/nginx/html \
+    && find /usr/share/nginx/html -type d -exec chmod a+x {} +
+
 # 暴露端口
 EXPOSE 80
 
