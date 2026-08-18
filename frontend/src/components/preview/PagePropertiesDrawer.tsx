@@ -21,6 +21,7 @@ import { StatusBadge, MaterialSelector } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { TemplatePickerModal } from '@/components/template/TemplatePickerModal';
 import { getImageUrl } from '@/api/client';
+import { buildExtraFieldEntries, isInImagePrompt, resolveExtraFieldName } from '@/utils/projectUtils';
 import type { DescriptionContent, Material, Page, TemplateAsset } from '@/types';
 
 const drawerI18n = {
@@ -295,6 +296,14 @@ export const PagePropertiesDrawer: React.FC<PagePropertiesDrawerProps> = ({
   const serverExtraFieldsKey = JSON.stringify(serverExtraFields);
   const serverNarration = page?.narration_text ?? '';
   const serverTemplateStyle = page?.template_style_text ?? '';
+  // Settings order first, then fields already on the page that settings dropped.
+  const allFieldNames = [...new Set([...extraFieldNames, ...Object.keys(serverExtraFields)])];
+  // 展示层把存量旧键名等价显示为新契约名；同义旧键（视觉焦点/排版布局→版式与重点）合并
+  const fieldEntries = buildExtraFieldEntries(allFieldNames, serverExtraFields);
+  const fieldEntriesRef = useRef(fieldEntries);
+  useEffect(() => {
+    fieldEntriesRef.current = fieldEntries;
+  }, [fieldEntries]);
 
   // Async image uploads write back while unfocused, so the current drafts have
   // to be readable outside of React state closures. Sync from an effect rather
@@ -325,7 +334,10 @@ export const PagePropertiesDrawer: React.FC<PagePropertiesDrawerProps> = ({
     setTitle(serverTitle);
     setPart(serverPart);
     setDescription(serverDescription);
-    setExtraFields(JSON.parse(serverExtraFieldsKey));
+    // 同义旧键内容合并写入主键，抽屉会话内即收敛为映射后的展示模型
+    setExtraFields(
+      Object.fromEntries(fieldEntries.filter((e) => e.value).map((e) => [e.raw, e.value]))
+    );
     setNarration(serverNarration);
     setTemplateStyle(serverTemplateStyle);
   }, [
@@ -390,6 +402,12 @@ export const PagePropertiesDrawer: React.FC<PagePropertiesDrawerProps> = ({
     (name: string, updater: (prev: string) => string) => {
       const previous = extraFieldsRef.current;
       const next = { ...previous, [name]: updater(previous[name] || '') };
+      // 编辑等价组的主键时清掉组内其它原始键（视觉焦点/排版布局并存时收敛为 版式与重点）
+      for (const entry of fieldEntriesRef.current) {
+        if (entry.raw !== name && resolveExtraFieldName(entry.raw) === resolveExtraFieldName(name)) {
+          delete next[entry.raw];
+        }
+      }
       extraFieldsRef.current = next;
       setExtraFields(next);
       commitDescription(descriptionValueRef.current, next);
@@ -424,9 +442,6 @@ export const PagePropertiesDrawer: React.FC<PagePropertiesDrawerProps> = ({
     );
     activeInsertAtCursor.current?.(markdown + '\n');
   }, []);
-
-  // Settings order first, then fields already on the page that settings dropped.
-  const allFieldNames = [...new Set([...extraFieldNames, ...Object.keys(serverExtraFields)])];
 
   // ---- per-page template ----
   const templateAsset = page?.template_asset_id
@@ -745,15 +760,15 @@ export const PagePropertiesDrawer: React.FC<PagePropertiesDrawerProps> = ({
                     />
                   </div>
 
-                  {allFieldNames.map((name) => {
-                    const notInImagePrompt = imagePromptFields && !imagePromptFields.includes(name);
+                  {fieldEntries.map((entry) => {
+                    const notInImagePrompt = imagePromptFields && !isInImagePrompt(entry.display, imagePromptFields);
                     return (
-                      <div key={name} data-testid={`drawer-extra-field-${name}`}>
+                      <div key={entry.raw} data-testid={`drawer-extra-field-${entry.raw}`}>
                         <MarkdownTextarea
                           ref={(el) => {
-                            extraFieldRefs.current[name] = el;
+                            extraFieldRefs.current[entry.raw] = el;
                           }}
-                          label={name}
+                          label={entry.display}
                           toolbarLeft={
                             notInImagePrompt ? (
                               <span className="flex items-center gap-1 text-[10px] text-gray-400 dark:text-foreground-tertiary">
@@ -762,22 +777,22 @@ export const PagePropertiesDrawer: React.FC<PagePropertiesDrawerProps> = ({
                               </span>
                             ) : undefined
                           }
-                          value={extraFields[name] || ''}
-                          onChange={(value) => updateExtraField(name, () => value)}
+                          value={extraFields[entry.raw] || ''}
+                          onChange={(value) => updateExtraField(entry.raw, () => value)}
                           onPaste={handlePaste}
                           onFiles={handleFiles}
                           onFocus={() => {
-                            focusExtraField(name);
-                            setFocusedField(`extra:${name}`);
+                            focusExtraField(entry.raw);
+                            setFocusedField(`extra:${entry.raw}`);
                           }}
                           onBlur={() =>
                             setFocusedField((current) =>
-                              current === `extra:${name}` ? null : current
+                              current === `extra:${entry.raw}` ? null : current
                             )
                           }
                           showUploadButton={false}
                           rows={2}
-                          placeholder={name}
+                          placeholder={entry.display}
                         />
                       </div>
                     );

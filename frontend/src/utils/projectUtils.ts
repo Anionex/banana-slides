@@ -4,6 +4,65 @@ import { downloadFile } from './index';
 import { getT } from './i18nHelper';
 import i18n from '@/i18n';
 
+// 与后端 Settings.LEGACY_FIELD_EQUIV 保持一致：存量旧字段名等价到新契约字段
+export const EXTRA_FIELD_LEGACY_EQUIV: Record<string, string> = {
+  '视觉元素': '配图与素材',
+  '视觉焦点': '版式与重点',
+  '排版布局': '版式与重点',
+  '排版建议': '版式与重点',
+};
+
+/** 解析字段的等价新名；自定义字段原样返回 */
+export const resolveExtraFieldName = (name: string): string =>
+  EXTRA_FIELD_LEGACY_EQUIV[name] ?? name;
+
+/** 与后端 _append_extra_fields 同语义：原名或等价新名任一命中即视为进生图 */
+export const isInImagePrompt = (name: string, imagePromptFields?: string[]): boolean => {
+  if (!imagePromptFields) return false;
+  const resolved = resolveExtraFieldName(name);
+  return imagePromptFields.includes(name)
+    || imagePromptFields.includes(resolved)
+    || imagePromptFields.some((f) => resolveExtraFieldName(f) === resolved);
+};
+
+export interface ExtraFieldEntry {
+  /** 绑定数据用的原始键名（存量旧键保留原样，保存不回写新名） */
+  raw: string;
+  /** 展示用新契约字段名 */
+  display: string;
+  /** 合并后的展示/编辑值（同义旧键内容以换行拼接） */
+  value: string;
+}
+
+/**
+ * 把字段键名列表构建为展示条目：存量旧键等价显示为新契约名；
+ * 同义键（如 视觉焦点+排版布局 → 版式与重点）合并为一个条目，
+ * 优先保留有内容的原始键，内容以换行拼接，避免展示重复与内容丢失。
+ */
+export const buildExtraFieldEntries = (
+  names: readonly string[],
+  extraFields: Record<string, unknown> | undefined,
+): ExtraFieldEntry[] => {
+  const groups = new Map<string, string[]>();
+  for (const name of names) {
+    const display = resolveExtraFieldName(name);
+    const list = groups.get(display);
+    if (list) list.push(name);
+    else groups.set(display, [name]);
+  }
+  const entries: ExtraFieldEntry[] = [];
+  for (const [display, raws] of groups) {
+    const toText = (r: string) => {
+      const v = extraFields?.[r];
+      return v == null ? '' : String(v).trim();
+    };
+    const values = raws.map(toText).filter(Boolean);
+    const primary = raws.find((r) => toText(r)) ?? raws[0];
+    entries.push({ raw: primary, display, value: values.join('\n') });
+  }
+  return entries;
+};
+
 const utilsI18n = {
   zh: {
     projectUtils: {

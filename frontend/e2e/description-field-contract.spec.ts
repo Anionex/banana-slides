@@ -84,11 +84,12 @@ test.describe('字段契约 - Mock', () => {
     }
     // 退役字段不应出现在默认胶囊里
     for (const legacy of LEGACY_FIELDS) {
-      await expect(page.locator('button').filter({ hasText: new RegExp(`^${legacy}$`) })).toHaveCount(0);
+      // 胶囊文案带 tooltip 后缀（如「视觉元素该字段会影响…」），用前缀匹配才能命中
+      await expect(page.locator('button').filter({ hasText: new RegExp(`^${legacy}`) })).toHaveCount(0);
     }
   });
 
-  test('存量页面的旧字段名照常展示', async ({ page }) => {
+  test('存量页面的旧字段内容以新契约字段名展示', async ({ page }) => {
     const projectId = await createProjectWithPages(page, '旧字段兼容', ['第一页']);
     const pages = await getPages(page, projectId);
 
@@ -100,16 +101,68 @@ test.describe('字段契约 - Mock', () => {
     await page.goto(`${BASE_URL}/project/${projectId}/detail`);
     await page.waitForLoadState('networkidle');
 
-    await expect(page.locator('text=视觉元素')).toBeVisible({ timeout: 5000 });
+    // 展示层映射为新名：视觉元素→配图与素材、排版布局→版式与重点，内容不丢
+    await expect(page.locator('text=配图与素材')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('text=版式与重点')).toBeVisible();
     await expect(page.locator('text=关键指标卡片')).toBeVisible();
-    await expect(page.locator('text=排版布局')).toBeVisible();
     await expect(page.locator('text=左文右图')).toBeVisible();
+    for (const legacy of LEGACY_FIELDS) {
+      await expect(page.locator('text=' + legacy)).toHaveCount(0);
+    }
   });
 });
 
 // ===== 集成测试：真实后端 =====
 
 test.describe('字段契约 - 集成', () => {
+  test('存量旧名设置自动映射为新名胶囊，旧 key 页面不误标', async ({ page }) => {
+    const before = (await (await page.request.get(`${BASE_URL}/api/settings`)).json()).data;
+    const putResp = await page.request.put(`${BASE_URL}/api/settings`, {
+      data: {
+        description_extra_fields: ['视觉元素', '视觉焦点', '排版布局', '演讲者备注'],
+        image_prompt_extra_fields: ['视觉元素', '视觉焦点'],
+      },
+    });
+    expect(putResp.ok()).toBeTruthy();
+
+    try {
+      const projectId = await createProjectWithPages(page, '旧设置映射', ['第一页']);
+      const pages = await getPages(page, projectId);
+      await setPageDescription(page, projectId, pages[0].page_id, {
+        text: '正文内容',
+        extra_fields: { '视觉元素': '折线图', '视觉焦点': '左文右图' },
+      });
+
+      await page.goto(`${BASE_URL}/project/${projectId}/detail`);
+      await page.waitForLoadState('networkidle');
+
+      // 旧 key 页面内容以新契约名展示，且不出现「不影响图片生成」误标（经映射仍进生图）
+      await expect(page.locator('text=配图与素材')).toBeVisible({ timeout: 5000 });
+      await expect(page.locator('text=版式与重点')).toBeVisible();
+      await expect(page.locator('text=折线图')).toBeVisible();
+      await expect(page.locator('text=左文右图')).toBeVisible();
+      await expect(page.locator('svg.lucide-image-off')).toHaveCount(0);
+
+      // 设置面板胶囊显示映射后的新名，无旧名胶囊
+      const gearBtn = page.locator('button[title="描述设置"], button[title="Description Settings"]');
+      await gearBtn.click();
+      await expect(page.locator('button').filter({ hasText: '配图与素材' }).first()).toBeVisible({ timeout: 5000 });
+      await expect(page.locator('button').filter({ hasText: '版式与重点' }).first()).toBeVisible();
+      for (const legacy of LEGACY_FIELDS) {
+        await expect(page.locator('button').filter({ hasText: new RegExp(`^${legacy}`) })).toHaveCount(0);
+      }
+    } finally {
+      // 恢复原设置，避免影响同文件其他用例
+      await page.request.put(`${BASE_URL}/api/settings`, {
+        data: {
+          // GET 返回映射后的新名；空数组（显式清空）时回退默认，避免控制器 400
+          description_extra_fields: before?.description_extra_fields?.length ? before.description_extra_fields : NEW_FIELDS,
+          image_prompt_extra_fields: before?.image_prompt_extra_fields ?? ['配图与素材', '版式与重点'],
+        },
+      });
+    }
+  });
+
   test('新字段保存后刷新回显，清空后消失', async ({ page }) => {
     const projectId = await createProjectWithPages(page, '字段持久化', ['第一页']);
     const pages = await getPages(page, projectId);

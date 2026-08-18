@@ -116,17 +116,30 @@ describe('DescriptionCard', () => {
       expect(screen.getByText('左文右图')).toBeInTheDocument()
     })
 
-    // 存量数据不迁移：旧字段名必须照常展示，否则用户会以为内容丢了
+    // 存量数据不迁移键名，但展示层等价映射为新契约字段名（视觉元素→配图与素材、
+    // 视觉焦点/排版布局/排版建议→版式与重点），内容不丢
     it.each(['视觉元素', '视觉焦点', '排版布局', '排版建议'])(
-      'still renders legacy field %s stored on existing pages',
+      'renders legacy field %s content under the mapped new name',
       (legacyName) => {
         render(<DescriptionCard {...withFields({ [legacyName]: '存量内容' })}
           extraFieldNames={['配图与素材', '版式与重点', '演讲者备注']} />)
 
-        expect(screen.getByText(legacyName)).toBeInTheDocument()
+        const expectedDisplay = legacyName === '视觉元素' ? '配图与素材' : '版式与重点';
+        expect(screen.getByText(expectedDisplay)).toBeInTheDocument()
+        expect(screen.queryByText(legacyName)).not.toBeInTheDocument()
         expect(screen.getByText('存量内容')).toBeInTheDocument()
       }
     )
+
+    it('merges colliding legacy keys (视觉焦点+排版布局) into one 版式与重点 entry', () => {
+      render(<DescriptionCard {...withFields({ '视觉焦点': '企业级增速', '排版布局': '左文右图' })}
+        extraFieldNames={['配图与素材', '版式与重点', '演讲者备注']} />)
+
+      // 合并后只出现一个 版式与重点 条目，两块内容都保留
+      expect(screen.getAllByText('版式与重点')).toHaveLength(1)
+      expect(screen.getByText(/企业级增速/)).toBeInTheDocument()
+      expect(screen.getByText(/左文右图/)).toBeInTheDocument()
+    })
 
     it('marks fields excluded from the image prompt', () => {
       render(<DescriptionCard {...withFields({ '配图与素材': '折线图', '演讲者备注': '口头补充' })}
@@ -137,12 +150,32 @@ describe('DescriptionCard', () => {
       expect(screen.getByText('descriptionCard.notInImagePrompt')).toBeInTheDocument()
     })
 
+    it('does not mark legacy fields whose equivalent is in the image prompt', () => {
+      // 存量页面旧 key + 新名设置：后端按等价名拼进生图 prompt，UI 不应误标
+      render(<DescriptionCard {...withFields({ '视觉元素': '折线图', '视觉焦点': '左文右图' })}
+        extraFieldNames={['配图与素材', '版式与重点', '演讲者备注']}
+        imagePromptFields={['配图与素材', '版式与重点']} />)
+
+      expect(screen.queryByText('descriptionCard.notInImagePrompt')).not.toBeInTheDocument()
+    })
+
+    it('does not mark legacy fields when image prompt settings use legacy names', () => {
+      // 旧名设置 + 旧 key 页面：改动前行为同样不标记
+      render(<DescriptionCard {...withFields({ '视觉元素': '折线图' })}
+        extraFieldNames={['视觉元素', '视觉焦点', '排版布局', '演讲者备注']}
+        imagePromptFields={['视觉元素', '视觉焦点']} />)
+
+      expect(screen.queryByText('descriptionCard.notInImagePrompt')).not.toBeInTheDocument()
+    })
+
     it('keeps legacy fields editable in the edit dialog', () => {
       render(<DescriptionCard {...withFields({ '排版布局': '居中大标题' })}
         extraFieldNames={['配图与素材', '版式与重点', '演讲者备注']} />)
 
       fireEvent.click(screen.getByText('common.edit'))
 
+      // 编辑弹窗标签显示映射后的新名（卡片与弹窗各一处），值仍可编辑保存
+      expect(screen.getAllByText('版式与重点').length).toBeGreaterThan(0)
       expect(screen.getByDisplayValue('居中大标题')).toBeInTheDocument()
     })
   })
