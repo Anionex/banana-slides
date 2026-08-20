@@ -93,7 +93,9 @@ test.describe('Video export narration config', () => {
     await page.locator('select').nth(1).selectOption('potential investors and venture capitalists')
     await page.locator('select').nth(2).selectOption('inspiring, passionate, and persuasive')
     await page.locator('button:has-text("高级配置")').click()
-    await page.locator('input[type="text"]').fill('our company 2025 annual financial report and 2026 strategic plan')
+    await page
+      .getByPlaceholder(/例如：英伟达的发展史与技术演进|For example: the history and technological evolution of Nvidia/)
+      .fill('our company 2025 annual financial report and 2026 strategic plan')
     await page.locator('input[type="number"]').nth(0).fill('80')
     await page.locator('input[type="number"]').nth(1).fill('140')
     await page.locator('button:has-text("开始导出")').click()

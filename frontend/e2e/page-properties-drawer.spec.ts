@@ -116,17 +116,23 @@ const drawerWidth = (page: Page) =>
   drawer(page).evaluate((el) => Math.round(el.getBoundingClientRect().width))
 
 test.describe('Page properties drawer - UI (mock)', () => {
-  test('stays closed until asked for, leaving no inputs behind', async ({ page }) => {
+  test('opens by default on desktop and unmounts its inputs when collapsed', async ({ page }) => {
     await mockPreview(page)
     await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
-    await expect(page.getByTestId('toggle-page-properties')).toBeVisible()
 
-    // Collapsed to zero width, and its fields are out of the DOM entirely so
-    // they cannot collide with other selectors on the preview page.
-    expect(await drawerWidth(page)).toBe(0)
+    // Desktop first visit: the drawer is open by default so page properties
+    // are immediately editable.
+    expect(await drawerWidth(page)).toBeGreaterThan(0)
+    await expect(page.getByTestId('drawer-title-input')).toBeVisible()
+
+    // Collapse it — the aside stays mounted at zero width, and its fields leave
+    // the DOM entirely so they cannot collide with other selectors.
+    await page.getByRole('button', { name: '收起属性面板' }).click()
+    await expect.poll(() => drawerWidth(page)).toBe(0)
     await expect(page.getByTestId('drawer-title-input')).toHaveCount(0)
     await expect(page.getByTestId('drawer-resize-handle')).toHaveCount(0)
 
+    // And re-opening from the edge grip brings the fields back.
     await page.getByTestId('toggle-page-properties').click()
     await expect(page.getByTestId('drawer-title-input')).toBeVisible()
   })
