@@ -479,11 +479,11 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
       // Helper: Precise selector for "生成中" StatusBadge (orange background)
       // StatusBadge structure: <span class="bg-orange-100 text-orange-600 animate-pulse ...">生成中</span>
       // We use CSS class selector which is more reliable than text matching
-      const generatingBadgeSelector = 'span.bg-orange-100.text-orange-600'
+      const generatingBadgeSelector = 'aside:first-of-type span.bg-orange-100.text-orange-600'
       // Helper: Selector for failed status badges (red background)
-      const failedBadgeSelector = 'span.bg-red-100.text-red-600'
+      const failedBadgeSelector = 'aside:first-of-type span.bg-red-100.text-red-600'
       // Helper: Selector for completed status badges (green background)
-      const _completedBadgeSelector = 'span.bg-green-100.text-green-600'
+      const _completedBadgeSelector = 'aside:first-of-type span.bg-green-100.text-green-600'
       // Helper: Image selector for generated slide images
       // Generated images are stored at: /files/{project_id}/pages/{page_id}_v{version}.png
       // Template images are at: /files/{project_id}/template/template.png (excluded)

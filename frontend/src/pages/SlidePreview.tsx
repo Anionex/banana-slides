@@ -317,7 +317,7 @@ import { materialUrlToFile } from '@/components/shared/MaterialSelector';
 import { triggerDownload } from '@/api/client';
 import type { Material } from '@/api/endpoints';
 import { SlideCard } from '@/components/preview/SlideCard';
-import { PagePropertiesDrawer, readStoredDrawerWidth } from '@/components/preview/PagePropertiesDrawer';
+import { PagePropertiesDrawer, clampWidth, readStoredDrawerWidth } from '@/components/preview/PagePropertiesDrawer';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useExportTasksStore, type ExportTaskType } from '@/store/useExportTasksStore';
 import { getImageUrl } from '@/api/client';
@@ -597,11 +597,18 @@ export const SlidePreview: React.FC = () => {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [imageVersions, setImageVersions] = useState<ImageVersion[]>([]);
-  // 页面属性抽屉：默认收起，展开状态与宽度都记忆在本地
-  const [isPropertiesOpen, setIsPropertiesOpen] = useState(
-    () => localStorage.getItem('previewDrawer.open') === 'true'
+  // 页面属性抽屉：桌面端（lg+）首次进入默认展开；窄屏浮层会盖住预览，保持默认收起。
+  // 用户显式收起/展开后，状态记忆在本地，不再被默认值覆盖。
+  const [isPropertiesOpen, setIsPropertiesOpen] = useState(() => {
+    const stored = localStorage.getItem('previewDrawer.open');
+    if (stored !== null) return stored === 'true';
+    // 768-1023px 下左侧缩略图栏（320px）加上抽屉会让预览区几乎不可用，保持默认收起
+    return window.matchMedia('(min-width: 1024px)').matches;
+  });
+  // 初始宽度也要按视口钳制：小窗口下沿用大屏记忆的 640px 会把预览区挤没
+  const [propertiesWidth, setPropertiesWidth] = useState(() =>
+    clampWidth(readStoredDrawerWidth(), window.innerWidth)
   );
-  const [propertiesWidth, setPropertiesWidth] = useState(readStoredDrawerWidth);
   // 就地编辑态（lg+）：幻灯片上移让位给指令区，在大图上直接框选。
   // 窄屏放不下上下分栏，仍走原来的编辑弹窗。
   const [isInlineEditing, setIsInlineEditing] = useState(false);
@@ -618,6 +625,34 @@ export const SlidePreview: React.FC = () => {
   const handlePropertiesWidthChange = useCallback((width: number) => {
     setPropertiesWidth(width);
     localStorage.setItem('previewDrawer.width', String(width));
+  }, []);
+  // 窗口尺寸变化后按新视口重新钳制抽屉宽度，避免从大屏缩小时抽屉仍挤占预览区。
+  // 以 localStorage 里的用户偏好为基准，回到大屏后同一会话内也能恢复原来的宽度；
+  // 这里不写 localStorage，响应式收敛不会覆盖用户偏好。
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const onResize = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        setPropertiesWidth(() => clampWidth(readStoredDrawerWidth(), window.innerWidth));
+      }, 150);
+    };
+    window.addEventListener('resize', onResize);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', onResize);
+    };
+  }, []);
+  // 跨 lg 断点缩放时同步「首次默认展开/收起」的语义：用户从未显式开关过就跟随断点
+  // 自动收起/展开；显式选择过则尊重用户选择，不覆盖 localStorage。
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const onChange = () => {
+      if (localStorage.getItem('previewDrawer.open') !== null) return;
+      setIsPropertiesOpen(mq.matches);
+    };
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
   }, []);
   // 抽屉里改页级模板：选图和模板提示词都走 PATCH，不经过页面字段的防抖队列
   const handleUpdatePageTemplate = useCallback(
@@ -2169,7 +2204,7 @@ export const SlidePreview: React.FC = () => {
                 )}
               </Button>
               {showExportTasksPanel && (
-                <div className="absolute right-0 mt-2 z-20">
+                <div data-testid="export-tasks-popover" className="absolute right-0 mt-2 z-20">
                   <ExportTasksPanel
                     projectId={projectId}
                     pages={currentProject?.pages || []}
