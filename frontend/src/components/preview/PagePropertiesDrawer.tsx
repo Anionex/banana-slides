@@ -576,8 +576,9 @@ export const PagePropertiesDrawer: React.FC<PagePropertiesDrawerProps> = ({
         aria-hidden={!isOpen}
         style={{ width: isOpen ? width : 0 }}
         className={cn(
-          'z-40 flex min-h-0 flex-shrink-0 flex-col overflow-hidden border-gray-200 bg-white dark:border-border-primary dark:bg-background-secondary',
-          'fixed inset-y-0 right-0 max-w-[88vw] shadow-2xl md:relative md:max-w-none md:shadow-none',
+          'flex min-h-0 flex-shrink-0 flex-col overflow-hidden border-gray-200 bg-white dark:border-border-primary dark:bg-background-secondary',
+          // 桌面端抽屉是文档流内的普通兄弟节点，不需要 z-40；否则会盖住顶栏下拉层
+          'fixed inset-y-0 right-0 z-40 max-w-[88vw] shadow-2xl md:relative md:z-auto md:max-w-none md:shadow-none',
           !isDragging && 'transition-[width] duration-300 ease-out',
           // 收起时不能留下 1px 边框，否则预览区右侧会有一条竖线
           isOpen ? 'md:border-l' : 'pointer-events-none'

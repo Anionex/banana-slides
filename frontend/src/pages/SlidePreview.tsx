@@ -2169,7 +2169,7 @@ export const SlidePreview: React.FC = () => {
                 )}
               </Button>
               {showExportTasksPanel && (
-                <div className="absolute right-0 mt-2 z-20">
+                <div data-testid="export-tasks-popover" className="absolute right-0 mt-2 z-20">
                   <ExportTasksPanel
                     projectId={projectId}
                     pages={currentProject?.pages || []}

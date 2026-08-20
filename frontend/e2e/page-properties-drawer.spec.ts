@@ -435,6 +435,57 @@ test.describe('Page properties drawer - UI (mock)', () => {
     await expect.poll(() => drawerWidth(page)).toBe(0)
   })
 
+  test('does not let the drawer occlude the export tasks popover on desktop', async ({ page }) => {
+    await mockPreview(page)
+    await openDrawerByDefault(page, 640)
+    await page.route(`**/api/projects/${MOCK_PROJECT_ID}/exports`, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            files: [{
+              filename: 'demo.pdf',
+              type: 'pdf',
+              size: 1024,
+              modified_at: new Date().toISOString(),
+              download_url: '/files/demo.pdf',
+            }],
+          },
+        }),
+      })
+    )
+
+    await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
+    await page.getByLabel('导出任务').click()
+
+    const popover = page.getByTestId('export-tasks-popover')
+    await expect(popover).toBeVisible()
+    await expect(popover).toContainText('demo.pdf')
+
+    // 桌面端抽屉参与文档流布局，不应再靠 z-40 浮在下拉层之上。
+    expect(await drawer(page).evaluate((el) => getComputedStyle(el).zIndex)).toBe('auto')
+
+    const drawerBox = await drawer(page).boundingBox()
+    const popoverBox = await popover.boundingBox()
+    expect(drawerBox).not.toBeNull()
+    expect(popoverBox).not.toBeNull()
+    // 只有当弹层确实延伸到抽屉区域下方时，这个用例才有验证意义。
+    expect(popoverBox!.x + popoverBox!.width).toBeGreaterThan(drawerBox!.x)
+
+    // 取弹层右上角一个会被旧 z-40 抽屉盖住的点，命中元素必须仍属于弹层。
+    const topIsPopover = await page.evaluate(({ x, y }) => {
+      const el = document.elementFromPoint(x, y)
+      const popoverEl = document.querySelector('[data-testid="export-tasks-popover"]')
+      return !!popoverEl && (popoverEl === el || popoverEl.contains(el))
+    }, {
+      x: popoverBox!.x + popoverBox!.width - 8,
+      y: popoverBox!.y + 16,
+    })
+    expect(topIsPopover).toBe(true)
+  })
+
   test('shows the per-page template section only in multi-template mode', async ({ page }) => {
     await mockPreview(page)
     await openDrawerByDefault(page)
