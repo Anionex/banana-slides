@@ -2137,6 +2137,8 @@ export const SlidePreview: React.FC = () => {
               variant="secondary"
               size="sm"
               data-testid="preview-previous-step"
+              aria-label={t('common.previous')}
+              title={t('common.previous')}
               icon={<ArrowLeft size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={() => navigate(`/project/${projectId}/detail`)}
               className="flex-shrink-0"
