@@ -50,6 +50,9 @@
 
 ## 🔥 最新动态
 - **[2026-08-20]**：0.9.0 候选版本 4 发布，重点修复桌面打包版 LazyLLM 在线供应商不可用（qwen 等）与 SOCKS 代理依赖缺失，并恢复预览页「上一步」返回描述编辑页、修复导出任务弹层遮挡与桌面端属性抽屉交互；[一键下载并安装](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.4)
+- **[2026-08-20]**：预览页恢复「上一步」按钮，可从幻灯片预览一键返回描述编辑页继续修改
+- **[2026-08-20]**：修复导出任务弹层被页面属性抽屉遮挡的问题；桌面端页面属性抽屉默认展开并自动适配窗口宽度
+- **[2026-07-31]**：桌面打包版完整注册 11 家 LazyLLM 在线供应商（qwen / doubao / deepseek / glm / kimi / minimax / sensenova / siliconflow / ppio / aiping / openai），修复打包版报 `Unsupported source: qwen` 的问题
 - **[2026-08-06]**：0.9.0 候选版本 3 发布，重点修复火山引擎 Agent Plans 配置与凭据恢复，并带来大纲流隔离、幻灯片就地编辑、字段契约 v2、模板匹配和可编辑 PPTX 导出改进；[一键下载并安装](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.3)
 - **[2026-07-15]**：自定义大纲/描述要求预设现在会自动修复损坏的浏览器缓存，保留仍然有效的预设，避免异常缓存阻断编辑页面
 - **[2026-07-11]**：0.9.0 候选版本 2 发布，包含 RC1 的全部能力，并修复 Windows 桌面端可编辑 PPTX 的 MinerU 目录不一致、讲解视频 FFprobe 路径错误；[一键下载并安装](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.2)

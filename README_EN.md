@@ -51,6 +51,9 @@
 ## 🔥 Latest Updates
 
 - **[2026-08-20]**: Release Candidate 4 of v0.9.0 is available, fixing unavailable LazyLLM online providers (qwen etc.) and missing SOCKS proxy dependencies in desktop builds, restoring the previous-step button to return to the description editor, and fixing export task dialog occlusion and desktop property drawer interaction; [One-click download and install](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.4)
+- **[2026-08-20]**: The preview page restores the "Previous Step" button, letting you return to the description editor from the slide preview with one click
+- **[2026-08-20]**: Fixed the export task dialog being occluded by the page properties drawer; the desktop drawer now expands by default and adapts to the window width
+- **[2026-07-31]**: Desktop builds now register all 11 LazyLLM online providers (qwen / doubao / deepseek / glm / kimi / minimax / sensenova / siliconflow / ppio / aiping / openai), fixing the "Unsupported source: qwen" error in packaged apps
 - **[2026-08-06]**: Release Candidate 3 of v0.9.0 is available, with major fixes for Volcengine Agent Plans configuration and credential recovery, plus isolated outline streams, in-place slide editing, field contract v2, template matching, and editable PPTX export improvements; [One-click download and install](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.3)
 - **[2026-07-15]**: Custom outline/description requirement presets now automatically repair corrupted browser cache, retaining valid presets to prevent abnormal cache from blocking the editing page
 - **[2026-07-11]**: Release Candidate 2 of v0.9.0 is released, containing all capabilities of RC1, and fixing the inconsistent MinerU directory for editable PPTX on Windows desktop, and incorrect FFprobe path for explanation videos; [One-click download and install](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.2)
