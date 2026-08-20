@@ -626,6 +626,22 @@ export const SlidePreview: React.FC = () => {
     setPropertiesWidth(width);
     localStorage.setItem('previewDrawer.width', String(width));
   }, []);
+  // 窗口尺寸变化后按新视口重新钳制抽屉宽度，避免从大屏缩小时抽屉仍挤占预览区。
+  // 不写 localStorage：这是纯响应式收敛，回到大屏后仍沿用用户的宽度偏好。
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const onResize = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        setPropertiesWidth((width) => clampWidth(width, window.innerWidth));
+      }, 150);
+    };
+    window.addEventListener('resize', onResize);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', onResize);
+    };
+  }, []);
   // 抽屉里改页级模板：选图和模板提示词都走 PATCH，不经过页面字段的防抖队列
   const handleUpdatePageTemplate = useCallback(
     (pageId: string, patch: { template_asset_id?: string | null; template_style_text?: string | null }) =>

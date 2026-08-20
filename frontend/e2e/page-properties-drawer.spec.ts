@@ -158,6 +158,32 @@ test.describe('Page properties drawer - UI (mock)', () => {
     expect(await drawerWidth(page)).toBe(300)
   })
 
+  test('clamps the double-click reset to the viewport at the lg breakpoint', async ({ page }) => {
+    await mockPreview(page)
+    await openDrawerByDefault(page, 400)
+    await page.setViewportSize({ width: 1024, height: 900 })
+    await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
+
+    // 初始 400px 已按视口收敛到 300px；双击把手若直接写 380px 会把预览区重新挤窄。
+    await expect(page.getByTestId('drawer-title-input')).toBeVisible()
+    expect(await drawerWidth(page)).toBe(300)
+    await page.getByTestId('drawer-resize-handle').dblclick()
+    await expect.poll(() => drawerWidth(page)).toBe(300)
+  })
+
+  test('re-clamps the drawer width when the window shrinks', async ({ page }) => {
+    await mockPreview(page)
+    await openDrawerByDefault(page, 640)
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
+    await expect.poll(() => drawerWidth(page)).toBe(640)
+
+    // 响应式收敛只影响当前渲染，不覆盖大屏下保存的宽度偏好。
+    await page.setViewportSize({ width: 1024, height: 900 })
+    await expect.poll(() => drawerWidth(page)).toBe(300)
+    expect(await page.evaluate(() => localStorage.getItem('previewDrawer.width'))).toBe('640')
+  })
+
   test('toggles open/closed and remembers the choice across reloads', async ({ page }) => {
     await mockPreview(page)
     await openDrawerByDefault(page)

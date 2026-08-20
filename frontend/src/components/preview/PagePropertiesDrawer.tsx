@@ -600,7 +600,7 @@ export const PagePropertiesDrawer: React.FC<PagePropertiesDrawerProps> = ({
               onPointerMove={handleResizeMove}
               onPointerUp={handleResizeEnd}
               onPointerCancel={handleResizeEnd}
-              onDoubleClick={() => onWidthChange(DRAWER_DEFAULT_WIDTH)}
+              onDoubleClick={() => onWidthChange(clampWidth(DRAWER_DEFAULT_WIDTH, window.innerWidth))}
               onKeyDown={handleResizeKeyDown}
               className="group absolute inset-y-0 left-0 z-10 hidden w-1.5 cursor-col-resize focus:outline-none md:block"
             >
