@@ -2031,6 +2031,8 @@ export const SlidePreview: React.FC = () => {
               variant="ghost"
               size="sm"
               icon={<ArrowLeft size={16} className="md:w-[18px] md:h-[18px]" />}
+              aria-label={t('common.back')}
+              title={t('common.back')}
               onClick={() => {
                 if (fromHistory) {
                   navigate('/history');

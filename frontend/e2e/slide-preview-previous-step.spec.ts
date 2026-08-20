@@ -18,6 +18,7 @@ function mockProject() {
         id: 'page-1',
         page_id: 'page-1',
         order_index: 0,
+        sort_order: 0,
         status: 'COMPLETED',
         generated_image_path: `/files/mock/1.png`,
         generated_image_url: `/files/mock/1.png`,
@@ -70,6 +71,17 @@ async function mockPreview(page: Page) {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({ success: true, data: mockProject() }),
+      })
+    }
+
+    if (url.pathname === '/api/projects' && route.request().method() === 'GET') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { projects: [mockProject()], total: 1, limit: 12, offset: 0 },
+        }),
       })
     }
 
@@ -142,6 +154,40 @@ test.describe('SlidePreview previous-step navigation (mock)', () => {
     await page.getByRole('button', { name: /返回|Back/ }).click()
     await expect(page).toHaveURL(new RegExp(`/project/${PROJECT_ID}/detail$`))
     await expect(page.getByText('第一页描述')).toBeVisible()
+  })
+
+  test('history entry: back goes to history while previous-step goes to the description editor', async ({ page }) => {
+    await mockPreview(page)
+    await page.goto('/history')
+    await page.waitForLoadState('networkidle')
+
+    const projectCard = page.locator('div.cursor-pointer', { hasText: '上一步按钮测试项目' }).first()
+    await expect(projectCard).toBeVisible()
+
+    await projectCard.click()
+    await expect(page).toHaveURL(new RegExp(`/project/${PROJECT_ID}/preview$`))
+
+    await page.getByRole('button', { name: /返回|Back/ }).click()
+    await expect(page).toHaveURL(/\/history$/)
+
+    await projectCard.click()
+    await expect(page).toHaveURL(new RegExp(`/project/${PROJECT_ID}/preview$`))
+    await page.getByTestId('preview-previous-step').click()
+    await expect(page).toHaveURL(new RegExp(`/project/${PROJECT_ID}/detail$`))
+  })
+
+  test('narrow 320px viewport: header stays within the viewport and previous-step remains reachable', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 700 })
+    await mockPreview(page)
+    await page.goto(`/project/${PROJECT_ID}/preview`)
+    await page.waitForLoadState('networkidle')
+
+    const previousStep = page.getByTestId('preview-previous-step')
+    await expect(previousStep).toBeVisible()
+    const horizontalOverflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth
+    )
+    expect(horizontalOverflow).toBeLessThanOrEqual(0)
   })
 })
 
