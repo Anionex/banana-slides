@@ -126,6 +126,8 @@ test.describe('SlidePreview previous-step navigation (mock)', () => {
     const previousStep = page.getByTestId('preview-previous-step')
     await expect(previousStep).toBeVisible()
     await expect(previousStep).toContainText(/上一步|Previous/)
+    await expect(previousStep).toHaveAccessibleName(/上一步|Previous/)
+    await expect(page.getByRole('button', { name: /返回|Back/ })).toHaveAccessibleName(/返回|Back/)
 
     await previousStep.click()
     await expect(page).toHaveURL(new RegExp(`/project/${PROJECT_ID}/detail$`))
@@ -157,6 +159,7 @@ test.describe('SlidePreview previous-step navigation (mock)', () => {
   })
 
   test('history entry: back goes to history while previous-step goes to the description editor', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 })
     await mockPreview(page)
     await page.goto('/history')
     await page.waitForLoadState('networkidle')
@@ -188,6 +191,8 @@ test.describe('SlidePreview previous-step navigation (mock)', () => {
       () => document.documentElement.scrollWidth - window.innerWidth
     )
     expect(horizontalOverflow).toBeLessThanOrEqual(0)
+    await previousStep.click()
+    await expect(page).toHaveURL(new RegExp(`/project/${PROJECT_ID}/detail$`))
   })
 })
 

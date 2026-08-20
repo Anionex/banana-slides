@@ -285,6 +285,7 @@ const previewI18n = {
 import {
   Home,
   ArrowLeft,
+  StepBack,
   Download,
   RefreshCw,
   ChevronLeft,
@@ -2141,7 +2142,7 @@ export const SlidePreview: React.FC = () => {
               data-testid="preview-previous-step"
               aria-label={t('common.previous')}
               title={t('common.previous')}
-              icon={<ArrowLeft size={16} className="md:w-[18px] md:h-[18px]" />}
+              icon={<StepBack size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={() => navigate(`/project/${projectId}/detail`)}
               className="flex-shrink-0"
             >
