@@ -171,7 +171,7 @@ test.describe('Page properties drawer - UI (mock)', () => {
     await expect.poll(() => drawerWidth(page)).toBe(300)
   })
 
-  test('re-clamps the drawer width when the window shrinks', async ({ page }) => {
+  test('re-clamps the drawer width when the window shrinks and restores the preference when enlarged', async ({ page }) => {
     await mockPreview(page)
     await openDrawerByDefault(page, 640)
     await page.setViewportSize({ width: 1440, height: 900 })
@@ -182,6 +182,41 @@ test.describe('Page properties drawer - UI (mock)', () => {
     await page.setViewportSize({ width: 1024, height: 900 })
     await expect.poll(() => drawerWidth(page)).toBe(300)
     expect(await page.evaluate(() => localStorage.getItem('previewDrawer.width'))).toBe('640')
+
+    // 回到大屏后同一会话内恢复用户偏好的 640px，不需要刷新页面。
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await expect.poll(() => drawerWidth(page)).toBe(640)
+  })
+
+  test('reapplies the first-visit default when resizing across the lg breakpoint', async ({ page }) => {
+    await mockPreview(page)
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
+    await expect(page.getByTestId('drawer-title-input')).toBeVisible()
+
+    // 从未显式开关过抽屉：缩到平板宽度应自动收起，回到桌面应恢复默认展开。
+    await page.setViewportSize({ width: 800, height: 900 })
+    await expect.poll(() => drawerWidth(page)).toBe(0)
+    await expect(page.getByTestId('drawer-title-input')).toHaveCount(0)
+
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await expect(page.getByTestId('drawer-title-input')).toBeVisible()
+  })
+
+  test('keeps the user explicit drawer choice when resizing across the lg breakpoint', async ({ page }) => {
+    await mockPreview(page)
+    await openDrawerByDefault(page, 380)
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
+    await expect(page.getByTestId('drawer-title-input')).toBeVisible()
+
+    // 用户显式展开过：缩到平板只收敛宽度、不强行收起，回到桌面宽度也按偏好恢复。
+    await page.setViewportSize({ width: 800, height: 900 })
+    await expect.poll(() => drawerWidth(page)).toBe(300)
+    await expect(page.getByTestId('drawer-title-input')).toBeVisible()
+
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await expect.poll(() => drawerWidth(page)).toBe(380)
   })
 
   test('toggles open/closed and remembers the choice across reloads', async ({ page }) => {
@@ -692,41 +727,42 @@ test.describe('Page properties drawer - integration', () => {
     // 先显式写入设置，保证在干净环境（如 nightly）下也能稳定复现。
     const defaultExtraFields = ['配图与素材', '版式与重点', '演讲者备注']
     await request.put('/api/settings', { data: { description_extra_fields: ['视觉元素'] } })
+    try {
+      const { projectId } = await seedProjectWithImages(baseURL!, 2)
+      await openDrawerByDefault(page)
+      await page.goto(`/project/${projectId}/preview`)
 
-    const { projectId } = await seedProjectWithImages(baseURL!, 2)
-    await openDrawerByDefault(page)
-    await page.goto(`/project/${projectId}/preview`)
+      await expect(drawer(page)).toBeVisible()
 
-    await expect(drawer(page)).toBeVisible()
+      await page.getByTestId('drawer-title-input').fill('集成标题')
+      await page.getByTestId('drawer-part-input').fill('第一章')
+      await clearAndType(descriptionBox(page), '集成描述内容')
+      await clearAndType(extraFieldBox(page, '视觉元素'), '一张折线图')
+      await page.getByTestId('drawer-narration-toggle').click()
+      await page.getByTestId('drawer-narration-input').fill('集成旁白讲稿')
 
-    await page.getByTestId('drawer-title-input').fill('集成标题')
-    await page.getByTestId('drawer-part-input').fill('第一章')
-    await clearAndType(descriptionBox(page), '集成描述内容')
-    await clearAndType(extraFieldBox(page, '视觉元素'), '一张折线图')
-    await page.getByTestId('drawer-narration-toggle').click()
-    await page.getByTestId('drawer-narration-input').fill('集成旁白讲稿')
+      await expect(page.getByTestId('drawer-save-state')).toContainText('已保存', { timeout: 10000 })
 
-    await expect(page.getByTestId('drawer-save-state')).toContainText('已保存', { timeout: 10000 })
+      // Persisted server-side, not just optimistically in the store.
+      const resp = await request.get(`/api/projects/${projectId}`)
+      const firstPage = (await resp.json()).data.pages[0]
+      expect(firstPage.outline_content.title).toBe('集成标题')
+      expect(firstPage.part).toBe('第一章')
+      expect(firstPage.description_content.text).toBe('集成描述内容')
+      expect(firstPage.description_content.extra_fields).toEqual({ 视觉元素: '一张折线图' })
+      expect(firstPage.narration_text).toBe('集成旁白讲稿')
 
-    // Persisted server-side, not just optimistically in the store.
-    const resp = await request.get(`/api/projects/${projectId}`)
-    const firstPage = (await resp.json()).data.pages[0]
-    expect(firstPage.outline_content.title).toBe('集成标题')
-    expect(firstPage.part).toBe('第一章')
-    expect(firstPage.description_content.text).toBe('集成描述内容')
-    expect(firstPage.description_content.extra_fields).toEqual({ 视觉元素: '一张折线图' })
-    expect(firstPage.narration_text).toBe('集成旁白讲稿')
-
-    // And the drawer rehydrates from the server after a reload.
-    await page.reload()
-    await expect(page.getByTestId('drawer-title-input')).toHaveValue('集成标题')
-    await expect(page.getByTestId('drawer-part-input')).toHaveValue('第一章')
-    await expect(descriptionBox(page)).toHaveText('集成描述内容')
-    await expect(extraFieldBox(page, '视觉元素')).toHaveText('一张折线图')
-    await page.getByTestId('drawer-narration-toggle').click()
-    await expect(page.getByTestId('drawer-narration-input')).toHaveValue('集成旁白讲稿')
-
-    await request.put('/api/settings', { data: { description_extra_fields: defaultExtraFields } })
+      // And the drawer rehydrates from the server after a reload.
+      await page.reload()
+      await expect(page.getByTestId('drawer-title-input')).toHaveValue('集成标题')
+      await expect(page.getByTestId('drawer-part-input')).toHaveValue('第一章')
+      await expect(descriptionBox(page)).toHaveText('集成描述内容')
+      await expect(extraFieldBox(page, '视觉元素')).toHaveText('一张折线图')
+      await page.getByTestId('drawer-narration-toggle').click()
+      await expect(page.getByTestId('drawer-narration-input')).toHaveValue('集成旁白讲稿')
+    } finally {
+      await request.put('/api/settings', { data: { description_extra_fields: defaultExtraFields } })
+    }
   })
 
   test('keeps every field when several are edited inside one debounce window', async ({

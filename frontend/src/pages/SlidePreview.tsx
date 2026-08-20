@@ -627,13 +627,14 @@ export const SlidePreview: React.FC = () => {
     localStorage.setItem('previewDrawer.width', String(width));
   }, []);
   // 窗口尺寸变化后按新视口重新钳制抽屉宽度，避免从大屏缩小时抽屉仍挤占预览区。
-  // 不写 localStorage：这是纯响应式收敛，回到大屏后仍沿用用户的宽度偏好。
+  // 以 localStorage 里的用户偏好为基准，回到大屏后同一会话内也能恢复原来的宽度；
+  // 这里不写 localStorage，响应式收敛不会覆盖用户偏好。
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const onResize = () => {
       clearTimeout(timer);
       timer = setTimeout(() => {
-        setPropertiesWidth((width) => clampWidth(width, window.innerWidth));
+        setPropertiesWidth(() => clampWidth(readStoredDrawerWidth(), window.innerWidth));
       }, 150);
     };
     window.addEventListener('resize', onResize);
@@ -641,6 +642,17 @@ export const SlidePreview: React.FC = () => {
       clearTimeout(timer);
       window.removeEventListener('resize', onResize);
     };
+  }, []);
+  // 跨 lg 断点缩放时同步「首次默认展开/收起」的语义：用户从未显式开关过就跟随断点
+  // 自动收起/展开；显式选择过则尊重用户选择，不覆盖 localStorage。
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const onChange = () => {
+      if (localStorage.getItem('previewDrawer.open') !== null) return;
+      setIsPropertiesOpen(mq.matches);
+    };
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
   }, []);
   // 抽屉里改页级模板：选图和模板提示词都走 PATCH，不经过页面字段的防抖队列
   const handleUpdatePageTemplate = useCallback(
