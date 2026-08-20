@@ -597,12 +597,13 @@ export const SlidePreview: React.FC = () => {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [imageVersions, setImageVersions] = useState<ImageVersion[]>([]);
-  // 页面属性抽屉：桌面端首次进入默认展开；窄屏浮层会盖住预览，保持默认收起。
+  // 页面属性抽屉：桌面端（lg+）首次进入默认展开；窄屏浮层会盖住预览，保持默认收起。
   // 用户显式收起/展开后，状态记忆在本地，不再被默认值覆盖。
   const [isPropertiesOpen, setIsPropertiesOpen] = useState(() => {
     const stored = localStorage.getItem('previewDrawer.open');
     if (stored !== null) return stored === 'true';
-    return window.matchMedia('(min-width: 768px)').matches;
+    // 768-1023px 下左侧缩略图栏（320px）加上抽屉会让预览区几乎不可用，保持默认收起
+    return window.matchMedia('(min-width: 1024px)').matches;
   });
   const [propertiesWidth, setPropertiesWidth] = useState(readStoredDrawerWidth);
   // 就地编辑态（lg+）：幻灯片上移让位给指令区，在大图上直接框选。

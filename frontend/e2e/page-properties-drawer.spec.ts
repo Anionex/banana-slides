@@ -137,6 +137,17 @@ test.describe('Page properties drawer - UI (mock)', () => {
     await expect(page.getByTestId('drawer-title-input')).toBeVisible()
   })
 
+  test('stays closed by default on tablet widths where the preview has no room', async ({ page }) => {
+    await mockPreview(page)
+    await page.setViewportSize({ width: 800, height: 900 })
+    await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
+
+    // 768-1023px：左侧缩略图栏 + 默认宽度的抽屉会挤掉预览区，因此保持默认收起。
+    expect(await drawerWidth(page)).toBe(0)
+    await expect(page.getByTestId('toggle-page-properties')).toBeVisible()
+    await expect(page.getByTestId('drawer-title-input')).toHaveCount(0)
+  })
+
   test('toggles open/closed and remembers the choice across reloads', async ({ page }) => {
     await mockPreview(page)
     await openDrawerByDefault(page)
