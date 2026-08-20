@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
+import { seedProjectWithImages } from './helpers/seed-project'
 
 const PROJECT_ID = 'preview-previous-step-mock'
 
@@ -141,5 +142,29 @@ test.describe('SlidePreview previous-step navigation (mock)', () => {
     await page.getByRole('button', { name: /返回|Back/ }).click()
     await expect(page).toHaveURL(new RegExp(`/project/${PROJECT_ID}/detail$`))
     await expect(page.getByText('第一页描述')).toBeVisible()
+  })
+})
+
+test.describe('SlidePreview previous-step navigation (integration)', () => {
+  test('returns to the real description editor after seeding a project', async ({ page }) => {
+    const frontendUrl = process.env.BASE_URL || 'http://localhost:3011'
+    const frontendPort = parseInt(new URL(frontendUrl).port || '3011', 10)
+    const backendUrl = `http://localhost:${frontendPort + 2000}`
+
+    const { projectId } = await seedProjectWithImages(backendUrl, 1)
+
+    try {
+      await page.goto(`/project/${projectId}/preview`)
+      await page.waitForLoadState('networkidle')
+
+      const previousStep = page.getByTestId('preview-previous-step')
+      await expect(previousStep).toBeVisible()
+      await previousStep.click()
+
+      await expect(page).toHaveURL(new RegExp(`/project/${projectId}/detail$`))
+      await expect(page.getByText('编辑页面描述')).toBeVisible()
+    } finally {
+      await fetch(`${backendUrl}/api/projects/${projectId}`, { method: 'DELETE' })
+    }
   })
 })
