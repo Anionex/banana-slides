@@ -219,6 +219,26 @@ test.describe('Page properties drawer - UI (mock)', () => {
     await expect.poll(() => drawerWidth(page)).toBe(380)
   })
 
+  test('keeps the user explicit close when resizing across the lg breakpoint', async ({ page }) => {
+    await mockPreview(page)
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
+    await expect(page.getByTestId('drawer-title-input')).toBeVisible()
+
+    // 用户显式收起：缩到平板、回到桌面都不能被首访默认值重新打开。
+    await page.getByRole('button', { name: '收起属性面板' }).click()
+    await expect.poll(() => drawerWidth(page)).toBe(0)
+    expect(await page.evaluate(() => localStorage.getItem('previewDrawer.open'))).toBe('false')
+
+    await page.setViewportSize({ width: 800, height: 900 })
+    await expect.poll(() => drawerWidth(page)).toBe(0)
+    await expect(page.getByTestId('drawer-title-input')).toHaveCount(0)
+
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await expect.poll(() => drawerWidth(page)).toBe(0)
+    await expect(page.getByTestId('drawer-title-input')).toHaveCount(0)
+  })
+
   test('toggles open/closed and remembers the choice across reloads', async ({ page }) => {
     await mockPreview(page)
     await openDrawerByDefault(page)
