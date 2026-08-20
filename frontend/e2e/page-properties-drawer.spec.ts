@@ -148,6 +148,16 @@ test.describe('Page properties drawer - UI (mock)', () => {
     await expect(page.getByTestId('drawer-title-input')).toHaveCount(0)
   })
 
+  test('clamps the initially opened drawer width at the lg breakpoint', async ({ page }) => {
+    await mockPreview(page)
+    await page.setViewportSize({ width: 1024, height: 900 })
+    await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
+
+    // 1024px 下左侧缩略图栏 320px，抽屉最大只能到 300px，初始 380px 必须被钳制。
+    await expect(page.getByTestId('drawer-title-input')).toBeVisible()
+    expect(await drawerWidth(page)).toBe(300)
+  })
+
   test('toggles open/closed and remembers the choice across reloads', async ({ page }) => {
     await mockPreview(page)
     await openDrawerByDefault(page)
@@ -652,6 +662,11 @@ test.describe('Page properties drawer - integration', () => {
     request,
     baseURL,
   }) => {
+    // 该用例使用「视觉元素」作为自定义额外字段；全新数据库默认字段名不同，
+    // 先显式写入设置，保证在干净环境（如 nightly）下也能稳定复现。
+    const defaultExtraFields = ['配图与素材', '版式与重点', '演讲者备注']
+    await request.put('/api/settings', { data: { description_extra_fields: ['视觉元素'] } })
+
     const { projectId } = await seedProjectWithImages(baseURL!, 2)
     await openDrawerByDefault(page)
     await page.goto(`/project/${projectId}/preview`)
@@ -684,6 +699,8 @@ test.describe('Page properties drawer - integration', () => {
     await expect(extraFieldBox(page, '视觉元素')).toHaveText('一张折线图')
     await page.getByTestId('drawer-narration-toggle').click()
     await expect(page.getByTestId('drawer-narration-input')).toHaveValue('集成旁白讲稿')
+
+    await request.put('/api/settings', { data: { description_extra_fields: defaultExtraFields } })
   })
 
   test('keeps every field when several are edited inside one debounce window', async ({

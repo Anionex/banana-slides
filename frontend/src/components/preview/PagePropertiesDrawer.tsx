@@ -114,7 +114,7 @@ export const DRAWER_DEFAULT_WIDTH = 380;
 const WIDTH_STORAGE_KEY = 'previewDrawer.width';
 /** Room the thumbnail rail (320) plus the slide itself need to stay usable. */
 const RESERVED_WIDTH = 800;
-const clampWidth = (width: number, viewportWidth: number) => {
+export const clampWidth = (width: number, viewportWidth: number) => {
   const max = Math.min(DRAWER_MAX_WIDTH, Math.max(DRAWER_MIN_WIDTH, viewportWidth - RESERVED_WIDTH));
   return Math.round(Math.min(max, Math.max(DRAWER_MIN_WIDTH, width)));
 };
@@ -577,7 +577,7 @@ export const PagePropertiesDrawer: React.FC<PagePropertiesDrawerProps> = ({
         style={{ width: isOpen ? width : 0 }}
         className={cn(
           'flex min-h-0 flex-shrink-0 flex-col overflow-hidden border-gray-200 bg-white dark:border-border-primary dark:bg-background-secondary',
-          // 桌面端抽屉是文档流内的普通兄弟节点，不需要 z-40；否则会盖住顶栏下拉层
+          // md+ 桌面布局中抽屉是文档流内的普通兄弟节点，不需要 z-40；否则会盖住顶栏下拉层
           'fixed inset-y-0 right-0 z-40 max-w-[88vw] shadow-2xl md:relative md:z-auto md:max-w-none md:shadow-none',
           !isDragging && 'transition-[width] duration-300 ease-out',
           // 收起时不能留下 1px 边框，否则预览区右侧会有一条竖线

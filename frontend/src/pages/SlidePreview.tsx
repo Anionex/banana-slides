@@ -317,7 +317,7 @@ import { materialUrlToFile } from '@/components/shared/MaterialSelector';
 import { triggerDownload } from '@/api/client';
 import type { Material } from '@/api/endpoints';
 import { SlideCard } from '@/components/preview/SlideCard';
-import { PagePropertiesDrawer, readStoredDrawerWidth } from '@/components/preview/PagePropertiesDrawer';
+import { PagePropertiesDrawer, clampWidth, readStoredDrawerWidth } from '@/components/preview/PagePropertiesDrawer';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useExportTasksStore, type ExportTaskType } from '@/store/useExportTasksStore';
 import { getImageUrl } from '@/api/client';
@@ -605,7 +605,10 @@ export const SlidePreview: React.FC = () => {
     // 768-1023px 下左侧缩略图栏（320px）加上抽屉会让预览区几乎不可用，保持默认收起
     return window.matchMedia('(min-width: 1024px)').matches;
   });
-  const [propertiesWidth, setPropertiesWidth] = useState(readStoredDrawerWidth);
+  // 初始宽度也要按视口钳制：小窗口下沿用大屏记忆的 640px 会把预览区挤没
+  const [propertiesWidth, setPropertiesWidth] = useState(() =>
+    clampWidth(readStoredDrawerWidth(), window.innerWidth)
+  );
   // 就地编辑态（lg+）：幻灯片上移让位给指令区，在大图上直接框选。
   // 窄屏放不下上下分栏，仍走原来的编辑弹窗。
   const [isInlineEditing, setIsInlineEditing] = useState(false);
