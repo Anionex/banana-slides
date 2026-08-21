@@ -6,6 +6,7 @@ Create Date: 2026-02-26
 
 """
 from alembic import op
+import sqlalchemy as sa
 from sqlalchemy import inspect
 
 
@@ -26,10 +27,18 @@ def _column_exists(table_name: str, column_name: str) -> bool:
 def upgrade():
     if _column_exists('settings', 'baidu_ocr_api_key') and not _column_exists('settings', 'baidu_api_key'):
         with op.batch_alter_table('settings') as batch_op:
-            batch_op.alter_column('baidu_ocr_api_key', new_column_name='baidu_api_key')
+            batch_op.alter_column(
+                'baidu_ocr_api_key',
+                new_column_name='baidu_api_key',
+                existing_type=sa.String(length=500),
+            )
 
 
 def downgrade():
     if _column_exists('settings', 'baidu_api_key') and not _column_exists('settings', 'baidu_ocr_api_key'):
         with op.batch_alter_table('settings') as batch_op:
-            batch_op.alter_column('baidu_api_key', new_column_name='baidu_ocr_api_key')
+            batch_op.alter_column(
+                'baidu_api_key',
+                new_column_name='baidu_ocr_api_key',
+                existing_type=sa.String(length=500),
+            )

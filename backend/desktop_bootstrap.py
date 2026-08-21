@@ -52,6 +52,7 @@ def repair_desktop_settings_schema(db):
         },
         'projects': {
             'project_title': 'VARCHAR(255)',
+            'page_count': 'INTEGER DEFAULT 8',
             'outline_requirements': 'TEXT',
             'description_requirements': 'TEXT',
             'template_style': 'TEXT',
@@ -61,6 +62,14 @@ def repair_desktop_settings_schema(db):
             'export_allow_partial': 'BOOLEAN DEFAULT 0',
             'enable_icon_subject_extraction': 'BOOLEAN DEFAULT 1',
             'image_aspect_ratio': "VARCHAR(10) DEFAULT '16:9'",
+            'generation_mode': "VARCHAR(32) DEFAULT 'STANDARD_VISUAL'",
+            'design_preferences_json': 'TEXT',
+            'design_spec_json': 'TEXT',
+            'design_spec_hash': 'VARCHAR(64)',
+            'design_spec_version': 'INTEGER DEFAULT 0',
+            'style_board_path': 'VARCHAR(500)',
+            'consistency_status': 'VARCHAR(32)',
+            'consistency_warnings_json': 'TEXT',
         },
         'pages': {
             'cached_image_path': 'VARCHAR(500)',
@@ -70,6 +79,7 @@ def repair_desktop_settings_schema(db):
             'template_selection_source': 'VARCHAR(20)',
             'template_match_reason': 'TEXT',
             'template_match_confidence': 'FLOAT',
+            'page_plan_json': 'TEXT',
         },
         'user_templates': {
             'thumb_path': 'VARCHAR(500)',

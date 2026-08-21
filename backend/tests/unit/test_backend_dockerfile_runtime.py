@@ -18,6 +18,16 @@ def test_backend_container_uses_prebuilt_virtualenv_at_runtime():
     assert "uv run" not in cmd_lines[0]
 
 
+def test_schema_verifier_uses_prebuilt_virtualenv_at_runtime():
+    root = Path(__file__).resolve().parents[3]
+    verifier = (root / "docker" / "verify-schema.py").read_text(encoding="utf-8")
+    dockerfile = (root / "Dockerfile.allinone").read_text(encoding="utf-8")
+
+    assert verifier.startswith("#!/app/.venv/bin/python\n")
+    chmod_lines = [line for line in dockerfile.splitlines() if "chmod +x" in line]
+    assert any("/app/docker/verify-schema.py" in line for line in chmod_lines)
+
+
 def test_lazyllm_runtime_provider_dependencies_are_packaged():
     pyproject = Path(__file__).resolve().parents[3] / "pyproject.toml"
     data = tomllib.loads(pyproject.read_text(encoding="utf-8"))

@@ -43,6 +43,7 @@
 
 # 忽略临时文档，但保留项目文档
 *.md
+!AGENTS.md
 !README.md
 !skills/**/*.md
 # !docs/**/*.md

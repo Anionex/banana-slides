@@ -85,6 +85,7 @@ docker-compose*.yml
 LICENSE
 PRD.md
 *.md
+!README.md
 
 # Windows
 Thumbs.db

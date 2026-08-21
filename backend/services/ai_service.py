@@ -85,6 +85,7 @@ class ProjectContext:
             self.outline_text = project_or_dict.outline_text
             self.description_text = project_or_dict.description_text
             self.creation_type = project_or_dict.creation_type or 'idea'
+            self.page_count = project_or_dict.page_count
             self.outline_requirements = project_or_dict.outline_requirements
             self.description_requirements = project_or_dict.description_requirements
         else:
@@ -93,6 +94,7 @@ class ProjectContext:
             self.outline_text = project_or_dict.get('outline_text')
             self.description_text = project_or_dict.get('description_text')
             self.creation_type = project_or_dict.get('creation_type', 'idea')
+            self.page_count = project_or_dict.get('page_count')
             self.outline_requirements = project_or_dict.get('outline_requirements')
             self.description_requirements = project_or_dict.get('description_requirements')
 
@@ -105,6 +107,7 @@ class ProjectContext:
             'outline_text': self.outline_text,
             'description_text': self.description_text,
             'creation_type': self.creation_type,
+            'page_count': self.page_count,
             'outline_requirements': self.outline_requirements,
             'description_requirements': self.description_requirements,
             'reference_files_content': self.reference_files_content
@@ -979,7 +982,8 @@ class AIService:
                             language='zh',
                             has_template: bool = True,
                             aspect_ratio: str = "16:9",
-                            page_style_text: Optional[str] = None) -> str:
+                            page_style_text: Optional[str] = None,
+                            structured_design: Optional[str] = None) -> str:
         """
         Generate image generation prompt for a page
 
@@ -1007,6 +1011,7 @@ class AIService:
             page_index=page_index,
             aspect_ratio=aspect_ratio,
             page_style_text=page_style_text,
+            structured_design=structured_design,
         )
 
         return prompt
@@ -1072,7 +1077,8 @@ class AIService:
     
     def generate_image(self, prompt: str, ref_image_path: Optional[str] = None, 
                       aspect_ratio: str = "16:9", resolution: str = "2K",
-                      additional_ref_images: Optional[List[Union[str, Image.Image]]] = None) -> Optional[Image.Image]:
+                      additional_ref_images: Optional[List[Union[str, Image.Image]]] = None,
+                      invocation_operation: Optional[str] = None) -> Optional[Image.Image]:
         """
         Generate image using configured image provider
         Based on gemini_genai.py gen_image()
@@ -1170,13 +1176,19 @@ class AIService:
             try:
                 # 使用 image_provider 生成图片
                 # 根据 enable_image_reasoning 配置控制图像生成的思考模式
+                provider_kwargs = {
+                    'prompt': prompt,
+                    'ref_images': ref_images if ref_images else None,
+                    'aspect_ratio': aspect_ratio,
+                    'resolution': resolution,
+                    'enable_thinking': self.enable_image_reasoning,
+                    'thinking_budget': self._get_image_thinking_budget(),
+                }
+                if (invocation_operation
+                        and getattr(self.image_provider, 'supports_invocation_operation', False)):
+                    provider_kwargs['invocation_operation'] = invocation_operation
                 return self.image_provider.generate_image(
-                    prompt=prompt,
-                    ref_images=ref_images if ref_images else None,
-                    aspect_ratio=aspect_ratio,
-                    resolution=resolution,
-                    enable_thinking=self.enable_image_reasoning,
-                    thinking_budget=self._get_image_thinking_budget()
+                    **provider_kwargs
                 )
             finally:
                 for img in owned_images:
