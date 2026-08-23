@@ -501,19 +501,11 @@ npm run dev
 打开浏览器访问即可使用应用。
 
 
-## 🛠️ 技术架构
-
-### 前端技术栈
-React 18 + TypeScript + Vite 5 + Zustand
-
-### 后端技术栈
-Python 3.10+ + Flask 3.0 + uv + SQLite
-
 ## 交流群
 
 欢迎在群中提出新功能建议或反馈～
 
-<img width="312" alt="image" src="https://github.com/user-attachments/assets/ae18242f-fb3d-4a76-94fc-49a131d44f81" />
+<img width="312" alt="image" src="https://github.com/user-attachments/assets/25dbf94c-c694-44b0-a575-9dd368160702" />
 
 
 
