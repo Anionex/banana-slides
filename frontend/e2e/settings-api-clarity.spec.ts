@@ -6,7 +6,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('default API config section shows every provider as visible pills', async ({ page }) => {
-  await expect(page.getByText('默认 API 配置')).toBeVisible();
+  await expect(page.getByText('默认 API 配置', { exact: true })).toBeVisible();
 
   const section = page.getByTestId('global-api-config-section');
   const pills = section.getByTestId('global-provider-pills');

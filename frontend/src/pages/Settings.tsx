@@ -138,6 +138,34 @@ const settingsI18n = {
         copyLink: "复制链接",
       },
       apiKeyTip: { before: "若需快速配置或稳定高并发生图，可选择 ", linkLabel: "AIHubMix 申请 API Key", after: "" },
+      providerComparison: {
+        title: "不知道怎么选？两个推荐方案对比",
+        subtitle: "按自己的使用场景选择，选择结果会同步到默认 API 配置",
+        aihubmix: {
+          name: "AIHubMix 聚合 API",
+          tagline: "海外 SOTA · 高并发稳定",
+          suitedFor: "适合：需要最新海外模型、高并发或团队使用",
+          point1: "可用海外 SOTA 模型：GPT、Claude、Gemini 等",
+          point2: "高并发、稳定、可用性高",
+          point3: "按量付费，一个 Key 同时兼容 Gemini / OpenAI 格式",
+          cta: "使用此方案",
+          active: "当前方案",
+          link: "获取 API Key →",
+          note: "自动切换回 AIHubMix 端点，沿用当前格式",
+        },
+        volcengine: {
+          name: "火山 Agent Plan",
+          tagline: "国内直连 · 高性价比",
+          suitedFor: "适合：国内网络、个人使用、追求性价比",
+          point1: "国内直连，无需特殊网络环境",
+          point2: "效果接近海外主流，价格更低",
+          point3: "订阅后可日常使用，不局限于 Banana Slides",
+          cta: "选择此方案",
+          active: "当前方案",
+          link: "查看优惠并订阅 →",
+          note: "自动填入火山 Agent Plan 专属端点并推荐模型",
+        },
+      },
       volcenginePromo: {
         providerHint: "国内直连 · 高性价比",
         title: "为什么选择火山 Agent Plan？",
@@ -333,6 +361,34 @@ const settingsI18n = {
         copyLink: "Copy link",
       },
       apiKeyTip: { before: "For quick setup or stable high-concurrency image generation, get an API key from ", linkLabel: "AIHubMix", after: "" },
+      providerComparison: {
+        title: "Not sure which one? Compare the two recommended plans",
+        subtitle: "Pick by your own scenario; the selection is applied to the default API config",
+        aihubmix: {
+          name: "AIHubMix Aggregated API",
+          tagline: "Overseas SOTA · High concurrency",
+          suitedFor: "Best for: latest overseas models, high concurrency, or team usage",
+          point1: "Access overseas SOTA models: GPT, Claude, Gemini and more",
+          point2: "Stable under high concurrency with strong availability",
+          point3: "Pay as you go; one key works with Gemini / OpenAI formats",
+          cta: "Use this plan",
+          active: "Current plan",
+          link: "Get an API key →",
+          note: "Switches back to the AIHubMix endpoint and keeps the current format",
+        },
+        volcengine: {
+          name: "Volcengine Agent Plan",
+          tagline: "Direct access · Cost-effective",
+          suitedFor: "Best for: domestic networks, personal use, or budget-conscious users",
+          point1: "Direct domestic access, no special network setup",
+          point2: "Comparable quality at a lower price than major overseas APIs",
+          point3: "Subscription also works for daily use, not only Banana Slides",
+          cta: "Choose this plan",
+          active: "Current plan",
+          link: "View plans and subscribe →",
+          note: "Fills the Agent Plan endpoint and recommended models automatically",
+        },
+      },
       volcenginePromo: {
         providerHint: "Cost-effective",
         title: "Why choose Volcengine Agent Plan?",
@@ -439,6 +495,8 @@ interface ServiceTestState {
 }
 
 const INFERERA_AFFILIATE_URL = 'https://api.inferera.com/?aff=17EC';
+const INFERERA_OPENAI_BASE_URL = 'https://api.inferera.com/v1';
+const INFERERA_GEMINI_BASE_URL = 'https://api.inferera.com/gemini';
 const VOLCENGINE_AGENTPLANS_CN_URL = 'https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides';
 const VOLCENGINE_AGENTPLANS_EN_URL = 'https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=banana-slides&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides';
 const VOLCENGINE_AGENTPLANS_APIKEY_URL = 'https://ai.volcengine.com/console/apikey';
@@ -1288,6 +1346,66 @@ export const Settings: React.FC = () => {
     });
   };
 
+  const selectAihubmixPlan = () => {
+    setFormData(prev => ({
+      ...prev,
+      ai_provider_format: prev.ai_provider_format === 'gemini' ? 'gemini' : 'openai',
+      api_base_url: prev.ai_provider_format === 'gemini'
+        ? INFERERA_GEMINI_BASE_URL
+        : INFERERA_OPENAI_BASE_URL,
+    }));
+  };
+
+  const selectVolcenginePlan = () => {
+    handleFieldChange('ai_provider_format', 'volcengine');
+  };
+
+  const isAihubmixPlanActive =
+    (formData.ai_provider_format === 'gemini' || formData.ai_provider_format === 'openai')
+    && (formData.api_base_url || '').includes('api.inferera.com');
+  const isVolcenginePlanActive = formData.ai_provider_format === 'volcengine';
+
+  const providerPlanCards = [
+    {
+      key: 'aihubmix',
+      testId: 'provider-plan-aihubmix',
+      active: isAihubmixPlanActive,
+      name: t('settings.providerComparison.aihubmix.name'),
+      tagline: t('settings.providerComparison.aihubmix.tagline'),
+      suitedFor: t('settings.providerComparison.aihubmix.suitedFor'),
+      points: [
+        t('settings.providerComparison.aihubmix.point1'),
+        t('settings.providerComparison.aihubmix.point2'),
+        t('settings.providerComparison.aihubmix.point3'),
+      ],
+      cta: t('settings.providerComparison.aihubmix.cta'),
+      activeLabel: t('settings.providerComparison.aihubmix.active'),
+      note: t('settings.providerComparison.aihubmix.note'),
+      onSelect: selectAihubmixPlan,
+      href: INFERERA_AFFILIATE_URL,
+      linkLabel: t('settings.providerComparison.aihubmix.link'),
+    },
+    {
+      key: 'volcengine',
+      testId: 'provider-plan-volcengine',
+      active: isVolcenginePlanActive,
+      name: t('settings.providerComparison.volcengine.name'),
+      tagline: t('settings.providerComparison.volcengine.tagline'),
+      suitedFor: t('settings.providerComparison.volcengine.suitedFor'),
+      points: [
+        t('settings.providerComparison.volcengine.point1'),
+        t('settings.providerComparison.volcengine.point2'),
+        t('settings.providerComparison.volcengine.point3'),
+      ],
+      cta: t('settings.providerComparison.volcengine.cta'),
+      activeLabel: t('settings.providerComparison.volcengine.active'),
+      note: t('settings.providerComparison.volcengine.note'),
+      onSelect: selectVolcenginePlan,
+      href: volcengineAgentPlansUrl,
+      linkLabel: t('settings.providerComparison.volcengine.link'),
+    },
+  ];
+
   const updateServiceTest = (key: string, nextState: ServiceTestState) => {
     setServiceTestStates(prev => ({ ...prev, [key]: nextState }));
   };
@@ -1752,6 +1870,85 @@ export const Settings: React.FC = () => {
           </h2>
           <p className="text-sm text-gray-500 dark:text-foreground-tertiary mb-4">{t('settings.sections.apiConfigDesc')}</p>
           <div className="space-y-3">
+            {/* 推荐方案对比 */}
+            <div
+              data-testid="provider-plan-comparison"
+              className="rounded-xl border border-gray-200 bg-white p-4 dark:border-border-primary dark:bg-background-secondary"
+            >
+              <div className="mb-3 flex items-start gap-2">
+                <Lightbulb size={16} className="mt-0.5 shrink-0 text-banana-500" />
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-foreground-primary">
+                    {t('settings.providerComparison.title')}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-foreground-tertiary">
+                    {t('settings.providerComparison.subtitle')}
+                  </p>
+                </div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {providerPlanCards.map(plan => (
+                  <div
+                    key={plan.key}
+                    data-testid={plan.testId}
+                    className={`flex flex-col rounded-lg border p-3 transition-colors ${
+                      plan.active
+                        ? plan.key === 'aihubmix'
+                          ? 'border-blue-500 bg-blue-50/70 ring-1 ring-blue-500/30 dark:bg-blue-950/20'
+                          : 'border-amber-500 bg-amber-50/70 ring-1 ring-amber-500/30 dark:bg-amber-950/20'
+                        : 'border-gray-200 hover:border-gray-300 dark:border-border-primary dark:hover:border-gray-500'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-foreground-primary">{plan.name}</p>
+                        <p className={`text-xs font-medium ${plan.key === 'aihubmix' ? 'text-blue-600 dark:text-blue-300' : 'text-amber-700 dark:text-amber-300'}`}>
+                          {plan.tagline}
+                        </p>
+                      </div>
+                      {plan.active && (
+                        <span className="shrink-0 rounded-full bg-gray-900/5 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-white/10 dark:text-foreground-secondary">
+                          {plan.activeLabel}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-2 text-xs text-gray-500 dark:text-foreground-tertiary">{plan.suitedFor}</p>
+                    <ul className="mt-2 flex-1 space-y-1.5">
+                      {plan.points.map(point => (
+                        <li key={point} className="flex items-start gap-1.5 text-xs text-gray-700 dark:text-foreground-secondary">
+                          <CheckCircle size={14} className="mt-0.5 shrink-0 text-emerald-500" />
+                          <span>{point}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="mt-2 text-[11px] text-gray-400 dark:text-foreground-tertiary">{plan.note}</p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <Button
+                        variant={plan.active ? 'secondary' : 'primary'}
+                        size="sm"
+                        disabled={plan.active}
+                        onClick={plan.onSelect}
+                      >
+                        {plan.active ? plan.activeLabel : plan.cta}
+                      </Button>
+                      <a
+                        href={plan.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`text-xs font-medium underline-offset-2 hover:underline ${
+                          plan.key === 'aihubmix'
+                            ? 'text-blue-600 hover:text-blue-700 dark:text-blue-300'
+                            : 'text-amber-700 hover:text-amber-800 dark:text-amber-300'
+                        }`}
+                      >
+                        {plan.linkLabel}
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* 默认提供商胶囊选择 */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">
@@ -1852,7 +2049,7 @@ export const Settings: React.FC = () => {
           </div>
 
           {usesVolcengineCampaignPromo ? (
-            <div className="mt-3 pl-4 border-l-4 border-amber-300 dark:border-amber-600">
+            <div data-testid="volcengine-campaign-promo" className="mt-3 pl-4 border-l-4 border-amber-300 dark:border-amber-600">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <a href={volcengineAgentPlansUrl} target="_blank" rel="noopener noreferrer" className="shrink-0">
                   <img

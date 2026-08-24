@@ -125,16 +125,17 @@ test.describe('Settings: Volcengine AgentPlans provider', () => {
     await expect(page.getByPlaceholder('留空使用默认 Base URL'))
       .toHaveValue('https://ark.cn-beijing.volces.com/api/plan/v3');
 
-    await expect(page.getByText('为什么选择火山 Agent Plan？')).toBeVisible();
-    await expect(page.getByText(/相比海外主流官方 API，价格更低、性价比更高，生成效果接近/)).toBeVisible();
-    await expect(page.getByText(/国内直连，无需特殊网络环境/)).toBeVisible();
-    await expect(page.getByText(/不局限于 Banana Slides/)).toBeVisible();
-    await expect(page.getByText(/Agent Plan \/ Coding Plan 限时折扣/)).toBeVisible();
-    await expect(page.getByText(/免费 Tokens/)).toBeVisible();
-    await expect(page.getByText('订阅并获取火山 AgentPlans API Key')).toBeVisible();
-    await expect(page.getByText('进入 Agent Plan 控制台')).toBeVisible();
-    await expect(page.getByText(/在 Agent Plan 控制台创建专属 API Key/)).toBeVisible();
-    await expect(page.getByRole('link', { name: 'API Key 控制台' })).toHaveAttribute(
+    const promo = page.getByTestId('volcengine-campaign-promo');
+    await expect(promo.getByText('为什么选择火山 Agent Plan？')).toBeVisible();
+    await expect(promo.getByText(/相比海外主流官方 API，价格更低、性价比更高，生成效果接近/)).toBeVisible();
+    await expect(promo.getByText(/国内直连，无需特殊网络环境/)).toBeVisible();
+    await expect(promo.getByText(/不局限于 Banana Slides/)).toBeVisible();
+    await expect(promo.getByText(/Agent Plan \/ Coding Plan 限时折扣/)).toBeVisible();
+    await expect(promo.getByText(/免费 Tokens/)).toBeVisible();
+    await expect(promo.getByText('订阅并获取火山 AgentPlans API Key')).toBeVisible();
+    await expect(promo.getByText('进入 Agent Plan 控制台')).toBeVisible();
+    await expect(promo.getByText(/在 Agent Plan 控制台创建专属 API Key/)).toBeVisible();
+    await expect(promo.getByRole('link', { name: 'API Key 控制台' })).toHaveAttribute(
       'href',
       'https://ai.volcengine.com/console/apikey'
     );
@@ -346,17 +347,18 @@ test.describe('Settings: Volcengine AgentPlans provider', () => {
 
     const globalApiSection = page.getByTestId('global-api-config-section');
     await expect(globalApiSection.locator('input[type="password"]').first()).toBeVisible();
-    await expect(page.getByText('为什么选择豆包 / 火山方舟？')).toBeVisible();
-    await expect(page.getByText(/国内直连，无需特殊网络环境/)).toBeVisible();
-    await expect(page.getByText(/日常开发和其他兼容工具/)).toBeVisible();
-    await expect(page.getByText(/豆包图像创作模型 5.0/)).toBeVisible();
-    await expect(page.getByText('免费 Tokens 额度领取流程')).not.toBeVisible();
-    await expect(page.getByText('领取额度并获取普通方舟 API Key')).toBeVisible();
-    await expect(page.getByText(/需要免费 Tokens 时，点击活动页的「立即领取」/)).toBeVisible();
-    await expect(page.getByText(/完成「开通服务」和「一键授权」/)).toBeVisible();
-    await expect(page.getByText(/API Key 管理页面创建普通方舟 API Key/)).toBeVisible();
-    await expect(page.getByText('回到本页填写普通方舟 API Key；Agent/Coding Plan 专属 Key 不适用')).toBeVisible();
-    await expect(page.getByText('点击顶栏「充值」')).not.toBeVisible();
+    const promo = page.getByTestId('volcengine-campaign-promo');
+    await expect(promo.getByText('为什么选择豆包 / 火山方舟？')).toBeVisible();
+    await expect(promo.getByText(/国内直连，无需特殊网络环境/)).toBeVisible();
+    await expect(promo.getByText(/日常开发和其他兼容工具/)).toBeVisible();
+    await expect(promo.getByText(/豆包图像创作模型 5.0/)).toBeVisible();
+    await expect(promo.getByText('免费 Tokens 额度领取流程')).not.toBeVisible();
+    await expect(promo.getByText('领取额度并获取普通方舟 API Key')).toBeVisible();
+    await expect(promo.getByText(/需要免费 Tokens 时，点击活动页的「立即领取」/)).toBeVisible();
+    await expect(promo.getByText(/完成「开通服务」和「一键授权」/)).toBeVisible();
+    await expect(promo.getByText(/API Key 管理页面创建普通方舟 API Key/)).toBeVisible();
+    await expect(promo.getByText('回到本页填写普通方舟 API Key；Agent/Coding Plan 专属 Key 不适用')).toBeVisible();
+    await expect(promo.getByText('点击顶栏「充值」')).not.toBeVisible();
     await expect(page.getByText('为什么选择火山 Agent Plan？')).not.toBeVisible();
     await expect(page.getByText('AIHubmix 申请 API key')).not.toBeVisible();
 
