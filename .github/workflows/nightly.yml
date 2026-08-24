@@ -36,9 +36,9 @@ jobs:
         run: |
           chmod +x scripts/setup-env-from-secrets.sh
           ./scripts/setup-env-from-secrets.sh
-          sed -i 's/^AI_PROVIDER_FORMAT=.*/AI_PROVIDER_FORMAT=gemini/' .env || echo "AI_PROVIDER_FORMAT=gemini" >> .env
+          sed -i 's/^AI_PROVIDER_FORMAT=.*/AI_PROVIDER_FORMAT=openai/' .env || echo "AI_PROVIDER_FORMAT=openai" >> .env
         env:
-          AI_PROVIDER_FORMAT: gemini
+          AI_PROVIDER_FORMAT: openai
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           GOOGLE_API_BASE: ${{ secrets.GOOGLE_API_BASE }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

@@ -26,10 +26,23 @@ logger = logging.getLogger(__name__)
 
 # Models that use the native OpenAI images API (images.generate / images.edit)
 # rather than the chat completions multimodal path.
-_GPT_IMAGE_MODELS = {'gpt-image-1', 'gpt-image-1.5', 'gpt-image-2'}
+_GPT_IMAGE_MODELS = {'gpt-image-1', 'gpt-image-1-mini', 'gpt-image-1.5', 'gpt-image-2'}
 _DALLE_MODELS = {'dall-e-2', 'dall-e-3'}
 _NATIVE_IMAGES_API_MODELS = _GPT_IMAGE_MODELS | _DALLE_MODELS
 _MAX_GPT_IMAGE_INPUTS = 16
+
+# gpt-image-1-mini（OpenAI 官方及多数中转）只接受固定尺寸，不接受 2K/4K 动态尺寸。
+_GPT_IMAGE_MINI_MODELS = {'gpt-image-1-mini'}
+_GPT_IMAGE_MINI_SIZE_MAP = {
+    '1:1':  '1024x1024',
+    '4:3':  '1536x1024',
+    '3:4':  '1024x1536',
+    '16:9': '1536x1024',
+    '9:16': '1024x1536',
+    '3:2':  '1536x1024',
+    '2:3':  '1024x1536',
+    '21:9': '1536x1024',
+}
 
 # Volcengine Seedream models only accept the native images API (images/generations).
 # The Agent Plan endpoint does not expose a chat-completions image modality, so an
@@ -270,6 +283,8 @@ class OpenAIImageProvider(ImageProvider):
             return _DALLE3_SIZE_MAP.get(aspect_ratio, '1024x1024')
         if model == 'dall-e-2':
             return _DALLE2_SIZE_MAP.get(aspect_ratio, '1024x1024')
+        if model in _GPT_IMAGE_MINI_MODELS:
+            return _GPT_IMAGE_MINI_SIZE_MAP.get(aspect_ratio, '1024x1024')
         if model.startswith(_DOUBAO_SEEDREAM_PREFIX):
             return self._resolve_seedream_size(aspect_ratio, resolution)
         return _compute_gpt_image_size(aspect_ratio, resolution)
