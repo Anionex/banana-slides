@@ -139,9 +139,10 @@ const settingsI18n = {
       },
       apiKeyTip: { before: "若需快速配置或稳定高并发生图，可选择 ", linkLabel: "AIHubMix 申请 API Key", after: "" },
       volcenginePromo: {
-        title: "火山 AgentPlans API Key 配置",
-        body: "官方活动页正在提供 Agent Plan / Coding Plan 限时折扣、豆包模型资源包和免费 Tokens 领取等活动。",
-        cta: "点击链接抢购",
+        providerHint: "国内直连 · 高性价比",
+        title: "为什么选择火山 Agent Plan？",
+        body: "相比海外主流官方 API，价格更低、性价比更高，生成效果接近；国内直连，无需特殊网络环境。订阅后还可用于日常使用和其他兼容工具，不局限于 Banana Slides。官方活动页目前还提供 Agent Plan / Coding Plan 限时折扣、豆包模型资源包和免费 Tokens。",
+        cta: "查看优惠并订阅",
         copy: "复制链接",
         guideLink: "火山 AgentPlans",
         applyModels: "一键填写推荐模型",
@@ -155,9 +156,10 @@ const settingsI18n = {
         apikeyConsoleLabel: "API Key 控制台",
       },
       doubaoVolcenginePromo: {
-        title: "豆包 / 火山方舟 API Key 配置",
-        body: "活动提供豆包图像创作模型 5.0、豆包大模型资源包、Agent Plan / Coding Plan 限时折扣和免费 Tokens 领取等活动；",
-        cta: "点击链接抢购",
+        providerHint: "国内直连",
+        title: "为什么选择豆包 / 火山方舟？",
+        body: "国内直连，无需特殊网络环境；API Key 可用于 Banana Slides、日常开发和其他兼容工具。官方活动还提供豆包图像创作模型 5.0、模型资源包、Agent Plan / Coding Plan 限时折扣和免费 Tokens。",
+        cta: "查看官方活动",
         copy: "复制链接",
         guideLink: "火山引擎官方活动页",
         applyModels: "一键填写推荐模型",
@@ -332,9 +334,10 @@ const settingsI18n = {
       },
       apiKeyTip: { before: "For quick setup or stable high-concurrency image generation, get an API key from ", linkLabel: "AIHubMix", after: "" },
       volcenginePromo: {
-        title: "Volcengine AgentPlans API Key Setup",
-        body: "The official campaign page includes limited-time discounts for Agent Plan and Coding Plan, Doubao model bundles, and free Tokens claims.",
-        cta: "Open ModelArk",
+        providerHint: "Cost-effective",
+        title: "Why choose Volcengine Agent Plan?",
+        body: "It is more cost-effective than major overseas model APIs while offering comparable generation quality. The subscription can also be used for everyday work and other compatible tools—not only Banana Slides. The official campaign currently includes Agent Plan and Coding Plan discounts, Doubao model bundles, and free Tokens.",
+        cta: "View plans and subscribe",
         copy: "Copy link",
         guideLink: "Volcengine AgentPlans",
         applyModels: "Fill recommended models",
@@ -348,9 +351,10 @@ const settingsI18n = {
         apikeyConsoleLabel: "API Key console",
       },
       doubaoVolcenginePromo: {
-        title: "Doubao / ModelArk API Key Setup",
-        body: "Doubao uses the standard ModelArk API. The official campaign page includes Doubao image creation model 5.0, Doubao model bundles, limited-time discounts for Agent Plan and Coding Plan, and free Tokens claims; enter a standard ModelArk API Key here, not a dedicated Agent/Coding Plan key.",
-        cta: "Open ModelArk",
+        providerHint: "Direct access",
+        title: "Why choose Doubao / ModelArk?",
+        body: "The API key works with Banana Slides, everyday development, and other compatible tools. The official campaign includes Doubao image creation model 5.0, model bundles, Agent Plan and Coding Plan discounts, and free Tokens. Enter a standard ModelArk API Key here, not a dedicated Agent/Coding Plan key.",
+        cta: "View official campaign",
         copy: "Copy link",
         guideLink: "official Volcengine campaign page",
         applyModels: "Fill recommended models",
@@ -450,16 +454,14 @@ const LAZYLLM_SOURCES = [
   { value: 'minimax', label: 'MiniMax' },
   { value: 'openai', label: 'OpenAI' },
   { value: 'kimi', label: 'Kimi' },
-  { value: 'ppio', label: 'PPIO (派欧云)' },
-  { value: 'aiping', label: 'AIPing (爱拼)' },
 ];
 
 // 所有可用的提供商选项（Gemini/OpenAI/Codex + LazyLLM 厂商）
 const getAllProviderSources = (isZh: boolean) => [
   { value: 'gemini', label: 'Gemini' },
   { value: 'openai', label: 'OpenAI' },
-  { value: 'volcengine', label: isZh ? '* 火山 AgentPlans' : '* Volcengine AgentPlans' },
-  { value: 'doubao', label: isZh ? '* Doubao (豆包)' : '* Doubao' },
+  { value: 'volcengine', label: isZh ? '火山 Agent Plan' : 'Volcengine Agent Plan' },
+  { value: 'doubao', label: isZh ? 'Doubao（豆包）' : 'Doubao / ModelArk' },
   { value: 'codex', label: 'Codex (OpenAI OAuth)' },
   ...LAZYLLM_SOURCES.filter(s => s.value !== 'openai' && s.value !== 'doubao'), // avoid duplicate promoted providers
 ];
@@ -502,7 +504,7 @@ const LAZYLLM_VENDOR_SET = new Set(LAZYLLM_SOURCES.map(s => s.value));
 // supplier; image-model source options are filtered to this set so a selection
 // cannot point at a vendor without image capability.
 const IMAGE_CAPABLE_LAZYLLM_SOURCES = new Set([
-  'qwen', 'doubao', 'siliconflow', 'aiping', 'glm', 'minimax',
+  'qwen', 'doubao', 'siliconflow', 'glm', 'minimax',
 ]);
 
 // Whether a source value can appear in the image-model source dropdown:
@@ -1599,6 +1601,7 @@ export const Settings: React.FC = () => {
             {item.sourceLabel}
           </label>
           <select
+            data-testid={`${String(item.sourceKey)}-select`}
             value={sourceValue}
             onChange={(e) => handleFieldChange(item.sourceKey, e.target.value)}
             className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
@@ -1610,15 +1613,14 @@ export const Settings: React.FC = () => {
                 || isImageModelSourceSelectable(option.value)
               )
               .map((option) => (
-              <option
-                key={option.value}
-                value={option.value}
-                disabled={option.value === 'codex' && !settings?.openai_oauth_connected}
-              >
-                {option.label}{option.value === 'codex' && !settings?.openai_oauth_connected ? ` (${t('settings.openaiOAuth.disconnected')})` : ''}
-              </option>
-              )
-              )
+                <option
+                  key={option.value}
+                  value={option.value}
+                  disabled={option.value === 'codex' && !settings?.openai_oauth_connected}
+                >
+                  {option.label}{option.value === 'codex' && !settings?.openai_oauth_connected ? ` (${t('settings.openaiOAuth.disconnected')})` : ''}
+                </option>
+              ))
               .concat(
                 // A previously saved image source may no longer be selectable
                 // (vendor without image capability). Keep it visible so users
@@ -1683,6 +1685,7 @@ export const Settings: React.FC = () => {
               {t('settings.fields.imageApiProtocol')}
             </label>
             <select
+              data-testid="openai-image-api-protocol-select"
               value={formData.openai_image_api_protocol}
               onChange={(e) => handleFieldChange('openai_image_api_protocol', e.target.value)}
               className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
@@ -1749,26 +1752,54 @@ export const Settings: React.FC = () => {
           </h2>
           <p className="text-sm text-gray-500 dark:text-foreground-tertiary mb-4">{t('settings.sections.apiConfigDesc')}</p>
           <div className="space-y-3">
-            {/* 提供商下拉 */}
+            {/* 默认提供商胶囊选择 */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">
                 {t('settings.fields.aiProviderFormat')}
               </label>
-              <select
-                value={formData.ai_provider_format}
-                onChange={(e) => handleFieldChange('ai_provider_format', e.target.value)}
-                className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
+              <div
+                role="radiogroup"
+                aria-label={t('settings.fields.aiProviderFormat')}
+                data-testid="global-provider-pills"
+                className="flex flex-wrap gap-2"
               >
-                {allProviderSources.map((option) => (
-                  <option
-                    key={option.value}
-                    value={option.value}
-                    disabled={option.value === 'codex' && !settings?.openai_oauth_connected}
-                  >
-                    {option.label}{option.value === 'codex' && !settings?.openai_oauth_connected ? ` (${t('settings.openaiOAuth.disconnected')})` : ''}
-                  </option>
-                ))}
-              </select>
+                {allProviderSources.map((option) => {
+                  const isSelected = formData.ai_provider_format === option.value;
+                  const isDisabled = option.value === 'codex' && !settings?.openai_oauth_connected;
+                  const hint = option.value === 'volcengine'
+                    ? t('settings.volcenginePromo.providerHint')
+                    : option.value === 'doubao'
+                      ? t('settings.doubaoVolcenginePromo.providerHint')
+                      : null;
+
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={isSelected}
+                      disabled={isDisabled}
+                      data-provider={option.value}
+                      onClick={() => handleFieldChange('ai_provider_format', option.value)}
+                      className={`inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-banana-500 focus:ring-offset-2 dark:focus:ring-offset-background-primary ${
+                        isSelected
+                          ? 'border-banana-500 bg-banana-400 font-medium text-gray-950 shadow-sm'
+                          : 'border-gray-200 bg-white text-gray-700 hover:border-banana-300 hover:bg-banana-50 dark:border-border-primary dark:bg-background-secondary dark:text-foreground-secondary dark:hover:border-banana-700 dark:hover:bg-banana-950/30'
+                      } disabled:cursor-not-allowed disabled:opacity-45`}
+                    >
+                      <span>{option.label}</span>
+                      {hint && (
+                        <span className={`text-[11px] ${isSelected ? 'text-gray-800' : 'text-amber-700 dark:text-amber-300'}`}>
+                          {hint}
+                        </span>
+                      )}
+                      {isDisabled && (
+                        <span className="text-[11px]">{t('settings.openaiOAuth.disconnected')}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
               <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">{t('settings.fields.aiProviderFormatDesc')}</p>
             </div>
 

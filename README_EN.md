@@ -237,6 +237,10 @@ cp .env.example .env
 
 **(Optional, can also be configured in the user interface after startup, [click here for the tutorial](https://ziy68cvfvu3.feishu.cn/wiki/GiNawdmpiinSRqkGspocqEWAnkh?from=from_copylink ))** Edit the `.env` file to configure the required environment variables:
 
+> **Recommended: Volcengine Agent Plan**<br>
+> A more cost-effective alternative to major overseas model APIs with comparable generation quality. The subscription can be used for Banana Slides, everyday work, and other compatible tools.<br>
+> [View plans and subscribe →](https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=banana-slides&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides)
+
 <details>
 <summary>Click to expand details</summary>
   
@@ -600,11 +604,13 @@ For questions or cooperation inquiries, please contact: davidyang042@gmail.com
 
 
 <div align="center">
-<a href="中文链接">
-    <img src="./assets/huoshan.png" alt="Volcengine" width="150"/ >
-    <p>Thanks to <strong>Volcengine</strong> for sponsoring this project<br>
-      Ark Agent Plan 75% off for a limited time, <a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">click the link to purchase now</a></p>
+<a href="https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=banana-slides&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">
+    <img src="./assets/byteplus.png" alt="BytePlus ModelArk" width="150"/ >
 </a>
+<p><strong>Why choose ModelArk?</strong><br>
+It is a cost-effective alternative to major model APIs with comparable generation quality.<br>
+The subscription can also be used for everyday work and other compatible tools—not only Banana Slides.<br>
+<a href="https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=banana-slides&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">View plans and subscribe →</a></p>
 </div>
 
 <!-- Note: Use this version for the English README: -->

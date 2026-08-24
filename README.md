@@ -237,6 +237,10 @@ cp .env.example .env
 
 **（可选， 也可以启动后在用户界面配置，[教程可点击此处](https://ziy68cvfvu3.feishu.cn/wiki/GiNawdmpiinSRqkGspocqEWAnkh?from=from_copylink )）** 编辑 `.env` 文件，配置必要的环境变量：
 
+> **国内用户推荐：火山 Agent Plan**<br>
+> 相比海外主流官方模型 API，价格更低、性价比更高，生成效果接近；国内直连，无需特殊网络环境。订阅后不仅可用于 Banana Slides，也能用于日常使用和其他兼容工具。<br>
+> [查看火山 Agent Plan 优惠并订阅 →](https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides)
+
 <details>
 <summary>点击展开详情</summary>
   
@@ -562,9 +566,11 @@ npm run dev
 <div align="center">
 <a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">
     <img src="./assets/huoshan.png" alt="火山引擎" width="150"/ >
-    <p>感谢<strong>火山引擎 </strong>赞助了本项目<br>
-      </p>
 </a>
+<p><strong>为什么推荐火山 Agent Plan？</strong><br>
+相比海外主流官方 API 价格更低、性价比更高，生成效果接近；国内直连，无需特殊网络环境。<br>
+订阅后还能用于日常使用和其他兼容工具，不局限于 Banana Slides。<br>
+<a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">查看优惠并订阅 →</a></p>
 </div>
 
 <!-- 注意，英文README使用这个版本： -->
