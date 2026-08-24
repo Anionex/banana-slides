@@ -32,7 +32,7 @@ test.beforeEach(async ({ page }) => {
   await page.waitForLoadState('networkidle');
 });
 
-test('service test sends lazyllm format instead of raw vendor name', async ({ page }) => {
+test('service test sends resolved vendor name for lazyllm global format', async ({ page }) => {
   const section = page.getByTestId('global-api-config-section');
   const providerSelect = section.locator('select').first();
   await expect(providerSelect).toHaveValue('deepseek');
@@ -47,7 +47,9 @@ test('service test sends lazyllm format instead of raw vendor name', async ({ pa
   await textModelTestBtn.click();
 
   expect(capturedPayload).toBeTruthy();
-  expect(capturedPayload.ai_provider_format).toBe('lazyllm');
+  // #306: backend stores the concrete vendor name directly in ai_provider_format
+  // (lazyllm is normalized internally), so the test request carries the resolved vendor.
+  expect(capturedPayload.ai_provider_format).toBe('deepseek');
 });
 
 test('service test sends empty model source to clear saved per-model override', async ({ page }) => {

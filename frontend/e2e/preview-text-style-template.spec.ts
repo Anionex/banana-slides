@@ -88,7 +88,7 @@ test.describe('Preview text style template - Mock tests', () => {
     await page.getByText(/简约商务|Business Simple/).click()
 
     // Textarea should now contain the preset description
-    await expect(page.locator('textarea')).not.toHaveValue('')
+    await expect(page.getByRole('dialog').locator('textarea')).not.toHaveValue('')
   })
   test('closing modal without apply discards preset change', async ({ page }) => {
     await setupMocks(page)
@@ -99,7 +99,7 @@ test.describe('Preview text style template - Mock tests', () => {
     // Toggle to text style, click a preset
     await page.getByText(/使用文字描述风格|Use text description for style/).click()
     await page.getByText(/简约商务|Business Simple/).click()
-    await expect(page.locator('textarea')).not.toHaveValue('')
+    await expect(page.getByRole('dialog').locator('textarea')).not.toHaveValue('')
 
     // Close modal without clicking Apply
     await page.getByRole('button', { name: /^关闭$|^Close$/ }).first().click()
@@ -108,7 +108,7 @@ test.describe('Preview text style template - Mock tests', () => {
     // Reopen — toggle is still on, textarea should be empty (draft discarded)
     await page.getByTestId('template-menu').click()
     await page.getByRole('button', { name: /更换模板|Change Template/ }).click()
-    await expect(page.locator('textarea')).toHaveValue('')
+    await expect(page.getByRole('dialog').locator('textarea')).toHaveValue('')
   })
 })
 
@@ -136,7 +136,7 @@ test.describe('Preview text style template - Integration tests', () => {
     await page.getByText(/使用文字描述风格|Use text description for style/).click()
 
     // Type a custom style
-    const textarea = page.locator('textarea')
+    const textarea = page.getByRole('dialog').locator('textarea')
     await textarea.fill('E2E test custom style description')
 
     // Click apply
@@ -153,6 +153,6 @@ test.describe('Preview text style template - Integration tests', () => {
     await page.getByTestId('template-menu').click()
     await page.getByRole('button', { name: /更换模板|Change Template/ }).click()
     await page.getByText(/使用文字描述风格|Use text description for style/).click()
-    await expect(page.locator('textarea')).toHaveValue('E2E test custom style description')
+    await expect(page.getByRole('dialog').locator('textarea')).toHaveValue('E2E test custom style description')
   })
 })

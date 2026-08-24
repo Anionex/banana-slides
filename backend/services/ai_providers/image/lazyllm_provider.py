@@ -22,7 +22,7 @@ from typing import Optional, List, Tuple
 from urllib.parse import urlparse
 from PIL import Image
 from .base import ImageProvider
-from ..lazyllm_env import ensure_lazyllm_namespace_key
+from ..lazyllm_env import ensure_lazyllm_namespace_key, ensure_lazyllm_suppliers, resolve_lazyllm_source
 
 logger = logging.getLogger(__name__)
 
@@ -237,6 +237,10 @@ class LazyLLMImageProvider(ImageProvider):
                 "Please install backend dependencies including lazyllm."
             ) from exc
 
+        # PyInstaller-frozen desktop builds can miss the dynamic supplier
+        # discovery, so register every vendor explicitly before resolving.
+        ensure_lazyllm_suppliers()
+        source = resolve_lazyllm_source(source, registry_name='text2image')
         ensure_lazyllm_namespace_key(source, namespace='BANANA')
         self._source = source
         self.client = lazyllm.namespace('BANANA').OnlineModule(

@@ -22,7 +22,7 @@
   <a href="https://github.com/Anionex/banana-slides/stargazers"><img src="https://img.shields.io/github/stars/Anionex/banana-slides?style=flat-square&color=FFD700" alt="GitHub Stars"></a>
   <a href="https://github.com/Anionex/banana-slides/network"><img src="https://img.shields.io/github/forks/Anionex/banana-slides?style=flat-square&color=FFD700" alt="GitHub Forks"></a>
   <a href="https://github.com/Anionex/banana-slides/watchers"><img src="https://img.shields.io/github/watchers/Anionex/banana-slides?style=flat-square&color=FFD700" alt="GitHub Watchers"></a>
-  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.2"><img src="https://img.shields.io/badge/version-v0.9.0--rc.2-44cc11?style=flat-square" alt="Version"></a>
+  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.4"><img src="https://img.shields.io/badge/version-v0.9.0--rc.4-44cc11?style=flat-square" alt="Version"></a>
   <a href="https://github.com/Anionex/banana-slides/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Anionex/banana-slides?color=0055aa&style=flat-square" alt="License"></a>
   <br>
   <img src="https://img.shields.io/badge/Docker-Build-4A90D9?logo=docker&logoColor=white&style=flat-square" alt="Docker Build">
@@ -38,7 +38,7 @@
   &nbsp;|&nbsp;
   <a href="https://docs.bananaslides.online/"><b>📖 文档</b></a>
   &nbsp;|&nbsp;
-  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.2"><b>💻 桌面版 RC2</b></a>
+  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.4"><b>💻 桌面版 RC4</b></a>
   &nbsp;|&nbsp;
  <a href="https://github.com/Anionex/banana-slides#-%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95"><b>部署方法</b></a>
 </p>
@@ -49,6 +49,11 @@
 </div>
 
 ## 🔥 最新动态
+- **[2026-08-20]**：0.9.0 候选版本 4 发布，重点修复桌面打包版 LazyLLM 在线供应商不可用（qwen 等）与 SOCKS 代理依赖缺失，并恢复预览页「上一步」返回描述编辑页、修复导出任务弹层遮挡与桌面端属性抽屉交互；[一键下载并安装](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.4)
+- **[2026-08-20]**：预览页恢复「上一步」按钮，可从幻灯片预览一键返回描述编辑页继续修改
+- **[2026-08-20]**：修复导出任务弹层被页面属性抽屉遮挡的问题；桌面端页面属性抽屉默认展开并自动适配窗口宽度
+- **[2026-07-31]**：桌面打包版完整注册 11 家 LazyLLM 在线供应商（qwen / doubao / deepseek / glm / kimi / minimax / sensenova / siliconflow / ppio / aiping / openai），修复打包版报 `Unsupported source: qwen` 的问题
+- **[2026-08-06]**：0.9.0 候选版本 3 发布，重点修复火山引擎 Agent Plans 配置与凭据恢复，并带来大纲流隔离、幻灯片就地编辑、字段契约 v2、模板匹配和可编辑 PPTX 导出改进；[一键下载并安装](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.3)
 - **[2026-07-15]**：自定义大纲/描述要求预设现在会自动修复损坏的浏览器缓存，保留仍然有效的预设，避免异常缓存阻断编辑页面
 - **[2026-07-11]**：0.9.0 候选版本 2 发布，包含 RC1 的全部能力，并修复 Windows 桌面端可编辑 PPTX 的 MinerU 目录不一致、讲解视频 FFprobe 路径错误；[一键下载并安装](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.2)
 - **[2026-06-23]**：逐页模板上线 — 支持统一模板 / 每页独立模板两种模式，可上传图片或 PDF 构建项目模板库，AI 自动解析模板风格并一键为每页智能匹配，也可逐页手动绑定；两种模式随时双向切换（[文档](https://docs.bananaslides.online/zh/features/templates)）
@@ -68,8 +73,6 @@
     * 修复导出相关 500、参考文件关联时序、outline/page 数据错位、任务轮询错误项目、描述生成无限轮询、图片预览内存泄漏、批量删除部分失败处理。
     * 优化格式示例提示、HTTP 错误提示文案、Modal 关闭体验、清理旧项目 localStorage、移除首次创建项目冗余提示。
     * 若干其他优化和修复
-
-> **桌面版配置、存储与导出提示**：桌面安装包没有项目根目录 `.env`，请直接在「设置」中保存 API 配置。Windows 首次安装时可以选择“数据存储位置”；所有桌面平台也可以在「设置 → 数据存储位置」中修改，重启后生效。应用不会自动迁移或删除旧数据；手动迁移前必须从托盘完全退出应用，并完整复制 `data`、`uploads`、`exports` 三个目录。桌面版会在系统浏览器完成 OpenAI OAuth，并在回调成功后自动显示已连接，无需刷新应用。桌面端导出会弹出系统保存对话框，并在文件实际写入所选位置后才判定下载完成；若写入失败会显示目标路径和错误信息，也可在「导出任务」面板重新下载。
 
 ## ✨ 项目缘起
 你是否也曾陷入这样的困境：明天就要汇报，但PPT还是一片空白；脑中有无数精彩的想法，却被繁琐的排版和设计消磨掉所有热情？
@@ -124,8 +127,6 @@
 - **一句话生成**：输入一个主题，AI 自动生成结构清晰的大纲和逐页内容描述。
 - **自然语言编辑**：支持以 Vibe 形式口头修改大纲或描述（如"把第三页改成案例分析"），AI 实时响应调整。
 - **大纲/描述模式**：既可一键批量生成，也可手动调整细节。
-- **项目隔离的流式大纲**：生成期间可切换项目；生成结果只会回写到发起生成的项目，不会串页。
-- **Markdown 导入更确定**：导入弹窗会在执行前预览可识别页数，并按文件顺序一次性追加页面，避免格式不对或多页导入后顺序不确定。
 
 <img width="2000" height="1125" alt="image" src="https://github.com/user-attachments/assets/7fc1ecc6-433d-4157-b4ca-95fcebac66ba" />
 
@@ -135,7 +136,6 @@
 - **智能提取**：自动识别文本中的关键点、图片链接和图表信息，为生成提供丰富素材。
 - **图片自动入库**：文档解析出的图片会随参考文件关联项目后自动进入项目素材库，后续可直接复用。
 - **风格参考**：支持上传参考图片或模板，定制 PPT 风格。
-- **多图联合参考**：使用 GPT Image 时，图片模板与页面描述中的素材图会一起传入模型，不再只使用第一张参考图。
 
 <img width="1920" height="1080" alt="文件解析与素材处理" src="https://github.com/user-attachments/assets/8cda1fd2-2369-4028-b310-ea6604183936" />
 
@@ -143,18 +143,13 @@
 不再受限于复杂的菜单按钮，直接通过**自然语言**下达修改指令。
 - **局部重绘**：对不满意的区域进行口头式修改（如"把这个图换成饼图"）。
 - **整页优化**：基于 nano banana pro🍌 生成高清、风格统一的页面。
-- **质量控制模式**：可在系统设置或预览页开启，生成后自动检查乱码文字、低质量画面和提示词偏离；只有通过检查的图片才会保存为新版本。
-- **页面属性面板**：预览页右边缘拉开一个宽度可拖拽的属性抽屉，边看图边改标题、章节、页面描述（支持粘贴图片与描述附加字段）、页级模板与旁白讲稿，停止输入即自动保存，不用来回开关弹窗。
 
 <img width="2000" height="1125" alt="image" src="https://github.com/user-attachments/assets/929ba24a-996c-4f6d-9ec6-818be6b08ea3" />
 
 
 ### 4. 开箱即用的格式导出
 - **多格式支持**：一键导出标准 **PPTX** 或 **PDF** 文件。
-- **播放设置**：导出 PPTX 前可开启页面切换动画，支持淡入淡出、翻页、平移、擦除、分割、百叶窗、棋盘、时钟等经典效果并可多选随机应用。
-- **导出文件管理**：预览页会列出服务器端已导出的文件，可直接下载或删除不再需要的文件；导出任务历史按项目隔离清除，避免误删其他项目记录。刷新后若后端任务已不可用，任务面板会明确显示失败并提示重新导出。
-- **视频导出配置预检**：打开讲解视频面板前会显示设置加载状态；输出语言或 ElevenLabs 配置读取失败时会明确提示重试，不会用不确定的默认值继续。
-- **选页导出更清晰**：原有选页导出会按当前选择范围提示缺图状态，未选中的草稿页不会让已选完成页的导出入口变灰；讲解视频需明确勾选占位帧选项才会包含未配图页面。
+- **播放设置**：导出 PPTX 前可开启页面切换动画，支持淡入淡出等经典效果
 - **完美适配**：默认 16:9 比例，排版无需二次调整，直接演示。
 
 <img width="1000" alt="image" src="https://github.com/user-attachments/assets/3e54bbba-88be-4f69-90a1-02e875c25420" />
@@ -189,9 +184,6 @@
 
 | 状态 | 里程碑 |
 | --- | --- |
-| ✅ 已完成 | 从想法、大纲、页面描述三种路径创建 PPT |
-| ✅ 已完成 | 创建输入前后端双重非空校验，避免空白项目 |
-| ✅ 已完成 | 解析文本中的 Markdown 格式图片 |
 | ✅ 已完成 | PPT 单页添加更多素材 |
 | ✅ 已完成 | PPT 单页框选区域Vibe口头编辑 |
 | ✅ 已完成 | 素材模块: 素材生成、上传等 |
@@ -202,11 +194,7 @@
 | 🔄 进行中 | 网络搜索 |
 | 🔄 进行中 | Agent 模式 |
 | ✅ 已完成 | TTS 讲解视频导出（中/英/日多音色、字幕） |
-| 🚍 部分 | 优化前端加载速度 |
-| 🧭 规划中 | 在线播放功能 |
-| 🧭 规划中 | 简单的动画和页面切换效果 |
-| 🚍 部分 | 多语种支持 |
-| |
+
 
 ## 📦 使用方法
 
@@ -268,9 +256,10 @@ OPENAI_API_KEY=your-api-key-here
 OPENAI_API_BASE=https://api.openai.com/v1
 # 代理示例: https://api.inferera.com/v1
 
-# 火山方舟 AgentPlans 配置（当 AI_PROVIDER_FORMAT=volcengine 时使用）
+# 火山方舟 Agent Plans 配置（当 AI_PROVIDER_FORMAT=volcengine 时使用）
+# 注意: Agent Plan 需使用专属 API Key 与模型名 (doubao-seed-2.1-turbo / doubao-seedream-5.0-lite)
 VOLCENGINE_API_KEY=your-volcengine-api-key-here
-VOLCENGINE_API_BASE=https://ark.cn-beijing.volces.com/api/v3
+VOLCENGINE_API_BASE=https://ark.cn-beijing.volces.com/api/plan/v3
 
 # Vertex AI 配置（AI_PROVIDER_FORMAT=vertex）
 # 需要 GCP 项目和服务账户密钥
@@ -292,12 +281,19 @@ GLM_API_KEY=your-glm-api-key                  # 智谱 GLM
 SILICONFLOW_API_KEY=your-siliconflow-api-key  # 硅基流动
 SENSENOVA_API_KEY=your-sensenova-api-key      # 商汤日日新
 MINIMAX_API_KEY=your-minimax-api-key          # MiniMax
+KIMI_API_KEY=your-kimi-api-key                # 月之暗面 Kimi
+PPIO_API_KEY=your-ppio-api-key                # PPIO 派欧云
+AIPING_API_KEY=your-aiping-api-key            # AIPing 爱拼
 ...
 ```
 
 > Banana Slides explicitly packages the LazyLLM online provider SDKs used by domestic vendors:
 > `volcengine-python-sdk[ark]` for Doubao, `dashscope` for Qwen/Wanxiang, and `zhipuai` for GLM/Zhipu.
 > LazyLLM also exposes `lazyllm install online-advanced`, but the PyPI wheel may not publish that group as a standard install extra, so Docker/prebuilt images rely on these explicit dependencies instead.
+>
+> Desktop (PyInstaller) builds register every LazyLLM online vendor explicitly
+> (qwen, doubao, deepseek, glm, kimi, minimax, sensenova, siliconflow, ppio,
+> aiping, openai) so packaged backends never hit `Unsupported source: ...`.
   
 </details>
 
@@ -505,19 +501,13 @@ npm run dev
 打开浏览器访问即可使用应用。
 
 
-## 🛠️ 技术架构
-
-### 前端技术栈
-React 18 + TypeScript + Vite 5 + Zustand
-
-### 后端技术栈
-Python 3.10+ + Flask 3.0 + uv + SQLite
-
 ## 交流群
 
 欢迎在群中提出新功能建议或反馈～
 
-<img width="312" alt="image" src="https://github.com/user-attachments/assets/80f329d1-e418-40d1-825a-63460d8755d6" />
+<img width="312" alt="image" src="https://github.com/user-attachments/assets/25dbf94c-c694-44b0-a575-9dd368160702" />
+
+
 
 
 
@@ -526,8 +516,6 @@ Python 3.10+ + Flask 3.0 + uv + SQLite
 
 <p>
   <a href="https://x.com/anion_ex"><img src="https://img.shields.io/badge/X-@anion__ex-000000?style=flat-square&logo=x&logoColor=white" alt="X (Twitter)"></a>
-  <a href="https://www.xiaohongshu.com/user/profile/62e8f580000000001902fc9d"><img src="https://img.shields.io/badge/小红书-Anion-FF2442?style=flat-square&logo=xiaohongshu&logoColor=white" alt="小红书"></a>
-  <a href="https://space.bilibili.com/477162339"><img src="https://img.shields.io/badge/Bilibili-Anion-00A1D6?style=flat-square&logo=bilibili&logoColor=white" alt="Bilibili"></a>
 </p>
 
 
@@ -555,9 +543,9 @@ Python 3.10+ + Flask 3.0 + uv + SQLite
 ## 📄 许可证
 
 本项目采用 **GNU Affero General Public License v3.0（AGPL-3.0）** 开源，
-可自由用于个人学习、研究、试验、教育或非营利科研活动等非商业用途；
+可自由用于个人学习、研究、试验、教育或非营利科研活动等非商业用途；闭源商业用途需获取授权。
 
-如有疑问或合作意向，可联系: davidyang042@gmail.com
+如有疑问或合作意向、获取多租户商业版本，可联系: davidyang042@gmail.com
 
 
 
@@ -572,10 +560,10 @@ Python 3.10+ + Flask 3.0 + uv + SQLite
 
 
 <div align="center">
-<a href="中文链接">
+<a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">
     <img src="./assets/huoshan.png" alt="火山引擎" width="150"/ >
     <p>感谢<strong>火山引擎 </strong>赞助了本项目<br>
-      方舟 Agent Plan 限时2.5折订阅，<a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">点击链接抢购</a></p>
+      </p>
 </a>
 </div>
 
@@ -590,16 +578,6 @@ Python 3.10+ + Flask 3.0 + uv + SQLite
 -->
 
 
-<div align="center">
-
- <br>
-
-<a href="https://api.chatfire.site/login?inviteCode=A15CD6A0"><img width="200" alt="image" src="https://github.com/user-attachments/assets/d6bd255f-ba2c-4ea3-bd90-fef292fc3397" />
-</a>
-
-感谢AI火宝对本项目的赞助
- 
-</div>
 
 
 ## 致谢
@@ -622,17 +600,13 @@ Python 3.10+ + Flask 3.0 + uv + SQLite
  
 ## 📈 项目统计
 
-<a href="https://www.star-history.com/#Anionex/banana-slides&type=Timeline&legend=top-left">
-
+<a href="https://www.star-history.com/?type=timeline&legend=top-left&repos=Anionex%2Fbanana-slides">
  <picture>
-
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Anionex/banana-slides&type=Timeline&theme=dark&legend=top-left" />
-
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Anionex/banana-slides&type=Timeline&legend=top-left" />
-
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Anionex/banana-slides&type=Timeline&legend=top-left" />
-
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=Anionex/banana-slides&type=timeline&theme=dark&legend=top-left&sealed_token=pzS0bBi13dr1t_I0Dwnl1DVcQSdm3cX-52VniVUNQzg-ZWc6KLgzf_c-kfUYgEbGbpIw37AZbrkimxRYTzoiBCKkszqr7i07YYdStd03_JlKnzQ42jG8Vg" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=Anionex/banana-slides&type=timeline&legend=top-left&sealed_token=pzS0bBi13dr1t_I0Dwnl1DVcQSdm3cX-52VniVUNQzg-ZWc6KLgzf_c-kfUYgEbGbpIw37AZbrkimxRYTzoiBCKkszqr7i07YYdStd03_JlKnzQ42jG8Vg" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=Anionex/banana-slides&type=timeline&legend=top-left&sealed_token=pzS0bBi13dr1t_I0Dwnl1DVcQSdm3cX-52VniVUNQzg-ZWc6KLgzf_c-kfUYgEbGbpIw37AZbrkimxRYTzoiBCKkszqr7i07YYdStd03_JlKnzQ42jG8Vg" />
  </picture>
+</a>
 
 </a>
 

@@ -201,6 +201,9 @@ test.describe('In-place edit - desktop (mock)', () => {
   })
 
   test('keeps the drawer closed when the user had it closed', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('previewDrawer.open', 'false')
+    })
     await mockPreview(page)
     await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
     await expect(page.getByTestId('drawer-title-input')).toHaveCount(0)
