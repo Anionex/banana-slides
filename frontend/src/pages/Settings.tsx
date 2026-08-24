@@ -151,7 +151,7 @@ const settingsI18n = {
           cta: "使用此方案",
           active: "当前方案",
           link: "获取 API Key →",
-          note: "自动切换回 AIHubMix 端点，沿用当前格式",
+          note: "自动切回 AIHubMix 端点；默认用 Gemini 格式，已用 OpenAI 格式则沿用",
         },
         volcengine: {
           name: "火山 Agent Plan",
@@ -374,7 +374,7 @@ const settingsI18n = {
           cta: "Use this plan",
           active: "Current plan",
           link: "Get an API key →",
-          note: "Switches back to the AIHubMix endpoint and keeps the current format",
+          note: "Switches back to the AIHubMix endpoint (defaults to Gemini; keeps OpenAI format when already in use)",
         },
         volcengine: {
           name: "Volcengine Agent Plan",
@@ -1349,10 +1349,12 @@ export const Settings: React.FC = () => {
   const selectAihubmixPlan = () => {
     setFormData(prev => ({
       ...prev,
-      ai_provider_format: prev.ai_provider_format === 'gemini' ? 'gemini' : 'openai',
-      api_base_url: prev.ai_provider_format === 'gemini'
-        ? INFERERA_GEMINI_BASE_URL
-        : INFERERA_OPENAI_BASE_URL,
+      ai_provider_format: prev.ai_provider_format === 'gemini' || prev.ai_provider_format === 'openai'
+        ? prev.ai_provider_format
+        : 'gemini',
+      api_base_url: prev.ai_provider_format === 'openai'
+        ? INFERERA_OPENAI_BASE_URL
+        : INFERERA_GEMINI_BASE_URL,
     }));
   };
 

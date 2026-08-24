@@ -90,7 +90,7 @@ test.describe('Settings: provider plan comparison', () => {
     await expect(page.getByText('为什么选择火山 Agent Plan？')).toBeVisible();
   });
 
-  test('choosing AIHubMix from the comparison restores the AIHubMix endpoint', async ({ page }) => {
+  test('choosing AIHubMix from the comparison restores the default AIHubMix endpoint', async ({ page }) => {
     await page.route('**/api/settings', route =>
       route.fulfill({
         status: 200,
@@ -105,11 +105,32 @@ test.describe('Settings: provider plan comparison', () => {
 
     await page.getByTestId('provider-plan-aihubmix').getByRole('button', { name: '使用此方案' }).click();
 
-    const openaiPill = page.getByTestId('global-provider-pills').locator('[data-provider="openai"]');
-    await expect(openaiPill).toHaveAttribute('aria-checked', 'true');
+    const geminiPill = page.getByTestId('global-provider-pills').locator('[data-provider="gemini"]');
+    await expect(geminiPill).toHaveAttribute('aria-checked', 'true');
     await expect(page.getByTestId('global-api-config-section').locator('input').first())
-      .toHaveValue('https://api.inferera.com/v1');
+      .toHaveValue('https://api.inferera.com/gemini');
     await expect(page.getByTestId('provider-plan-aihubmix').getByRole('button', { name: '当前方案' })).toBeVisible();
     await expect(page.getByText('为什么选择火山 Agent Plan？')).not.toBeVisible();
+  });
+
+  test('choosing AIHubMix from OpenAI keeps the OpenAI-compatible endpoint', async ({ page }) => {
+    await page.route('**/api/settings', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mockSettings({
+          ai_provider_format: 'openai',
+          api_base_url: 'https://api.openai.com/v1',
+        })),
+      })
+    );
+    await page.goto('/settings');
+
+    await page.getByTestId('provider-plan-aihubmix').getByRole('button', { name: '使用此方案' }).click();
+
+    await expect(page.getByTestId('global-provider-pills').locator('[data-provider="openai"]'))
+      .toHaveAttribute('aria-checked', 'true');
+    await expect(page.getByTestId('global-api-config-section').locator('input').first())
+      .toHaveValue('https://api.inferera.com/v1');
   });
 });
