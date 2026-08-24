@@ -297,6 +297,14 @@ test.describe('Slide player - near-fullscreen overlay (mock)', () => {
       })
     ).toBe('slide-player')
     await expect(toggle).toHaveAttribute('aria-label', /退出全屏|Exit fullscreen/)
+    // PPT-style native fullscreen: chrome is hidden, the stage fills the whole
+    // screen and the image covers it (no letterboxing)
+    await expect(page.getByTestId('player-header')).toBeHidden()
+    const stageBox = (await playerStage(page).boundingBox())!
+    const playerBox = (await player(page).boundingBox())!
+    expect(Math.abs(stageBox.width - playerBox.width)).toBeLessThan(2)
+    expect(Math.abs(stageBox.height - playerBox.height)).toBeLessThan(2)
+    await expect(playerStage(page).locator('img')).toHaveClass(/object-cover/)
 
     // Escape while in native fullscreen: browser exits fullscreen but the
     // overlay stays in near-fullscreen mode
@@ -309,6 +317,23 @@ test.describe('Slide player - near-fullscreen overlay (mock)', () => {
     await toggle.click()
     await expect(toggle).toHaveAttribute('aria-label', /全屏播放|Fullscreen/)
     expect(await page.evaluate(() => (window as never as { __fsCount: number }).__fsCount)).toBe(2)
+  })
+
+  test('native fullscreen auto-hides the toolbar and wakes on mouse move', async ({ page }) => {
+    await mockPreview(page)
+    await stubFullscreenApi(page)
+    await openPlayer(page)
+
+    const toolbar = playerToolbar(page)
+    await page.getByTestId('player-fullscreen-toggle').click()
+    // Visible on entering fullscreen (and after any mouse move)
+    await expect(toolbar).toBeVisible()
+    // Auto-hides after the idle delay
+    await expect(toolbar).toBeHidden({ timeout: 6000 })
+    // Moving the mouse wakes it again
+    await page.mouse.move(640, 400)
+    await expect(toolbar).toBeVisible()
+    await expect(toolbar).toBeHidden({ timeout: 6000 })
   })
 
   test('exiting keeps the last played page selected in the main preview', async ({ page }) => {
@@ -372,7 +397,8 @@ test.describe('Slide player - near-fullscreen overlay (mock)', () => {
 
     await page.getByTestId('player-fullscreen-toggle').click()
     await expect(page.getByTestId('player-fullscreen-toggle')).toHaveAttribute('aria-label', /退出全屏|Exit fullscreen/)
-    await page.getByTestId('player-exit').click()
+    // The header exit button is hidden in native fullscreen; the toolbar one is used
+    await page.getByTestId('player-exit-fs').click()
 
     await expect(player(page)).toBeHidden()
     expect(await page.evaluate(() => !!document.fullscreenElement)).toBe(false)

@@ -9,6 +9,7 @@ const playerI18n = {
     player: {
       playing: '播放中',
       exitPlayer: '退出播放',
+      exitPlayerFs: '退出播放',
       fullscreen: '全屏播放',
       exitFullscreen: '退出全屏',
       prevPage: '上一页',
@@ -23,6 +24,7 @@ const playerI18n = {
     player: {
       playing: 'Playing',
       exitPlayer: 'Exit presentation',
+      exitPlayerFs: 'Exit presentation',
       fullscreen: 'Fullscreen',
       exitFullscreen: 'Exit fullscreen',
       prevPage: 'Previous slide',
@@ -46,6 +48,8 @@ interface SlidePlayerProps {
 
 /** 顶部栏 + 底部控制条 + 上下留白占用的纵向空间（px） */
 const VERTICAL_RESERVED = 168;
+/** 真全屏下控制条无操作自动隐藏的延迟（ms） */
+const HIDE_CONTROLS_DELAY = 2500;
 
 function parseAspectRatio(aspectRatio: string): number {
   const parts = aspectRatio.split(':');
@@ -75,8 +79,10 @@ export const SlidePlayer: React.FC<SlidePlayerProps> = ({
   const [fullscreenPending, setFullscreenPending] = useState(false);
   const [viewport, setViewport] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }));
   const [fullscreenError, setFullscreenError] = useState(false);
+  const [controlsVisible, setControlsVisible] = useState(true);
   const playerRef = useRef<HTMLDivElement>(null);
   const errorTimerRef = useRef<number | null>(null);
+  const hideTimerRef = useRef<number | null>(null);
 
   // 每次打开都从调用方指定的当前页开始
   useEffect(() => {
@@ -135,6 +141,29 @@ export const SlidePlayer: React.FC<SlidePlayerProps> = ({
     return () => window.removeEventListener('resize', onResize);
   }, [open]);
 
+  // 真全屏（PPT 放映观感）：控制条平时隐藏，鼠标/触摸移动时短暂出现
+  useEffect(() => {
+    if (!open || !isNativeFullscreen) {
+      setControlsVisible(true);
+      return;
+    }
+    const root = playerRef.current;
+    if (!root) return;
+    const wake = () => {
+      setControlsVisible(true);
+      if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = window.setTimeout(() => setControlsVisible(false), HIDE_CONTROLS_DELAY);
+    };
+    root.addEventListener('mousemove', wake);
+    root.addEventListener('touchstart', wake);
+    wake();
+    return () => {
+      root.removeEventListener('mousemove', wake);
+      root.removeEventListener('touchstart', wake);
+      if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
+    };
+  }, [open, isNativeFullscreen]);
+
   // 焦点陷阱：Tab 在播放器内循环，避免焦点逃逸到背景页面
   useEffect(() => {
     if (!open) return;
@@ -142,9 +171,13 @@ export const SlidePlayer: React.FC<SlidePlayerProps> = ({
     if (!root) return;
     const onTab = (e: KeyboardEvent) => {
       if (e.key !== 'Tab') return;
+      const visible = (el: HTMLElement) => {
+        const style = window.getComputedStyle(el);
+        return style.display !== 'none' && style.visibility !== 'hidden';
+      };
       const items = Array.from(
         root.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
-      ).filter((el) => !el.hasAttribute('disabled'));
+      ).filter((el) => !el.hasAttribute('disabled') && visible(el));
       if (items.length === 0) return;
       const first = items[0];
       const last = items[items.length - 1];
@@ -230,7 +263,12 @@ export const SlidePlayer: React.FC<SlidePlayerProps> = ({
       className="fixed inset-0 z-[100] flex flex-col bg-black select-none"
     >
       {/* 顶部：播放标识 + 退出 */}
-      <header className="flex flex-shrink-0 items-center justify-between px-4 py-3 md:px-6">
+      <header
+        data-testid="player-header"
+        className={`flex flex-shrink-0 items-center justify-between px-4 py-3 md:px-6 ${
+          isNativeFullscreen ? 'hidden' : ''
+        }`}
+      >
         <div className="flex items-center gap-2 text-sm text-white/80">
           <Play size={14} className="shrink-0" />
           <span>{t('player.playing')}</span>
@@ -258,18 +296,28 @@ export const SlidePlayer: React.FC<SlidePlayerProps> = ({
         </div>
       )}
 
-      {/* 画面区：等比缩放居中，左右分区域点击翻页 */}
-      <div className="flex min-h-0 flex-1 items-center justify-center px-4 md:px-8">
+      {/* 画面区：等比缩放居中；真全屏时铺满整个屏幕（PPT 放映观感） */}
+      <div
+        className={`flex min-h-0 flex-1 items-center justify-center ${
+          isNativeFullscreen ? 'w-full' : 'px-4 md:px-8'
+        }`}
+      >
         <div
-          className="relative overflow-hidden rounded-lg shadow-2xl"
-          style={{ width: slideWidth, height: slideHeight }}
+          className={`relative overflow-hidden ${
+            isNativeFullscreen
+              ? 'h-full w-full rounded-none shadow-none'
+              : 'rounded-lg shadow-2xl'
+          }`}
+          style={isNativeFullscreen ? undefined : { width: slideWidth, height: slideHeight }}
           data-testid="player-slide-stage"
         >
           {hasImage ? (
             <img
               src={imageUrl}
               alt={`Slide ${clampedIndex + 1}`}
-              className="h-full w-full select-none object-contain"
+              className={`h-full w-full select-none ${
+                isNativeFullscreen ? 'object-cover' : 'object-contain'
+              }`}
               draggable={false}
             />
           ) : (
@@ -312,8 +360,12 @@ export const SlidePlayer: React.FC<SlidePlayerProps> = ({
         </div>
       </div>
 
-      {/* 底部控制条 */}
-      <footer className="flex flex-shrink-0 items-center justify-center px-4 pb-4 pt-2">
+      {/* 底部控制条：真全屏时悬浮在画面上、无操作自动隐藏 */}
+      <footer
+        className={`flex items-center justify-center px-4 pb-4 pt-2 transition-[opacity,visibility] duration-300 ${
+          isNativeFullscreen ? 'absolute inset-x-0 bottom-0 z-10' : 'flex-shrink-0'
+        } ${isNativeFullscreen && !controlsVisible ? 'invisible opacity-0' : 'visible opacity-100'}`}
+      >
         <div
           data-testid="player-toolbar"
           className="flex items-center gap-1 rounded-full bg-white/10 px-2 py-1.5 shadow-lg backdrop-blur"
@@ -342,6 +394,21 @@ export const SlidePlayer: React.FC<SlidePlayerProps> = ({
             <ChevronRight size={18} />
           </button>
           <div className="mx-1 h-4 w-px bg-white/20" />
+          {isNativeFullscreen && (
+            <>
+              <button
+                type="button"
+                data-testid="player-exit-fs"
+                onClick={onClose}
+                aria-label={t('player.exitPlayerFs')}
+                title={t('player.exitPlayerFs')}
+                className="flex h-8 w-8 items-center justify-center rounded-full text-white/80 transition hover:bg-white/15 hover:text-white"
+              >
+                <X size={16} />
+              </button>
+              <div className="mx-1 h-4 w-px bg-white/20" />
+            </>
+          )}
           <button
             type="button"
             data-testid="player-fullscreen-toggle"
