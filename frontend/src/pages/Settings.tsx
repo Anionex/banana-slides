@@ -512,6 +512,8 @@ const LAZYLLM_SOURCES = [
   { value: 'minimax', label: 'MiniMax' },
   { value: 'openai', label: 'OpenAI' },
   { value: 'kimi', label: 'Kimi' },
+  { value: 'ppio', label: 'PPIO (派欧云)' },
+  { value: 'aiping', label: 'AIPing (爱拼)' },
 ];
 
 // 所有可用的提供商选项（Gemini/OpenAI/Codex + LazyLLM 厂商）
@@ -562,7 +564,7 @@ const LAZYLLM_VENDOR_SET = new Set(LAZYLLM_SOURCES.map(s => s.value));
 // supplier; image-model source options are filtered to this set so a selection
 // cannot point at a vendor without image capability.
 const IMAGE_CAPABLE_LAZYLLM_SOURCES = new Set([
-  'qwen', 'doubao', 'siliconflow', 'glm', 'minimax',
+  'qwen', 'doubao', 'siliconflow', 'aiping', 'glm', 'minimax',
 ]);
 
 // Whether a source value can appear in the image-model source dropdown:

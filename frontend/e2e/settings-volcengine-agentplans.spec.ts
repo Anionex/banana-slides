@@ -85,9 +85,11 @@ test.describe('Settings: Volcengine AgentPlans provider', () => {
     await page.goto('/settings');
 
     const pills = page.getByTestId('global-provider-pills').locator('[data-provider]');
-    await expect(pills).toHaveCount(12);
+    await expect(pills).toHaveCount(14);
     await expect(globalProviderPill(page, 'gemini')).toHaveAttribute('aria-checked', 'true');
     await expect(globalProviderPill(page, 'openai')).toBeVisible();
+    await expect(globalProviderPill(page, 'ppio')).toBeVisible();
+    await expect(globalProviderPill(page, 'aiping')).toBeVisible();
     await expect(globalProviderPill(page, 'volcengine')).toContainText('火山 Agent Plan');
     await expect(globalProviderPill(page, 'volcengine')).toContainText('国内直连 · 高性价比');
     await expect(globalProviderPill(page, 'doubao')).toContainText('Doubao（豆包）');

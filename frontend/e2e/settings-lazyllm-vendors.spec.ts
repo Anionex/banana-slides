@@ -13,6 +13,8 @@ const LAZYLLM_SOURCE_LABELS = [
   'SenseNova (商汤)',
   'MiniMax',
   'Kimi',
+  'PPIO (派欧云)',
+  'AIPing (爱拼)',
 ]
 
 const ALL_SOURCE_LABELS = [
@@ -61,7 +63,7 @@ const mockSettings = {
 }
 
 test.describe('Settings: LazyLLM vendor sources', () => {
-  test('lists Banana Slides providers without unrelated LazyLLM sponsors', async ({ page }) => {
+  test('lists every supported LazyLLM provider as a plain option', async ({ page }) => {
     await page.route('**/api/settings', route =>
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockSettings) })
     )
@@ -69,13 +71,13 @@ test.describe('Settings: LazyLLM vendor sources', () => {
 
     // The global pills expose every provider without requiring a dropdown click.
     const providerPills = page.getByTestId('global-provider-pills')
-    await expect(providerPills.locator('[data-provider="ppio"]')).toHaveCount(0)
-    await expect(providerPills.locator('[data-provider="aiping"]')).toHaveCount(0)
+    await expect(providerPills.locator('[data-provider="ppio"]')).toHaveCount(1)
+    await expect(providerPills.locator('[data-provider="aiping"]')).toHaveCount(1)
     await expect(providerPills.locator('[data-provider="gemini"]')).toHaveAttribute('aria-checked', 'true')
 
     const textSelect = page.getByTestId('text_model_source-select')
-    await expect(textSelect.locator('option[value="ppio"]')).toHaveCount(0)
-    await expect(textSelect.locator('option[value="aiping"]')).toHaveCount(0)
+    await expect(textSelect.locator('option[value="ppio"]')).toHaveCount(1)
+    await expect(textSelect.locator('option[value="aiping"]')).toHaveCount(1)
     const optionTexts = await textSelect.locator('option').allTextContents()
     for (const label of ALL_SOURCE_LABELS) {
       expect(optionTexts.join('\n')).toContain(label)
@@ -95,15 +97,18 @@ test.describe('Settings: LazyLLM vendor sources', () => {
     const imageText = imageOptions.join('\n')
     expect(imageText).toContain('Qwen (通义千问)')
     expect(imageText).toContain('Doubao（豆包）')
+    // AIPing registers a text2image supplier, so it stays selectable.
+    expect(imageText).toContain('AIPing (爱拼)')
     // Real OpenAI provider stays selectable for image generation.
     expect(imageText).toContain('OpenAI')
-    for (const label of ['PPIO (派欧云)', 'AIPing (爱拼)', 'DeepSeek', 'Kimi', 'SenseNova (商汤)']) {
+    // PPIO has no text2image supplier and must stay filtered out.
+    for (const label of ['PPIO (派欧云)', 'DeepSeek', 'Kimi', 'SenseNova (商汤)']) {
       expect(imageText).not.toContain(label)
     }
 
     const captionSelect = page.getByTestId('image_caption_model_source-select')
-    await expect(captionSelect.locator('option[value="ppio"]')).toHaveCount(0)
-    await expect(captionSelect.locator('option[value="aiping"]')).toHaveCount(0)
+    await expect(captionSelect.locator('option[value="ppio"]')).toHaveCount(1)
+    await expect(captionSelect.locator('option[value="aiping"]')).toHaveCount(1)
     const captionText = (await captionSelect.locator('option').allTextContents()).join('\n')
     expect(captionText).toContain('MiniMax')
   })
