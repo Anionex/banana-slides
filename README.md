@@ -48,6 +48,30 @@
 
 </div>
 
+## ❤️ 赞助
+
+> 想赞助本项目？请发送邮件至 davidyang042@gmail.com。
+
+<details open>
+<summary>点击折叠</summary>
+
+<table>
+<tr>
+<td width="220" align="center" valign="middle"><a href="https://aihubmix.com/?aff=17EC"><img src="./assets/logo_aihubmix.png" alt="AIHubMix" height="48"></a></td>
+<td valign="middle">感谢 <a href="https://aihubmix.com/?aff=17EC">AIHubMix</a> 赞助本项目！AIHubMix 是稳定、高并发的 AI 大模型 API 聚合平台，一个 API Key 即可接入 Claude、GPT、Gemini、DeepSeek 等主流模型，兼容多种协议，并提供<b>免费模型选择</b>。注册时，海外用户请使用 <a href="https://aihubmix.com/?aff=17EC">AIHubMix 入口</a>，中国大陆用户请使用 <a href="https://inferera.com/?aff=17EC">Inferera 入口</a>。</td>
+</tr>
+<tr>
+<td width="220" align="center" valign="middle"><a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides"><img src="./assets/huoshan.png" alt="火山引擎" height="48"></a></td>
+<td valign="middle">感谢 <a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">火山引擎</a> 赞助了本项目！<strong>为什么推荐火山 Agent Plan？</strong><br>相比海外主流官方 API 价格更低、性价比更高，生成效果接近；国内直连，无需特殊网络环境。订阅后还能用于日常使用和其他兼容工具，不局限于 Banana Slides。<br><a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">查看优惠并订阅 →</a></td>
+</tr>
+<tr>
+<td width="220" align="center" valign="middle"><a href="https://go.apimart.ai/gh-banana-slides"><img src="./assets/logo_apimart.png" alt="APIMart" height="48"></a></td>
+<td valign="middle">感谢 <a href="https://go.apimart.ai/gh-banana-slides">APIMart</a> 赞助了本项目！APIMart 是专注 AI 图片/视频生成的低价 API 平台，GPT-Image-2 低至 $0.006/张，1 美元可出图 160+ 张。图片、视频一套异步 API 通吃，提交任务拿 ID、回调取结果，跑批万张不超时、换模型不改代码。按量付费、无月费，通过此<a href="https://go.apimart.ai/gh-banana-slides">注册链接</a>注册即可开用。</td>
+</tr>
+</table>
+
+</details>
+
 ## 🔥 最新动态
 - **[2026-08-20]**：0.9.0 候选版本 4 发布，重点修复桌面打包版 LazyLLM 在线供应商不可用（qwen 等）与 SOCKS 代理依赖缺失，并恢复预览页「上一步」返回描述编辑页、修复导出任务弹层遮挡与桌面端属性抽屉交互；[一键下载并安装](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.4)
 - **[2026-08-20]**：预览页恢复「上一步」按钮，可从幻灯片预览一键返回描述编辑页继续修改
@@ -236,6 +260,10 @@ cp .env.example .env
 ```
 
 **（可选， 也可以启动后在用户界面配置，[教程可点击此处](https://ziy68cvfvu3.feishu.cn/wiki/GiNawdmpiinSRqkGspocqEWAnkh?from=from_copylink )）** 编辑 `.env` 文件，配置必要的环境变量：
+
+> **国内用户推荐：火山 Agent Plan**<br>
+> 相比海外主流官方模型 API，价格更低、性价比更高，生成效果接近；国内直连，无需特殊网络环境。订阅后不仅可用于 Banana Slides，也能用于日常使用和其他兼容工具。<br>
+> [查看火山 Agent Plan 优惠并订阅 →](https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides)
 
 <details>
 <summary>点击展开详情</summary>
@@ -546,37 +574,6 @@ npm run dev
 可自由用于个人学习、研究、试验、教育或非营利科研活动等非商业用途；闭源商业用途需获取授权。
 
 如有疑问或合作意向、获取多租户商业版本，可联系: davidyang042@gmail.com
-
-
-
-<h2>🚀 Sponsor / 赞助 </h2>
-<br>
-<div align="center">
-<a href="https://api.inferera.com/?aff=17EC">
-  <img src="./assets/logo_aihubmix.png" alt="AIHubMix" style="height:48px;">
-</a>
-<p>感谢AIHubMix对本项目的赞助</p>
-</div>
-
-
-<div align="center">
-<a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">
-    <img src="./assets/huoshan.png" alt="火山引擎" width="150"/ >
-    <p>感谢<strong>火山引擎 </strong>赞助了本项目<br>
-      </p>
-</a>
-</div>
-
-<!-- 注意，英文README使用这个版本： -->
-<!--
-<div align="center">
-<a href="英文链接">
-    <img src="./assets/byteplus.png" alt="BytePlus" width="150"/ >
-    <p> Thanks to Dola seed for sponsoring this project! Register via <a href="https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=banana-slides&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">this link</a> to get 500,000 tokens of free inference quota per model. </p>
-</a>
-</div>
--->
-
 
 
 

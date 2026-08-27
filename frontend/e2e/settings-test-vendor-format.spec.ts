@@ -34,8 +34,8 @@ test.beforeEach(async ({ page }) => {
 
 test('service test sends resolved vendor name for lazyllm global format', async ({ page }) => {
   const section = page.getByTestId('global-api-config-section');
-  const providerSelect = section.locator('select').first();
-  await expect(providerSelect).toHaveValue('deepseek');
+  await expect(section.getByTestId('global-provider-pills').locator('[data-provider="deepseek"]'))
+    .toHaveAttribute('aria-checked', 'true');
 
   let capturedPayload: any = null;
   await page.route('**/api/settings/tests/text-model', async (route) => {

@@ -48,6 +48,30 @@
 
 </div>
 
+## ❤️ Sponsor
+
+> Want to sponsor this project? Email davidyang042@gmail.com.
+
+<details open>
+<summary>Click to collapse</summary>
+
+<table>
+<tr>
+<td width="220" align="center" valign="middle"><a href="https://aihubmix.com/?aff=17EC"><img src="./assets/logo_aihubmix.png" alt="AIHubMix" height="48"></a></td>
+<td valign="middle">Thanks to <a href="https://aihubmix.com/?aff=17EC">AIHubMix</a> for sponsoring this project! AIHubMix is a stable, high-concurrency AI model API gateway that connects Claude, GPT, Gemini, DeepSeek, and other mainstream models through a single API key, compatible with multiple protocols, with <b>free model options</b> available. To sign up, use the <a href="https://aihubmix.com/?aff=17EC">AIHubMix entry</a> outside mainland China or the <a href="https://inferera.com/?aff=17EC">Inferera entry</a> within mainland China.</td>
+</tr>
+<tr>
+<td width="220" align="center" valign="middle"><a href="https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=banana-slides&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides"><img src="./assets/byteplus.png" alt="BytePlus ModelArk" height="48"></a></td>
+<td valign="middle">Thanks to <a href="https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=banana-slides&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">BytePlus ModelArk</a> for sponsoring this project! <strong>Why choose ModelArk?</strong><br>It is a cost-effective alternative to major model APIs with comparable generation quality. The subscription can also be used for everyday work and other compatible tools—not only Banana Slides.<br><a href="https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=banana-slides&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">View plans and subscribe →</a></td>
+</tr>
+<tr>
+<td width="220" align="center" valign="middle"><a href="https://go.apimart.ai/gh-banana-slides"><img src="./assets/logo_apimart.png" alt="APIMart" height="48"></a></td>
+<td valign="middle">Thanks to <a href="https://go.apimart.ai/gh-banana-slides">APIMart</a> for sponsoring this project! APIMart is a low-cost API platform for AI image &amp; video generation — GPT-Image-2 from $0.006/image, 160+ images per dollar. One async API covers both image and video: submit a task, get an ID, fetch results via polling or callback. Batch tens of thousands of images without timeouts, switch models without changing code. Pay-as-you-go with no monthly fee — <a href="https://go.apimart.ai/gh-banana-slides">sign up here</a> to get started.</td>
+</tr>
+</table>
+
+</details>
+
 ## 🔥 Latest Updates
 
 - **[2026-08-20]**: Release Candidate 4 of v0.9.0 is available, fixing unavailable LazyLLM online providers (qwen etc.) and missing SOCKS proxy dependencies in desktop builds, restoring the previous-step button to return to the description editor, and fixing export task dialog occlusion and desktop property drawer interaction; [One-click download and install](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.4)
@@ -236,6 +260,10 @@ cp .env.example .env
 ```
 
 **(Optional, can also be configured in the user interface after startup, [click here for the tutorial](https://ziy68cvfvu3.feishu.cn/wiki/GiNawdmpiinSRqkGspocqEWAnkh?from=from_copylink ))** Edit the `.env` file to configure the required environment variables:
+
+> **Recommended: Volcengine Agent Plan**<br>
+> A more cost-effective alternative to major overseas model APIs with comparable generation quality. The subscription can be used for Banana Slides, everyday work, and other compatible tools.<br>
+> [View plans and subscribe →](https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=banana-slides&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides)
 
 <details>
 <summary>Click to expand details</summary>
@@ -589,34 +617,6 @@ For questions or cooperation inquiries, please contact: davidyang042@gmail.com
 
 
 
-<h2>🚀 Sponsor </h2>
-<br>
-<div align="center">
-<a href="https://api.inferera.com/?aff=17EC">
-  <img src="./assets/logo_aihubmix.png" alt="AIHubMix" style="height:48px;">
-</a>
-<p>Thanks to AIHubMix for sponsoring this project</p>
-</div>
-
-
-<div align="center">
-<a href="中文链接">
-    <img src="./assets/huoshan.png" alt="Volcengine" width="150"/ >
-    <p>Thanks to <strong>Volcengine</strong> for sponsoring this project<br>
-      Ark Agent Plan 75% off for a limited time, <a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">click the link to purchase now</a></p>
-</a>
-</div>
-
-<!-- Note: Use this version for the English README: -->
-<!--
-<div align="center">
-<a href="英文链接">
-    <img src="./assets/byteplus.png" alt="BytePlus" width="150"/ >
-    <p> Thanks to Dola seed for sponsoring this project! Register via <a href="https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=banana-slides&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">this link</a> to get 500,000 tokens of free inference quota per model. </p>
-</a>
-</div>
--->
-
 ## Acknowledgements
 
 - Project Contributors:
@@ -625,7 +625,7 @@ For questions or cooperation inquiries, please contact: davidyang042@gmail.com
 
 - [Linux.do](https://linux.do/): A new ideal community
 
-## Sponsor
+## Donation
 
 Open source is not easy 🙏 If this project is valuable to you, you are welcome to buy the developer a coffee ☕️
 

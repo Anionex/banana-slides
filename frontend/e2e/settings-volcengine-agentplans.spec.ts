@@ -48,6 +48,12 @@ const mockSettings = {
 const modelInputs = (page: Page) =>
   page.locator('input[placeholder^="留空使用环境变量配置"]');
 
+const globalProviderPill = (page: Page, provider: string) =>
+  page.getByTestId('global-provider-pills').locator(`[data-provider="${provider}"]`);
+
+const modelProviderSelect = (page: Page, source: 'text' | 'image' | 'image_caption') =>
+  page.getByTestId(`${source}_model_source-select`);
+
 test.describe('Settings: Volcengine AgentPlans provider', () => {
   test.use({ locale: 'zh-CN' });
 
@@ -75,24 +81,30 @@ test.describe('Settings: Volcengine AgentPlans provider', () => {
     });
   });
 
-  test('shows promoted Volcengine and Doubao providers with asterisks at the top', async ({ page }) => {
+  test('shows every provider and the Volcengine benefits before the user selects it', async ({ page }) => {
     await page.goto('/settings');
 
-    const providerSelect = page.getByTestId('global-api-config-section').locator('select').first();
-    await expect(providerSelect).toBeVisible();
-    const optionTexts = await providerSelect.locator('option').allTextContents();
+    const pills = page.getByTestId('global-provider-pills').locator('[data-provider]');
+    await expect(pills).toHaveCount(14);
+    await expect(globalProviderPill(page, 'gemini')).toHaveAttribute('aria-checked', 'true');
+    await expect(globalProviderPill(page, 'openai')).toBeVisible();
+    await expect(globalProviderPill(page, 'ppio')).toBeVisible();
+    await expect(globalProviderPill(page, 'aiping')).toBeVisible();
+    await expect(globalProviderPill(page, 'volcengine')).toContainText('火山 Agent Plan');
+    await expect(globalProviderPill(page, 'volcengine')).toContainText('国内直连 · 高性价比');
+    await expect(globalProviderPill(page, 'doubao')).toContainText('Doubao（豆包）');
+    await expect(globalProviderPill(page, 'doubao')).toContainText('国内直连');
 
-    expect(optionTexts[0]).toBe('Gemini');
-    expect(optionTexts[1]).toBe('OpenAI');
-    expect(optionTexts[2]).toBe('* 火山 AgentPlans');
-    expect(optionTexts[3]).toBe('* Doubao (豆包)');
+    await globalProviderPill(page, 'volcengine').click();
+    await expect(globalProviderPill(page, 'volcengine')).toHaveAttribute('aria-checked', 'true');
+    await expect(page.getByText('为什么选择火山 Agent Plan？')).toBeVisible();
+    await expect(page.getByText(/相比海外主流官方 API，价格更低、性价比更高，生成效果接近/)).toBeVisible();
   });
 
   test('replaces AIHubMix promo with Volcengine AgentPlans promo when selected', async ({ page }) => {
     await page.goto('/settings');
 
-    const providerSelect = page.getByTestId('global-api-config-section').locator('select').first();
-    await providerSelect.selectOption('volcengine');
+    await globalProviderPill(page, 'volcengine').click();
 
     const globalApiSection = page.getByTestId('global-api-config-section');
     // Agent Plans 端点可编辑, 且未填过时自动预填专属 Base URL
@@ -100,28 +112,32 @@ test.describe('Settings: Volcengine AgentPlans provider', () => {
     await expect(globalApiSection.locator('input').first()).toHaveValue('https://ark.cn-beijing.volces.com/api/plan/v3');
     await expect(globalApiSection.locator('input[type="password"]').first()).toBeVisible();
 
-    await providerSelect.selectOption('openai');
+    await globalProviderPill(page, 'openai').click();
     await expect(globalApiSection.getByText('API Base URL')).toBeVisible();
     // 离开 Agent Plans 时过时的 plan/v3 端点必须清空, 否则会作为 openai 的 base 保存
     await expect(globalApiSection.locator('input').first()).toHaveValue('');
 
-    await providerSelect.selectOption('volcengine');
+    await globalProviderPill(page, 'volcengine').click();
     await expect(globalApiSection.getByText('API Base URL')).toBeVisible();
     await expect(globalApiSection.locator('input').first()).toHaveValue('https://ark.cn-beijing.volces.com/api/plan/v3');
-    await page.locator('select').nth(1).selectOption('volcengine');
+    await modelProviderSelect(page, 'text').selectOption('volcengine');
     // per-model 的 Base URL 输入框同样可编辑（仅当前组 source=volcengine 时显示）,
     // 空默认值同样被替换为 Agent Plans 专属端点
     await expect(page.getByPlaceholder('留空使用默认 Base URL')).toHaveCount(1);
     await expect(page.getByPlaceholder('留空使用默认 Base URL'))
       .toHaveValue('https://ark.cn-beijing.volces.com/api/plan/v3');
 
-    await expect(page.getByText('火山 AgentPlans API Key 配置')).toBeVisible();
-    await expect(page.getByText(/Agent Plan \/ Coding Plan 限时折扣/)).toBeVisible();
-    await expect(page.getByText(/免费 Tokens 领取等活动/)).toBeVisible();
-    await expect(page.getByText('订阅并获取火山 AgentPlans API Key')).toBeVisible();
-    await expect(page.getByText('进入 Agent Plan 控制台')).toBeVisible();
-    await expect(page.getByText(/在 Agent Plan 控制台创建专属 API Key/)).toBeVisible();
-    await expect(page.getByRole('link', { name: 'API Key 控制台' })).toHaveAttribute(
+    const promo = page.getByTestId('volcengine-campaign-promo');
+    await expect(promo.getByText('为什么选择火山 Agent Plan？')).toBeVisible();
+    await expect(promo.getByText(/相比海外主流官方 API，价格更低、性价比更高，生成效果接近/)).toBeVisible();
+    await expect(promo.getByText(/国内直连，无需特殊网络环境/)).toBeVisible();
+    await expect(promo.getByText(/不局限于 Banana Slides/)).toBeVisible();
+    await expect(promo.getByText(/Agent Plan \/ Coding Plan 限时折扣/)).toBeVisible();
+    await expect(promo.getByText(/免费 Tokens/)).toBeVisible();
+    await expect(promo.getByText('订阅并获取火山 AgentPlans API Key')).toBeVisible();
+    await expect(promo.getByText('进入 Agent Plan 控制台')).toBeVisible();
+    await expect(promo.getByText(/在 Agent Plan 控制台创建专属 API Key/)).toBeVisible();
+    await expect(promo.getByRole('link', { name: 'API Key 控制台' })).toHaveAttribute(
       'href',
       'https://ai.volcengine.com/console/apikey'
     );
@@ -130,7 +146,7 @@ test.describe('Settings: Volcengine AgentPlans provider', () => {
     await expect(page.getByText('AIHubmix 申请 API key')).not.toBeVisible();
     await expect(page.locator('img[alt="火山引擎"]')).toBeVisible();
 
-    const volcengineLink = page.getByRole('link', { name: '点击链接抢购' }).first();
+    const volcengineLink = page.getByRole('link', { name: '查看优惠并订阅' }).first();
     await expect(volcengineLink).toHaveAttribute('href', 'https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides');
 
     await page.getByRole('button', { name: '一键填写推荐模型' }).click();
@@ -138,10 +154,10 @@ test.describe('Settings: Volcengine AgentPlans provider', () => {
     await expect(inputs.nth(0)).toHaveValue('doubao-seed-2.1-turbo');
     await expect(inputs.nth(1)).toHaveValue('doubao-seedream-5.0-lite');
     await expect(inputs.nth(2)).toHaveValue('doubao-seed-2.1-turbo');
-    await expect(page.locator('select').nth(1)).toHaveValue('volcengine');
-    await expect(page.locator('select').nth(2)).toHaveValue('volcengine');
-    await expect(page.locator('select').nth(3)).toHaveValue('images');
-    await expect(page.locator('select').nth(4)).toHaveValue('volcengine');
+    await expect(modelProviderSelect(page, 'text')).toHaveValue('volcengine');
+    await expect(modelProviderSelect(page, 'image')).toHaveValue('volcengine');
+    await expect(page.getByTestId('openai-image-api-protocol-select')).toHaveValue('images');
+    await expect(modelProviderSelect(page, 'image_caption')).toHaveValue('volcengine');
 
     await page.getByRole('button', { name: /保存设置/ }).click();
     await expect(page.getByText('设置保存成功')).toBeVisible();
@@ -200,8 +216,7 @@ test.describe('Settings: Volcengine AgentPlans provider', () => {
 
     await page.goto('/settings');
 
-    const providerSelect = page.getByTestId('global-api-config-section').locator('select').first();
-    await providerSelect.selectOption('volcengine');
+    await globalProviderPill(page, 'volcengine').click();
     await page.getByRole('button', { name: '一键填写推荐模型' }).click();
 
     // 一键配置直接绕过了 handleFieldChange 的替换逻辑: 三个 per-model base
@@ -330,24 +345,26 @@ test.describe('Settings: Volcengine AgentPlans provider', () => {
   test('shows the Volcengine campaign prompt for Doubao without changing provider semantics', async ({ page }) => {
     await page.goto('/settings');
 
-    const providerSelect = page.getByTestId('global-api-config-section').locator('select').first();
-    await providerSelect.selectOption('doubao');
+    await globalProviderPill(page, 'doubao').click();
 
     const globalApiSection = page.getByTestId('global-api-config-section');
     await expect(globalApiSection.locator('input[type="password"]').first()).toBeVisible();
-    await expect(page.getByText('豆包 / 火山方舟 API Key 配置')).toBeVisible();
-    await expect(page.getByText(/豆包图像创作模型 5.0/)).toBeVisible();
-    await expect(page.getByText('免费 Tokens 额度领取流程')).not.toBeVisible();
-    await expect(page.getByText('领取额度并获取普通方舟 API Key')).toBeVisible();
-    await expect(page.getByText(/需要免费 Tokens 时，点击活动页的「立即领取」/)).toBeVisible();
-    await expect(page.getByText(/完成「开通服务」和「一键授权」/)).toBeVisible();
-    await expect(page.getByText(/API Key 管理页面创建普通方舟 API Key/)).toBeVisible();
-    await expect(page.getByText('回到本页填写普通方舟 API Key；Agent/Coding Plan 专属 Key 不适用')).toBeVisible();
-    await expect(page.getByText('点击顶栏「充值」')).not.toBeVisible();
-    await expect(page.getByText('火山 AgentPlans API Key 配置')).not.toBeVisible();
+    const promo = page.getByTestId('volcengine-campaign-promo');
+    await expect(promo.getByText('为什么选择豆包 / 火山方舟？')).toBeVisible();
+    await expect(promo.getByText(/国内直连，无需特殊网络环境/)).toBeVisible();
+    await expect(promo.getByText(/日常开发和其他兼容工具/)).toBeVisible();
+    await expect(promo.getByText(/豆包图像创作模型 5.0/)).toBeVisible();
+    await expect(promo.getByText('免费 Tokens 额度领取流程')).not.toBeVisible();
+    await expect(promo.getByText('领取额度并获取普通方舟 API Key')).toBeVisible();
+    await expect(promo.getByText(/需要免费 Tokens 时，点击活动页的「立即领取」/)).toBeVisible();
+    await expect(promo.getByText(/完成「开通服务」和「一键授权」/)).toBeVisible();
+    await expect(promo.getByText(/API Key 管理页面创建普通方舟 API Key/)).toBeVisible();
+    await expect(promo.getByText('回到本页填写普通方舟 API Key；Agent/Coding Plan 专属 Key 不适用')).toBeVisible();
+    await expect(promo.getByText('点击顶栏「充值」')).not.toBeVisible();
+    await expect(page.getByText('为什么选择火山 Agent Plan？')).not.toBeVisible();
     await expect(page.getByText('AIHubmix 申请 API key')).not.toBeVisible();
 
-    const volcengineLink = page.getByRole('link', { name: '点击链接抢购' }).first();
+    const volcengineLink = page.getByRole('link', { name: '查看官方活动' }).first();
     await expect(volcengineLink).toHaveAttribute('href', 'https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides');
 
     await page.getByRole('button', { name: '一键填写推荐模型' }).click();
@@ -355,9 +372,9 @@ test.describe('Settings: Volcengine AgentPlans provider', () => {
     await expect(inputs.nth(0)).toHaveValue('doubao-seed-2-1-pro-260628');
     await expect(inputs.nth(1)).toHaveValue('doubao-seedream-5-0-260128');
     await expect(inputs.nth(2)).toHaveValue('doubao-seed-2-1-pro-260628');
-    await expect(page.locator('select').nth(1)).toHaveValue('doubao');
-    await expect(page.locator('select').nth(2)).toHaveValue('doubao');
-    await expect(page.locator('select').nth(3)).toHaveValue('doubao');
+    await expect(modelProviderSelect(page, 'text')).toHaveValue('doubao');
+    await expect(modelProviderSelect(page, 'image')).toHaveValue('doubao');
+    await expect(modelProviderSelect(page, 'image_caption')).toHaveValue('doubao');
 
     await page.getByRole('button', { name: /保存设置/ }).click();
     await expect(page.getByText('设置保存成功')).toBeVisible();
@@ -391,8 +408,8 @@ test.describe('Settings: Volcengine AgentPlans provider', () => {
     await page.goto('/settings');
 
     const globalApiSection = page.getByTestId('global-api-config-section');
-    await expect(globalApiSection.locator('select').first()).toHaveValue('volcengine');
-    await expect(page.locator('select').nth(1)).toHaveValue('volcengine');
+    await expect(globalProviderPill(page, 'volcengine')).toHaveAttribute('aria-checked', 'true');
+    await expect(modelProviderSelect(page, 'text')).toHaveValue('volcengine');
     // Volcengine 不再隐藏 Base URL 输入框 (Agent Plans 端点可编辑)
     await expect(globalApiSection.getByText('API Base URL')).toBeVisible();
     // 后端返回的 per-model base 同步显示到对应输入框
@@ -418,8 +435,7 @@ test.describe('Settings: Volcengine AgentPlans provider', () => {
 
     await page.goto('/settings');
 
-    const providerSelect = page.getByTestId('global-api-config-section').locator('select').first();
-    await providerSelect.selectOption('volcengine');
+    await globalProviderPill(page, 'volcengine').click();
 
     // OpenAI 默认端点不应被带入 Agent Plans 保存/测试 payload
     await expect(page.getByTestId('global-api-config-section').locator('input').first())
@@ -445,8 +461,7 @@ test.describe('Settings: Volcengine AgentPlans provider', () => {
 
     await page.goto('/settings');
 
-    const providerSelect = page.getByTestId('global-api-config-section').locator('select').first();
-    await providerSelect.selectOption('volcengine');
+    await globalProviderPill(page, 'volcengine').click();
 
     // README 文档化的 OPENAI_API_BASE 默认值同样被识别为过时默认端点
     await expect(page.getByTestId('global-api-config-section').locator('input').first())
@@ -479,13 +494,13 @@ test.describe('Settings: Volcengine AgentPlans provider', () => {
 
     // 文本模型 source 从 openai 切到 volcengine: 过时的默认 base 必须被替换,
     // 否则 TEXT_API_BASE 会优先于 VOLCENGINE_API_BASE 命中错误端点
-    await page.locator('select').nth(1).selectOption('volcengine');
+    await modelProviderSelect(page, 'text').selectOption('volcengine');
     await expect(baseInput).toHaveValue('https://ark.cn-beijing.volces.com/api/plan/v3');
 
     // 自定义 per-model base 不应被破坏
     await baseInput.fill('https://custom.example.com/v1');
-    await page.locator('select').nth(1).selectOption('openai');
-    await page.locator('select').nth(1).selectOption('volcengine');
+    await modelProviderSelect(page, 'text').selectOption('openai');
+    await modelProviderSelect(page, 'text').selectOption('volcengine');
     await expect(baseInput).toHaveValue('https://custom.example.com/v1');
   });
 
@@ -508,12 +523,11 @@ test.describe('Settings: Volcengine AgentPlans provider', () => {
 
     await page.goto('/settings');
 
-    const providerSelect = page.getByTestId('global-api-config-section').locator('select').first();
     const globalBase = page.getByTestId('global-api-config-section').locator('input').first();
     await expect(globalBase).toHaveValue('https://ark.cn-beijing.volces.com/api/plan/v3');
 
     // 离开 Agent Plans: 过时的 plan/v3 端点必须清空, 不能作为 openai 的 base 保存
-    await providerSelect.selectOption('openai');
+    await globalProviderPill(page, 'openai').click();
     await expect(globalBase).toHaveValue('');
   });
 
@@ -542,7 +556,7 @@ test.describe('Settings: Volcengine AgentPlans provider', () => {
     await expect(baseInput).toHaveValue('https://ark.cn-beijing.volces.com/api/plan/v3');
 
     // 单模型离开 Agent Plans: plan/v3 必须清空, 否则 TEXT_API_BASE 优先于新 provider 默认端点
-    await page.locator('select').nth(1).selectOption('openai');
+    await modelProviderSelect(page, 'text').selectOption('openai');
     await expect(baseInput).toHaveValue('');
   });
 
