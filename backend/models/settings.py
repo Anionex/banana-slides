@@ -230,6 +230,11 @@ class Settings(db.Model):
                 'api_base_url': specific_base or Config.VOLCENGINE_API_BASE or None,
                 'api_key': specific_key or Config.VOLCENGINE_API_KEY or None,
             }
+        if provider == 'orcarouter':
+            return {
+                'api_base_url': specific_base or Config.ORCAROUTER_API_BASE or None,
+                'api_key': specific_key or Config.ORCAROUTER_API_KEY or None,
+            }
         if provider == 'lazyllm':
             return {
                 'api_base_url': None,
@@ -338,6 +343,9 @@ class Settings(db.Model):
         elif provider == 'volcengine':
             api_base = Config.VOLCENGINE_API_BASE or None
             api_key = Config.VOLCENGINE_API_KEY or None
+        elif provider == 'orcarouter':
+            api_base = Config.ORCAROUTER_API_BASE or None
+            api_key = Config.ORCAROUTER_API_KEY or None
         elif provider == 'lazyllm':
             api_base = None
             api_key = None

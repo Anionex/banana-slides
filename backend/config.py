@@ -47,7 +47,7 @@ class Config:
     GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY', '')
     GOOGLE_API_BASE = os.getenv('GOOGLE_API_BASE') or ''
     
-    # Provider format: gemini | openai | volcengine | vertex | lazyllm
+    # Provider format: gemini | openai | volcengine | vertex | lazyllm | orcarouter
     AI_PROVIDER_FORMAT = os.getenv('AI_PROVIDER_FORMAT', 'gemini')
 
     # Google Cloud Vertex AI (requires AI_PROVIDER_FORMAT=vertex)
@@ -67,6 +67,10 @@ class Config:
     # 火山方舟 Agent Plans（OpenAI-compatible）
     VOLCENGINE_API_KEY = os.getenv('VOLCENGINE_API_KEY', '') or os.getenv('ARK_API_KEY', '')
     VOLCENGINE_API_BASE = os.getenv('VOLCENGINE_API_BASE') or 'https://ark.cn-beijing.volces.com/api/plan/v3'
+
+    # OrcaRouter config (used when AI_PROVIDER_FORMAT=orcarouter)
+    ORCAROUTER_API_KEY = os.getenv('ORCAROUTER_API_KEY', '')
+    ORCAROUTER_API_BASE = os.getenv('ORCAROUTER_API_BASE') or 'https://api.orcarouter.ai/v1'
 
     # Anthropic 格式专用配置（当 AI_PROVIDER_FORMAT=anthropic 时使用）
     # 支持 ANTHROPIC_AUTH_TOKEN 作为 ANTHROPIC_API_KEY 的别名

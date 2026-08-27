@@ -14,6 +14,7 @@ Set `AI_PROVIDER_FORMAT` in `.env` to choose your provider:
 | `volcengine` | Volcengine ModelArk AgentPlans (OpenAI-compatible) |
 | `vertex` | Google Cloud Vertex AI |
 | `lazyllm` | Multi-vendor Chinese model routing |
+| `orcarouter` | OrcaRouter AI gateway (OpenAI-compatible) |
 
 ## Gemini (Default)
 
@@ -52,6 +53,21 @@ Notes:
 - Selecting "Volcengine AgentPlans" in Settings prefills the Agent Plans base URL and recommended models; standard ModelArk users should use the "Doubao (豆包)" path with `api/v3`.
 
 The generic API Key field in Settings can still override the API key, while the Base URL is managed automatically.
+
+## OrcaRouter
+
+[OrcaRouter](https://www.orcarouter.ai) is an OpenAI-compatible AI gateway built for both models and agents. Like OpenRouter, it exposes a provider/model namespace across many models — but it also combines adaptive routing, automatic failover, zero-markup inference, observability, guardrails, and agent-tool governance behind the same endpoint. Select "OrcaRouter" in Settings, or configure `.env`:
+
+```env
+AI_PROVIDER_FORMAT=orcarouter
+ORCAROUTER_API_KEY=your-orcarouter-api-key
+ORCAROUTER_API_BASE=https://api.orcarouter.ai/v1
+```
+
+Notes:
+
+- **OpenAI-compatible**: text generation and image generation reuse the existing OpenAI-compatible providers, so model names like `openai/gpt-4o`, `deepseek/deepseek-chat`, `google/gemini-3-flash-preview` are accepted directly.
+- **Gateway-level security**: OrcaRouter also runs zero-trust security for AI agents on the same endpoint — screening every prompt/response and governing every tool call on a default-deny basis, with no application code changes.
 
 ## Vertex AI
 

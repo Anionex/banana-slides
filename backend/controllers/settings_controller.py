@@ -24,7 +24,7 @@ from services.task_manager import task_manager
 from services.update_check_service import check_for_update
 
 logger = logging.getLogger(__name__)
-ALLOWED_PROVIDER_FORMATS = {"openai", "gemini", "volcengine", "lazyllm", "codex"} | LAZYLLM_VENDORS
+ALLOWED_PROVIDER_FORMATS = {"openai", "gemini", "volcengine", "lazyllm", "codex", "orcarouter"} | LAZYLLM_VENDORS
 
 settings_bp = Blueprint(
     "settings", __name__, url_prefix="/api/settings"
@@ -35,6 +35,7 @@ PROVIDER_API_CONFIG_KEYS = {
     "gemini": ("GOOGLE_API_KEY", "GOOGLE_API_BASE"),
     "openai": ("OPENAI_API_KEY", "OPENAI_API_BASE"),
     "volcengine": ("VOLCENGINE_API_KEY", "VOLCENGINE_API_BASE"),
+    "orcarouter": ("ORCAROUTER_API_KEY", "ORCAROUTER_API_BASE"),
 }
 
 
@@ -49,9 +50,11 @@ def _provider_api_env_defaults():
         "GOOGLE_API_KEY": Config.GOOGLE_API_KEY,
         "OPENAI_API_KEY": Config.OPENAI_API_KEY,
         "VOLCENGINE_API_KEY": Config.VOLCENGINE_API_KEY,
+        "ORCAROUTER_API_KEY": Config.ORCAROUTER_API_KEY,
         "GOOGLE_API_BASE": Config.GOOGLE_API_BASE,
         "OPENAI_API_BASE": Config.OPENAI_API_BASE,
         "VOLCENGINE_API_BASE": Config.VOLCENGINE_API_BASE,
+        "ORCAROUTER_API_BASE": Config.ORCAROUTER_API_BASE,
     }
 
 
@@ -865,6 +868,8 @@ def _create_file_parser():
             caption_format = 'gemini'
         elif source_lower == 'openai':
             caption_format = 'openai'
+        elif source_lower == 'orcarouter':
+            caption_format = 'orcarouter'
         elif source_lower == 'codex':
             caption_format = 'codex'
         elif source_lower in LAZYLLM_VENDORS:
@@ -885,6 +890,11 @@ def _create_file_parser():
         google_base = ""
         openai_key = current_app.config.get("IMAGE_CAPTION_API_KEY") or current_app.config.get("OPENAI_API_KEY", "")
         openai_base = current_app.config.get("IMAGE_CAPTION_API_BASE") or current_app.config.get("OPENAI_API_BASE", "")
+    elif caption_format == 'orcarouter':
+        google_key = ""
+        google_base = ""
+        openai_key = current_app.config.get("IMAGE_CAPTION_API_KEY") or current_app.config.get("ORCAROUTER_API_KEY", "")
+        openai_base = current_app.config.get("IMAGE_CAPTION_API_BASE") or current_app.config.get("ORCAROUTER_API_BASE", "")
     elif caption_format == 'codex':
         google_key = ""
         google_base = ""

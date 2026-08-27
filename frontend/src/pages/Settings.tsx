@@ -71,7 +71,7 @@ const settingsI18n = {
       fields: {
         aiProviderFormat: "AI 提供商格式",
         aiProviderFormatDesc: "选择 API 请求格式，影响后端如何构造和发送请求。保存设置后生效。",
-        openaiFormat: "OpenAI 格式", geminiFormat: "Gemini 格式", lazyllmFormat: "LazyLLM 格式",
+        openaiFormat: "OpenAI 格式", geminiFormat: "Gemini 格式", lazyllmFormat: "LazyLLM 格式", orcarouterFormat: "OrcaRouter 格式",
         apiBaseUrl: "API Base URL", apiBaseUrlPlaceholder: "https://api.example.com",
         apiBaseUrlDesc: "设置大模型提供商 API 的基础 URL",
         volcengineBaseUrlHint: "当前 Base URL 不是火山 AgentPlans 官方端点（https://ark.cn-beijing.volces.com/api/plan/v3），测试或生成可能失败",
@@ -264,7 +264,7 @@ const settingsI18n = {
       fields: {
         aiProviderFormat: "AI Provider Format",
         aiProviderFormatDesc: "Select API request format, affects how backend constructs and sends requests. Takes effect after saving.",
-        openaiFormat: "OpenAI Format", geminiFormat: "Gemini Format", lazyllmFormat: "LazyLLM Format",
+        openaiFormat: "OpenAI Format", geminiFormat: "Gemini Format", lazyllmFormat: "LazyLLM Format", orcarouterFormat: "OrcaRouter Format",
         apiBaseUrl: "API Base URL", apiBaseUrlPlaceholder: "https://api.example.com",
         apiBaseUrlDesc: "Set the base URL for the LLM provider API",
         volcengineBaseUrlHint: "The current Base URL is not the official Volcengine AgentPlans endpoint (https://ark.cn-beijing.volces.com/api/plan/v3); tests or generation may fail",
@@ -454,18 +454,19 @@ const LAZYLLM_SOURCES = [
   { value: 'aiping', label: 'AIPing (爱拼)' },
 ];
 
-// 所有可用的提供商选项（Gemini/OpenAI/Codex + LazyLLM 厂商）
+// All available provider sources (Gemini/OpenAI/Codex/OrcaRouter + LazyLLM vendors)
 const getAllProviderSources = (isZh: boolean) => [
   { value: 'gemini', label: 'Gemini' },
   { value: 'openai', label: 'OpenAI' },
   { value: 'volcengine', label: isZh ? '* 火山 AgentPlans' : '* Volcengine AgentPlans' },
+  { value: 'orcarouter', label: 'OrcaRouter' },
   { value: 'doubao', label: isZh ? '* Doubao (豆包)' : '* Doubao' },
   { value: 'codex', label: 'Codex (OpenAI OAuth)' },
   ...LAZYLLM_SOURCES.filter(s => s.value !== 'openai' && s.value !== 'doubao'), // avoid duplicate promoted providers
 ];
 
 // 需要 API Key + Base URL 的提供商（非 LazyLLM 厂商）
-const API_KEY_PROVIDERS = new Set(['gemini', 'openai', 'volcengine']);
+const API_KEY_PROVIDERS = new Set(['gemini', 'openai', 'volcengine', 'orcarouter']);
 // 火山 Agent Plans（OpenAI 兼容）: 专属 Base URL 与模型名
 const VOLCENGINE_AGENTPLANS_BASE_URL = 'https://ark.cn-beijing.volces.com/api/plan/v3';
 const VOLCENGINE_AGENTPLANS_RECOMMENDED_MODELS = {
@@ -1676,7 +1677,8 @@ export const Settings: React.FC = () => {
         {item.sourceKey === 'image_model_source' && (
           sourceValue === 'openai'
           || sourceValue === 'volcengine'
-          || (!sourceValue && ['openai', 'volcengine'].includes(formData.ai_provider_format))
+          || sourceValue === 'orcarouter'
+          || (!sourceValue && ['openai', 'volcengine', 'orcarouter'].includes(formData.ai_provider_format))
         ) && (
           <div className="pl-3 border-l-2 border-banana-300 dark:border-banana-600">
             <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">

@@ -14,6 +14,7 @@ description: "环境变量与服务商设置"
 | `volcengine` | 火山方舟 AgentPlans（OpenAI 兼容） |
 | `vertex` | Google Cloud Vertex AI |
 | `lazyllm` | 多厂商国产模型路由 |
+| `orcarouter` | OrcaRouter AI 网关（OpenAI 兼容） |
 
 ## Gemini（默认）
 
@@ -50,6 +51,21 @@ VOLCENGINE_API_BASE=https://ark.cn-beijing.volces.com/api/plan/v3
 - **Agent Plan 需要专属 API Key**：在 Agent Plan 控制台创建的 `ark-...` Key 只能在 `api/plan/v3` 端点上使用，普通方舟 API Key 与标准 ModelArk 端点（`api/v3`）不互通。
 - **模型名使用 Agent Plan 模型名**（如 `doubao-seed-2.1-turbo`、`kimi-k2.6`），生图使用 `doubao-seedream-5.0-lite`；标准 ModelArk 的端点 ID（如 `doubao-seed-2-1-pro-260628`）不适用于 Agent Plan。
 - 设置页选择“火山 AgentPlans”时会自动预填 Agent Plan 专属 Base URL 与推荐模型，也可手动修改；标准 ModelArk 用户请改用“Doubao (豆包)”路径并保持 `api/v3`。
+
+## OrcaRouter
+
+[OrcaRouter](https://www.orcarouter.ai) 是一个同时面向模型与 Agent 的 OpenAI 兼容 AI 网关。与 OpenRouter 类似，它在一个端点上暴露跨厂商的 provider/model 命名空间，同时还提供自适应路由、自动故障转移、零加成推理、可观测性、护栏与 Agent 工具治理。在设置页选择“OrcaRouter”，或在 `.env` 中配置：
+
+```env
+AI_PROVIDER_FORMAT=orcarouter
+ORCAROUTER_API_KEY=your-orcarouter-api-key
+ORCAROUTER_API_BASE=https://api.orcarouter.ai/v1
+```
+
+注意事项：
+
+- **OpenAI 兼容**：文本与图片生成复用现有的 OpenAI 兼容 provider，可直接使用 `openai/gpt-4o`、`deepseek/deepseek-chat`、`google/gemini-3-flash-preview` 等模型名。
+- **网关级安全**：OrcaRouter 还在同一端点上为 AI Agent 提供零信任安全能力——默认拒绝地审查每个 prompt/response 并治理每个工具调用，无需改动应用代码。
 
 ## Vertex AI
 
