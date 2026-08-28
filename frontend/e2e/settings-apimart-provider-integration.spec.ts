@@ -124,6 +124,52 @@ test.describe('Settings: APIMart provider pill', () => {
     await expect(modelInputs.nth(1)).toHaveValue('openai-image-model');
     await expect(modelInputs.nth(2)).toHaveValue('volcengine-caption-model');
   });
+
+  test('fills APIMart models when a per-model source switches to APIMart', async ({ page }) => {
+    await page.route(url => url.pathname === '/api/settings', route =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockSettings) })
+    );
+
+    await page.goto('/settings');
+    await page.getByTestId('text_model_source-select').selectOption('apimart');
+    await page.getByTestId('image_model_source-select').selectOption('apimart');
+    await page.getByTestId('image_caption_model_source-select').selectOption('apimart');
+
+    const modelInputs = page.locator('input[placeholder^="留空使用环境变量配置"]');
+    await expect(modelInputs.nth(0)).toHaveValue('gpt-5');
+    await expect(modelInputs.nth(1)).toHaveValue('gpt-image-2');
+    await expect(modelInputs.nth(2)).toHaveValue('gpt-4o');
+  });
+
+  test('reselecting APIMart preserves custom endpoint and models', async ({ page }) => {
+    await page.route(url => url.pathname === '/api/settings', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ...mockSettings,
+          data: {
+            ...mockSettings.data,
+            ai_provider_format: 'apimart',
+            api_base_url: 'https://apimart-proxy.example/v1',
+            text_model: 'custom-text-model',
+            image_model: 'custom-image-model',
+            image_caption_model: 'custom-caption-model',
+          },
+        }),
+      })
+    );
+
+    await page.goto('/settings');
+    await providerPill(page).click();
+
+    const apiSection = page.getByTestId('global-api-config-section');
+    await expect(apiSection.locator('input').first()).toHaveValue('https://apimart-proxy.example/v1');
+    const modelInputs = page.locator('input[placeholder^="留空使用环境变量配置"]');
+    await expect(modelInputs.nth(0)).toHaveValue('custom-text-model');
+    await expect(modelInputs.nth(1)).toHaveValue('custom-image-model');
+    await expect(modelInputs.nth(2)).toHaveValue('custom-caption-model');
+  });
 });
 
 test.describe('Settings: APIMart persistence (real backend)', () => {

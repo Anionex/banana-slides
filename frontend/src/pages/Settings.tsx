@@ -530,6 +530,11 @@ const getAllProviderSources = (isZh: boolean) => [
 
 // 需要 API Key + Base URL 的提供商（非 LazyLLM 厂商）
 const API_KEY_PROVIDERS = new Set(['gemini', 'openai', 'apimart', 'volcengine']);
+const APIMART_RECOMMENDED_MODELS = {
+  text_model_source: 'gpt-5',
+  image_model_source: 'gpt-image-2',
+  image_caption_model_source: 'gpt-4o',
+};
 // 火山 Agent Plans（OpenAI 兼容）: 专属 Base URL 与模型名
 const VOLCENGINE_AGENTPLANS_BASE_URL = 'https://ark.cn-beijing.volces.com/api/plan/v3';
 const VOLCENGINE_AGENTPLANS_RECOMMENDED_MODELS = {
@@ -1287,6 +1292,11 @@ export const Settings: React.FC = () => {
         image_model_source: 'image_api_base_url',
         image_caption_model_source: 'image_caption_api_base_url',
       };
+      const perModelModelKeys: Record<string, string> = {
+        text_model_source: 'text_model',
+        image_model_source: 'image_model',
+        image_caption_model_source: 'image_caption_model',
+      };
 
       if (key === 'ai_provider_format') {
         if (value === 'volcengine') {
@@ -1307,6 +1317,9 @@ export const Settings: React.FC = () => {
         if (value === 'apimart') {
           if (KNOWN_DEFAULT_BASE_URLS.has(next[baseKey]) || VOLCENGINE_DEFAULT_BASE_URLS.has(next[baseKey])) {
             next[baseKey] = APIMART_BASE_URL;
+          }
+          if (prev[key as keyof typeof prev] !== 'apimart') {
+            next[perModelModelKeys[key]] = APIMART_RECOMMENDED_MODELS[key as keyof typeof APIMART_RECOMMENDED_MODELS];
           }
         } else if (value === 'volcengine') {
           // 单模型切到 Agent Plans 时同样替换过时的默认端点, 否则该模型的
@@ -1376,20 +1389,30 @@ export const Settings: React.FC = () => {
   };
 
   const selectApimartProvider = () => {
-    setFormData(prev => ({
-      ...prev,
-      ai_provider_format: 'apimart',
-      api_base_url: APIMART_BASE_URL,
-      text_model: prev.text_model_source && prev.text_model_source !== 'apimart'
-        ? prev.text_model
-        : 'gpt-5',
-      image_caption_model: prev.image_caption_model_source && prev.image_caption_model_source !== 'apimart'
-        ? prev.image_caption_model
-        : 'gpt-4o',
-      image_model: prev.image_model_source && prev.image_model_source !== 'apimart'
-        ? prev.image_model
-        : 'gpt-image-2',
-    }));
+    setFormData(prev => {
+      const isAlreadyApimart = prev.ai_provider_format === 'apimart';
+      const modelForApimart = (source: string, current: string, recommended: string) => {
+        if (source) {
+          return source === 'apimart' && !current ? recommended : current;
+        }
+        return isAlreadyApimart && current ? current : recommended;
+      };
+
+      return {
+        ...prev,
+        ai_provider_format: 'apimart',
+        api_base_url: isAlreadyApimart && prev.api_base_url
+          ? prev.api_base_url
+          : APIMART_BASE_URL,
+        text_model: modelForApimart(prev.text_model_source, prev.text_model, APIMART_RECOMMENDED_MODELS.text_model_source),
+        image_caption_model: modelForApimart(
+          prev.image_caption_model_source,
+          prev.image_caption_model,
+          APIMART_RECOMMENDED_MODELS.image_caption_model_source,
+        ),
+        image_model: modelForApimart(prev.image_model_source, prev.image_model, APIMART_RECOMMENDED_MODELS.image_model_source),
+      };
+    });
   };
 
   const isAihubmixPlanActive =
