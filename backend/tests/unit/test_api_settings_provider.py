@@ -514,7 +514,15 @@ def test_settings_to_dict_uses_volcengine_defaults_for_selected_provider(monkeyp
     assert data['image_caption_api_base_url'] is None
 
 
-def test_settings_to_dict_uses_effective_apimart_global_credentials_for_matching_source(monkeypatch):
+@pytest.mark.parametrize(
+    ('provider_format', 'model_source'),
+    [('apimart', 'apimart'), ('APIMART', 'apimart')],
+)
+def test_settings_to_dict_uses_effective_apimart_global_credentials_for_matching_source(
+    monkeypatch,
+    provider_format,
+    model_source,
+):
     """Matching APIMart model sources should display the saved global proxy."""
     from config import Config
     from models.settings import Settings
@@ -525,10 +533,10 @@ def test_settings_to_dict_uses_effective_apimart_global_credentials_for_matching
     monkeypatch.setattr(Config, 'TEXT_API_KEY', '')
 
     settings = Settings(
-        ai_provider_format='apimart',
+        ai_provider_format=provider_format,
         api_base_url='https://apimart-proxy.example/v1',
         api_key='saved-apimart-key',
-        text_model_source='apimart',
+        text_model_source=model_source,
     )
     data = settings.to_dict()
 

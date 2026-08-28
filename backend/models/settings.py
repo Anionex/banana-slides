@@ -124,6 +124,7 @@ class Settings(db.Model):
 
         d = Settings._get_config_defaults()
         effective_provider = self._val('ai_provider_format', d)
+        normalized_provider = (effective_provider or '').lower()
         provider_defaults = Settings._get_api_defaults_for_provider(effective_provider)
         api_base_url = self.api_base_url if self.api_base_url is not None else provider_defaults['api_base_url']
         api_key = self.api_key if self.api_key is not None else provider_defaults['api_key']
@@ -136,7 +137,7 @@ class Settings(db.Model):
 
         def model_api_defaults(source, prefix):
             defaults = Settings._get_api_defaults_for_provider(source, prefix)
-            if effective_provider == 'apimart' and source == effective_provider:
+            if normalized_provider == 'apimart' and (source or '').lower() == normalized_provider:
                 if not getattr(Config, f'{prefix}_API_BASE', None):
                     defaults['api_base_url'] = api_base_url
                 if not getattr(Config, f'{prefix}_API_KEY', None):
