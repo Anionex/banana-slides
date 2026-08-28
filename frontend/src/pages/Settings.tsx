@@ -1363,13 +1363,23 @@ export const Settings: React.FC = () => {
 
       // Per-model source key → its API base URL field, for stale-default replacement
       type PerModelBaseKey = 'text_api_base_url' | 'image_api_base_url' | 'image_caption_api_base_url';
+      type PerModelApiKey = 'text_api_key' | 'image_api_key' | 'image_caption_api_key';
       const perModelBaseKeys: Record<string, PerModelBaseKey> = {
         text_model_source: 'text_api_base_url',
         image_model_source: 'image_api_base_url',
         image_caption_model_source: 'image_caption_api_base_url',
       };
+      const perModelApiKeys: Record<string, PerModelApiKey> = {
+        text_model_source: 'text_api_key',
+        image_model_source: 'image_api_key',
+        image_caption_model_source: 'image_caption_api_key',
+      };
 
       if (key === 'ai_provider_format') {
+        // A typed credential belongs to the provider that was selected when it
+        // was entered. Never carry it into another provider's request.
+        if (prev.ai_provider_format !== value) next.api_key = '';
+
         // Clear provider-owned overrides before applying the next global
         // provider. These fields otherwise keep taking precedence over the
         // newly selected provider.
@@ -1402,6 +1412,9 @@ export const Settings: React.FC = () => {
         }
       } else if (perModelBaseKeys[key]) {
         const baseKey = perModelBaseKeys[key];
+        const apiKey = perModelApiKeys[key];
+        if (prev[key as keyof typeof prev] !== value) next[apiKey] = '';
+
         if (value === 'volcengine') {
           // 单模型切到 Agent Plans 时同样替换过时的默认端点, 否则该模型的
           // {MODEL}_API_BASE 会优先于 VOLCENGINE_API_BASE 命中旧 provider 端点。
@@ -1458,15 +1471,42 @@ export const Settings: React.FC = () => {
   };
 
   const selectAihubmixPlan = () => {
-    setFormData(prev => ({
-      ...prev,
-      ai_provider_format: prev.ai_provider_format === 'gemini' || prev.ai_provider_format === 'openai'
+    setFormData(prev => {
+      const provider = prev.ai_provider_format === 'gemini' || prev.ai_provider_format === 'openai'
         ? prev.ai_provider_format
-        : 'gemini',
-      api_base_url: prev.ai_provider_format === 'openai'
-        ? INFERERA_OPENAI_BASE_URL
-        : INFERERA_GEMINI_BASE_URL,
-    }));
+        : 'gemini';
+      const next = {
+        ...prev,
+        ai_provider_format: provider,
+        api_base_url: provider === 'openai' ? INFERERA_OPENAI_BASE_URL : INFERERA_GEMINI_BASE_URL,
+        api_key: prev.ai_provider_format === provider ? prev.api_key : '',
+      };
+
+      // The comparison-card path does not go through handleFieldChange, so it
+      // must perform the same APIMart-owned model and override cleanup.
+      if (prev.ai_provider_format === 'apimart') {
+        if (next.text_model === APIMART_RECOMMENDED_MODELS.text) next.text_model = '';
+        if (next.image_model === APIMART_RECOMMENDED_MODELS.image) next.image_model = '';
+        if (next.image_caption_model === APIMART_RECOMMENDED_MODELS.caption) next.image_caption_model = '';
+        if (next.text_model_source === 'apimart') {
+          next.text_model_source = '';
+          next.text_api_key = '';
+        }
+        if (next.image_model_source === 'apimart') {
+          next.image_model_source = '';
+          next.image_api_key = '';
+        }
+        if (next.image_caption_model_source === 'apimart') {
+          next.image_caption_model_source = '';
+          next.image_caption_api_key = '';
+        }
+        if (APIMART_DEFAULT_BASE_URLS.has(next.text_api_base_url)) next.text_api_base_url = '';
+        if (APIMART_DEFAULT_BASE_URLS.has(next.image_api_base_url)) next.image_api_base_url = '';
+        if (APIMART_DEFAULT_BASE_URLS.has(next.image_caption_api_base_url)) next.image_caption_api_base_url = '';
+      }
+
+      return next;
+    });
   };
 
   const selectVolcenginePlan = () => {
@@ -1478,6 +1518,7 @@ export const Settings: React.FC = () => {
       ...prev,
       ai_provider_format: 'apimart',
       api_base_url: APIMART_BASE_URL,
+      api_key: prev.ai_provider_format === 'apimart' ? prev.api_key : '',
       text_model: APIMART_RECOMMENDED_MODELS.text,
       image_caption_model: APIMART_RECOMMENDED_MODELS.caption,
       image_model: APIMART_RECOMMENDED_MODELS.image,
@@ -1486,6 +1527,9 @@ export const Settings: React.FC = () => {
       text_model_source: '',
       image_caption_model_source: '',
       image_model_source: '',
+      text_api_key: '',
+      image_caption_api_key: '',
+      image_api_key: '',
       text_api_base_url: '',
       image_caption_api_base_url: '',
       image_api_base_url: '',

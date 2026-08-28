@@ -143,7 +143,7 @@ test.describe('Settings: provider plan comparison', () => {
     await expect(modelGroup(page, 'image_caption_model_source-select').locator('input[type="text"]').first()).toHaveValue('');
   });
 
-  test('service testing an unsaved APIMart switch clears the stored global key', async ({ page }) => {
+  test('service testing an unsaved APIMart switch clears stored and typed global keys', async ({ page }) => {
     let testPayload: Record<string, unknown> | null = null;
     const settingsResponse = mockSettings({
       ai_provider_format: 'gemini',
@@ -158,11 +158,15 @@ test.describe('Settings: provider plan comparison', () => {
     });
     await page.goto('/settings');
 
+    const globalKeyInput = page.getByTestId('global-api-config-section').locator('input[type="password"]');
+    await globalKeyInput.fill('typed-gemini-key');
     await page.getByTestId('provider-plan-apimart').getByRole('button', { name: '使用此方案' }).click();
+    await expect(globalKeyInput).toHaveValue('');
     await page.locator('button', { hasText: /开始测试|Start Test/ }).nth(1).click();
 
     expect(testPayload?.ai_provider_format).toBe('apimart');
     expect(testPayload?.api_key).toBeNull();
+    expect(testPayload?.api_key).not.toBe('typed-gemini-key');
   });
 
   test('switching a per-model provider to APIMart clears the previous provider key', async ({ page }) => {
@@ -198,15 +202,55 @@ test.describe('Settings: provider plan comparison', () => {
       'placeholder',
       '已设置（长度: 18）',
     );
+    await textGroup.locator('input[type="password"]').fill('typed-openai-key');
     await page.getByTestId('text_model_source-select').selectOption('apimart');
     await expect(textGroup.locator('input[type="text"]').nth(1))
       .toHaveValue('https://api.apimart.ai/v1');
+    await expect(textGroup.locator('input[type="password"]')).toHaveValue('');
     await expect(textGroup.locator('input[type="password"]')).toHaveAttribute('placeholder', '输入 API Key');
 
     await page.getByRole('button', { name: /保存设置/ }).click();
     await expect(page.getByText('设置保存成功')).toBeVisible();
     expect(savedPayload?.text_model_source).toBe('apimart');
     expect(savedPayload?.text_api_key).toBeNull();
+    expect(savedPayload?.text_api_key).not.toBe('typed-openai-key');
+  });
+
+  test('choosing AIHubMix after APIMart clears APIMart models and typed credentials', async ({ page }) => {
+    await page.route(url => url.pathname === '/api/settings', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mockSettings({
+          ai_provider_format: 'apimart',
+          api_base_url: 'https://api.apimart.ai/v1',
+          text_model: 'gpt-5',
+          image_model: 'gpt-image-2',
+          image_caption_model: 'gpt-4o',
+          text_model_source: 'apimart',
+          image_model_source: 'apimart',
+          image_caption_model_source: 'apimart',
+          text_api_base_url: 'https://api.apimart.ai/v1',
+          image_api_base_url: 'https://api.apimart.ai/v1',
+          image_caption_api_base_url: 'https://api.apimart.ai/v1',
+        })),
+      })
+    );
+    await page.goto('/settings');
+
+    const globalKeyInput = page.getByTestId('global-api-config-section').locator('input[type="password"]');
+    await globalKeyInput.fill('typed-apimart-key');
+    await page.getByTestId('provider-plan-aihubmix').getByRole('button', { name: '使用此方案' }).click();
+
+    await expect(page.getByTestId('global-provider-pills').locator('[data-provider="gemini"]'))
+      .toHaveAttribute('aria-checked', 'true');
+    await expect(globalKeyInput).toHaveValue('');
+    await expect(modelGroup(page, 'text_model_source-select').locator('input[type="text"]').first()).toHaveValue('');
+    await expect(modelGroup(page, 'image_model_source-select').locator('input[type="text"]').first()).toHaveValue('');
+    await expect(modelGroup(page, 'image_caption_model_source-select').locator('input[type="text"]').first()).toHaveValue('');
+    await expect(page.getByTestId('text_model_source-select')).toHaveValue('');
+    await expect(page.getByTestId('image_model_source-select')).toHaveValue('');
+    await expect(page.getByTestId('image_caption_model_source-select')).toHaveValue('');
   });
 
   test('choosing Volcengine from the comparison applies the Agent Plan config', async ({ page }) => {
