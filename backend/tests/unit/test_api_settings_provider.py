@@ -237,7 +237,6 @@ def test_update_settings_honors_explicit_per_model_base_clear():
         api_key='gemini-key',
         api_base_url='https://gemini-proxy.example/v1beta',
         text_model_source='gemini',
-        text_api_base_url='https://dedicated-text.example/v1beta',
     )
     payload = {
         'ai_provider_format': 'apimart',
