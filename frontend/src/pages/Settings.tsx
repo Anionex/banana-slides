@@ -1336,12 +1336,21 @@ export const Settings: React.FC = () => {
         }
       } else if (perModelBaseKeys[key]) {
         const baseKey = perModelBaseKeys[key];
+        const modelKey = perModelModelKeys[key];
+        if (
+          prev[key as keyof typeof prev] === 'apimart'
+          && value !== 'apimart'
+          && next[modelKey] === APIMART_RECOMMENDED_MODELS[key as keyof typeof APIMART_RECOMMENDED_MODELS]
+        ) {
+          next[modelKey] = '';
+        }
+
         if (value === 'apimart') {
           if (KNOWN_DEFAULT_BASE_URLS.has(next[baseKey]) || VOLCENGINE_DEFAULT_BASE_URLS.has(next[baseKey])) {
             next[baseKey] = APIMART_BASE_URL;
           }
           if (prev[key as keyof typeof prev] !== 'apimart') {
-            next[perModelModelKeys[key]] = APIMART_RECOMMENDED_MODELS[key as keyof typeof APIMART_RECOMMENDED_MODELS];
+            next[modelKey] = APIMART_RECOMMENDED_MODELS[key as keyof typeof APIMART_RECOMMENDED_MODELS];
           }
         } else if (value === 'volcengine') {
           // 单模型切到 Agent Plans 时同样替换过时的默认端点, 否则该模型的

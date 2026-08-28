@@ -145,6 +145,15 @@ test.describe('Settings: APIMart provider pill', () => {
     await expect(modelInputs.nth(0)).toHaveValue('gpt-5');
     await expect(modelInputs.nth(1)).toHaveValue('gpt-image-2');
     await expect(modelInputs.nth(2)).toHaveValue('gpt-4o');
+
+    await modelInputs.nth(0).fill('custom-text-model');
+    await page.getByTestId('text_model_source-select').selectOption('gemini');
+    await page.getByTestId('image_model_source-select').selectOption('openai');
+    await page.getByTestId('image_caption_model_source-select').selectOption('gemini');
+
+    await expect(modelInputs.nth(0)).toHaveValue('custom-text-model');
+    await expect(modelInputs.nth(1)).toHaveValue('');
+    await expect(modelInputs.nth(2)).toHaveValue('');
   });
 
   test('reselecting APIMart preserves custom endpoint and models', async ({ page }) => {
