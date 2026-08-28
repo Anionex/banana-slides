@@ -218,6 +218,53 @@ class TestGenerateImageCaption:
             assert result == ''
 
     @patch('google.genai.Client')
+    @patch('services.ai_providers.get_caption_provider')
+    @pytest.mark.parametrize(
+        ('global_provider', 'caption_source'),
+        [('apimart', ''), ('gemini', 'apimart')],
+    )
+    def test_caption_apimart_uses_caption_provider(
+        self,
+        mock_get_provider,
+        mock_gemini_client,
+        app,
+        global_provider,
+        caption_source,
+    ):
+        """APIMart captions use its provider instead of falling through to Gemini."""
+        config = {
+            'AI_PROVIDER_FORMAT': global_provider,
+            'IMAGE_CAPTION_MODEL_SOURCE': caption_source,
+            'IMAGE_CAPTION_MODEL': 'gpt-4o',
+            'APIMART_API_KEY': 'test-apimart-key',
+        }
+        with app.app_context(), patch.dict(app.config, config, clear=False):
+
+            mock_provider = MagicMock()
+            mock_provider.generate_with_image.return_value = '  一张 APIMart 测试图片  '
+            mock_get_provider.return_value = mock_provider
+
+            from controllers.material_controller import _generate_image_caption
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+                img = Image.new('RGB', (10, 10), color='purple')
+                img.save(f, format='PNG')
+                tmp_path = f.name
+            try:
+                result = _generate_image_caption(tmp_path)
+                assert result == '一张 APIMart 测试图片'
+                mock_get_provider.assert_called_once_with('gpt-4o')
+                mock_provider.generate_with_image.assert_called_once()
+                call_args, call_kwargs = mock_provider.generate_with_image.call_args
+                assert '描述这张图片' in call_args[0]
+                assert call_args[1] == tmp_path
+                assert call_kwargs == {'thinking_budget': 0}
+                mock_gemini_client.assert_not_called()
+            finally:
+                import os
+                os.unlink(tmp_path)
+
+    @patch('google.genai.Client')
     def test_caption_gemini_success(self, mock_client_class, app):
         """Caption with Gemini provider returns expected text"""
         with app.app_context():

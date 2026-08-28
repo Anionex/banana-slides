@@ -113,6 +113,12 @@ def _generate_image_caption(filepath: str) -> str:
                     pass
             return ''.join(collected).strip()
 
+        elif effective_format == 'apimart':
+            from services.ai_providers import get_caption_provider
+
+            provider = get_caption_provider(caption_model)
+            return provider.generate_with_image(prompt, filepath, thinking_budget=0).strip()
+
         elif effective_format == 'openai':
             from openai import OpenAI
             api_key = current_app.config.get('OPENAI_API_KEY', '')
