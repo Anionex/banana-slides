@@ -287,6 +287,7 @@ test.describe('Settings: APIMart persistence (real backend)', () => {
     await page.getByTestId('text_model_source-select').selectOption('gemini');
 
     const apiSection = page.getByTestId('global-api-config-section');
+    await apiSection.locator('input').first().fill('https://gemini-retained-proxy.example/v1beta');
     await apiSection.locator('input[type="password"]').fill('gemini-retained-source-key');
     await page.getByRole('button', { name: /保存设置|Save Settings/ }).click();
     await expect(page.locator('text=设置保存成功').or(page.locator('text=saved successfully')))
@@ -304,6 +305,7 @@ test.describe('Settings: APIMart persistence (real backend)', () => {
     expect(payload.data.api_key_length).toBe('apimart-new-global-key'.length);
     expect(payload.data.text_model_source).toBe('gemini');
     expect(payload.data.text_api_key_length).toBe('gemini-retained-source-key'.length);
+    expect(payload.data.text_api_base_url).toBe('https://gemini-retained-proxy.example/v1beta');
   });
 
   test('saves and reloads APIMart configuration', async ({ page }) => {

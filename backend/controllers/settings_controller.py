@@ -240,6 +240,7 @@ def update_settings():
         settings = Settings.get_settings()
         previous_provider_format = settings.ai_provider_format
         previous_api_key = settings.api_key
+        previous_api_base_url = settings.api_base_url
 
         # Update AI provider format configuration
         if "ai_provider_format" in data:
@@ -411,26 +412,29 @@ def update_settings():
             elif keys_data is None:
                 settings.lazyllm_api_keys = None
 
-        # Preserve the previous global key for explicit model sources that stay
-        # on that provider while the global selection crosses the APIMart boundary.
+        # Preserve inherited credentials for explicit model sources that stay on
+        # the previous provider while the global selection crosses APIMart.
         if (
             previous_provider_format != settings.ai_provider_format
             and (
                 previous_provider_format == "apimart"
                 or settings.ai_provider_format == "apimart"
             )
-            and "api_key" in data
-            and previous_api_key
         ):
             for model_type in ("text", "image", "image_caption"):
                 source_field = f"{model_type}_model_source"
                 key_field = f"{model_type}_api_key"
+                base_field = f"{model_type}_api_base_url"
+                if getattr(settings, source_field, None) != previous_provider_format:
+                    continue
                 if (
-                    getattr(settings, source_field, None) == previous_provider_format
+                    previous_api_key
                     and key_field not in data
                     and not getattr(settings, key_field, None)
                 ):
                     setattr(settings, key_field, previous_api_key)
+                if previous_api_base_url and not getattr(settings, base_field, None):
+                    setattr(settings, base_field, previous_api_base_url)
 
         settings.updated_at = datetime.now(timezone.utc)
         db.session.commit()

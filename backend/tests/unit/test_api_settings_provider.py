@@ -25,8 +25,11 @@ def _build_settings(**overrides):
         'image_model_source': None,
         'image_caption_model_source': None,
         'text_api_key': None,
+        'text_api_base_url': None,
         'image_api_key': None,
+        'image_api_base_url': None,
         'image_caption_api_key': None,
+        'image_caption_api_base_url': None,
     }
     defaults.update(overrides)
 
@@ -168,10 +171,12 @@ def test_update_settings_preserves_key_for_explicit_apimart_model_sources():
     settings = _build_settings(
         ai_provider_format='apimart',
         api_key='apimart-key',
+        api_base_url='https://apimart-proxy.example/v1',
         text_model_source='apimart',
         image_model_source='apimart',
         image_caption_model_source='apimart',
         image_api_key='dedicated-image-key',
+        image_api_base_url='https://dedicated-image.example/v1',
     )
     payload = {'ai_provider_format': 'gemini', 'api_key': None}
     with app.app_context():
@@ -185,8 +190,11 @@ def test_update_settings_preserves_key_for_explicit_apimart_model_sources():
     assert response.get_json()['success'] is True
     assert settings.api_key is None
     assert settings.text_api_key == 'apimart-key'
+    assert settings.text_api_base_url == 'https://apimart-proxy.example/v1'
     assert settings.image_api_key == 'dedicated-image-key'
+    assert settings.image_api_base_url == 'https://dedicated-image.example/v1'
     assert settings.image_caption_api_key == 'apimart-key'
+    assert settings.image_caption_api_base_url == 'https://apimart-proxy.example/v1'
 
 
 def test_update_settings_preserves_previous_key_when_entering_apimart():
@@ -196,6 +204,7 @@ def test_update_settings_preserves_previous_key_when_entering_apimart():
     settings = _build_settings(
         ai_provider_format='gemini',
         api_key='gemini-key',
+        api_base_url='https://gemini-proxy.example/v1beta',
         text_model_source='gemini',
         image_model_source='openai',
         image_caption_model_source='gemini',
@@ -212,8 +221,11 @@ def test_update_settings_preserves_previous_key_when_entering_apimart():
     assert response.get_json()['success'] is True
     assert settings.api_key == 'new-apimart-key'
     assert settings.text_api_key == 'gemini-key'
+    assert settings.text_api_base_url == 'https://gemini-proxy.example/v1beta'
     assert settings.image_api_key is None
+    assert settings.image_api_base_url is None
     assert settings.image_caption_api_key == 'gemini-key'
+    assert settings.image_caption_api_base_url == 'https://gemini-proxy.example/v1beta'
 
 
 def test_volcengine_text_provider_uses_modelark_openai_compatible_base():
