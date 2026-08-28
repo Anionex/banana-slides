@@ -97,6 +97,9 @@ test.describe('Settings: APIMart provider pill', () => {
     await expect(modelInputs.nth(0)).toHaveValue('');
     await expect(modelInputs.nth(1)).toHaveValue('');
     await expect(modelInputs.nth(2)).toHaveValue('');
+    await page.getByRole('button', { name: /保存设置/ }).click();
+    await expect(page.getByText('设置保存成功')).toBeVisible();
+    expect(savedPayload?.api_key).toBeNull();
   });
 
   test('preserves models owned by explicit per-model providers', async ({ page }) => {
@@ -190,6 +193,10 @@ test.describe('Settings: APIMart persistence (real backend)', () => {
   });
 
   test('saves and reloads APIMart configuration', async ({ page }) => {
+    const baselineResponse = await page.request.get('/api/settings');
+    const baselinePayload = await baselineResponse.json();
+    const baselineKeyLength = baselinePayload.data.api_key_length;
+
     await page.goto('/settings');
     await providerPill(page).click();
 
@@ -211,5 +218,15 @@ test.describe('Settings: APIMart persistence (real backend)', () => {
     await page.reload();
     await expect(providerPill(page)).toHaveAttribute('aria-checked', 'true');
     await expect(apiSection.locator('input').first()).toHaveValue(APIMART_BASE_URL);
+
+    await page.getByTestId('global-provider-pills').locator('[data-provider="gemini"]').click();
+    await page.getByRole('button', { name: /保存设置|Save Settings/ }).click();
+    await expect(page.locator('text=设置保存成功').or(page.locator('text=saved successfully')))
+      .toBeVisible({ timeout: 5000 });
+    const switchedResponse = await page.request.get('/api/settings');
+    const switchedPayload = await switchedResponse.json();
+    expect(switchedPayload.data.ai_provider_format).toBe('gemini');
+    expect(switchedPayload.data.api_key_length).toBe(baselineKeyLength);
+    expect(switchedPayload.data.api_key_length).not.toBe('apimart-integration-test-key'.length);
   });
 });

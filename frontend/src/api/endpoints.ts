@@ -1317,7 +1317,7 @@ export const getElevenLabsVoices = async (): Promise<ApiResponse<{ voices: { id:
  */
 export const updateSettings = async (
   data: Partial<Omit<Settings, 'id' | 'api_key_length' | 'mineru_token_length' | 'baidu_api_key_length' | 'elevenlabs_api_key_length' | 'created_at' | 'updated_at'>> & {
-    api_key?: string;
+    api_key?: string | null;
     mineru_token?: string;
     baidu_api_key?: string;
     elevenlabs_api_key?: string;

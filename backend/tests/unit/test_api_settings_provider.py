@@ -137,6 +137,24 @@ def test_update_settings_accepts_apimart_provider():
     assert data['data']['ai_provider_format'] == 'apimart'
 
 
+def test_update_settings_clears_shared_api_key_with_null():
+    """Provider switches can explicitly clear the shared stored credential."""
+    app = Flask(__name__)
+
+    settings = _build_settings()
+    settings.api_key = 'old-provider-key'
+    with app.app_context():
+        with app.test_request_context('/api/settings/', method='PUT', json={'api_key': None}):
+            with patch('controllers.settings_controller.Settings.get_settings', return_value=settings):
+                with patch('controllers.settings_controller.db.session.commit'):
+                    with patch('controllers.settings_controller._sync_settings_to_config'):
+                        response, status_code = update_settings()
+
+    assert status_code == 200
+    assert response.get_json()['success'] is True
+    assert settings.api_key is None
+
+
 def test_volcengine_text_provider_uses_modelark_openai_compatible_base():
     """Volcengine AgentPlans should reuse the OpenAI-compatible text provider."""
     app = Flask(__name__)

@@ -587,7 +587,7 @@ const isImageModelSourceSelectable = (value: string) =>
 const initialFormData = {
   ai_provider_format: 'gemini' as string,
   api_base_url: '',
-  api_key: '',
+  api_key: '' as string | null,
   text_model: '',
   image_model: '',
   image_caption_model: '',
@@ -1211,7 +1211,7 @@ export const Settings: React.FC = () => {
       };
 
       // Only send sensitive fields if user entered a new value
-      if (api_key) payload.api_key = api_key;
+      if (api_key !== '') payload.api_key = api_key;
       if (mineru_token) payload.mineru_token = mineru_token;
       if (baidu_api_key) payload.baidu_api_key = baidu_api_key;
       if (elevenlabs_api_key) payload.elevenlabs_api_key = elevenlabs_api_key;
@@ -1299,6 +1299,13 @@ export const Settings: React.FC = () => {
       };
 
       if (key === 'ai_provider_format') {
+        if (
+          prev.ai_provider_format !== value
+          && (prev.ai_provider_format === 'apimart' || value === 'apimart')
+        ) {
+          next.api_key = null;
+        }
+
         if (prev.ai_provider_format === 'apimart' && value !== 'apimart') {
           if (!prev.text_model_source && next.text_model === APIMART_RECOMMENDED_MODELS.text_model_source) {
             next.text_model = '';
@@ -2106,7 +2113,7 @@ export const Settings: React.FC = () => {
                         ? t('settings.fields.apiKeySet', { length: settings.api_key_length })
                         : t('settings.fields.apiKeyPlaceholder')
                     }
-                    value={formData.api_key}
+                    value={formData.api_key || ''}
                     onChange={(e) => handleFieldChange('api_key', e.target.value)}
                   />
                   <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">{t('settings.fields.apiKeyDesc')}</p>
