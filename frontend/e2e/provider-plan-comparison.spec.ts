@@ -1,7 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
-
-const modelGroup = (page: Page, sourceTestId: string) =>
-  page.getByTestId(sourceTestId).locator('xpath=ancestor::div[contains(@class,"pb-6")][1]');
+import { test, expect } from '@playwright/test';
 
 const mockSettings = (overrides: Record<string, unknown> = {}) => ({
   success: true,
@@ -52,7 +49,7 @@ const mockSettings = (overrides: Record<string, unknown> = {}) => ({
 test.describe('Settings: provider plan comparison', () => {
   test.use({ locale: 'zh-CN' });
 
-  test('shows an analysis-style comparison with AIHubMix, Volcengine, and APIMart', async ({ page }) => {
+  test('shows an analysis-style comparison with AIHubMix and Volcengine', async ({ page }) => {
     await page.route('**/api/settings', route =>
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockSettings()) })
     );
@@ -60,7 +57,7 @@ test.describe('Settings: provider plan comparison', () => {
 
     const comparison = page.getByTestId('provider-plan-comparison');
     await expect(comparison).toBeVisible();
-    await expect(comparison.getByText('不知道怎么选？三个推荐方案对比')).toBeVisible();
+    await expect(comparison.getByText('不知道怎么选？两个推荐方案对比')).toBeVisible();
 
     const aihubmix = page.getByTestId('provider-plan-aihubmix');
     await expect(aihubmix.getByText('AIHubMix 聚合 API', { exact: true })).toBeVisible();
@@ -76,207 +73,6 @@ test.describe('Settings: provider plan comparison', () => {
     await expect(volcengine.getByText('效果接近海外主流，价格更低')).toBeVisible();
     await expect(volcengine.getByText('订阅后可日常使用，不局限于 Banana Slides')).toBeVisible();
     await expect(volcengine.getByRole('button', { name: '选择此方案' })).toBeEnabled();
-
-    const apimart = page.getByTestId('provider-plan-apimart');
-    await expect(apimart.getByText('APIMart', { exact: true })).toBeVisible();
-    await expect(apimart.getByText('低价图片 · 异步稳定')).toBeVisible();
-    await expect(apimart.getByText('异步任务轮询，长时间生图不易超时')).toBeVisible();
-    await expect(apimart.getByRole('button', { name: '使用此方案' })).toBeEnabled();
-  });
-
-  test('choosing APIMart applies its endpoint and recommended models', async ({ page }) => {
-    await page.route('**/api/settings', route =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockSettings()) })
-    );
-    await page.goto('/settings');
-
-    await page.getByTestId('provider-plan-apimart').getByRole('button', { name: '使用此方案' }).click();
-
-    await expect(page.getByTestId('global-provider-pills').locator('[data-provider="apimart"]'))
-      .toHaveAttribute('aria-checked', 'true');
-    await expect(page.getByTestId('global-api-config-section').locator('input').first())
-      .toHaveValue('https://api.apimart.ai/v1');
-    await expect(page.getByTestId('global-api-config-section').locator('input[type="password"]'))
-      .toHaveAttribute('placeholder', '输入新的 API Key');
-    await expect(modelGroup(page, 'text_model_source-select').locator('input[type="text"]').first())
-      .toHaveValue('gpt-5');
-    await expect(modelGroup(page, 'image_model_source-select').locator('input[type="text"]').first())
-      .toHaveValue('gpt-image-2');
-    await expect(modelGroup(page, 'image_caption_model_source-select').locator('input[type="text"]').first())
-      .toHaveValue('gpt-4o');
-    await expect(page.getByTestId('text_model_source-select')).toHaveValue('apimart');
-    await expect(page.getByTestId('image_model_source-select')).toHaveValue('apimart');
-    await expect(page.getByTestId('image_caption_model_source-select')).toHaveValue('apimart');
-  });
-
-  test('switching from APIMart to Volcengine clears APIMart per-model overrides first', async ({ page }) => {
-    await page.route('**/api/settings', route =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(mockSettings({
-          ai_provider_format: 'apimart',
-          api_base_url: 'https://api.apimart.ai/v1',
-          text_model: 'gpt-5',
-          image_model: 'gpt-image-2',
-          image_caption_model: 'gpt-4o',
-          text_model_source: 'apimart',
-          image_model_source: 'apimart',
-          image_caption_model_source: 'apimart',
-          text_api_base_url: 'https://api.apimart.ai/v1',
-          image_api_base_url: 'https://api.apimart.ai/v1',
-          image_caption_api_base_url: 'https://api.apimart.ai/v1',
-        })),
-      })
-    );
-    await page.goto('/settings');
-
-    await page.getByTestId('global-provider-pills').locator('[data-provider="volcengine"]').click();
-
-    await expect(page.getByTestId('global-api-config-section').locator('input').first())
-      .toHaveValue('https://ark.cn-beijing.volces.com/api/plan/v3');
-    await expect(page.getByTestId('text_model_source-select')).toHaveValue('volcengine');
-    await expect(page.getByTestId('image_model_source-select')).toHaveValue('volcengine');
-    await expect(page.getByTestId('image_caption_model_source-select')).toHaveValue('volcengine');
-    await expect(modelGroup(page, 'text_model_source-select').locator('input[type="text"]').first()).toHaveValue('');
-    await expect(modelGroup(page, 'image_model_source-select').locator('input[type="text"]').first()).toHaveValue('');
-    await expect(modelGroup(page, 'image_caption_model_source-select').locator('input[type="text"]').first()).toHaveValue('');
-  });
-
-  test('switching from APIMart to a text-only vendor keeps a capable image source', async ({ page }) => {
-    await page.route(url => url.pathname === '/api/settings', route =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(mockSettings({
-          ai_provider_format: 'apimart',
-          api_base_url: 'https://api.apimart.ai/v1',
-          text_model: 'gpt-5',
-          image_model: 'gpt-image-2',
-          image_caption_model: 'gpt-4o',
-          text_model_source: 'apimart',
-          image_model_source: 'apimart',
-          image_caption_model_source: 'apimart',
-        })),
-      })
-    );
-    await page.goto('/settings');
-
-    await page.getByTestId('global-provider-pills').locator('[data-provider="deepseek"]').click();
-
-    await expect(page.getByTestId('text_model_source-select')).toHaveValue('deepseek');
-    await expect(page.getByTestId('image_model_source-select')).toHaveValue('doubao');
-    await expect(page.getByTestId('image_caption_model_source-select')).toHaveValue('deepseek');
-  });
-
-  test('service testing an unsaved APIMart switch clears stored and typed global keys', async ({ page }) => {
-    let testPayload: Record<string, unknown> | null = null;
-    const settingsResponse = mockSettings({
-      ai_provider_format: 'gemini',
-      api_key_length: 16,
-    });
-    await page.route(url => url.pathname === '/api/settings', route =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(settingsResponse) })
-    );
-    await page.route(url => url.pathname === '/api/settings/tests/text-model', async route => {
-      testPayload = route.request().postDataJSON() as Record<string, unknown>;
-      await route.fulfill({ json: { data: { task_id: 'apimart-test-task' } } });
-    });
-    await page.goto('/settings');
-
-    const globalKeyInput = page.getByTestId('global-api-config-section').locator('input[type="password"]');
-    await globalKeyInput.fill('typed-gemini-key');
-    await page.getByTestId('provider-plan-apimart').getByRole('button', { name: '使用此方案' }).click();
-    await expect(globalKeyInput).toHaveValue('');
-    await page.locator('button', { hasText: /开始测试|Start Test/ }).nth(1).click();
-
-    expect(testPayload?.ai_provider_format).toBe('apimart');
-    expect(testPayload?.api_key).toBeNull();
-    expect(testPayload?.api_key).not.toBe('typed-gemini-key');
-  });
-
-  test('switching a per-model provider to APIMart clears the previous provider key', async ({ page }) => {
-    let savedPayload: Record<string, unknown> | null = null;
-    const settingsResponse = mockSettings({
-      text_model_source: 'openai',
-      text_api_key_length: 18,
-      text_api_base_url: 'https://api.openai.com/v1',
-    });
-    await page.route(url => url.pathname.startsWith('/api/settings'), async route => {
-      if (route.request().method() === 'PUT') {
-        savedPayload = route.request().postDataJSON() as Record<string, unknown>;
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            ...settingsResponse,
-            data: { ...settingsResponse.data, ...savedPayload },
-          }),
-        });
-        return;
-      }
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(settingsResponse),
-      });
-    });
-    await page.goto('/settings');
-
-    const textGroup = modelGroup(page, 'text_model_source-select');
-    await expect(textGroup.locator('input[type="password"]')).toHaveAttribute(
-      'placeholder',
-      '已设置（长度: 18）',
-    );
-    await textGroup.locator('input[type="password"]').fill('typed-openai-key');
-    await page.getByTestId('text_model_source-select').selectOption('apimart');
-    await expect(textGroup.locator('input[type="text"]').nth(1))
-      .toHaveValue('https://api.apimart.ai/v1');
-    await expect(textGroup.locator('input[type="password"]')).toHaveValue('');
-    await expect(textGroup.locator('input[type="password"]')).toHaveAttribute('placeholder', '输入 API Key');
-
-    await page.getByRole('button', { name: /保存设置/ }).click();
-    await expect(page.getByText('设置保存成功')).toBeVisible();
-    expect(savedPayload?.text_model_source).toBe('apimart');
-    expect(savedPayload?.text_api_key).toBeNull();
-    expect(savedPayload?.text_api_key).not.toBe('typed-openai-key');
-  });
-
-  test('choosing AIHubMix after APIMart clears APIMart models and typed credentials', async ({ page }) => {
-    await page.route(url => url.pathname === '/api/settings', route =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(mockSettings({
-          ai_provider_format: 'apimart',
-          api_base_url: 'https://api.apimart.ai/v1',
-          text_model: 'gpt-5',
-          image_model: 'gpt-image-2',
-          image_caption_model: 'gpt-4o',
-          text_model_source: 'apimart',
-          image_model_source: 'apimart',
-          image_caption_model_source: 'apimart',
-          text_api_base_url: 'https://api.apimart.ai/v1',
-          image_api_base_url: 'https://api.apimart.ai/v1',
-          image_caption_api_base_url: 'https://api.apimart.ai/v1',
-        })),
-      })
-    );
-    await page.goto('/settings');
-
-    const globalKeyInput = page.getByTestId('global-api-config-section').locator('input[type="password"]');
-    await globalKeyInput.fill('typed-apimart-key');
-    await page.getByTestId('provider-plan-aihubmix').getByRole('button', { name: '使用此方案' }).click();
-
-    await expect(page.getByTestId('global-provider-pills').locator('[data-provider="gemini"]'))
-      .toHaveAttribute('aria-checked', 'true');
-    await expect(globalKeyInput).toHaveValue('');
-    await expect(modelGroup(page, 'text_model_source-select').locator('input[type="text"]').first()).toHaveValue('');
-    await expect(modelGroup(page, 'image_model_source-select').locator('input[type="text"]').first()).toHaveValue('');
-    await expect(modelGroup(page, 'image_caption_model_source-select').locator('input[type="text"]').first()).toHaveValue('');
-    await expect(page.getByTestId('text_model_source-select')).toHaveValue('gemini');
-    await expect(page.getByTestId('image_model_source-select')).toHaveValue('gemini');
-    await expect(page.getByTestId('image_caption_model_source-select')).toHaveValue('gemini');
   });
 
   test('choosing Volcengine from the comparison applies the Agent Plan config', async ({ page }) => {

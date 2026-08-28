@@ -291,11 +291,8 @@ OPENAI_API_BASE=https://api.openai.com/v1
 # Proxy Example: https://api.inferera.com/v1
 
 # APIMart Configuration (Used when AI_PROVIDER_FORMAT=apimart)
-# Selecting APIMart in Settings fills these recommended models:
-# TEXT_MODEL=gpt-5, IMAGE_CAPTION_MODEL=gpt-4o, IMAGE_MODEL=gpt-image-2
 APIMART_API_KEY=your-apimart-api-key-here
 APIMART_API_BASE=https://api.apimart.ai/v1
-# Sign-up: https://go.apimart.ai/gh-banana-slides
 
 # Volcengine Ark Agent Plans Configuration (Used when AI_PROVIDER_FORMAT=volcengine)
 

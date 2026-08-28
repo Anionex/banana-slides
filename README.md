@@ -285,11 +285,8 @@ OPENAI_API_BASE=https://api.openai.com/v1
 # 代理示例: https://api.inferera.com/v1
 
 # APIMart 配置（当 AI_PROVIDER_FORMAT=apimart 时使用）
-# 设置页选择 APIMart 会自动填写以下推荐模型：
-# TEXT_MODEL=gpt-5, IMAGE_CAPTION_MODEL=gpt-4o, IMAGE_MODEL=gpt-image-2
 APIMART_API_KEY=your-apimart-api-key-here
 APIMART_API_BASE=https://api.apimart.ai/v1
-# 注册入口: https://go.apimart.ai/gh-banana-slides
 
 # 火山方舟 Agent Plans 配置（当 AI_PROVIDER_FORMAT=volcengine 时使用）
 # 注意: Agent Plan 需使用专属 API Key 与模型名 (doubao-seed-2.1-turbo / doubao-seedream-5.0-lite)

@@ -85,21 +85,15 @@ def temporary_settings_override(settings_override: dict):
         provider_keys = _provider_api_config_keys(active_format)
 
         # 应用覆盖设置
-        if "api_key" in settings_override and provider_keys:
+        if settings_override.get("api_key") and provider_keys:
             key_config, _ = provider_keys
             original_values[key_config] = current_app.config.get(key_config)
-            if settings_override["api_key"]:
-                current_app.config[key_config] = settings_override["api_key"]
-            else:
-                current_app.config.pop(key_config, None)
+            current_app.config[key_config] = settings_override["api_key"]
 
-        if "api_base_url" in settings_override and provider_keys:
+        if settings_override.get("api_base_url") and provider_keys:
             _, base_config = provider_keys
             original_values[base_config] = current_app.config.get(base_config)
-            if settings_override["api_base_url"]:
-                current_app.config[base_config] = settings_override["api_base_url"]
-            else:
-                current_app.config.pop(base_config, None)
+            current_app.config[base_config] = settings_override["api_base_url"]
 
         if settings_override.get("ai_provider_format"):
             original_values["AI_PROVIDER_FORMAT"] = current_app.config.get("AI_PROVIDER_FORMAT")
@@ -124,65 +118,26 @@ def temporary_settings_override(settings_override: dict):
             ("image_caption_model_source", "IMAGE_CAPTION_MODEL_SOURCE"),
         ]:
             if source_field in settings_override:
-                marker_key = f"{config_key}_FROM_SETTINGS"
-                previous_source = current_app.config.get(config_key)
                 original_values[config_key] = current_app.config.get(config_key)
-                original_values[marker_key] = current_app.config.get(marker_key)
                 val = settings_override[source_field]
                 if val:
                     current_app.config[config_key] = val
                 else:
                     current_app.config.pop(config_key, None)
-                current_app.config[marker_key] = True
-
-                # A source selected in the UI cannot safely inherit generic
-                # per-model credentials from another provider's environment.
-                # Preserve them only when this is the same persisted override.
-                if previous_source != val:
-                    prefix = config_key.removesuffix("_MODEL_SOURCE")
-                    for suffix, override_field in [
-                        ("API_KEY", f"{source_field.removesuffix('_model_source')}_api_key"),
-                        ("API_BASE", f"{source_field.removesuffix('_model_source')}_api_base_url"),
-                    ]:
-                        if override_field not in settings_override:
-                            credential_key = f"{prefix}_{suffix}"
-                            original_values.setdefault(
-                                credential_key,
-                                current_app.config.get(credential_key),
-                            )
-                            credential_marker = f"{credential_key}_FROM_SETTINGS"
-                            original_values.setdefault(
-                                credential_marker,
-                                current_app.config.get(credential_marker),
-                            )
-                            current_app.config.pop(credential_key, None)
-                            current_app.config[credential_marker] = True
 
         # Per-model API credentials override
         for model_type in ('text', 'image', 'image_caption'):
             prefix = model_type.upper()
             key_field = f'{model_type}_api_key'
             base_field = f'{model_type}_api_base_url'
-            if key_field in settings_override:
+            if settings_override.get(key_field):
                 config_key = f'{prefix}_API_KEY'
-                marker_key = f'{config_key}_FROM_SETTINGS'
-                original_values.setdefault(config_key, current_app.config.get(config_key))
-                original_values.setdefault(marker_key, current_app.config.get(marker_key))
-                if settings_override[key_field]:
-                    current_app.config[config_key] = settings_override[key_field]
-                else:
-                    current_app.config.pop(config_key, None)
-                current_app.config[marker_key] = True
-            if base_field in settings_override:
+                original_values[config_key] = current_app.config.get(config_key)
+                current_app.config[config_key] = settings_override[key_field]
+            if settings_override.get(base_field):
                 config_key = f'{prefix}_API_BASE'
-                marker_key = f'{config_key}_FROM_SETTINGS'
-                original_values.setdefault(config_key, current_app.config.get(config_key))
-                original_values.setdefault(marker_key, current_app.config.get(marker_key))
-                if settings_override[base_field]:
-                    current_app.config[config_key] = settings_override[base_field]
-                else:
-                    current_app.config.pop(config_key, None)
-                current_app.config[marker_key] = True
+                original_values[config_key] = current_app.config.get(config_key)
+                current_app.config[config_key] = settings_override[base_field]
 
         if settings_override.get("mineru_api_base"):
             original_values["MINERU_API_BASE"] = current_app.config.get("MINERU_API_BASE")
@@ -437,12 +392,10 @@ def update_settings():
             base_field = f'{model_type}_api_base_url'
 
             if key_field in data:
-                raw_key = data[key_field]
-                setattr(settings, key_field, str(raw_key) if raw_key else "")
+                setattr(settings, key_field, data[key_field] or None)
 
             if base_field in data:
-                raw_base = data[base_field]
-                setattr(settings, base_field, str(raw_base).strip() if raw_base else "")
+                setattr(settings, base_field, (data[base_field] or "").strip() or None)
 
         if "lazyllm_api_keys" in data:
             keys_data = data["lazyllm_api_keys"]
@@ -812,18 +765,15 @@ def _sync_settings_to_config(settings: Settings):
     for model_type, source_attr in [('TEXT', 'text_model_source'), ('IMAGE', 'image_model_source'), ('IMAGE_CAPTION', 'image_caption_model_source')]:
         source_val = getattr(settings, source_attr, None)
         config_key = f'{model_type}_MODEL_SOURCE'
-        marker_key = f'{config_key}_FROM_SETTINGS'
         if source_val:
             old_source = current_app.config.get(config_key)
             if old_source != source_val:
                 ai_config_changed = True
             current_app.config[config_key] = source_val
-            current_app.config[marker_key] = True
         else:
             if config_key in current_app.config:
                 ai_config_changed = True
             current_app.config.pop(config_key, None)
-            current_app.config[marker_key] = False
 
     # Sync per-model API credentials (for gemini/openai per-model overrides)
     for model_type in ('text', 'image', 'image_caption'):
@@ -831,8 +781,6 @@ def _sync_settings_to_config(settings: Settings):
         for suffix, setting_suffix in [('_API_KEY', '_api_key'), ('_API_BASE', '_api_base_url')]:
             config_key = f'{prefix}{suffix}'
             val = getattr(settings, f'{model_type}{setting_suffix}', None)
-            marker_key = f'{config_key}_FROM_SETTINGS'
-            current_app.config[marker_key] = val is not None
             if val:
                 if current_app.config.get(config_key) != val:
                     ai_config_changed = True

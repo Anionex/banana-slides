@@ -13,7 +13,7 @@ test('default API config section shows every provider as visible pills', async (
   await expect(pills).toBeVisible();
   await expect(pills.locator('[data-provider="gemini"]')).toBeVisible();
   await expect(pills.locator('[data-provider="openai"]')).toBeVisible();
-  await expect(pills.locator('[data-provider="apimart"]')).toContainText('低价图片 · 异步稳定');
+  await expect(pills.locator('[data-provider="apimart"]')).toBeVisible();
   await expect(pills.locator('[data-provider="deepseek"]')).toBeVisible();
   await expect(pills.locator('[data-provider="volcengine"]')).toContainText('国内直连 · 高性价比');
 });

@@ -11,7 +11,6 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from models import Settings
-from services import ai_providers
 
 
 def _reload_app_module():
@@ -93,70 +92,6 @@ def test_startup_loader_volcengine_credentials_override_env(monkeypatch):
 
     assert flask_app.config['VOLCENGINE_API_BASE'] == 'https://ark.cn-beijing.volces.com/api/plan/v3'
     assert flask_app.config['VOLCENGINE_API_KEY'] == 'db-saved-volcengine-key'
-
-
-def test_startup_loader_apimart_source_blocks_legacy_per_model_env(monkeypatch):
-    """A persisted APIMart source must override old TEXT_* environment values."""
-    monkeypatch.setenv('TEXT_MODEL_SOURCE', 'openai')
-    monkeypatch.setenv('TEXT_API_KEY', 'legacy-openai-text-key')
-    monkeypatch.setenv('TEXT_API_BASE', 'https://legacy-openai.example/v1')
-    monkeypatch.setenv('APIMART_API_KEY', 'env-apimart-key')
-    monkeypatch.setenv('APIMART_API_BASE', 'https://api.apimart.ai/v1')
-
-    flask_app = _load_settings_into_flask_app(
-        monkeypatch,
-        _fake_settings(
-            ai_provider_format='apimart',
-            api_base_url='https://api.apimart.ai/v1',
-            api_key='db-apimart-key',
-            text_model_source='apimart',
-            text_api_key='',
-            text_api_base_url='',
-        ),
-    )
-
-    with flask_app.app_context():
-        config = ai_providers._get_model_type_provider_config('text')
-
-    assert flask_app.config['TEXT_MODEL_SOURCE_FROM_SETTINGS'] is True
-    assert flask_app.config['TEXT_API_KEY_FROM_SETTINGS'] is True
-    assert flask_app.config['TEXT_API_BASE_FROM_SETTINGS'] is True
-    assert config == {
-        'format': 'apimart',
-        'api_key': 'db-apimart-key',
-        'api_base': 'https://api.apimart.ai/v1',
-    }
-
-
-def test_startup_loader_saved_source_preserves_per_model_env_credentials(monkeypatch):
-    """A saved source may intentionally use documented TEXT_* environment values."""
-    monkeypatch.setenv('TEXT_MODEL_SOURCE', 'openai')
-    monkeypatch.setenv('TEXT_API_KEY', 'intentional-apimart-text-key')
-    monkeypatch.setenv('TEXT_API_BASE', 'https://text.apimart.example/v1')
-    monkeypatch.setenv('APIMART_API_KEY', 'global-apimart-key')
-    monkeypatch.setenv('APIMART_API_BASE', 'https://api.apimart.ai/v1')
-
-    flask_app = _load_settings_into_flask_app(
-        monkeypatch,
-        _fake_settings(
-            ai_provider_format='apimart',
-            api_base_url='https://api.apimart.ai/v1',
-            api_key='db-apimart-key',
-            text_model_source='apimart',
-        ),
-    )
-
-    with flask_app.app_context():
-        config = ai_providers._get_model_type_provider_config('text')
-
-    assert flask_app.config['TEXT_MODEL_SOURCE_FROM_SETTINGS'] is True
-    assert flask_app.config['TEXT_API_KEY_FROM_SETTINGS'] is False
-    assert flask_app.config['TEXT_API_BASE_FROM_SETTINGS'] is False
-    assert config == {
-        'format': 'apimart',
-        'api_key': 'intentional-apimart-text-key',
-        'api_base': 'https://text.apimart.example/v1',
-    }
 
 
 def test_startup_loader_does_not_pollute_volcengine_keys_for_other_formats(monkeypatch):

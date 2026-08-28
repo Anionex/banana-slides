@@ -362,20 +362,16 @@ def _load_settings_to_config(app):
             app.config['BAIDU_API_KEY'] = settings.baidu_api_key
             logging.info("Loaded BAIDU_API_KEY from settings")
 
-        # Load per-model source settings and remember whether the source came
-        # from the database. This prevents a UI provider switch from falling
-        # back to a stale environment source or generic per-model credential.
-        for prefix, source_attr in [
-            ('TEXT', 'text_model_source'),
-            ('IMAGE', 'image_model_source'),
-            ('IMAGE_CAPTION', 'image_caption_model_source'),
-        ]:
-            source_val = getattr(settings, source_attr, None)
-            source_key = f'{prefix}_MODEL_SOURCE'
-            app.config[f'{source_key}_FROM_SETTINGS'] = bool(source_val)
-            if source_val:
-                app.config[source_key] = source_val
-                logging.info(f"Loaded {source_key} from settings: {source_val}")
+        # Load LazyLLM source settings
+        if settings.text_model_source:
+            app.config['TEXT_MODEL_SOURCE'] = settings.text_model_source
+            logging.info(f"Loaded TEXT_MODEL_SOURCE from settings: {settings.text_model_source}")
+        if settings.image_model_source:
+            app.config['IMAGE_MODEL_SOURCE'] = settings.image_model_source
+            logging.info(f"Loaded IMAGE_MODEL_SOURCE from settings: {settings.image_model_source}")
+        if settings.image_caption_model_source:
+            app.config['IMAGE_CAPTION_MODEL_SOURCE'] = settings.image_caption_model_source
+            logging.info(f"Loaded IMAGE_CAPTION_MODEL_SOURCE from settings: {settings.image_caption_model_source}")
 
         # Load per-model API credentials (for gemini/openai per-model overrides)
         for model_type in ('text', 'image', 'image_caption'):
@@ -383,15 +379,12 @@ def _load_settings_to_config(app):
             for suffix, setting_suffix in [('_API_KEY', '_api_key'), ('_API_BASE', '_api_base_url')]:
                 config_key = f'{prefix}{suffix}'
                 val = getattr(settings, f'{model_type}{setting_suffix}', None)
-                app.config[f'{config_key}_FROM_SETTINGS'] = val is not None
                 if val:
                     app.config[config_key] = val
                     if suffix == '_API_BASE':
                         logging.info(f"Loaded {config_key} from settings: {val}")
                     else:
                         logging.info(f"Loaded {config_key} from settings")
-                else:
-                    app.config.pop(config_key, None)
 
         # Sync LazyLLM vendor API keys to environment variables
         # Only allow known vendor names to prevent environment variable injection

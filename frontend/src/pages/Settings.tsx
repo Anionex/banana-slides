@@ -139,7 +139,7 @@ const settingsI18n = {
       },
       apiKeyTip: { before: "若需快速配置或稳定高并发生图，可选择 ", linkLabel: "AIHubMix 申请 API Key", after: "" },
       providerComparison: {
-        title: "不知道怎么选？三个推荐方案对比",
+        title: "不知道怎么选？两个推荐方案对比",
         subtitle: "按自己的使用场景选择，选择结果会同步到默认 API 配置",
         aihubmix: {
           name: "AIHubMix 聚合 API",
@@ -165,20 +165,7 @@ const settingsI18n = {
           link: "查看优惠并订阅 →",
           note: "自动填入火山 Agent Plan 专属端点并推荐模型",
         },
-        apimart: {
-          name: "APIMart",
-          tagline: "低价图片 · 异步稳定",
-          suitedFor: "适合：大批量生成图片、关注单张成本",
-          point1: "支持 GPT-Image-2，最低约 $0.006/张",
-          point2: "异步任务轮询，长时间生图不易超时",
-          point3: "兼容文本、图片理解与图片生成接口",
-          cta: "使用此方案",
-          active: "当前方案",
-          link: "注册并获取 API Key →",
-          note: "自动填入 APIMart 端点与推荐模型",
-        },
       },
-      apimartPromo: { providerHint: "低价图片 · 异步稳定" },
       volcenginePromo: {
         providerHint: "国内直连 · 高性价比",
         title: "为什么选择火山 Agent Plan？",
@@ -375,7 +362,7 @@ const settingsI18n = {
       },
       apiKeyTip: { before: "For quick setup or stable high-concurrency image generation, get an API key from ", linkLabel: "AIHubMix", after: "" },
       providerComparison: {
-        title: "Not sure which one? Compare the three recommended plans",
+        title: "Not sure which one? Compare the two recommended plans",
         subtitle: "Pick by your own scenario; the selection is applied to the default API config",
         aihubmix: {
           name: "AIHubMix Aggregated API",
@@ -401,20 +388,7 @@ const settingsI18n = {
           link: "View plans and subscribe →",
           note: "Fills the Agent Plan endpoint and recommended models automatically",
         },
-        apimart: {
-          name: "APIMart",
-          tagline: "Low-cost images · Async reliability",
-          suitedFor: "Best for: high-volume image generation and lower per-image cost",
-          point1: "GPT-Image-2 from about $0.006 per image",
-          point2: "Async task polling avoids long-running request timeouts",
-          point3: "Supports text, image understanding, and image generation APIs",
-          cta: "Use this plan",
-          active: "Current plan",
-          link: "Sign up and get an API key →",
-          note: "Fills the APIMart endpoint and recommended models automatically",
-        },
       },
-      apimartPromo: { providerHint: "Low-cost images · Async" },
       volcenginePromo: {
         providerHint: "Cost-effective",
         title: "Why choose Volcengine Agent Plan?",
@@ -526,7 +500,6 @@ const INFERERA_GEMINI_BASE_URL = 'https://api.inferera.com/gemini';
 const VOLCENGINE_AGENTPLANS_CN_URL = 'https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides';
 const VOLCENGINE_AGENTPLANS_EN_URL = 'https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=banana-slides&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides';
 const VOLCENGINE_AGENTPLANS_APIKEY_URL = 'https://ai.volcengine.com/console/apikey';
-const APIMART_AFFILIATE_URL = 'https://go.apimart.ai/gh-banana-slides';
 const APIMART_BASE_URL = 'https://api.apimart.ai/v1';
 
 // LazyLLM 支持的厂商列表
@@ -557,11 +530,6 @@ const getAllProviderSources = (isZh: boolean) => [
 
 // 需要 API Key + Base URL 的提供商（非 LazyLLM 厂商）
 const API_KEY_PROVIDERS = new Set(['gemini', 'openai', 'apimart', 'volcengine']);
-const APIMART_RECOMMENDED_MODELS = {
-  text: 'gpt-5',
-  caption: 'gpt-4o',
-  image: 'gpt-image-2',
-};
 // 火山 Agent Plans（OpenAI 兼容）: 专属 Base URL 与模型名
 const VOLCENGINE_AGENTPLANS_BASE_URL = 'https://ark.cn-beijing.volces.com/api/plan/v3';
 const VOLCENGINE_AGENTPLANS_RECOMMENDED_MODELS = {
@@ -580,7 +548,6 @@ const KNOWN_DEFAULT_BASE_URLS = new Set([
   '',
   'https://api.inferera.com/v1',
   'https://api.openai.com/v1',
-  'https://api.apimart.ai/v1',
   'https://api.inferera.com/gemini',
   'https://generativelanguage.googleapis.com',
   'https://ark.cn-beijing.volces.com/api/v3',
@@ -591,24 +558,7 @@ const VOLCENGINE_DEFAULT_BASE_URLS = new Set([
   'https://ark.cn-beijing.volces.com/api/plan/v3',
   'https://ark.cn-beijing.volces.com/api/v3',
 ]);
-const APIMART_DEFAULT_BASE_URLS = new Set(['https://api.apimart.ai/v1']);
-const PROVIDER_PLAN_TONES: Record<string, { active: string; accent: string; link: string }> = {
-  blue: {
-    active: 'border-blue-500 bg-blue-50/70 ring-1 ring-blue-500/30 dark:bg-blue-950/20',
-    accent: 'text-blue-600 dark:text-blue-300',
-    link: 'text-blue-600 hover:text-blue-700 dark:text-blue-300',
-  },
-  amber: {
-    active: 'border-amber-500 bg-amber-50/70 ring-1 ring-amber-500/30 dark:bg-amber-950/20',
-    accent: 'text-amber-700 dark:text-amber-300',
-    link: 'text-amber-700 hover:text-amber-800 dark:text-amber-300',
-  },
-  violet: {
-    active: 'border-violet-500 bg-violet-50/70 ring-1 ring-violet-500/30 dark:bg-violet-950/20',
-    accent: 'text-violet-700 dark:text-violet-300',
-    link: 'text-violet-700 hover:text-violet-800 dark:text-violet-300',
-  },
-};
+const APIMART_DEFAULT_BASE_URLS = new Set([APIMART_BASE_URL]);
 
 // LazyLLM 厂商名集合
 const LAZYLLM_VENDOR_SET = new Set(LAZYLLM_SOURCES.map(s => s.value));
@@ -1255,44 +1205,14 @@ export const Settings: React.FC = () => {
         ai_provider_format: otherData.ai_provider_format,
       };
 
-      // Only send sensitive fields if user entered a new value. When the
-      // provider changes, clear the old global key so it cannot be sent to a
-      // different vendor; the target provider can still fall back to .env.
-      if (api_key) {
-        payload.api_key = api_key;
-      } else if (
-        settings
-        && String(settings.ai_provider_format || '').toLowerCase() !== String(formData.ai_provider_format || '').toLowerCase()
-      ) {
-        payload.api_key = null;
-      }
+      // Only send sensitive fields if user entered a new value
+      if (api_key) payload.api_key = api_key;
       if (mineru_token) payload.mineru_token = mineru_token;
       if (baidu_api_key) payload.baidu_api_key = baidu_api_key;
       if (elevenlabs_api_key) payload.elevenlabs_api_key = elevenlabs_api_key;
-      if (text_api_key) {
-        payload.text_api_key = text_api_key;
-      } else if (
-        settings
-        && String(settings.text_model_source || '').toLowerCase() !== String(formData.text_model_source || '').toLowerCase()
-      ) {
-        payload.text_api_key = null;
-      }
-      if (image_api_key) {
-        payload.image_api_key = image_api_key;
-      } else if (
-        settings
-        && String(settings.image_model_source || '').toLowerCase() !== String(formData.image_model_source || '').toLowerCase()
-      ) {
-        payload.image_api_key = null;
-      }
-      if (image_caption_api_key) {
-        payload.image_caption_api_key = image_caption_api_key;
-      } else if (
-        settings
-        && String(settings.image_caption_model_source || '').toLowerCase() !== String(formData.image_caption_model_source || '').toLowerCase()
-      ) {
-        payload.image_caption_api_key = null;
-      }
+      if (text_api_key) payload.text_api_key = text_api_key;
+      if (image_api_key) payload.image_api_key = image_api_key;
+      if (image_caption_api_key) payload.image_caption_api_key = image_caption_api_key;
 
       // Send lazyllm API keys (only non-empty values)
       const nonEmptyKeys = Object.fromEntries(
@@ -1362,79 +1282,37 @@ export const Settings: React.FC = () => {
       const next = { ...prev, [key]: value };
 
       // Per-model source key → its API base URL field, for stale-default replacement
-      type PerModelBaseKey = 'text_api_base_url' | 'image_api_base_url' | 'image_caption_api_base_url';
-      type PerModelApiKey = 'text_api_key' | 'image_api_key' | 'image_caption_api_key';
-      const perModelBaseKeys: Record<string, PerModelBaseKey> = {
+      const perModelBaseKeys: Record<string, string> = {
         text_model_source: 'text_api_base_url',
         image_model_source: 'image_api_base_url',
         image_caption_model_source: 'image_caption_api_base_url',
       };
-      const perModelApiKeys: Record<string, PerModelApiKey> = {
-        text_model_source: 'text_api_key',
-        image_model_source: 'image_api_key',
-        image_caption_model_source: 'image_caption_api_key',
-      };
 
       if (key === 'ai_provider_format') {
-        // A typed credential belongs to the provider that was selected when it
-        // was entered. Never carry it into another provider's request.
-        if (prev.ai_provider_format !== value) next.api_key = '';
-
-        // Clear provider-owned overrides before applying the next global
-        // provider. These fields otherwise keep taking precedence over the
-        // newly selected provider.
-        if (prev.ai_provider_format === 'apimart' && value !== 'apimart') {
-          if (APIMART_DEFAULT_BASE_URLS.has(next.api_base_url)) next.api_base_url = '';
-          if (next.text_model === APIMART_RECOMMENDED_MODELS.text) next.text_model = '';
-          if (next.image_model === APIMART_RECOMMENDED_MODELS.image) next.image_model = '';
-          if (next.image_caption_model === APIMART_RECOMMENDED_MODELS.caption) next.image_caption_model = '';
-          if (next.text_model_source === 'apimart') {
-            next.text_model_source = String(value);
-            next.text_api_key = '';
-          }
-          if (next.image_model_source === 'apimart') {
-            next.image_model_source = isImageModelSourceSelectable(String(value))
-              ? String(value)
-              : 'doubao';
-            next.image_api_key = '';
-          }
-          if (next.image_caption_model_source === 'apimart') {
-            next.image_caption_model_source = String(value);
-            next.image_caption_api_key = '';
-          }
-          if (APIMART_DEFAULT_BASE_URLS.has(next.text_api_base_url)) next.text_api_base_url = '';
-          if (APIMART_DEFAULT_BASE_URLS.has(next.image_api_base_url)) next.image_api_base_url = '';
-          if (APIMART_DEFAULT_BASE_URLS.has(next.image_caption_api_base_url)) next.image_caption_api_base_url = '';
-        }
-        if (prev.ai_provider_format === 'volcengine' && value !== 'volcengine') {
-          if (VOLCENGINE_DEFAULT_BASE_URLS.has(next.api_base_url)) next.api_base_url = '';
-        }
-
         if (value === 'volcengine') {
           // Agent Plans 需要专属端点: 空值或其他 provider 的默认端点会被替换,
           // 用户显式填写的自定义 Base URL 保留
-          if (KNOWN_DEFAULT_BASE_URLS.has(next.api_base_url)) {
+          if (KNOWN_DEFAULT_BASE_URLS.has(next.api_base_url) || APIMART_DEFAULT_BASE_URLS.has(next.api_base_url)) {
             next.api_base_url = VOLCENGINE_AGENTPLANS_BASE_URL;
           }
-        } else if (value === 'apimart') {
-          if (KNOWN_DEFAULT_BASE_URLS.has(next.api_base_url)) {
-            next.api_base_url = APIMART_BASE_URL;
-          }
+        } else if (APIMART_DEFAULT_BASE_URLS.has(next.api_base_url)) {
+          next.api_base_url = '';
+        } else if (VOLCENGINE_DEFAULT_BASE_URLS.has(next.api_base_url)) {
+          // 离开 Agent Plans: plan/v3 端点对新 provider 是过时默认值, 清空以
+          // 回退到新 provider 的环境变量/默认端点, 自定义 URL 保留
+          next.api_base_url = '';
         }
       } else if (perModelBaseKeys[key]) {
         const baseKey = perModelBaseKeys[key];
-        const apiKey = perModelApiKeys[key];
-        if (prev[key as keyof typeof prev] !== value) next[apiKey] = '';
-
-        if (value === 'volcengine') {
+        if (value === 'apimart') {
+          if (KNOWN_DEFAULT_BASE_URLS.has(next[baseKey]) || VOLCENGINE_DEFAULT_BASE_URLS.has(next[baseKey])) {
+            next[baseKey] = APIMART_BASE_URL;
+          }
+        } else if (value === 'volcengine') {
           // 单模型切到 Agent Plans 时同样替换过时的默认端点, 否则该模型的
           // {MODEL}_API_BASE 会优先于 VOLCENGINE_API_BASE 命中旧 provider 端点。
-          if (KNOWN_DEFAULT_BASE_URLS.has(next[baseKey])) {
+          if (KNOWN_DEFAULT_BASE_URLS.has(next[baseKey]) || APIMART_DEFAULT_BASE_URLS.has(next[baseKey])) {
             next[baseKey] = VOLCENGINE_AGENTPLANS_BASE_URL;
-          }
-        } else if (value === 'apimart') {
-          if (KNOWN_DEFAULT_BASE_URLS.has(next[baseKey])) {
-            next[baseKey] = APIMART_BASE_URL;
           }
         } else if (APIMART_DEFAULT_BASE_URLS.has(next[baseKey])) {
           next[baseKey] = '';
@@ -1482,70 +1360,29 @@ export const Settings: React.FC = () => {
   };
 
   const selectAihubmixPlan = () => {
-    setFormData(prev => {
-      const provider = prev.ai_provider_format === 'gemini' || prev.ai_provider_format === 'openai'
+    setFormData(prev => ({
+      ...prev,
+      ai_provider_format: prev.ai_provider_format === 'gemini' || prev.ai_provider_format === 'openai'
         ? prev.ai_provider_format
-        : 'gemini';
-      const next = {
-        ...prev,
-        ai_provider_format: provider,
-        api_base_url: provider === 'openai' ? INFERERA_OPENAI_BASE_URL : INFERERA_GEMINI_BASE_URL,
-        api_key: prev.ai_provider_format === provider ? prev.api_key : '',
-      };
-
-      // The comparison-card path does not go through handleFieldChange, so it
-      // must perform the same APIMart-owned model and override cleanup.
-      if (prev.ai_provider_format === 'apimart') {
-        if (next.text_model === APIMART_RECOMMENDED_MODELS.text) next.text_model = '';
-        if (next.image_model === APIMART_RECOMMENDED_MODELS.image) next.image_model = '';
-        if (next.image_caption_model === APIMART_RECOMMENDED_MODELS.caption) next.image_caption_model = '';
-        if (next.text_model_source === 'apimart') {
-          next.text_model_source = provider;
-          next.text_api_key = '';
-        }
-        if (next.image_model_source === 'apimart') {
-          next.image_model_source = provider;
-          next.image_api_key = '';
-        }
-        if (next.image_caption_model_source === 'apimart') {
-          next.image_caption_model_source = provider;
-          next.image_caption_api_key = '';
-        }
-        if (APIMART_DEFAULT_BASE_URLS.has(next.text_api_base_url)) next.text_api_base_url = '';
-        if (APIMART_DEFAULT_BASE_URLS.has(next.image_api_base_url)) next.image_api_base_url = '';
-        if (APIMART_DEFAULT_BASE_URLS.has(next.image_caption_api_base_url)) next.image_caption_api_base_url = '';
-      }
-
-      return next;
-    });
+        : 'gemini',
+      api_base_url: prev.ai_provider_format === 'openai'
+        ? INFERERA_OPENAI_BASE_URL
+        : INFERERA_GEMINI_BASE_URL,
+    }));
   };
 
   const selectVolcenginePlan = () => {
     handleFieldChange('ai_provider_format', 'volcengine');
   };
 
-  const selectApimartPlan = () => {
+  const selectApimartProvider = () => {
     setFormData(prev => ({
       ...prev,
       ai_provider_format: 'apimart',
       api_base_url: APIMART_BASE_URL,
-      api_key: prev.ai_provider_format === 'apimart' ? prev.api_key : '',
-      text_model: APIMART_RECOMMENDED_MODELS.text,
-      image_caption_model: APIMART_RECOMMENDED_MODELS.caption,
-      image_model: APIMART_RECOMMENDED_MODELS.image,
-      // Persist an explicit source so environment-level per-model sources
-      // cannot override the APIMart plan. The backend still falls back to the
-      // global APIMart credential when no APIMart per-model key is supplied.
-      text_model_source: 'apimart',
-      image_caption_model_source: 'apimart',
-      image_model_source: 'apimart',
-      text_api_key: '',
-      image_caption_api_key: '',
-      image_api_key: '',
-      text_api_base_url: '',
-      image_caption_api_base_url: '',
-      image_api_base_url: '',
-      openai_image_api_protocol: 'auto',
+      text_model: 'gpt-5',
+      image_caption_model: 'gpt-4o',
+      image_model: 'gpt-image-2',
     }));
   };
 
@@ -1553,7 +1390,6 @@ export const Settings: React.FC = () => {
     (formData.ai_provider_format === 'gemini' || formData.ai_provider_format === 'openai')
     && (formData.api_base_url || '').includes('api.inferera.com');
   const isVolcenginePlanActive = formData.ai_provider_format === 'volcengine';
-  const isApimartPlanActive = formData.ai_provider_format === 'apimart';
 
   const providerPlanCards = [
     {
@@ -1574,7 +1410,6 @@ export const Settings: React.FC = () => {
       onSelect: selectAihubmixPlan,
       href: INFERERA_AFFILIATE_URL,
       linkLabel: t('settings.providerComparison.aihubmix.link'),
-      tone: 'blue',
     },
     {
       key: 'volcengine',
@@ -1594,27 +1429,6 @@ export const Settings: React.FC = () => {
       onSelect: selectVolcenginePlan,
       href: volcengineAgentPlansUrl,
       linkLabel: t('settings.providerComparison.volcengine.link'),
-      tone: 'amber',
-    },
-    {
-      key: 'apimart',
-      testId: 'provider-plan-apimart',
-      active: isApimartPlanActive,
-      name: t('settings.providerComparison.apimart.name'),
-      tagline: t('settings.providerComparison.apimart.tagline'),
-      suitedFor: t('settings.providerComparison.apimart.suitedFor'),
-      points: [
-        t('settings.providerComparison.apimart.point1'),
-        t('settings.providerComparison.apimart.point2'),
-        t('settings.providerComparison.apimart.point3'),
-      ],
-      cta: t('settings.providerComparison.apimart.cta'),
-      activeLabel: t('settings.providerComparison.apimart.active'),
-      note: t('settings.providerComparison.apimart.note'),
-      onSelect: selectApimartPlan,
-      href: APIMART_AFFILIATE_URL,
-      linkLabel: t('settings.providerComparison.apimart.link'),
-      tone: 'violet',
     },
   ];
 
@@ -1633,14 +1447,7 @@ export const Settings: React.FC = () => {
       const testSettings: any = {};
 
       // 只传递用户已填写的非空值
-      if (formData.api_key) {
-        testSettings.api_key = formData.api_key;
-      } else if (
-        settings
-        && String(settings.ai_provider_format || '').toLowerCase() !== String(formData.ai_provider_format || '').toLowerCase()
-      ) {
-        testSettings.api_key = null;
-      }
+      if (formData.api_key) testSettings.api_key = formData.api_key;
       if (formData.api_base_url) testSettings.api_base_url = formData.api_base_url;
       if (formData.ai_provider_format) {
         testSettings.ai_provider_format = formData.ai_provider_format;
@@ -1659,32 +1466,11 @@ export const Settings: React.FC = () => {
       testSettings.image_caption_model_source = formData.image_caption_model_source || '';
 
       // Per-model API credentials
-      if (formData.text_api_key) {
-        testSettings.text_api_key = formData.text_api_key;
-      } else if (
-        settings
-        && String(settings.text_model_source || '').toLowerCase() !== String(formData.text_model_source || '').toLowerCase()
-      ) {
-        testSettings.text_api_key = null;
-      }
+      if (formData.text_api_key) testSettings.text_api_key = formData.text_api_key;
       if (formData.text_api_base_url) testSettings.text_api_base_url = formData.text_api_base_url;
-      if (formData.image_api_key) {
-        testSettings.image_api_key = formData.image_api_key;
-      } else if (
-        settings
-        && String(settings.image_model_source || '').toLowerCase() !== String(formData.image_model_source || '').toLowerCase()
-      ) {
-        testSettings.image_api_key = null;
-      }
+      if (formData.image_api_key) testSettings.image_api_key = formData.image_api_key;
       if (formData.image_api_base_url) testSettings.image_api_base_url = formData.image_api_base_url;
-      if (formData.image_caption_api_key) {
-        testSettings.image_caption_api_key = formData.image_caption_api_key;
-      } else if (
-        settings
-        && String(settings.image_caption_model_source || '').toLowerCase() !== String(formData.image_caption_model_source || '').toLowerCase()
-      ) {
-        testSettings.image_caption_api_key = null;
-      }
+      if (formData.image_caption_api_key) testSettings.image_caption_api_key = formData.image_caption_api_key;
       if (formData.image_caption_api_base_url) testSettings.image_caption_api_base_url = formData.image_caption_api_base_url;
 
       // 推理模式设置
@@ -2018,9 +1804,7 @@ export const Settings: React.FC = () => {
                 label={t('settings.fields.perModelApiKey')}
                 type="password"
                 placeholder={
-                  settings
-                  && String(settings[item.sourceKey as keyof SettingsType] || '').toLowerCase() === String(sourceValue || '').toLowerCase()
-                  && (settings[item.apiKeyLengthKey] as number) > 0
+                  settings && (settings[item.apiKeyLengthKey] as number) > 0
                     ? t('settings.fields.perModelApiKeySet', { length: settings[item.apiKeyLengthKey] as number })
                     : t('settings.fields.perModelApiKeyPlaceholder')
                 }
@@ -2128,23 +1912,23 @@ export const Settings: React.FC = () => {
                   </p>
                 </div>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {providerPlanCards.map(plan => {
-                  const tone = PROVIDER_PLAN_TONES[plan.tone];
-                  return (
-                    <div
-                      key={plan.key}
-                      data-testid={plan.testId}
-                      className={`flex flex-col rounded-lg border p-3 transition-colors ${
-                        plan.active
-                          ? tone.active
-                          : 'border-gray-200 hover:border-gray-300 dark:border-border-primary dark:hover:border-gray-500'
-                      }`}
-                    >
+              <div className="grid gap-3 sm:grid-cols-2">
+                {providerPlanCards.map(plan => (
+                  <div
+                    key={plan.key}
+                    data-testid={plan.testId}
+                    className={`flex flex-col rounded-lg border p-3 transition-colors ${
+                      plan.active
+                        ? plan.key === 'aihubmix'
+                          ? 'border-blue-500 bg-blue-50/70 ring-1 ring-blue-500/30 dark:bg-blue-950/20'
+                          : 'border-amber-500 bg-amber-50/70 ring-1 ring-amber-500/30 dark:bg-amber-950/20'
+                        : 'border-gray-200 hover:border-gray-300 dark:border-border-primary dark:hover:border-gray-500'
+                    }`}
+                  >
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <p className="text-sm font-semibold text-gray-900 dark:text-foreground-primary">{plan.name}</p>
-                        <p className={`text-xs font-medium ${tone.accent}`}>
+                        <p className={`text-xs font-medium ${plan.key === 'aihubmix' ? 'text-blue-600 dark:text-blue-300' : 'text-amber-700 dark:text-amber-300'}`}>
                           {plan.tagline}
                         </p>
                       </div>
@@ -2177,14 +1961,17 @@ export const Settings: React.FC = () => {
                         href={plan.href}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className={`text-xs font-medium underline-offset-2 hover:underline ${tone.link}`}
+                        className={`text-xs font-medium underline-offset-2 hover:underline ${
+                          plan.key === 'aihubmix'
+                            ? 'text-blue-600 hover:text-blue-700 dark:text-blue-300'
+                            : 'text-amber-700 hover:text-amber-800 dark:text-amber-300'
+                        }`}
                       >
                         {plan.linkLabel}
                       </a>
                     </div>
-                    </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -2206,9 +1993,7 @@ export const Settings: React.FC = () => {
                     ? t('settings.volcenginePromo.providerHint')
                     : option.value === 'doubao'
                       ? t('settings.doubaoVolcenginePromo.providerHint')
-                      : option.value === 'apimart'
-                        ? t('settings.apimartPromo.providerHint')
-                        : null;
+                      : null;
 
                   return (
                     <button
@@ -2219,7 +2004,7 @@ export const Settings: React.FC = () => {
                       disabled={isDisabled}
                       data-provider={option.value}
                       onClick={() => option.value === 'apimart'
-                        ? selectApimartPlan()
+                        ? selectApimartProvider()
                         : handleFieldChange('ai_provider_format', option.value)}
                       className={`inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-banana-500 focus:ring-offset-2 dark:focus:ring-offset-background-primary ${
                         isSelected
@@ -2273,9 +2058,7 @@ export const Settings: React.FC = () => {
                     label={t('settings.fields.apiKey')}
                     type="password"
                     placeholder={
-                      settings
-                      && String(settings.ai_provider_format || '').toLowerCase() === String(formData.ai_provider_format || '').toLowerCase()
-                      && (settings.api_key_length as number) > 0
+                      settings && (settings.api_key_length as number) > 0
                         ? t('settings.fields.apiKeySet', { length: settings.api_key_length })
                         : t('settings.fields.apiKeyPlaceholder')
                     }
