@@ -91,6 +91,21 @@ def test_apimart_text_provider_sends_image_as_data_uri(tmp_path):
     assert content[1]["image_url"]["url"].startswith("data:image/png;base64,")
 
 
+def test_apimart_text_provider_preserves_jpeg_media_type(tmp_path):
+    image_path = tmp_path / "reference.jpg"
+    Image.new("RGB", (8, 6), "red").save(image_path, format="JPEG")
+    session = FakeTextSession(FakeResponse({
+        "code": 200,
+        "data": {"choices": [{"message": {"content": "A red rectangle"}}]},
+    }))
+    provider = APIMartTextProvider("key", model="gpt-4o", session=session)
+
+    provider.generate_with_image("Describe", str(image_path))
+
+    image_url = session.calls[0][1]["json"]["messages"][0]["content"][1]["image_url"]["url"]
+    assert image_url.startswith("data:image/jpeg;base64,")
+
+
 def test_apimart_image_provider_submits_polls_and_downloads():
     image_bytes = _png_bytes("blue")
     session = FakeImageSession([

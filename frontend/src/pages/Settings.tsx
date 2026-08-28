@@ -1375,6 +1375,9 @@ export const Settings: React.FC = () => {
         // newly selected provider.
         if (prev.ai_provider_format === 'apimart' && value !== 'apimart') {
           if (APIMART_DEFAULT_BASE_URLS.has(next.api_base_url)) next.api_base_url = '';
+          if (next.text_model === APIMART_RECOMMENDED_MODELS.text) next.text_model = '';
+          if (next.image_model === APIMART_RECOMMENDED_MODELS.image) next.image_model = '';
+          if (next.image_caption_model === APIMART_RECOMMENDED_MODELS.caption) next.image_caption_model = '';
           if (next.text_model_source === 'apimart') next.text_model_source = '';
           if (next.image_model_source === 'apimart') next.image_model_source = '';
           if (next.image_caption_model_source === 'apimart') next.image_caption_model_source = '';
@@ -1574,7 +1577,14 @@ export const Settings: React.FC = () => {
       const testSettings: any = {};
 
       // 只传递用户已填写的非空值
-      if (formData.api_key) testSettings.api_key = formData.api_key;
+      if (formData.api_key) {
+        testSettings.api_key = formData.api_key;
+      } else if (
+        settings
+        && String(settings.ai_provider_format || '').toLowerCase() !== String(formData.ai_provider_format || '').toLowerCase()
+      ) {
+        testSettings.api_key = null;
+      }
       if (formData.api_base_url) testSettings.api_base_url = formData.api_base_url;
       if (formData.ai_provider_format) {
         testSettings.ai_provider_format = formData.ai_provider_format;
@@ -1593,11 +1603,32 @@ export const Settings: React.FC = () => {
       testSettings.image_caption_model_source = formData.image_caption_model_source || '';
 
       // Per-model API credentials
-      if (formData.text_api_key) testSettings.text_api_key = formData.text_api_key;
+      if (formData.text_api_key) {
+        testSettings.text_api_key = formData.text_api_key;
+      } else if (
+        settings
+        && String(settings.text_model_source || '').toLowerCase() !== String(formData.text_model_source || '').toLowerCase()
+      ) {
+        testSettings.text_api_key = null;
+      }
       if (formData.text_api_base_url) testSettings.text_api_base_url = formData.text_api_base_url;
-      if (formData.image_api_key) testSettings.image_api_key = formData.image_api_key;
+      if (formData.image_api_key) {
+        testSettings.image_api_key = formData.image_api_key;
+      } else if (
+        settings
+        && String(settings.image_model_source || '').toLowerCase() !== String(formData.image_model_source || '').toLowerCase()
+      ) {
+        testSettings.image_api_key = null;
+      }
       if (formData.image_api_base_url) testSettings.image_api_base_url = formData.image_api_base_url;
-      if (formData.image_caption_api_key) testSettings.image_caption_api_key = formData.image_caption_api_key;
+      if (formData.image_caption_api_key) {
+        testSettings.image_caption_api_key = formData.image_caption_api_key;
+      } else if (
+        settings
+        && String(settings.image_caption_model_source || '').toLowerCase() !== String(formData.image_caption_model_source || '').toLowerCase()
+      ) {
+        testSettings.image_caption_api_key = null;
+      }
       if (formData.image_caption_api_base_url) testSettings.image_caption_api_base_url = formData.image_caption_api_base_url;
 
       // 推理模式设置

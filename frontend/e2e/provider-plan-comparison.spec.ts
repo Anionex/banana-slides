@@ -117,6 +117,9 @@ test.describe('Settings: provider plan comparison', () => {
         body: JSON.stringify(mockSettings({
           ai_provider_format: 'apimart',
           api_base_url: 'https://api.apimart.ai/v1',
+          text_model: 'gpt-5',
+          image_model: 'gpt-image-2',
+          image_caption_model: 'gpt-4o',
           text_model_source: 'apimart',
           image_model_source: 'apimart',
           image_caption_model_source: 'apimart',
@@ -135,6 +138,31 @@ test.describe('Settings: provider plan comparison', () => {
     await expect(page.getByTestId('text_model_source-select')).toHaveValue('');
     await expect(page.getByTestId('image_model_source-select')).toHaveValue('');
     await expect(page.getByTestId('image_caption_model_source-select')).toHaveValue('');
+    await expect(modelGroup(page, 'text_model_source-select').locator('input[type="text"]').first()).toHaveValue('');
+    await expect(modelGroup(page, 'image_model_source-select').locator('input[type="text"]').first()).toHaveValue('');
+    await expect(modelGroup(page, 'image_caption_model_source-select').locator('input[type="text"]').first()).toHaveValue('');
+  });
+
+  test('service testing an unsaved APIMart switch clears the stored global key', async ({ page }) => {
+    let testPayload: Record<string, unknown> | null = null;
+    const settingsResponse = mockSettings({
+      ai_provider_format: 'gemini',
+      api_key_length: 16,
+    });
+    await page.route(url => url.pathname === '/api/settings', route =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(settingsResponse) })
+    );
+    await page.route(url => url.pathname === '/api/settings/tests/text-model', async route => {
+      testPayload = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({ json: { data: { task_id: 'apimart-test-task' } } });
+    });
+    await page.goto('/settings');
+
+    await page.getByTestId('provider-plan-apimart').getByRole('button', { name: '使用此方案' }).click();
+    await page.locator('button', { hasText: /开始测试|Start Test/ }).nth(1).click();
+
+    expect(testPayload?.ai_provider_format).toBe('apimart');
+    expect(testPayload?.api_key).toBeNull();
   });
 
   test('switching a per-model provider to APIMart clears the previous provider key', async ({ page }) => {

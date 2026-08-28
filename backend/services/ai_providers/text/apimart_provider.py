@@ -7,9 +7,11 @@ consume the response directly.
 
 import base64
 import logging
+from io import BytesIO
 from typing import Any, Dict, List
 
 import requests
+from PIL import Image
 
 from config import get_config
 from .base import TextProvider, strip_think_tags
@@ -101,7 +103,17 @@ class APIMartTextProvider(TextProvider):
 
     def generate_with_image(self, prompt: str, image_path: str, thinking_budget: int = 0) -> str:
         with open(image_path, "rb") as image_file:
-            encoded = base64.b64encode(image_file.read()).decode("ascii")
+            image_bytes = image_file.read()
+        with Image.open(BytesIO(image_bytes)) as image:
+            image_format = (image.format or "png").lower()
+        media_type = {
+            "jpeg": "image/jpeg",
+            "jpg": "image/jpeg",
+            "png": "image/png",
+            "webp": "image/webp",
+            "gif": "image/gif",
+        }.get(image_format, f"image/{image_format}")
+        encoded = base64.b64encode(image_bytes).decode("ascii")
 
         return self._complete([
             {
@@ -110,7 +122,7 @@ class APIMartTextProvider(TextProvider):
                     {"type": "text", "text": prompt},
                     {
                         "type": "image_url",
-                        "image_url": {"url": f"data:image/png;base64,{encoded}"},
+                        "image_url": {"url": f"data:{media_type};base64,{encoded}"},
                     },
                 ],
             }
