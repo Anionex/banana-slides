@@ -1299,6 +1299,21 @@ export const Settings: React.FC = () => {
       };
 
       if (key === 'ai_provider_format') {
+        if (prev.ai_provider_format === 'apimart' && value !== 'apimart') {
+          if (!prev.text_model_source && next.text_model === APIMART_RECOMMENDED_MODELS.text_model_source) {
+            next.text_model = '';
+          }
+          if (!prev.image_model_source && next.image_model === APIMART_RECOMMENDED_MODELS.image_model_source) {
+            next.image_model = '';
+          }
+          if (
+            !prev.image_caption_model_source
+            && next.image_caption_model === APIMART_RECOMMENDED_MODELS.image_caption_model_source
+          ) {
+            next.image_caption_model = '';
+          }
+        }
+
         if (value === 'volcengine') {
           // Agent Plans 需要专属端点: 空值或其他 provider 的默认端点会被替换,
           // 用户显式填写的自定义 Base URL 保留

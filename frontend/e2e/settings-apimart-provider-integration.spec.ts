@@ -94,6 +94,9 @@ test.describe('Settings: APIMart provider pill', () => {
 
     await page.getByTestId('global-provider-pills').locator('[data-provider="gemini"]').click();
     await expect(apiSection.locator('input').first()).toHaveValue('');
+    await expect(modelInputs.nth(0)).toHaveValue('');
+    await expect(modelInputs.nth(1)).toHaveValue('');
+    await expect(modelInputs.nth(2)).toHaveValue('');
   });
 
   test('preserves models owned by explicit per-model providers', async ({ page }) => {
