@@ -137,6 +137,50 @@ test.describe('Settings: provider plan comparison', () => {
     await expect(page.getByTestId('image_caption_model_source-select')).toHaveValue('');
   });
 
+  test('switching a per-model provider to APIMart clears the previous provider key', async ({ page }) => {
+    let savedPayload: Record<string, unknown> | null = null;
+    const settingsResponse = mockSettings({
+      text_model_source: 'openai',
+      text_api_key_length: 18,
+      text_api_base_url: 'https://api.openai.com/v1',
+    });
+    await page.route(url => url.pathname.startsWith('/api/settings'), async route => {
+      if (route.request().method() === 'PUT') {
+        savedPayload = route.request().postDataJSON() as Record<string, unknown>;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            ...settingsResponse,
+            data: { ...settingsResponse.data, ...savedPayload },
+          }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(settingsResponse),
+      });
+    });
+    await page.goto('/settings');
+
+    const textGroup = modelGroup(page, 'text_model_source-select');
+    await expect(textGroup.locator('input[type="password"]')).toHaveAttribute(
+      'placeholder',
+      '已设置（长度: 18）',
+    );
+    await page.getByTestId('text_model_source-select').selectOption('apimart');
+    await expect(textGroup.locator('input[type="text"]').nth(1))
+      .toHaveValue('https://api.apimart.ai/v1');
+    await expect(textGroup.locator('input[type="password"]')).toHaveAttribute('placeholder', '输入 API Key');
+
+    await page.getByRole('button', { name: /保存设置/ }).click();
+    await expect(page.getByText('设置保存成功')).toBeVisible();
+    expect(savedPayload?.text_model_source).toBe('apimart');
+    expect(savedPayload?.text_api_key).toBeNull();
+  });
+
   test('choosing Volcengine from the comparison applies the Agent Plan config', async ({ page }) => {
     await page.route('**/api/settings', route =>
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockSettings()) })

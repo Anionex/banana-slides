@@ -1269,9 +1269,30 @@ export const Settings: React.FC = () => {
       if (mineru_token) payload.mineru_token = mineru_token;
       if (baidu_api_key) payload.baidu_api_key = baidu_api_key;
       if (elevenlabs_api_key) payload.elevenlabs_api_key = elevenlabs_api_key;
-      if (text_api_key) payload.text_api_key = text_api_key;
-      if (image_api_key) payload.image_api_key = image_api_key;
-      if (image_caption_api_key) payload.image_caption_api_key = image_caption_api_key;
+      if (text_api_key) {
+        payload.text_api_key = text_api_key;
+      } else if (
+        settings
+        && String(settings.text_model_source || '').toLowerCase() !== String(formData.text_model_source || '').toLowerCase()
+      ) {
+        payload.text_api_key = null;
+      }
+      if (image_api_key) {
+        payload.image_api_key = image_api_key;
+      } else if (
+        settings
+        && String(settings.image_model_source || '').toLowerCase() !== String(formData.image_model_source || '').toLowerCase()
+      ) {
+        payload.image_api_key = null;
+      }
+      if (image_caption_api_key) {
+        payload.image_caption_api_key = image_caption_api_key;
+      } else if (
+        settings
+        && String(settings.image_caption_model_source || '').toLowerCase() !== String(formData.image_caption_model_source || '').toLowerCase()
+      ) {
+        payload.image_caption_api_key = null;
+      }
 
       // Send lazyllm API keys (only non-empty values)
       const nonEmptyKeys = Object.fromEntries(
@@ -1910,7 +1931,9 @@ export const Settings: React.FC = () => {
                 label={t('settings.fields.perModelApiKey')}
                 type="password"
                 placeholder={
-                  settings && (settings[item.apiKeyLengthKey] as number) > 0
+                  settings
+                  && String(settings[item.sourceKey as keyof SettingsType] || '').toLowerCase() === String(sourceValue || '').toLowerCase()
+                  && (settings[item.apiKeyLengthKey] as number) > 0
                     ? t('settings.fields.perModelApiKeySet', { length: settings[item.apiKeyLengthKey] as number })
                     : t('settings.fields.perModelApiKeyPlaceholder')
                 }
