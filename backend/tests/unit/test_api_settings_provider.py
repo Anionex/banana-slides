@@ -673,6 +673,36 @@ def test_temporary_settings_override_scopes_global_api_override_to_active_provid
         assert app.config['VOLCENGINE_API_KEY'] == 'volc-env-key'
 
 
+def test_temporary_settings_override_applies_explicit_credential_clears():
+    """Unsaved provider switches must not reuse saved global or per-model credentials."""
+    app = Flask(__name__)
+    app.config.update(
+        AI_PROVIDER_FORMAT='gemini',
+        APIMART_API_BASE='https://saved-apimart.example/v1',
+        APIMART_API_KEY='saved-apimart-key',
+        TEXT_API_BASE='https://saved-text.example/v1',
+        TEXT_API_KEY='saved-text-key',
+    )
+
+    with app.app_context():
+        with temporary_settings_override({
+            'ai_provider_format': 'apimart',
+            'api_base_url': '',
+            'api_key': None,
+            'text_api_base_url': '',
+            'text_api_key': None,
+        }):
+            assert 'APIMART_API_BASE' not in app.config
+            assert 'APIMART_API_KEY' not in app.config
+            assert 'TEXT_API_BASE' not in app.config
+            assert 'TEXT_API_KEY' not in app.config
+
+        assert app.config['APIMART_API_BASE'] == 'https://saved-apimart.example/v1'
+        assert app.config['APIMART_API_KEY'] == 'saved-apimart-key'
+        assert app.config['TEXT_API_BASE'] == 'https://saved-text.example/v1'
+        assert app.config['TEXT_API_KEY'] == 'saved-text-key'
+
+
 def test_verify_uses_configured_text_model():
     """Verify endpoint should use configured text model, not a hardcoded gemini model."""
     app = Flask(__name__)

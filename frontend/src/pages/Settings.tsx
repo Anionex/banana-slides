@@ -642,6 +642,26 @@ const initialFormData = {
   elevenlabs_api_key: '',
 };
 
+const preserveRetainedModelCredentials = (
+  prev: typeof initialFormData,
+  next: typeof initialFormData,
+  provider: string,
+) => ({
+  ...next,
+  ...(prev.text_model_source === provider ? {
+    text_api_key: next.text_api_key || prev.api_key,
+    text_api_base_url: next.text_api_base_url || prev.api_base_url,
+  } : {}),
+  ...(prev.image_model_source === provider ? {
+    image_api_key: next.image_api_key || prev.api_key,
+    image_api_base_url: next.image_api_base_url || prev.api_base_url,
+  } : {}),
+  ...(prev.image_caption_model_source === provider ? {
+    image_caption_api_key: next.image_caption_api_key || prev.api_key,
+    image_caption_api_base_url: next.image_caption_api_base_url || prev.api_base_url,
+  } : {}),
+});
+
 const isLazyllmVendor = (vendor: string) =>
   LAZYLLM_VENDOR_SET.has(vendor) && vendor !== 'openai';
 
@@ -1310,7 +1330,7 @@ export const Settings: React.FC = () => {
 
   const handleFieldChange = (key: string, value: any) => {
     setFormData(prev => {
-      const next = { ...prev, [key]: value };
+      let next = { ...prev, [key]: value };
 
       // Per-model source key → its API base URL field, for stale-default replacement
       const perModelBaseKeys: Record<string, string> = {
@@ -1334,6 +1354,7 @@ export const Settings: React.FC = () => {
           prev.ai_provider_format !== value
           && (prev.ai_provider_format === 'apimart' || value === 'apimart')
         ) {
+          next = preserveRetainedModelCredentials(prev, next, prev.ai_provider_format);
           next.api_key = null;
         }
 
@@ -1443,7 +1464,7 @@ export const Settings: React.FC = () => {
     setFormData(prev => {
       const leavingApimart = prev.ai_provider_format === 'apimart';
       const provider = prev.ai_provider_format === 'openai' ? 'openai' : 'gemini';
-      return {
+      let next = {
         ...prev,
         ai_provider_format: provider,
         api_base_url: provider === 'openai' ? INFERERA_OPENAI_BASE_URL : INFERERA_GEMINI_BASE_URL,
@@ -1464,6 +1485,10 @@ export const Settings: React.FC = () => {
           ? ''
           : prev.image_caption_model,
       };
+      if (leavingApimart) {
+        next = preserveRetainedModelCredentials(prev, next, 'apimart');
+      }
+      return next;
     });
   };
 
@@ -1481,7 +1506,7 @@ export const Settings: React.FC = () => {
         return isAlreadyApimart && current ? current : recommended;
       };
 
-      return {
+      let next = {
         ...prev,
         ai_provider_format: 'apimart',
         api_key: isAlreadyApimart ? prev.api_key : null,
@@ -1496,6 +1521,10 @@ export const Settings: React.FC = () => {
         ),
         image_model: modelForApimart(prev.image_model_source, prev.image_model, APIMART_RECOMMENDED_MODELS.image_model_source),
       };
+      if (!isAlreadyApimart) {
+        next = preserveRetainedModelCredentials(prev, next, prev.ai_provider_format);
+      }
+      return next;
     });
   };
 
@@ -1559,9 +1588,9 @@ export const Settings: React.FC = () => {
       // 准备测试时要使用的设置（包括未保存的修改）
       const testSettings: any = {};
 
-      // 只传递用户已填写的非空值
-      if (formData.api_key) testSettings.api_key = formData.api_key;
-      if (formData.api_base_url) testSettings.api_base_url = formData.api_base_url;
+      // Sensitive fields use null as an explicit clear marker; empty string means unchanged.
+      if (formData.api_key !== '') testSettings.api_key = formData.api_key;
+      testSettings.api_base_url = formData.api_base_url || '';
       if (formData.ai_provider_format) {
         testSettings.ai_provider_format = formData.ai_provider_format;
       }
@@ -1579,12 +1608,12 @@ export const Settings: React.FC = () => {
       testSettings.image_caption_model_source = formData.image_caption_model_source || '';
 
       // Per-model API credentials
-      if (formData.text_api_key) testSettings.text_api_key = formData.text_api_key;
-      if (formData.text_api_base_url) testSettings.text_api_base_url = formData.text_api_base_url;
-      if (formData.image_api_key) testSettings.image_api_key = formData.image_api_key;
-      if (formData.image_api_base_url) testSettings.image_api_base_url = formData.image_api_base_url;
-      if (formData.image_caption_api_key) testSettings.image_caption_api_key = formData.image_caption_api_key;
-      if (formData.image_caption_api_base_url) testSettings.image_caption_api_base_url = formData.image_caption_api_base_url;
+      if (formData.text_api_key !== '') testSettings.text_api_key = formData.text_api_key;
+      testSettings.text_api_base_url = formData.text_api_base_url || '';
+      if (formData.image_api_key !== '') testSettings.image_api_key = formData.image_api_key;
+      testSettings.image_api_base_url = formData.image_api_base_url || '';
+      if (formData.image_caption_api_key !== '') testSettings.image_caption_api_key = formData.image_caption_api_key;
+      testSettings.image_caption_api_base_url = formData.image_caption_api_base_url || '';
 
       // 推理模式设置
       if (formData.enable_text_reasoning !== undefined) {

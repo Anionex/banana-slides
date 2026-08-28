@@ -108,8 +108,18 @@ test.describe('Settings: APIMart provider pill', () => {
   });
 
   test('preserves models owned by explicit per-model providers', async ({ page }) => {
-    await page.route(url => url.pathname === '/api/settings', route =>
-      route.fulfill({
+    let savedPayload: Record<string, unknown> | null = null;
+    await page.route(url => url.pathname === '/api/settings', async route => {
+      if (route.request().method() === 'PUT') {
+        savedPayload = route.request().postDataJSON() as Record<string, unknown>;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ ...mockSettings, data: { ...mockSettings.data, ...savedPayload } }),
+        });
+        return;
+      }
+      await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
@@ -124,16 +134,67 @@ test.describe('Settings: APIMart provider pill', () => {
             image_caption_model_source: 'volcengine',
           },
         }),
-      })
-    );
+      });
+    });
 
     await page.goto('/settings');
+    const apiSection = page.getByTestId('global-api-config-section');
+    await apiSection.locator('input').first().fill('https://typed-gemini.example/v1beta');
+    await apiSection.locator('input[type="password"]').fill('typed-gemini-key');
     await providerPill(page).click();
 
     const modelInputs = page.locator('input[placeholder^="留空使用环境变量配置"]');
     await expect(modelInputs.nth(0)).toHaveValue('gemini-text-model');
     await expect(modelInputs.nth(1)).toHaveValue('openai-image-model');
     await expect(modelInputs.nth(2)).toHaveValue('volcengine-caption-model');
+
+    await page.getByRole('button', { name: /保存设置/ }).click();
+    await expect(page.getByText('设置保存成功')).toBeVisible();
+    expect(savedPayload?.text_api_key).toBe('typed-gemini-key');
+    expect(savedPayload?.text_api_base_url).toBe('https://typed-gemini.example/v1beta');
+  });
+
+  test('passes explicit credential clears to unsaved service tests', async ({ page }) => {
+    let testPayload: Record<string, unknown> | null = null;
+    await page.route(url => url.pathname === '/api/settings', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ...mockSettings,
+          data: {
+            ...mockSettings.data,
+            api_key_length: 18,
+            text_api_key_length: 16,
+          },
+        }),
+      })
+    );
+    await page.route(url => url.pathname === '/api/settings/tests/text-model', async route => {
+      testPayload = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: { task_id: 'apimart-test-task', status: 'PENDING' } }),
+      });
+    });
+    await page.route(url => url.pathname === '/api/settings/tests/apimart-test-task/status', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: { status: 'COMPLETED', result: { reply: 'ok' } } }),
+      })
+    );
+
+    await page.goto('/settings');
+    await providerPill(page).click();
+    await page.getByTestId('text_model_source-select').selectOption('apimart');
+    const textTestCard = page.getByText('文本生成模型', { exact: true }).locator('xpath=../..');
+    await textTestCard.getByRole('button', { name: '开始测试' }).click();
+
+    await expect.poll(() => testPayload).not.toBeNull();
+    expect(testPayload?.api_key).toBeNull();
+    expect(testPayload?.text_api_key).toBeNull();
   });
 
   test('fills APIMart models when a per-model source switches to APIMart', async ({ page }) => {
