@@ -16,6 +16,14 @@ from .base import ImageProvider
 logger = logging.getLogger(__name__)
 
 
+class APIMartRequestError(RuntimeError):
+    """APIMart HTTP/API error with a status code when one is available."""
+
+    def __init__(self, message: str, status_code: Optional[int] = None):
+        super().__init__(message)
+        self.status_code = status_code
+
+
 class APIMartImageProvider(ImageProvider):
     """Generate images through APIMart and poll its unified task endpoint."""
 
@@ -61,18 +69,26 @@ class APIMartImageProvider(ImageProvider):
         try:
             payload = response.json()
         except ValueError as exc:
-            raise RuntimeError(
-                f"APIMart returned a non-JSON response ({response.status_code})"
+            raise APIMartRequestError(
+                f"APIMart returned a non-JSON response ({response.status_code})",
+                response.status_code,
             ) from exc
 
         if not response.ok:
-            raise RuntimeError(
+            raise APIMartRequestError(
                 f"APIMart request failed ({response.status_code}): "
-                f"{self._error_message(payload) or response.text[:300]}"
+                f"{self._error_message(payload) or response.text[:300]}",
+                response.status_code,
             )
-        if payload.get("code") not in (None, 200):
-            raise RuntimeError(
-                f"APIMart API error: {self._error_message(payload) or payload.get('code')}"
+        code = payload.get("code")
+        if code not in (None, 200):
+            try:
+                status_code = int(code)
+            except (TypeError, ValueError):
+                status_code = None
+            raise APIMartRequestError(
+                f"APIMart API error: {self._error_message(payload) or code}",
+                status_code,
             )
         return payload
 
@@ -111,7 +127,21 @@ class APIMartImageProvider(ImageProvider):
     def _wait_for_result(self, task_id: str) -> str:
         deadline = time.monotonic() + self.request_timeout_seconds
         while time.monotonic() < deadline:
-            payload = self._request_json("GET", f"/tasks/{task_id}", params={"language": "en"})
+            try:
+                payload = self._request_json("GET", f"/tasks/{task_id}", params={"language": "en"})
+            except requests.RequestException as exc:
+                logger.warning("APIMart task %s poll failed transiently: %s", task_id, exc)
+                time.sleep(self.POLL_INTERVAL_SECONDS)
+                continue
+            except APIMartRequestError as exc:
+                retryable = exc.status_code == 429 or (
+                    exc.status_code is not None and 500 <= exc.status_code < 600
+                )
+                if not retryable:
+                    raise
+                logger.warning("APIMart task %s poll failed transiently: %s", task_id, exc)
+                time.sleep(self.POLL_INTERVAL_SECONDS)
+                continue
             task_data = payload.get("data") or {}
             status = str(task_data.get("status") or "").lower()
             if status == "completed":

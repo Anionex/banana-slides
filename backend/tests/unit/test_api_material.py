@@ -4,6 +4,7 @@ Material upload API tests - including caption generation
 import io
 import pytest
 import re
+from pathlib import Path
 from unittest.mock import patch, MagicMock
 from PIL import Image
 from conftest import assert_success_response, assert_error_response
@@ -239,15 +240,24 @@ class TestGenerateImageCaption:
             'APIMART_API_KEY': 'test-apimart-key',
         }
         with app.app_context(), patch.dict(app.config, config, clear=False):
-
             mock_provider = MagicMock()
-            mock_provider.generate_with_image.return_value = '  一张 APIMart 测试图片  '
+            caption_request = {}
+
+            def generate_with_image(prompt, image_path, thinking_budget=0):
+                caption_request['prompt'] = prompt
+                caption_request['image_path'] = image_path
+                caption_request['thinking_budget'] = thinking_budget
+                with Image.open(image_path) as caption_image:
+                    caption_request['image_size'] = caption_image.size
+                return '  一张 APIMart 测试图片  '
+
+            mock_provider.generate_with_image.side_effect = generate_with_image
             mock_get_provider.return_value = mock_provider
 
             from controllers.material_controller import _generate_image_caption
             import tempfile
             with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
-                img = Image.new('RGB', (10, 10), color='purple')
+                img = Image.new('RGB', (2048, 1024), color='purple')
                 img.save(f, format='PNG')
                 tmp_path = f.name
             try:
@@ -255,10 +265,11 @@ class TestGenerateImageCaption:
                 assert result == '一张 APIMart 测试图片'
                 mock_get_provider.assert_called_once_with('gpt-4o')
                 mock_provider.generate_with_image.assert_called_once()
-                call_args, call_kwargs = mock_provider.generate_with_image.call_args
-                assert '描述这张图片' in call_args[0]
-                assert call_args[1] == tmp_path
-                assert call_kwargs == {'thinking_budget': 0}
+                assert '描述这张图片' in caption_request['prompt']
+                assert caption_request['image_path'] != tmp_path
+                assert caption_request['image_size'] == (1024, 512)
+                assert caption_request['thinking_budget'] == 0
+                assert not Path(caption_request['image_path']).exists()
                 mock_gemini_client.assert_not_called()
             finally:
                 import os

@@ -2,6 +2,8 @@ import base64
 from io import BytesIO
 from unittest.mock import patch
 
+import pytest
+import requests
 from flask import Flask
 from PIL import Image
 
@@ -45,7 +47,10 @@ class FakeImageSession:
 
     def request(self, method, url, **kwargs):
         self.requests.append((method, url, kwargs))
-        return next(self.task_responses)
+        response = next(self.task_responses)
+        if isinstance(response, Exception):
+            raise response
+        return response
 
     def get(self, url, **kwargs):
         self.downloads.append((url, kwargs))
@@ -151,6 +156,41 @@ def test_apimart_image_provider_submits_polls_and_downloads():
     assert base64.b64decode(encoded).startswith(b"\x89PNG")
     assert session.requests[1][1].endswith("/tasks/task-123")
     assert session.downloads[0][0] == "https://upload.apimart.ai/result.png"
+
+
+@pytest.mark.parametrize(
+    'transient_failure',
+    [
+        requests.Timeout('temporary timeout'),
+        FakeResponse({'error': {'message': 'rate limited'}}, status_code=429),
+        FakeResponse({'error': {'message': 'temporary outage'}}, status_code=503),
+    ],
+)
+def test_apimart_image_provider_retries_transient_poll_failures(transient_failure):
+    image_bytes = _png_bytes('blue')
+    session = FakeImageSession([
+        FakeResponse({
+            'code': 200,
+            'data': [{'status': 'submitted', 'task_id': 'task-123'}],
+        }),
+        transient_failure,
+        FakeResponse({
+            'code': 200,
+            'data': {
+                'id': 'task-123',
+                'status': 'completed',
+                'result': {'images': [{'url': 'https://upload.apimart.ai/result.png'}]},
+            },
+        }),
+    ], image_bytes)
+    provider = APIMartImageProvider('key', model='gpt-image-2', session=session)
+    provider.POLL_INTERVAL_SECONDS = 0
+
+    result = provider.generate_image('A blue rectangle')
+
+    assert result.size == (8, 6)
+    assert len(session.requests) == 3
+    assert session.downloads[0][0] == 'https://upload.apimart.ai/result.png'
 
 
 def test_apimart_factory_uses_dedicated_wrapped_response_providers():
