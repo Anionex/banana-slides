@@ -119,6 +119,24 @@ def test_update_settings_accepts_volcengine_provider():
     assert data['data']['ai_provider_format'] == 'volcengine'
 
 
+def test_update_settings_accepts_apimart_provider():
+    """`apimart` should persist as a first-class provider format."""
+    app = Flask(__name__)
+
+    settings = _build_settings()
+    with app.app_context():
+        with app.test_request_context('/api/settings/', method='PUT', json={'ai_provider_format': 'apimart'}):
+            with patch('controllers.settings_controller.Settings.get_settings', return_value=settings):
+                with patch('controllers.settings_controller.db.session.commit'):
+                    with patch('controllers.settings_controller._sync_settings_to_config'):
+                        response, status_code = update_settings()
+
+    assert status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert data['data']['ai_provider_format'] == 'apimart'
+
+
 def test_volcengine_text_provider_uses_modelark_openai_compatible_base():
     """Volcengine AgentPlans should reuse the OpenAI-compatible text provider."""
     app = Flask(__name__)

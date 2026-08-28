@@ -47,7 +47,7 @@ class Config:
     GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY', '')
     GOOGLE_API_BASE = os.getenv('GOOGLE_API_BASE') or ''
     
-    # Provider format: gemini | openai | volcengine | vertex | lazyllm
+    # Provider format: gemini | openai | apimart | volcengine | vertex | lazyllm
     AI_PROVIDER_FORMAT = os.getenv('AI_PROVIDER_FORMAT', 'gemini')
 
     # Google Cloud Vertex AI (requires AI_PROVIDER_FORMAT=vertex)
@@ -63,6 +63,10 @@ class Config:
     OPENAI_API_BASE = os.getenv('OPENAI_API_BASE') or 'https://api.inferera.com/v1'
     OPENAI_TIMEOUT = float(os.getenv('OPENAI_TIMEOUT', '480.0'))  # 8 分钟：留出 gpt-image-2 生图(~225s)+传输的余量
     OPENAI_MAX_RETRIES = int(os.getenv('OPENAI_MAX_RETRIES', '2'))  # 减少重试次数，避免过多重试导致累积超时
+
+    # APIMart（chat 响应带 data 包装，图片任务为异步轮询）
+    APIMART_API_KEY = os.getenv('APIMART_API_KEY', '')
+    APIMART_API_BASE = os.getenv('APIMART_API_BASE') or 'https://api.apimart.ai/v1'
 
     # 火山方舟 Agent Plans（OpenAI-compatible）
     VOLCENGINE_API_KEY = os.getenv('VOLCENGINE_API_KEY', '') or os.getenv('ARK_API_KEY', '')

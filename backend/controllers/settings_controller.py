@@ -24,7 +24,7 @@ from services.task_manager import task_manager
 from services.update_check_service import check_for_update
 
 logger = logging.getLogger(__name__)
-ALLOWED_PROVIDER_FORMATS = {"openai", "gemini", "volcengine", "lazyllm", "codex"} | LAZYLLM_VENDORS
+ALLOWED_PROVIDER_FORMATS = {"openai", "gemini", "apimart", "volcengine", "lazyllm", "codex"} | LAZYLLM_VENDORS
 
 settings_bp = Blueprint(
     "settings", __name__, url_prefix="/api/settings"
@@ -34,6 +34,7 @@ settings_bp = Blueprint(
 PROVIDER_API_CONFIG_KEYS = {
     "gemini": ("GOOGLE_API_KEY", "GOOGLE_API_BASE"),
     "openai": ("OPENAI_API_KEY", "OPENAI_API_BASE"),
+    "apimart": ("APIMART_API_KEY", "APIMART_API_BASE"),
     "volcengine": ("VOLCENGINE_API_KEY", "VOLCENGINE_API_BASE"),
 }
 
@@ -48,9 +49,11 @@ def _provider_api_env_defaults():
     return {
         "GOOGLE_API_KEY": Config.GOOGLE_API_KEY,
         "OPENAI_API_KEY": Config.OPENAI_API_KEY,
+        "APIMART_API_KEY": Config.APIMART_API_KEY,
         "VOLCENGINE_API_KEY": Config.VOLCENGINE_API_KEY,
         "GOOGLE_API_BASE": Config.GOOGLE_API_BASE,
         "OPENAI_API_BASE": Config.OPENAI_API_BASE,
+        "APIMART_API_BASE": Config.APIMART_API_BASE,
         "VOLCENGINE_API_BASE": Config.VOLCENGINE_API_BASE,
     }
 

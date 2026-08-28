@@ -284,6 +284,7 @@ def _load_settings_to_config(app):
         active_api_keys = {
             'gemini': ('GOOGLE_API_KEY', 'GOOGLE_API_BASE'),
             'openai': ('OPENAI_API_KEY', 'OPENAI_API_BASE'),
+            'apimart': ('APIMART_API_KEY', 'APIMART_API_BASE'),
             'volcengine': ('VOLCENGINE_API_KEY', 'VOLCENGINE_API_BASE'),
         }.get(active_format)
 

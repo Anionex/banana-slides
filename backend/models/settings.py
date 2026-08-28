@@ -225,6 +225,11 @@ class Settings(db.Model):
                 'api_base_url': specific_base or Config.OPENAI_API_BASE or None,
                 'api_key': specific_key or Config.OPENAI_API_KEY or None,
             }
+        if provider == 'apimart':
+            return {
+                'api_base_url': specific_base or Config.APIMART_API_BASE or None,
+                'api_key': specific_key or Config.APIMART_API_KEY or None,
+            }
         if provider == 'volcengine':
             return {
                 'api_base_url': specific_base or Config.VOLCENGINE_API_BASE or None,
