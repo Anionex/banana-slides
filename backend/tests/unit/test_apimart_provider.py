@@ -1,6 +1,6 @@
 import base64
 from io import BytesIO
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
@@ -8,17 +8,18 @@ from flask import Flask
 from PIL import Image
 
 from services import ai_providers
-from services.ai_providers.image.apimart_provider import APIMartImageProvider
+from services.ai_providers.image.apimart_provider import APIMartImageProvider, _is_safe_result_url
 from services.ai_providers.text.apimart_provider import APIMartTextProvider
 
 
 class FakeResponse:
-    def __init__(self, payload=None, status_code=200, content=b""):
+    def __init__(self, payload=None, status_code=200, content=b"", headers=None):
         self._payload = payload
         self.status_code = status_code
         self.ok = 200 <= status_code < 300
         self.content = content
         self.text = "" if payload is None else str(payload)
+        self.headers = headers or {}
 
     def json(self):
         return self._payload
@@ -191,6 +192,44 @@ def test_apimart_image_provider_retries_transient_poll_failures(transient_failur
     assert result.size == (8, 6)
     assert len(session.requests) == 3
     assert session.downloads[0][0] == 'https://upload.apimart.ai/result.png'
+
+
+@pytest.mark.parametrize('url', [
+    'https://upload.apimart.ai/f/image/result.png',
+    'https://cdn.apimart.ai/doc/result.png',
+])
+def test_apimart_result_url_allows_official_hosts(url):
+    assert _is_safe_result_url(url) is True
+
+
+@pytest.mark.parametrize('url', [
+    'http://upload.apimart.ai/result.png',
+    'https://127.0.0.1/result.png',
+    'https://169.254.169.254/latest/meta-data/',
+    'https://upload.apimart.ai.attacker.example/result.png',
+    'https://upload.apimart.ai@127.0.0.1/result.png',
+    'https://127.0.0.1\\@upload.apimart.ai/result.png',
+])
+def test_apimart_result_url_rejects_ssrf_targets(url):
+    assert _is_safe_result_url(url) is False
+
+
+def test_apimart_image_download_rejects_untrusted_redirect():
+    session = FakeImageSession([], _png_bytes('blue'))
+    session.get = MagicMock(return_value=FakeResponse(
+        status_code=302,
+        headers={'Location': 'http://127.0.0.1/internal.png'},
+    ))
+    provider = APIMartImageProvider('key', session=session)
+
+    with pytest.raises(RuntimeError, match='untrusted image URL'):
+        provider._download_image('https://upload.apimart.ai/result.png')
+
+    session.get.assert_called_once_with(
+        'https://upload.apimart.ai/result.png',
+        timeout=min(provider.request_timeout_seconds, 120),
+        allow_redirects=False,
+    )
 
 
 def test_apimart_factory_uses_dedicated_wrapped_response_providers():

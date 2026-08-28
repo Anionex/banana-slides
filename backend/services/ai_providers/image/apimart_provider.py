@@ -5,6 +5,7 @@ import logging
 import time
 from io import BytesIO
 from typing import Any, Dict, List, Optional
+from urllib.parse import urljoin, urlparse
 
 import requests
 from PIL import Image
@@ -14,6 +15,23 @@ from .base import ImageProvider
 
 
 logger = logging.getLogger(__name__)
+
+_ALLOWED_RESULT_HOSTS = frozenset({'upload.apimart.ai', 'cdn.apimart.ai'})
+_REDIRECT_STATUS_CODES = frozenset({301, 302, 303, 307, 308})
+_MAX_RESULT_REDIRECTS = 3
+
+
+def _is_safe_result_url(url: str) -> bool:
+    """Only allow official APIMart HTTPS image hosts."""
+    if not isinstance(url, str) or '\\' in url:
+        return False
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return False
+    if parsed.scheme != 'https' or '@' in parsed.netloc:
+        return False
+    return (parsed.hostname or '').lower() in _ALLOWED_RESULT_HOSTS
 
 
 class APIMartRequestError(RuntimeError):
@@ -156,11 +174,26 @@ class APIMartImageProvider(ImageProvider):
         raise TimeoutError(f"APIMart image task timed out after {self.request_timeout_seconds:g}s")
 
     def _download_image(self, image_url: str) -> Image.Image:
-        response = self.session.get(image_url, timeout=min(self.request_timeout_seconds, 120))
-        response.raise_for_status()
-        image = Image.open(BytesIO(response.content))
-        image.load()
-        return image
+        current_url = image_url
+        for _ in range(_MAX_RESULT_REDIRECTS + 1):
+            if not _is_safe_result_url(current_url):
+                raise RuntimeError("APIMart returned an untrusted image URL")
+            response = self.session.get(
+                current_url,
+                timeout=min(self.request_timeout_seconds, 120),
+                allow_redirects=False,
+            )
+            if response.status_code in _REDIRECT_STATUS_CODES:
+                location = response.headers.get('Location')
+                if not location:
+                    raise RuntimeError("APIMart image redirect is missing a Location header")
+                current_url = urljoin(current_url, location)
+                continue
+            response.raise_for_status()
+            image = Image.open(BytesIO(response.content))
+            image.load()
+            return image
+        raise RuntimeError("APIMart image download exceeded the redirect limit")
 
     def generate_image(
         self,
