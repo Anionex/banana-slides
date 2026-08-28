@@ -267,6 +267,11 @@ test.describe('Settings: APIMart persistence (real backend)', () => {
   test.describe.configure({ mode: 'serial' });
   test.setTimeout(30_000);
 
+  test.beforeEach(async ({ page }) => {
+    const response = await page.request.post('/api/settings/reset');
+    expect(response.ok()).toBe(true);
+  });
+
   test.afterAll(async ({ browser }) => {
     const page = await browser.newPage();
     await page.goto('/settings');
@@ -275,6 +280,30 @@ test.describe('Settings: APIMart persistence (real backend)', () => {
     await expect(page.locator('text=设置已重置').or(page.locator('text=reset successfully')))
       .toBeVisible({ timeout: 5000 });
     await page.close();
+  });
+
+  test('preserves a previous global key for a retained explicit model source', async ({ page }) => {
+    await page.goto('/settings');
+    await page.getByTestId('text_model_source-select').selectOption('gemini');
+
+    const apiSection = page.getByTestId('global-api-config-section');
+    await apiSection.locator('input[type="password"]').fill('gemini-retained-source-key');
+    await page.getByRole('button', { name: /保存设置|Save Settings/ }).click();
+    await expect(page.locator('text=设置保存成功').or(page.locator('text=saved successfully')))
+      .toBeVisible({ timeout: 5000 });
+
+    await providerPill(page).click();
+    await apiSection.locator('input[type="password"]').fill('apimart-new-global-key');
+    await page.getByRole('button', { name: /保存设置|Save Settings/ }).click();
+    await expect(page.locator('text=设置保存成功').or(page.locator('text=saved successfully')).last())
+      .toBeVisible({ timeout: 5000 });
+
+    const response = await page.request.get('/api/settings');
+    const payload = await response.json();
+    expect(payload.data.ai_provider_format).toBe('apimart');
+    expect(payload.data.api_key_length).toBe('apimart-new-global-key'.length);
+    expect(payload.data.text_model_source).toBe('gemini');
+    expect(payload.data.text_api_key_length).toBe('gemini-retained-source-key'.length);
   });
 
   test('saves and reloads APIMart configuration', async ({ page }) => {

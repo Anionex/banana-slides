@@ -189,6 +189,33 @@ def test_update_settings_preserves_key_for_explicit_apimart_model_sources():
     assert settings.image_caption_api_key == 'apimart-key'
 
 
+def test_update_settings_preserves_previous_key_when_entering_apimart():
+    """Retained explicit model sources keep the previous provider's global key."""
+    app = Flask(__name__)
+
+    settings = _build_settings(
+        ai_provider_format='gemini',
+        api_key='gemini-key',
+        text_model_source='gemini',
+        image_model_source='openai',
+        image_caption_model_source='gemini',
+    )
+    payload = {'ai_provider_format': 'apimart', 'api_key': 'new-apimart-key'}
+    with app.app_context():
+        with app.test_request_context('/api/settings/', method='PUT', json=payload):
+            with patch('controllers.settings_controller.Settings.get_settings', return_value=settings):
+                with patch('controllers.settings_controller.db.session.commit'):
+                    with patch('controllers.settings_controller._sync_settings_to_config'):
+                        response, status_code = update_settings()
+
+    assert status_code == 200
+    assert response.get_json()['success'] is True
+    assert settings.api_key == 'new-apimart-key'
+    assert settings.text_api_key == 'gemini-key'
+    assert settings.image_api_key is None
+    assert settings.image_caption_api_key == 'gemini-key'
+
+
 def test_volcengine_text_provider_uses_modelark_openai_compatible_base():
     """Volcengine AgentPlans should reuse the OpenAI-compatible text provider."""
     app = Flask(__name__)

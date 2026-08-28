@@ -411,20 +411,22 @@ def update_settings():
             elif keys_data is None:
                 settings.lazyllm_api_keys = None
 
-        # Move the saved APIMart key to explicit APIMart model overrides before
-        # clearing the shared credential during a global provider switch.
+        # Preserve the previous global key for explicit model sources that stay
+        # on that provider while the global selection crosses the APIMart boundary.
         if (
-            previous_provider_format == "apimart"
-            and settings.ai_provider_format != "apimart"
+            previous_provider_format != settings.ai_provider_format
+            and (
+                previous_provider_format == "apimart"
+                or settings.ai_provider_format == "apimart"
+            )
             and "api_key" in data
-            and data["api_key"] is None
             and previous_api_key
         ):
             for model_type in ("text", "image", "image_caption"):
                 source_field = f"{model_type}_model_source"
                 key_field = f"{model_type}_api_key"
                 if (
-                    getattr(settings, source_field, None) == "apimart"
+                    getattr(settings, source_field, None) == previous_provider_format
                     and key_field not in data
                     and not getattr(settings, key_field, None)
                 ):
