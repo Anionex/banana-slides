@@ -241,6 +241,10 @@ def update_settings():
         previous_provider_format = settings.ai_provider_format
         previous_api_key = settings.api_key
         previous_api_base_url = settings.api_base_url
+        previous_model_api_base_urls = {
+            model_type: getattr(settings, f"{model_type}_api_base_url", None)
+            for model_type in ("text", "image", "image_caption")
+        }
 
         # Update AI provider format configuration
         if "ai_provider_format" in data:
@@ -433,7 +437,16 @@ def update_settings():
                     and not getattr(settings, key_field, None)
                 ):
                     setattr(settings, key_field, previous_api_key)
-                if previous_api_base_url and not getattr(settings, base_field, None):
+                base_explicitly_cleared = (
+                    base_field in data
+                    and not (data[base_field] or "").strip()
+                    and previous_model_api_base_urls[model_type]
+                )
+                if (
+                    previous_api_base_url
+                    and not getattr(settings, base_field, None)
+                    and not base_explicitly_cleared
+                ):
                     setattr(settings, base_field, previous_api_base_url)
 
         settings.updated_at = datetime.now(timezone.utc)

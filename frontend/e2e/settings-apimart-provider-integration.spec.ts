@@ -308,6 +308,42 @@ test.describe('Settings: APIMart persistence (real backend)', () => {
     expect(payload.data.text_api_base_url).toBe('https://gemini-retained-proxy.example/v1beta');
   });
 
+  test('honors an explicit per-model Base URL clear during the provider switch', async ({ page }) => {
+    const baselineResponse = await page.request.get('/api/settings');
+    const baselinePayload = await baselineResponse.json();
+    const geminiDefaultBaseUrl = baselinePayload.data.api_base_url;
+
+    await page.goto('/settings');
+    const textSource = page.getByTestId('text_model_source-select');
+    await textSource.selectOption('gemini');
+
+    const apiSection = page.getByTestId('global-api-config-section');
+    await apiSection.locator('input').first().fill('https://gemini-global-proxy.example/v1beta');
+    await apiSection.locator('input[type="password"]').fill('gemini-clear-base-key');
+
+    const textModelGroup = textSource.locator('xpath=../..');
+    const textModelBaseInput = textModelGroup.locator('input[type="text"]').nth(1);
+    await textModelBaseInput.fill('https://dedicated-text.example/v1beta');
+    await page.getByRole('button', { name: /保存设置|Save Settings/ }).click();
+    await expect(page.locator('text=设置保存成功').or(page.locator('text=saved successfully')))
+      .toBeVisible({ timeout: 5000 });
+
+    await providerPill(page).click();
+    await textModelBaseInput.fill('');
+    await apiSection.locator('input[type="password"]').fill('apimart-clear-base-key');
+    await page.getByRole('button', { name: /保存设置|Save Settings/ }).click();
+    await expect(page.locator('text=设置保存成功').or(page.locator('text=saved successfully')).last())
+      .toBeVisible({ timeout: 5000 });
+
+    const response = await page.request.get('/api/settings');
+    const payload = await response.json();
+    expect(payload.data.ai_provider_format).toBe('apimart');
+    expect(payload.data.text_model_source).toBe('gemini');
+    expect(payload.data.text_api_base_url).toBe(geminiDefaultBaseUrl);
+    expect(payload.data.text_api_base_url).not.toBe('https://gemini-global-proxy.example/v1beta');
+    expect(payload.data.text_api_base_url).not.toBe('https://dedicated-text.example/v1beta');
+  });
+
   test('saves and reloads APIMart configuration', async ({ page }) => {
     const baselineResponse = await page.request.get('/api/settings');
     const baselinePayload = await baselineResponse.json();
