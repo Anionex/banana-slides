@@ -398,8 +398,8 @@ test.describe('Settings: APIMart persistence (real backend)', () => {
     await expect(page.locator('text=设置保存成功').or(page.locator('text=saved successfully')))
       .toBeVisible({ timeout: 5000 });
 
-    await providerPill(page).click();
     await textModelBaseInput.fill('');
+    await providerPill(page).click();
     await apiSection.locator('input[type="password"]').fill('apimart-clear-base-key');
     await page.getByRole('button', { name: /保存设置|Save Settings/ }).click();
     await expect(page.locator('text=设置保存成功').or(page.locator('text=saved successfully')).last())

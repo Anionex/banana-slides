@@ -646,19 +646,26 @@ const preserveRetainedModelCredentials = (
   prev: typeof initialFormData,
   next: typeof initialFormData,
   provider: string,
+  explicitlyClearedBaseUrls: ReadonlySet<string>,
 ) => ({
   ...next,
   ...(prev.text_model_source === provider ? {
     text_api_key: next.text_api_key || prev.api_key,
-    text_api_base_url: next.text_api_base_url || prev.api_base_url,
+    text_api_base_url: explicitlyClearedBaseUrls.has('text_api_base_url')
+      ? next.text_api_base_url
+      : next.text_api_base_url || prev.api_base_url,
   } : {}),
   ...(prev.image_model_source === provider ? {
     image_api_key: next.image_api_key || prev.api_key,
-    image_api_base_url: next.image_api_base_url || prev.api_base_url,
+    image_api_base_url: explicitlyClearedBaseUrls.has('image_api_base_url')
+      ? next.image_api_base_url
+      : next.image_api_base_url || prev.api_base_url,
   } : {}),
   ...(prev.image_caption_model_source === provider ? {
     image_caption_api_key: next.image_caption_api_key || prev.api_key,
-    image_caption_api_base_url: next.image_caption_api_base_url || prev.api_base_url,
+    image_caption_api_base_url: explicitlyClearedBaseUrls.has('image_caption_api_base_url')
+      ? next.image_caption_api_base_url
+      : next.image_caption_api_base_url || prev.api_base_url,
   } : {}),
 });
 
@@ -901,6 +908,7 @@ export const Settings: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState(initialFormData);
+  const explicitlyClearedPerModelBases = useRef(new Set<string>());
   const [serviceTestStates, setServiceTestStates] = useState<Record<string, ServiceTestState>>({});
   const [oauthConnecting, setOauthConnecting] = useState(false);
   const [manualCallbackUrl, setManualCallbackUrl] = useState('');
@@ -1220,6 +1228,7 @@ export const Settings: React.FC = () => {
       if (response.data) {
         setSettings(response.data);
         setFormData(formDataFromSettings(response.data));
+        explicitlyClearedPerModelBases.current.clear();
       }
     } catch (error: any) {
       console.error('加载设置失败:', error);
@@ -1276,6 +1285,7 @@ export const Settings: React.FC = () => {
       const response = await api.updateSettings(payload);
       if (response.data) {
         setSettings(response.data);
+        explicitlyClearedPerModelBases.current.clear();
         show({ message: t('settings.messages.saveSuccess'), type: 'success' });
         show({ message: t('settings.messages.testServiceTip'), type: 'info' });
         // Clear all sensitive fields after save
@@ -1307,6 +1317,7 @@ export const Settings: React.FC = () => {
           if (response.data) {
             setSettings(response.data);
             setFormData(formDataFromSettings(response.data));
+            explicitlyClearedPerModelBases.current.clear();
             show({ message: t('settings.messages.resetSuccess'), type: 'success' });
           }
         } catch (error: any) {
@@ -1329,6 +1340,14 @@ export const Settings: React.FC = () => {
   };
 
   const handleFieldChange = (key: string, value: any) => {
+    if (['text_api_base_url', 'image_api_base_url', 'image_caption_api_base_url'].includes(key)) {
+      if (value === '') {
+        explicitlyClearedPerModelBases.current.add(key);
+      } else {
+        explicitlyClearedPerModelBases.current.delete(key);
+      }
+    }
+
     setFormData(prev => {
       let next = { ...prev, [key]: value };
 
@@ -1354,7 +1373,12 @@ export const Settings: React.FC = () => {
           prev.ai_provider_format !== value
           && (prev.ai_provider_format === 'apimart' || value === 'apimart')
         ) {
-          next = preserveRetainedModelCredentials(prev, next, prev.ai_provider_format);
+          next = preserveRetainedModelCredentials(
+            prev,
+            next,
+            prev.ai_provider_format,
+            explicitlyClearedPerModelBases.current,
+          );
           next.api_key = null;
         }
 
@@ -1486,7 +1510,12 @@ export const Settings: React.FC = () => {
           : prev.image_caption_model,
       };
       if (leavingApimart) {
-        next = preserveRetainedModelCredentials(prev, next, 'apimart');
+        next = preserveRetainedModelCredentials(
+          prev,
+          next,
+          'apimart',
+          explicitlyClearedPerModelBases.current,
+        );
       }
       return next;
     });
@@ -1522,7 +1551,12 @@ export const Settings: React.FC = () => {
         image_model: modelForApimart(prev.image_model_source, prev.image_model, APIMART_RECOMMENDED_MODELS.image_model_source),
       };
       if (!isAlreadyApimart) {
-        next = preserveRetainedModelCredentials(prev, next, prev.ai_provider_format);
+        next = preserveRetainedModelCredentials(
+          prev,
+          next,
+          prev.ai_provider_format,
+          explicitlyClearedPerModelBases.current,
+        );
       }
       return next;
     });
