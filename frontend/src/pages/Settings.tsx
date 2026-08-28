@@ -1594,9 +1594,9 @@ export const Settings: React.FC = () => {
       if (formData.ai_provider_format) {
         testSettings.ai_provider_format = formData.ai_provider_format;
       }
-      if (formData.text_model) testSettings.text_model = formData.text_model;
-      if (formData.image_model) testSettings.image_model = formData.image_model;
-      if (formData.image_caption_model) testSettings.image_caption_model = formData.image_caption_model;
+      testSettings.text_model = formData.text_model || '';
+      testSettings.image_model = formData.image_model || '';
+      testSettings.image_caption_model = formData.image_caption_model || '';
       if (formData.mineru_api_base) testSettings.mineru_api_base = formData.mineru_api_base;
       if (formData.mineru_token) testSettings.mineru_token = formData.mineru_token;
       if (formData.baidu_api_key) testSettings.baidu_api_key = formData.baidu_api_key;

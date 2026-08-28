@@ -195,6 +195,15 @@ test.describe('Settings: APIMart provider pill', () => {
     await expect.poll(() => testPayload).not.toBeNull();
     expect(testPayload?.api_key).toBeNull();
     expect(testPayload?.text_api_key).toBeNull();
+
+    testPayload = null;
+    await page.getByTestId('text_model_source-select').selectOption('');
+    await page.getByTestId('global-provider-pills').locator('[data-provider="gemini"]').click();
+    await textTestCard.getByRole('button', { name: '开始测试' }).click();
+    await expect.poll(() => testPayload).not.toBeNull();
+    expect(testPayload?.text_model).toBe('');
+    expect(testPayload?.image_model).toBe('');
+    expect(testPayload?.image_caption_model).toBe('');
   });
 
   test('fills APIMart models when a per-model source switches to APIMart', async ({ page }) => {

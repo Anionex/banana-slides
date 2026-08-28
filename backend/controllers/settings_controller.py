@@ -105,17 +105,26 @@ def temporary_settings_override(settings_override: dict):
             original_values["AI_PROVIDER_FORMAT"] = current_app.config.get("AI_PROVIDER_FORMAT")
             current_app.config["AI_PROVIDER_FORMAT"] = settings_override["ai_provider_format"]
 
-        if settings_override.get("text_model"):
+        if "text_model" in settings_override:
             original_values["TEXT_MODEL"] = current_app.config.get("TEXT_MODEL")
-            current_app.config["TEXT_MODEL"] = settings_override["text_model"]
+            if settings_override["text_model"]:
+                current_app.config["TEXT_MODEL"] = settings_override["text_model"]
+            else:
+                current_app.config.pop("TEXT_MODEL", None)
 
-        if settings_override.get("image_model"):
+        if "image_model" in settings_override:
             original_values["IMAGE_MODEL"] = current_app.config.get("IMAGE_MODEL")
-            current_app.config["IMAGE_MODEL"] = settings_override["image_model"]
+            if settings_override["image_model"]:
+                current_app.config["IMAGE_MODEL"] = settings_override["image_model"]
+            else:
+                current_app.config.pop("IMAGE_MODEL", None)
 
-        if settings_override.get("image_caption_model"):
+        if "image_caption_model" in settings_override:
             original_values["IMAGE_CAPTION_MODEL"] = current_app.config.get("IMAGE_CAPTION_MODEL")
-            current_app.config["IMAGE_CAPTION_MODEL"] = settings_override["image_caption_model"]
+            if settings_override["image_caption_model"]:
+                current_app.config["IMAGE_CAPTION_MODEL"] = settings_override["image_caption_model"]
+            else:
+                current_app.config.pop("IMAGE_CAPTION_MODEL", None)
 
         # Per-model source overrides (empty string = clear, to fall back to global config)
         for source_field, config_key in [

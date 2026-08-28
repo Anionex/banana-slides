@@ -681,6 +681,9 @@ def test_temporary_settings_override_applies_explicit_credential_clears():
         APIMART_API_KEY='saved-apimart-key',
         TEXT_API_BASE='https://saved-text.example/v1',
         TEXT_API_KEY='saved-text-key',
+        TEXT_MODEL='gpt-5',
+        IMAGE_MODEL='gpt-image-2',
+        IMAGE_CAPTION_MODEL='gpt-4o',
     )
 
     with app.app_context():
@@ -690,16 +693,25 @@ def test_temporary_settings_override_applies_explicit_credential_clears():
             'api_key': None,
             'text_api_base_url': '',
             'text_api_key': None,
+            'text_model': '',
+            'image_model': '',
+            'image_caption_model': '',
         }):
             assert 'APIMART_API_BASE' not in app.config
             assert 'APIMART_API_KEY' not in app.config
             assert 'TEXT_API_BASE' not in app.config
             assert 'TEXT_API_KEY' not in app.config
+            assert 'TEXT_MODEL' not in app.config
+            assert 'IMAGE_MODEL' not in app.config
+            assert 'IMAGE_CAPTION_MODEL' not in app.config
 
         assert app.config['APIMART_API_BASE'] == 'https://saved-apimart.example/v1'
         assert app.config['APIMART_API_KEY'] == 'saved-apimart-key'
         assert app.config['TEXT_API_BASE'] == 'https://saved-text.example/v1'
         assert app.config['TEXT_API_KEY'] == 'saved-text-key'
+        assert app.config['TEXT_MODEL'] == 'gpt-5'
+        assert app.config['IMAGE_MODEL'] == 'gpt-image-2'
+        assert app.config['IMAGE_CAPTION_MODEL'] == 'gpt-4o'
 
 
 def test_verify_uses_configured_text_model():
