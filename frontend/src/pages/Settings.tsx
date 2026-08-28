@@ -1380,9 +1380,15 @@ export const Settings: React.FC = () => {
       ...prev,
       ai_provider_format: 'apimart',
       api_base_url: APIMART_BASE_URL,
-      text_model: 'gpt-5',
-      image_caption_model: 'gpt-4o',
-      image_model: 'gpt-image-2',
+      text_model: prev.text_model_source && prev.text_model_source !== 'apimart'
+        ? prev.text_model
+        : 'gpt-5',
+      image_caption_model: prev.image_caption_model_source && prev.image_caption_model_source !== 'apimart'
+        ? prev.image_caption_model
+        : 'gpt-4o',
+      image_model: prev.image_model_source && prev.image_model_source !== 'apimart'
+        ? prev.image_model
+        : 'gpt-image-2',
     }));
   };
 

@@ -293,6 +293,9 @@ OPENAI_API_BASE=https://api.openai.com/v1
 # APIMart Configuration (Used when AI_PROVIDER_FORMAT=apimart)
 APIMART_API_KEY=your-apimart-api-key-here
 APIMART_API_BASE=https://api.apimart.ai/v1
+TEXT_MODEL=gpt-5
+IMAGE_CAPTION_MODEL=gpt-4o
+IMAGE_MODEL=gpt-image-2
 
 # Volcengine Ark Agent Plans Configuration (Used when AI_PROVIDER_FORMAT=volcengine)
 

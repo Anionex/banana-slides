@@ -95,6 +95,35 @@ test.describe('Settings: APIMart provider pill', () => {
     await page.getByTestId('global-provider-pills').locator('[data-provider="gemini"]').click();
     await expect(apiSection.locator('input').first()).toHaveValue('');
   });
+
+  test('preserves models owned by explicit per-model providers', async ({ page }) => {
+    await page.route(url => url.pathname === '/api/settings', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ...mockSettings,
+          data: {
+            ...mockSettings.data,
+            text_model: 'gemini-text-model',
+            text_model_source: 'gemini',
+            image_model: 'openai-image-model',
+            image_model_source: 'openai',
+            image_caption_model: 'volcengine-caption-model',
+            image_caption_model_source: 'volcengine',
+          },
+        }),
+      })
+    );
+
+    await page.goto('/settings');
+    await providerPill(page).click();
+
+    const modelInputs = page.locator('input[placeholder^="留空使用环境变量配置"]');
+    await expect(modelInputs.nth(0)).toHaveValue('gemini-text-model');
+    await expect(modelInputs.nth(1)).toHaveValue('openai-image-model');
+    await expect(modelInputs.nth(2)).toHaveValue('volcengine-caption-model');
+  });
 });
 
 test.describe('Settings: APIMart persistence (real backend)', () => {
