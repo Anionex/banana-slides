@@ -515,6 +515,29 @@ def test_settings_to_dict_uses_volcengine_defaults_for_selected_provider(monkeyp
     assert data['image_caption_api_base_url'] is None
 
 
+def test_settings_to_dict_uses_effective_apimart_global_credentials_for_matching_source(monkeypatch):
+    """Matching APIMart model sources should display the saved global proxy."""
+    from config import Config
+    from models.settings import Settings
+
+    monkeypatch.setattr(Config, 'APIMART_API_BASE', 'https://api.apimart.ai/v1')
+    monkeypatch.setattr(Config, 'APIMART_API_KEY', 'env-apimart-key')
+    monkeypatch.setattr(Config, 'TEXT_API_BASE', '')
+    monkeypatch.setattr(Config, 'TEXT_API_KEY', '')
+
+    settings = Settings(
+        ai_provider_format='apimart',
+        api_base_url='https://apimart-proxy.example/v1',
+        api_key='saved-apimart-key',
+        text_model_source='apimart',
+    )
+    data = settings.to_dict()
+
+    assert data['api_base_url'] == 'https://apimart-proxy.example/v1'
+    assert data['text_api_base_url'] == 'https://apimart-proxy.example/v1'
+    assert data['text_api_key_length'] == len('saved-apimart-key')
+
+
 def test_settings_to_dict_volcengine_defaults_do_not_use_openai_key(monkeypatch):
     """Settings should not present an OpenAI key as a Volcengine key."""
     from config import Config

@@ -351,9 +351,14 @@ test.describe('Settings: APIMart persistence (real backend)', () => {
 
     await page.goto('/settings');
     await providerPill(page).click();
-    await page.getByTestId('text_model_source-select').selectOption('apimart');
+    const textSource = page.getByTestId('text_model_source-select');
+    await textSource.selectOption('apimart');
+    const textModelBaseInput = textSource.locator('xpath=../..').locator('input[type="text"]').nth(1);
+    await textModelBaseInput.fill('');
 
     const apiSection = page.getByTestId('global-api-config-section');
+    const customApimartBaseUrl = 'https://apimart-integration-proxy.example/v1';
+    await apiSection.locator('input').first().fill(customApimartBaseUrl);
     await apiSection.locator('input[type="password"]').fill('apimart-integration-test-key');
     await page.getByRole('button', { name: /保存设置|Save Settings/ }).click();
     await expect(page.locator('text=设置保存成功').or(page.locator('text=saved successfully')))
@@ -362,7 +367,8 @@ test.describe('Settings: APIMart persistence (real backend)', () => {
     const response = await page.request.get('/api/settings');
     const payload = await response.json();
     expect(payload.data.ai_provider_format).toBe('apimart');
-    expect(payload.data.api_base_url).toBe(APIMART_BASE_URL);
+    expect(payload.data.api_base_url).toBe(customApimartBaseUrl);
+    expect(payload.data.text_api_base_url).toBe(customApimartBaseUrl);
     expect(payload.data.text_model).toBe('gpt-5');
     expect(payload.data.image_model).toBe('gpt-image-2');
     expect(payload.data.image_caption_model).toBe('gpt-4o');
@@ -370,11 +376,21 @@ test.describe('Settings: APIMart persistence (real backend)', () => {
 
     await page.reload();
     await expect(providerPill(page)).toHaveAttribute('aria-checked', 'true');
-    await expect(apiSection.locator('input').first()).toHaveValue(APIMART_BASE_URL);
+    await expect(apiSection.locator('input').first()).toHaveValue(customApimartBaseUrl);
+
+    await expect(textModelBaseInput).toHaveValue(customApimartBaseUrl);
+    await page.getByRole('button', { name: /保存设置|Save Settings/ }).click();
+    await expect(page.locator('text=设置保存成功').or(page.locator('text=saved successfully')).last())
+      .toBeVisible({ timeout: 5000 });
+
+    const resavedResponse = await page.request.get('/api/settings');
+    const resavedPayload = await resavedResponse.json();
+    expect(resavedPayload.data.api_base_url).toBe(customApimartBaseUrl);
+    expect(resavedPayload.data.text_api_base_url).toBe(customApimartBaseUrl);
 
     await page.getByTestId('global-provider-pills').locator('[data-provider="gemini"]').click();
     await page.getByRole('button', { name: /保存设置|Save Settings/ }).click();
-    await expect(page.locator('text=设置保存成功').or(page.locator('text=saved successfully')))
+    await expect(page.locator('text=设置保存成功').or(page.locator('text=saved successfully')).last())
       .toBeVisible({ timeout: 5000 });
     const switchedResponse = await page.request.get('/api/settings');
     const switchedPayload = await switchedResponse.json();
