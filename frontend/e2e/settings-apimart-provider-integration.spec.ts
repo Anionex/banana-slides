@@ -76,6 +76,10 @@ test.describe('Settings: APIMart provider pill', () => {
       .toBeVisible();
     await expect(page.getByTestId('provider-plan-comparison').getByText('APIMart', { exact: true }))
       .not.toBeVisible();
+    await expect(page.getByText('如何获取 APIMart API Key')).toBeVisible();
+    await expect(page.getByRole('link', { name: '打开 APIMart →' }))
+      .toHaveAttribute('href', 'https://go.apimart.ai/gh-banana-slides');
+    await expect(page.getByText('进入 APIMart 控制台并完成账户设置')).toBeVisible();
 
     const apiSection = page.getByTestId('global-api-config-section');
     await expect(apiSection.locator('input').first()).toHaveValue(APIMART_BASE_URL);

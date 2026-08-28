@@ -138,6 +138,16 @@ const settingsI18n = {
         copyLink: "复制链接",
       },
       apiKeyTip: { before: "若需快速配置或稳定高并发生图，可选择 ", linkLabel: "AIHubMix 申请 API Key", after: "" },
+      apimartKeyHelp: {
+        title: "如何获取 APIMart API Key",
+        step1: "打开 {{link}}，注册或登录 APIMart",
+        step2: "进入 APIMart 控制台并完成账户设置",
+        step3: "在控制台创建新的 API Key",
+        step4: "将 API Key 复制到本页并保存设置",
+        linkLabel: "打开 APIMart →",
+        copyLink: "复制链接",
+      },
+      apimartApiKeyTip: { before: "当前已选择 APIMart，请前往 ", linkLabel: "APIMart 获取 API Key", after: "" },
       providerComparison: {
         title: "不知道怎么选？两个推荐方案对比",
         subtitle: "按自己的使用场景选择，选择结果会同步到默认 API 配置",
@@ -361,6 +371,16 @@ const settingsI18n = {
         copyLink: "Copy link",
       },
       apiKeyTip: { before: "For quick setup or stable high-concurrency image generation, get an API key from ", linkLabel: "AIHubMix", after: "" },
+      apimartKeyHelp: {
+        title: "How to get an APIMart API key",
+        step1: "Open {{link}}, then sign in or create an APIMart account",
+        step2: "Open the APIMart console and complete your account setup",
+        step3: "Create a new API key in the console",
+        step4: "Copy the API key into this page and save the settings",
+        linkLabel: "Open APIMart →",
+        copyLink: "Copy link",
+      },
+      apimartApiKeyTip: { before: "APIMart is selected. Get an API key from ", linkLabel: "APIMart", after: "" },
       providerComparison: {
         title: "Not sure which one? Compare the two recommended plans",
         subtitle: "Pick by your own scenario; the selection is applied to the default API config",
@@ -495,6 +515,7 @@ interface ServiceTestState {
 }
 
 const INFERERA_AFFILIATE_URL = 'https://api.inferera.com/?aff=17EC';
+const APIMART_SIGNUP_URL = 'https://go.apimart.ai/gh-banana-slides';
 const INFERERA_OPENAI_BASE_URL = 'https://api.inferera.com/v1';
 const INFERERA_GEMINI_BASE_URL = 'https://api.inferera.com/gemini';
 const VOLCENGINE_AGENTPLANS_CN_URL = 'https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides';
@@ -872,6 +893,7 @@ export const Settings: React.FC = () => {
   const volcengineAgentPlansUrl = isZh ? VOLCENGINE_AGENTPLANS_CN_URL : VOLCENGINE_AGENTPLANS_EN_URL;
   const volcengineLogoUrl = isZh ? '/volcengine/huoshan.png' : '/volcengine/byteplus.png';
   const usesVolcengineCampaignPromo = formData.ai_provider_format === 'volcengine' || formData.ai_provider_format === 'doubao';
+  const usesApimartProvider = formData.ai_provider_format === 'apimart';
   const activeVolcenginePromoKey = formData.ai_provider_format === 'doubao'
     ? 'settings.doubaoVolcenginePromo'
     : 'settings.volcenginePromo';
@@ -879,7 +901,11 @@ export const Settings: React.FC = () => {
     ? 'settings.volcengineKeyHelp'
     : formData.ai_provider_format === 'doubao'
       ? 'settings.doubaoKeyHelp'
-      : 'settings.apiKeyHelp';
+      : usesApimartProvider
+        ? 'settings.apimartKeyHelp'
+        : 'settings.apiKeyHelp';
+  const activeApiKeyHelpUrl = usesApimartProvider ? APIMART_SIGNUP_URL : INFERERA_AFFILIATE_URL;
+  const activeApiKeyTipKey = usesApimartProvider ? 'settings.apimartApiKeyTip' : 'settings.apiKeyTip';
   const stopOAuthMonitor = useCallback(() => {
     oauthAttemptRef.current += 1;
     oauthMonitorStopRef.current?.();
@@ -2221,9 +2247,9 @@ export const Settings: React.FC = () => {
           ) : (
             <div className="mt-3 pl-4 border-l-4 border-blue-300 dark:border-blue-600">
               <p className="text-sm text-gray-700 dark:text-foreground-secondary">
-                {t('settings.apiKeyTip.before')}
-                <a href={INFERERA_AFFILIATE_URL} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline font-medium">{t('settings.apiKeyTip.linkLabel')}</a>
-                {t('settings.apiKeyTip.after')}
+                {t(`${activeApiKeyTipKey}.before`)}
+                <a href={activeApiKeyHelpUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline font-medium">{t(`${activeApiKeyTipKey}.linkLabel`)}</a>
+                {t(`${activeApiKeyTipKey}.after`)}
               </p>
             </div>
           )}
@@ -2237,28 +2263,28 @@ export const Settings: React.FC = () => {
               </p>
               <ol className="text-sm text-gray-700 dark:text-foreground-secondary space-y-1 list-decimal list-inside ml-1">
                 <li>
-                  {t('settings.apiKeyHelp.step1', { link: '{{link}}' }).split('{{link}}')[0]}
+                  {t(`${activeApiKeyHelpKey}.step1`, { link: '{{link}}' }).split('{{link}}')[0]}
                   <span className="inline-flex items-center gap-2">
                     <a
-                      href={INFERERA_AFFILIATE_URL}
+                      href={activeApiKeyHelpUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-600 hover:text-blue-800 underline font-medium"
                     >
-                      {t('settings.apiKeyHelp.linkLabel')}
+                      {t(`${activeApiKeyHelpKey}.linkLabel`)}
                     </a>
                     <button
-                      onClick={() => copyToClipboard(INFERERA_AFFILIATE_URL)}
+                      onClick={() => copyToClipboard(activeApiKeyHelpUrl)}
                       className="text-xs px-2 py-0.5 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded transition-colors"
                     >
-                      {t('settings.apiKeyHelp.copyLink')}
+                      {t(`${activeApiKeyHelpKey}.copyLink`)}
                     </button>
                   </span>
-                  {t('settings.apiKeyHelp.step1', { link: '{{link}}' }).split('{{link}}')[1]}
+                  {t(`${activeApiKeyHelpKey}.step1`, { link: '{{link}}' }).split('{{link}}')[1]}
                 </li>
-                <li>{t('settings.apiKeyHelp.step2')}</li>
-                <li>{t('settings.apiKeyHelp.step3')}</li>
-                <li>{t('settings.apiKeyHelp.step4')}</li>
+                <li>{t(`${activeApiKeyHelpKey}.step2`)}</li>
+                <li>{t(`${activeApiKeyHelpKey}.step3`)}</li>
+                <li>{t(`${activeApiKeyHelpKey}.step4`)}</li>
               </ol>
             </div>
           )}
