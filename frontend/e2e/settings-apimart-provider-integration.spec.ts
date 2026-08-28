@@ -98,7 +98,7 @@ test.describe('Settings: APIMart provider pill', () => {
     await expect(modelInputs.nth(1)).toHaveValue('');
     await expect(modelInputs.nth(2)).toHaveValue('');
     await page.getByRole('button', { name: /保存设置/ }).click();
-    await expect(page.getByText('设置保存成功')).toBeVisible();
+    await expect(page.getByText('设置保存成功').last()).toBeVisible();
     expect(savedPayload?.api_key).toBeNull();
   });
 
@@ -208,6 +208,7 @@ test.describe('Settings: APIMart persistence (real backend)', () => {
 
     await page.goto('/settings');
     await providerPill(page).click();
+    await page.getByTestId('text_model_source-select').selectOption('apimart');
 
     const apiSection = page.getByTestId('global-api-config-section');
     await apiSection.locator('input[type="password"]').fill('apimart-integration-test-key');
@@ -237,5 +238,7 @@ test.describe('Settings: APIMart persistence (real backend)', () => {
     expect(switchedPayload.data.ai_provider_format).toBe('gemini');
     expect(switchedPayload.data.api_key_length).toBe(baselineKeyLength);
     expect(switchedPayload.data.api_key_length).not.toBe('apimart-integration-test-key'.length);
+    expect(switchedPayload.data.text_model_source).toBe('apimart');
+    expect(switchedPayload.data.text_api_key_length).toBe('apimart-integration-test-key'.length);
   });
 });

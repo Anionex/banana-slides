@@ -238,6 +238,8 @@ def update_settings():
             return bad_request("Request body is required")
 
         settings = Settings.get_settings()
+        previous_provider_format = settings.ai_provider_format
+        previous_api_key = settings.api_key
 
         # Update AI provider format configuration
         if "ai_provider_format" in data:
@@ -408,6 +410,25 @@ def update_settings():
                 settings.lazyllm_api_keys = json.dumps(existing) if existing else None
             elif keys_data is None:
                 settings.lazyllm_api_keys = None
+
+        # Move the saved APIMart key to explicit APIMart model overrides before
+        # clearing the shared credential during a global provider switch.
+        if (
+            previous_provider_format == "apimart"
+            and settings.ai_provider_format != "apimart"
+            and "api_key" in data
+            and data["api_key"] is None
+            and previous_api_key
+        ):
+            for model_type in ("text", "image", "image_caption"):
+                source_field = f"{model_type}_model_source"
+                key_field = f"{model_type}_api_key"
+                if (
+                    getattr(settings, source_field, None) == "apimart"
+                    and key_field not in data
+                    and not getattr(settings, key_field, None)
+                ):
+                    setattr(settings, key_field, previous_api_key)
 
         settings.updated_at = datetime.now(timezone.utc)
         db.session.commit()
