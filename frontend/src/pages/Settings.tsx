@@ -1349,6 +1349,22 @@ export const Settings: React.FC = () => {
       };
 
       if (key === 'ai_provider_format') {
+        // Clear provider-owned overrides before applying the next global
+        // provider. These fields otherwise keep taking precedence over the
+        // newly selected provider.
+        if (prev.ai_provider_format === 'apimart' && value !== 'apimart') {
+          if (APIMART_DEFAULT_BASE_URLS.has(next.api_base_url)) next.api_base_url = '';
+          if (next.text_model_source === 'apimart') next.text_model_source = '';
+          if (next.image_model_source === 'apimart') next.image_model_source = '';
+          if (next.image_caption_model_source === 'apimart') next.image_caption_model_source = '';
+          if (APIMART_DEFAULT_BASE_URLS.has(next.text_api_base_url)) next.text_api_base_url = '';
+          if (APIMART_DEFAULT_BASE_URLS.has(next.image_api_base_url)) next.image_api_base_url = '';
+          if (APIMART_DEFAULT_BASE_URLS.has(next.image_caption_api_base_url)) next.image_caption_api_base_url = '';
+        }
+        if (prev.ai_provider_format === 'volcengine' && value !== 'volcengine') {
+          if (VOLCENGINE_DEFAULT_BASE_URLS.has(next.api_base_url)) next.api_base_url = '';
+        }
+
         if (value === 'volcengine') {
           // Agent Plans 需要专属端点: 空值或其他 provider 的默认端点会被替换,
           // 用户显式填写的自定义 Base URL 保留
@@ -1359,20 +1375,6 @@ export const Settings: React.FC = () => {
           if (KNOWN_DEFAULT_BASE_URLS.has(next.api_base_url)) {
             next.api_base_url = APIMART_BASE_URL;
           }
-        } else if (prev.ai_provider_format === 'apimart') {
-          if (APIMART_DEFAULT_BASE_URLS.has(next.api_base_url)) {
-            next.api_base_url = '';
-          }
-          if (next.text_model_source === 'apimart') next.text_model_source = '';
-          if (next.image_model_source === 'apimart') next.image_model_source = '';
-          if (next.image_caption_model_source === 'apimart') next.image_caption_model_source = '';
-          if (APIMART_DEFAULT_BASE_URLS.has(next.text_api_base_url)) next.text_api_base_url = '';
-          if (APIMART_DEFAULT_BASE_URLS.has(next.image_api_base_url)) next.image_api_base_url = '';
-          if (APIMART_DEFAULT_BASE_URLS.has(next.image_caption_api_base_url)) next.image_caption_api_base_url = '';
-        } else if (VOLCENGINE_DEFAULT_BASE_URLS.has(next.api_base_url)) {
-          // 离开 Agent Plans: plan/v3 端点对新 provider 是过时默认值, 清空以
-          // 回退到新 provider 的环境变量/默认端点, 自定义 URL 保留
-          next.api_base_url = '';
         }
       } else if (perModelBaseKeys[key]) {
         const baseKey = perModelBaseKeys[key];
@@ -1455,12 +1457,14 @@ export const Settings: React.FC = () => {
       text_model: APIMART_RECOMMENDED_MODELS.text,
       image_caption_model: APIMART_RECOMMENDED_MODELS.caption,
       image_model: APIMART_RECOMMENDED_MODELS.image,
-      text_model_source: 'apimart',
-      image_caption_model_source: 'apimart',
-      image_model_source: 'apimart',
-      text_api_base_url: APIMART_BASE_URL,
-      image_caption_api_base_url: APIMART_BASE_URL,
-      image_api_base_url: APIMART_BASE_URL,
+      // Inherit the global APIMart credentials instead of activating stale
+      // per-model API keys that may belong to another provider.
+      text_model_source: '',
+      image_caption_model_source: '',
+      image_model_source: '',
+      text_api_base_url: '',
+      image_caption_api_base_url: '',
+      image_api_base_url: '',
       openai_image_api_protocol: 'auto',
     }));
   };

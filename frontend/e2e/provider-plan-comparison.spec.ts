@@ -104,9 +104,37 @@ test.describe('Settings: provider plan comparison', () => {
       .toHaveValue('gpt-image-2');
     await expect(modelGroup(page, 'image_caption_model_source-select').locator('input[type="text"]').first())
       .toHaveValue('gpt-4o');
-    await expect(page.getByTestId('text_model_source-select')).toHaveValue('apimart');
-    await expect(page.getByTestId('image_model_source-select')).toHaveValue('apimart');
-    await expect(page.getByTestId('image_caption_model_source-select')).toHaveValue('apimart');
+    await expect(page.getByTestId('text_model_source-select')).toHaveValue('');
+    await expect(page.getByTestId('image_model_source-select')).toHaveValue('');
+    await expect(page.getByTestId('image_caption_model_source-select')).toHaveValue('');
+  });
+
+  test('switching from APIMart to Volcengine clears APIMart per-model overrides first', async ({ page }) => {
+    await page.route('**/api/settings', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mockSettings({
+          ai_provider_format: 'apimart',
+          api_base_url: 'https://api.apimart.ai/v1',
+          text_model_source: 'apimart',
+          image_model_source: 'apimart',
+          image_caption_model_source: 'apimart',
+          text_api_base_url: 'https://api.apimart.ai/v1',
+          image_api_base_url: 'https://api.apimart.ai/v1',
+          image_caption_api_base_url: 'https://api.apimart.ai/v1',
+        })),
+      })
+    );
+    await page.goto('/settings');
+
+    await page.getByTestId('global-provider-pills').locator('[data-provider="volcengine"]').click();
+
+    await expect(page.getByTestId('global-api-config-section').locator('input').first())
+      .toHaveValue('https://ark.cn-beijing.volces.com/api/plan/v3');
+    await expect(page.getByTestId('text_model_source-select')).toHaveValue('');
+    await expect(page.getByTestId('image_model_source-select')).toHaveValue('');
+    await expect(page.getByTestId('image_caption_model_source-select')).toHaveValue('');
   });
 
   test('choosing Volcengine from the comparison applies the Agent Plan config', async ({ page }) => {

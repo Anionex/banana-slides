@@ -34,9 +34,9 @@ test.describe('Settings: APIMart provider integration (real backend)', () => {
     expect(payload.data.text_model).toBe('gpt-5');
     expect(payload.data.image_model).toBe('gpt-image-2');
     expect(payload.data.image_caption_model).toBe('gpt-4o');
-    expect(payload.data.text_model_source).toBe('apimart');
-    expect(payload.data.image_model_source).toBe('apimart');
-    expect(payload.data.image_caption_model_source).toBe('apimart');
+    expect(payload.data.text_model_source).toBe('');
+    expect(payload.data.image_model_source).toBe('');
+    expect(payload.data.image_caption_model_source).toBe('');
     expect(payload.data.api_key_length).toBe('apimart-integration-test-key'.length);
 
     await page.reload();
