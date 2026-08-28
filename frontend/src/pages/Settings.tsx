@@ -1369,12 +1369,13 @@ export const Settings: React.FC = () => {
         const baseKey = perModelBaseKeys[key];
         const modelKey = perModelModelKeys[key];
         const apiKeyKey = perModelApiKeyKeys[key];
-        if (
-          prev[key as keyof typeof prev] === 'apimart'
-          && value !== 'apimart'
-          && prev[apiKeyKey as keyof typeof prev] === ''
-        ) {
-          next[apiKeyKey] = null;
+        const previousSource = prev[key as keyof typeof prev];
+        if (previousSource !== value && (previousSource === 'apimart' || value === 'apimart')) {
+          // Entering APIMart always discards the previous provider's typed key.
+          // Leaving APIMart keeps a replacement key entered before the switch.
+          if (value === 'apimart' || prev[apiKeyKey as keyof typeof prev] === '') {
+            next[apiKeyKey] = null;
+          }
         }
         if (
           prev[key as keyof typeof prev] === 'apimart'
@@ -1443,15 +1444,31 @@ export const Settings: React.FC = () => {
   };
 
   const selectAihubmixPlan = () => {
-    setFormData(prev => ({
-      ...prev,
-      ai_provider_format: prev.ai_provider_format === 'gemini' || prev.ai_provider_format === 'openai'
-        ? prev.ai_provider_format
-        : 'gemini',
-      api_base_url: prev.ai_provider_format === 'openai'
-        ? INFERERA_OPENAI_BASE_URL
-        : INFERERA_GEMINI_BASE_URL,
-    }));
+    setFormData(prev => {
+      const leavingApimart = prev.ai_provider_format === 'apimart';
+      const provider = prev.ai_provider_format === 'openai' ? 'openai' : 'gemini';
+      return {
+        ...prev,
+        ai_provider_format: provider,
+        api_base_url: provider === 'openai' ? INFERERA_OPENAI_BASE_URL : INFERERA_GEMINI_BASE_URL,
+        api_key: leavingApimart ? null : prev.api_key,
+        text_model: leavingApimart
+          && !prev.text_model_source
+          && prev.text_model === APIMART_RECOMMENDED_MODELS.text_model_source
+          ? ''
+          : prev.text_model,
+        image_model: leavingApimart
+          && !prev.image_model_source
+          && prev.image_model === APIMART_RECOMMENDED_MODELS.image_model_source
+          ? ''
+          : prev.image_model,
+        image_caption_model: leavingApimart
+          && !prev.image_caption_model_source
+          && prev.image_caption_model === APIMART_RECOMMENDED_MODELS.image_caption_model_source
+          ? ''
+          : prev.image_caption_model,
+      };
+    });
   };
 
   const selectVolcenginePlan = () => {
@@ -1471,6 +1488,7 @@ export const Settings: React.FC = () => {
       return {
         ...prev,
         ai_provider_format: 'apimart',
+        api_key: isAlreadyApimart ? prev.api_key : null,
         api_base_url: isAlreadyApimart && prev.api_base_url
           ? prev.api_base_url
           : APIMART_BASE_URL,

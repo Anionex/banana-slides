@@ -90,6 +90,7 @@ test.describe('Settings: APIMart provider pill', () => {
 
     await page.getByRole('button', { name: /保存设置/ }).click();
     await expect(page.getByText('设置保存成功')).toBeVisible();
+    expect(savedPayload?.api_key).toBeNull();
     expect(savedPayload?.ai_provider_format).toBe('apimart');
     expect(savedPayload?.api_base_url).toBe(APIMART_BASE_URL);
     expect(savedPayload?.text_model).toBe('gpt-5');
@@ -160,6 +161,12 @@ test.describe('Settings: APIMart provider pill', () => {
     await expect(modelInputs.nth(1)).toHaveValue('gpt-image-2');
     await expect(modelInputs.nth(2)).toHaveValue('gpt-4o');
 
+    await page.getByRole('button', { name: /保存设置/ }).click();
+    await expect(page.getByText('设置保存成功')).toBeVisible();
+    expect(savedPayload?.text_api_key).toBeNull();
+    expect(savedPayload?.image_api_key).toBeNull();
+    expect(savedPayload?.image_caption_api_key).toBeNull();
+
     await page.locator('input[type="password"]').nth(1).fill('replacement-text-key');
     await modelInputs.nth(0).fill('custom-text-model');
     await page.getByTestId('text_model_source-select').selectOption('gemini');
@@ -171,7 +178,7 @@ test.describe('Settings: APIMart provider pill', () => {
     await expect(modelInputs.nth(2)).toHaveValue('');
 
     await page.getByRole('button', { name: /保存设置/ }).click();
-    await expect(page.getByText('设置保存成功')).toBeVisible();
+    await expect(page.getByText('设置保存成功').last()).toBeVisible();
     expect(savedPayload?.text_api_key).toBe('replacement-text-key');
     expect(savedPayload?.image_api_key).toBeNull();
     expect(savedPayload?.image_caption_api_key).toBeNull();
@@ -205,6 +212,54 @@ test.describe('Settings: APIMart provider pill', () => {
     await expect(modelInputs.nth(0)).toHaveValue('custom-text-model');
     await expect(modelInputs.nth(1)).toHaveValue('custom-image-model');
     await expect(modelInputs.nth(2)).toHaveValue('custom-caption-model');
+  });
+
+  test('choosing the AIHubMix card clears inherited APIMart settings', async ({ page }) => {
+    let savedPayload: Record<string, unknown> | null = null;
+    await page.route(url => url.pathname === '/api/settings', async route => {
+      if (route.request().method() === 'PUT') {
+        savedPayload = route.request().postDataJSON() as Record<string, unknown>;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ ...mockSettings, data: { ...mockSettings.data, ...savedPayload } }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ...mockSettings,
+          data: {
+            ...mockSettings.data,
+            ai_provider_format: 'apimart',
+            api_base_url: APIMART_BASE_URL,
+            api_key_length: 18,
+            text_model: 'gpt-5',
+            image_model: 'gpt-image-2',
+            image_caption_model: 'gpt-4o',
+          },
+        }),
+      });
+    });
+
+    await page.goto('/settings');
+    await page.getByTestId('provider-plan-aihubmix').getByRole('button', { name: '使用此方案' }).click();
+
+    await expect(page.getByTestId('global-provider-pills').locator('[data-provider="gemini"]'))
+      .toHaveAttribute('aria-checked', 'true');
+    const modelInputs = page.locator('input[placeholder^="留空使用环境变量配置"]');
+    await expect(modelInputs.nth(0)).toHaveValue('');
+    await expect(modelInputs.nth(1)).toHaveValue('');
+    await expect(modelInputs.nth(2)).toHaveValue('');
+
+    await page.getByRole('button', { name: /保存设置/ }).click();
+    await expect(page.getByText('设置保存成功')).toBeVisible();
+    expect(savedPayload?.api_key).toBeNull();
+    expect(savedPayload?.text_model).toBe('');
+    expect(savedPayload?.image_model).toBe('');
+    expect(savedPayload?.image_caption_model).toBe('');
   });
 });
 
