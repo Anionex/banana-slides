@@ -20,7 +20,10 @@ describe('domain ownership', () => {
   it.each(firstPartyFiles)('keeps the first-party domain in %s', (relativePath) => {
     const content = fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
     expect(content).toContain('bananaslides.online');
-    const contentWithoutProviderLinks = content.replace(/api\.inferera\.com/gi, '');
+    const contentWithoutProviderLinks = content.replace(
+      /https:\/\/(?:api\.)?inferera\.com(?:\/[^\s)"'<>]*)?/gi,
+      '',
+    );
     expect(contentWithoutProviderLinks.toLowerCase()).not.toContain('inferera.com');
   });
 

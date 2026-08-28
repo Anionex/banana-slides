@@ -1,4 +1,7 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+
+const modelGroup = (page: Page, sourceTestId: string) =>
+  page.getByTestId(sourceTestId).locator('xpath=ancestor::div[contains(@class,"pb-6")][1]');
 
 const mockSettings = (overrides: Record<string, unknown> = {}) => ({
   success: true,
@@ -49,7 +52,7 @@ const mockSettings = (overrides: Record<string, unknown> = {}) => ({
 test.describe('Settings: provider plan comparison', () => {
   test.use({ locale: 'zh-CN' });
 
-  test('shows an analysis-style comparison with AIHubMix and Volcengine', async ({ page }) => {
+  test('shows an analysis-style comparison with AIHubMix, Volcengine, and APIMart', async ({ page }) => {
     await page.route('**/api/settings', route =>
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockSettings()) })
     );
@@ -57,7 +60,7 @@ test.describe('Settings: provider plan comparison', () => {
 
     const comparison = page.getByTestId('provider-plan-comparison');
     await expect(comparison).toBeVisible();
-    await expect(comparison.getByText('不知道怎么选？两个推荐方案对比')).toBeVisible();
+    await expect(comparison.getByText('不知道怎么选？三个推荐方案对比')).toBeVisible();
 
     const aihubmix = page.getByTestId('provider-plan-aihubmix');
     await expect(aihubmix.getByText('AIHubMix 聚合 API', { exact: true })).toBeVisible();
@@ -73,6 +76,37 @@ test.describe('Settings: provider plan comparison', () => {
     await expect(volcengine.getByText('效果接近海外主流，价格更低')).toBeVisible();
     await expect(volcengine.getByText('订阅后可日常使用，不局限于 Banana Slides')).toBeVisible();
     await expect(volcengine.getByRole('button', { name: '选择此方案' })).toBeEnabled();
+
+    const apimart = page.getByTestId('provider-plan-apimart');
+    await expect(apimart.getByText('APIMart', { exact: true })).toBeVisible();
+    await expect(apimart.getByText('低价图片 · 异步稳定')).toBeVisible();
+    await expect(apimart.getByText('异步任务轮询，长时间生图不易超时')).toBeVisible();
+    await expect(apimart.getByRole('button', { name: '使用此方案' })).toBeEnabled();
+  });
+
+  test('choosing APIMart applies its endpoint and recommended models', async ({ page }) => {
+    await page.route('**/api/settings', route =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockSettings()) })
+    );
+    await page.goto('/settings');
+
+    await page.getByTestId('provider-plan-apimart').getByRole('button', { name: '使用此方案' }).click();
+
+    await expect(page.getByTestId('global-provider-pills').locator('[data-provider="apimart"]'))
+      .toHaveAttribute('aria-checked', 'true');
+    await expect(page.getByTestId('global-api-config-section').locator('input').first())
+      .toHaveValue('https://api.apimart.ai/v1');
+    await expect(page.getByTestId('global-api-config-section').locator('input[type="password"]'))
+      .toHaveAttribute('placeholder', '输入新的 API Key');
+    await expect(modelGroup(page, 'text_model_source-select').locator('input[type="text"]').first())
+      .toHaveValue('gpt-5');
+    await expect(modelGroup(page, 'image_model_source-select').locator('input[type="text"]').first())
+      .toHaveValue('gpt-image-2');
+    await expect(modelGroup(page, 'image_caption_model_source-select').locator('input[type="text"]').first())
+      .toHaveValue('gpt-4o');
+    await expect(page.getByTestId('text_model_source-select')).toHaveValue('apimart');
+    await expect(page.getByTestId('image_model_source-select')).toHaveValue('apimart');
+    await expect(page.getByTestId('image_caption_model_source-select')).toHaveValue('apimart');
   });
 
   test('choosing Volcengine from the comparison applies the Agent Plan config', async ({ page }) => {

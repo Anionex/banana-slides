@@ -11,6 +11,7 @@ Set `AI_PROVIDER_FORMAT` in `.env` to choose your provider:
 |--------|-------------|
 | `gemini` | Google Gemini API (default) |
 | `openai` | OpenAI-compatible API |
+| `apimart` | APIMart text, vision, and asynchronous image-generation APIs |
 | `volcengine` | Volcengine ModelArk AgentPlans (OpenAI-compatible) |
 | `vertex` | Google Cloud Vertex AI |
 | `lazyllm` | Multi-vendor Chinese model routing |
@@ -52,6 +53,27 @@ Notes:
 - Selecting "Volcengine AgentPlans" in Settings prefills the Agent Plans base URL and recommended models; standard ModelArk users should use the "Doubao (豆包)" path with `api/v3`.
 
 The generic API Key field in Settings can still override the API key, while the Base URL is managed automatically.
+
+## APIMart
+
+Selecting the **APIMart** pill or recommendation card in Settings fills the APIMart endpoint and recommended models:
+
+- Text model: `gpt-5`
+- Image-caption model: `gpt-4o`
+- Image model: `gpt-image-2`
+
+APIMart image generation uses asynchronous tasks. Banana Slides submits the task, polls its status, and downloads the result automatically; users do not need to handle task IDs.
+
+```env
+AI_PROVIDER_FORMAT=apimart
+APIMART_API_KEY=your-apimart-api-key
+APIMART_API_BASE=https://api.apimart.ai/v1
+TEXT_MODEL=gpt-5
+IMAGE_CAPTION_MODEL=gpt-4o
+IMAGE_MODEL=gpt-image-2
+```
+
+See the APIMart sponsor entry at the top of the project README for the API-key sign-up link.
 
 ## Vertex AI
 

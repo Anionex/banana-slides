@@ -11,6 +11,7 @@ description: "环境变量与服务商设置"
 |------|------|
 | `gemini` | Google Gemini API（默认） |
 | `openai` | OpenAI 兼容 API |
+| `apimart` | APIMart 文本、图片理解与异步图片生成 API |
 | `volcengine` | 火山方舟 AgentPlans（OpenAI 兼容） |
 | `vertex` | Google Cloud Vertex AI |
 | `lazyllm` | 多厂商国产模型路由 |
@@ -50,6 +51,27 @@ VOLCENGINE_API_BASE=https://ark.cn-beijing.volces.com/api/plan/v3
 - **Agent Plan 需要专属 API Key**：在 Agent Plan 控制台创建的 `ark-...` Key 只能在 `api/plan/v3` 端点上使用，普通方舟 API Key 与标准 ModelArk 端点（`api/v3`）不互通。
 - **模型名使用 Agent Plan 模型名**（如 `doubao-seed-2.1-turbo`、`kimi-k2.6`），生图使用 `doubao-seedream-5.0-lite`；标准 ModelArk 的端点 ID（如 `doubao-seed-2-1-pro-260628`）不适用于 Agent Plan。
 - 设置页选择“火山 AgentPlans”时会自动预填 Agent Plan 专属 Base URL 与推荐模型，也可手动修改；标准 ModelArk 用户请改用“Doubao (豆包)”路径并保持 `api/v3`。
+
+## APIMart
+
+选择设置页中的 **APIMart** 胶囊或推荐方案卡片后，会自动填写 APIMart 端点与推荐模型：
+
+- 文本模型：`gpt-5`
+- 图片描述模型：`gpt-4o`
+- 图片模型：`gpt-image-2`
+
+APIMart 图片生成采用异步任务。Banana Slides 会自动提交任务、轮询状态并下载结果，用户不需要手动处理任务 ID。
+
+```env
+AI_PROVIDER_FORMAT=apimart
+APIMART_API_KEY=your-apimart-api-key
+APIMART_API_BASE=https://api.apimart.ai/v1
+TEXT_MODEL=gpt-5
+IMAGE_CAPTION_MODEL=gpt-4o
+IMAGE_MODEL=gpt-image-2
+```
+
+API Key 注册入口见项目 README 顶部的 APIMart 赞助商信息。
 
 ## Vertex AI
 

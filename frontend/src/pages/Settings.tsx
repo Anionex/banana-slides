@@ -139,7 +139,7 @@ const settingsI18n = {
       },
       apiKeyTip: { before: "若需快速配置或稳定高并发生图，可选择 ", linkLabel: "AIHubMix 申请 API Key", after: "" },
       providerComparison: {
-        title: "不知道怎么选？两个推荐方案对比",
+        title: "不知道怎么选？三个推荐方案对比",
         subtitle: "按自己的使用场景选择，选择结果会同步到默认 API 配置",
         aihubmix: {
           name: "AIHubMix 聚合 API",
@@ -165,7 +165,20 @@ const settingsI18n = {
           link: "查看优惠并订阅 →",
           note: "自动填入火山 Agent Plan 专属端点并推荐模型",
         },
+        apimart: {
+          name: "APIMart",
+          tagline: "低价图片 · 异步稳定",
+          suitedFor: "适合：大批量生成图片、关注单张成本",
+          point1: "支持 GPT-Image-2，最低约 $0.006/张",
+          point2: "异步任务轮询，长时间生图不易超时",
+          point3: "兼容文本、图片理解与图片生成接口",
+          cta: "使用此方案",
+          active: "当前方案",
+          link: "注册并获取 API Key →",
+          note: "自动填入 APIMart 端点与推荐模型",
+        },
       },
+      apimartPromo: { providerHint: "低价图片 · 异步稳定" },
       volcenginePromo: {
         providerHint: "国内直连 · 高性价比",
         title: "为什么选择火山 Agent Plan？",
@@ -362,7 +375,7 @@ const settingsI18n = {
       },
       apiKeyTip: { before: "For quick setup or stable high-concurrency image generation, get an API key from ", linkLabel: "AIHubMix", after: "" },
       providerComparison: {
-        title: "Not sure which one? Compare the two recommended plans",
+        title: "Not sure which one? Compare the three recommended plans",
         subtitle: "Pick by your own scenario; the selection is applied to the default API config",
         aihubmix: {
           name: "AIHubMix Aggregated API",
@@ -388,7 +401,20 @@ const settingsI18n = {
           link: "View plans and subscribe →",
           note: "Fills the Agent Plan endpoint and recommended models automatically",
         },
+        apimart: {
+          name: "APIMart",
+          tagline: "Low-cost images · Async reliability",
+          suitedFor: "Best for: high-volume image generation and lower per-image cost",
+          point1: "GPT-Image-2 from about $0.006 per image",
+          point2: "Async task polling avoids long-running request timeouts",
+          point3: "Supports text, image understanding, and image generation APIs",
+          cta: "Use this plan",
+          active: "Current plan",
+          link: "Sign up and get an API key →",
+          note: "Fills the APIMart endpoint and recommended models automatically",
+        },
       },
+      apimartPromo: { providerHint: "Low-cost images · Async" },
       volcenginePromo: {
         providerHint: "Cost-effective",
         title: "Why choose Volcengine Agent Plan?",
@@ -500,6 +526,8 @@ const INFERERA_GEMINI_BASE_URL = 'https://api.inferera.com/gemini';
 const VOLCENGINE_AGENTPLANS_CN_URL = 'https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides';
 const VOLCENGINE_AGENTPLANS_EN_URL = 'https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=banana-slides&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides';
 const VOLCENGINE_AGENTPLANS_APIKEY_URL = 'https://ai.volcengine.com/console/apikey';
+const APIMART_AFFILIATE_URL = 'https://go.apimart.ai/gh-banana-slides';
+const APIMART_BASE_URL = 'https://api.apimart.ai/v1';
 
 // LazyLLM 支持的厂商列表
 const LAZYLLM_SOURCES = [
@@ -520,6 +548,7 @@ const LAZYLLM_SOURCES = [
 const getAllProviderSources = (isZh: boolean) => [
   { value: 'gemini', label: 'Gemini' },
   { value: 'openai', label: 'OpenAI' },
+  { value: 'apimart', label: 'APIMart' },
   { value: 'volcengine', label: isZh ? '火山 Agent Plan' : 'Volcengine Agent Plan' },
   { value: 'doubao', label: isZh ? 'Doubao（豆包）' : 'Doubao / ModelArk' },
   { value: 'codex', label: 'Codex (OpenAI OAuth)' },
@@ -527,7 +556,12 @@ const getAllProviderSources = (isZh: boolean) => [
 ];
 
 // 需要 API Key + Base URL 的提供商（非 LazyLLM 厂商）
-const API_KEY_PROVIDERS = new Set(['gemini', 'openai', 'volcengine']);
+const API_KEY_PROVIDERS = new Set(['gemini', 'openai', 'apimart', 'volcengine']);
+const APIMART_RECOMMENDED_MODELS = {
+  text: 'gpt-5',
+  caption: 'gpt-4o',
+  image: 'gpt-image-2',
+};
 // 火山 Agent Plans（OpenAI 兼容）: 专属 Base URL 与模型名
 const VOLCENGINE_AGENTPLANS_BASE_URL = 'https://ark.cn-beijing.volces.com/api/plan/v3';
 const VOLCENGINE_AGENTPLANS_RECOMMENDED_MODELS = {
@@ -546,6 +580,7 @@ const KNOWN_DEFAULT_BASE_URLS = new Set([
   '',
   'https://api.inferera.com/v1',
   'https://api.openai.com/v1',
+  'https://api.apimart.ai/v1',
   'https://api.inferera.com/gemini',
   'https://generativelanguage.googleapis.com',
   'https://ark.cn-beijing.volces.com/api/v3',
@@ -556,6 +591,24 @@ const VOLCENGINE_DEFAULT_BASE_URLS = new Set([
   'https://ark.cn-beijing.volces.com/api/plan/v3',
   'https://ark.cn-beijing.volces.com/api/v3',
 ]);
+const APIMART_DEFAULT_BASE_URLS = new Set(['https://api.apimart.ai/v1']);
+const PROVIDER_PLAN_TONES: Record<string, { active: string; accent: string; link: string }> = {
+  blue: {
+    active: 'border-blue-500 bg-blue-50/70 ring-1 ring-blue-500/30 dark:bg-blue-950/20',
+    accent: 'text-blue-600 dark:text-blue-300',
+    link: 'text-blue-600 hover:text-blue-700 dark:text-blue-300',
+  },
+  amber: {
+    active: 'border-amber-500 bg-amber-50/70 ring-1 ring-amber-500/30 dark:bg-amber-950/20',
+    accent: 'text-amber-700 dark:text-amber-300',
+    link: 'text-amber-700 hover:text-amber-800 dark:text-amber-300',
+  },
+  violet: {
+    active: 'border-violet-500 bg-violet-50/70 ring-1 ring-violet-500/30 dark:bg-violet-950/20',
+    accent: 'text-violet-700 dark:text-violet-300',
+    link: 'text-violet-700 hover:text-violet-800 dark:text-violet-300',
+  },
+};
 
 // LazyLLM 厂商名集合
 const LAZYLLM_VENDOR_SET = new Set(LAZYLLM_SOURCES.map(s => s.value));
@@ -1202,8 +1255,17 @@ export const Settings: React.FC = () => {
         ai_provider_format: otherData.ai_provider_format,
       };
 
-      // Only send sensitive fields if user entered a new value
-      if (api_key) payload.api_key = api_key;
+      // Only send sensitive fields if user entered a new value. When the
+      // provider changes, clear the old global key so it cannot be sent to a
+      // different vendor; the target provider can still fall back to .env.
+      if (api_key) {
+        payload.api_key = api_key;
+      } else if (
+        settings
+        && String(settings.ai_provider_format || '').toLowerCase() !== String(formData.ai_provider_format || '').toLowerCase()
+      ) {
+        payload.api_key = null;
+      }
       if (mineru_token) payload.mineru_token = mineru_token;
       if (baidu_api_key) payload.baidu_api_key = baidu_api_key;
       if (elevenlabs_api_key) payload.elevenlabs_api_key = elevenlabs_api_key;
@@ -1279,7 +1341,8 @@ export const Settings: React.FC = () => {
       const next = { ...prev, [key]: value };
 
       // Per-model source key → its API base URL field, for stale-default replacement
-      const perModelBaseKeys: Record<string, string> = {
+      type PerModelBaseKey = 'text_api_base_url' | 'image_api_base_url' | 'image_caption_api_base_url';
+      const perModelBaseKeys: Record<string, PerModelBaseKey> = {
         text_model_source: 'text_api_base_url',
         image_model_source: 'image_api_base_url',
         image_caption_model_source: 'image_caption_api_base_url',
@@ -1292,6 +1355,20 @@ export const Settings: React.FC = () => {
           if (KNOWN_DEFAULT_BASE_URLS.has(next.api_base_url)) {
             next.api_base_url = VOLCENGINE_AGENTPLANS_BASE_URL;
           }
+        } else if (value === 'apimart') {
+          if (KNOWN_DEFAULT_BASE_URLS.has(next.api_base_url)) {
+            next.api_base_url = APIMART_BASE_URL;
+          }
+        } else if (prev.ai_provider_format === 'apimart') {
+          if (APIMART_DEFAULT_BASE_URLS.has(next.api_base_url)) {
+            next.api_base_url = '';
+          }
+          if (next.text_model_source === 'apimart') next.text_model_source = '';
+          if (next.image_model_source === 'apimart') next.image_model_source = '';
+          if (next.image_caption_model_source === 'apimart') next.image_caption_model_source = '';
+          if (APIMART_DEFAULT_BASE_URLS.has(next.text_api_base_url)) next.text_api_base_url = '';
+          if (APIMART_DEFAULT_BASE_URLS.has(next.image_api_base_url)) next.image_api_base_url = '';
+          if (APIMART_DEFAULT_BASE_URLS.has(next.image_caption_api_base_url)) next.image_caption_api_base_url = '';
         } else if (VOLCENGINE_DEFAULT_BASE_URLS.has(next.api_base_url)) {
           // 离开 Agent Plans: plan/v3 端点对新 provider 是过时默认值, 清空以
           // 回退到新 provider 的环境变量/默认端点, 自定义 URL 保留
@@ -1305,6 +1382,12 @@ export const Settings: React.FC = () => {
           if (KNOWN_DEFAULT_BASE_URLS.has(next[baseKey])) {
             next[baseKey] = VOLCENGINE_AGENTPLANS_BASE_URL;
           }
+        } else if (value === 'apimart') {
+          if (KNOWN_DEFAULT_BASE_URLS.has(next[baseKey])) {
+            next[baseKey] = APIMART_BASE_URL;
+          }
+        } else if (APIMART_DEFAULT_BASE_URLS.has(next[baseKey])) {
+          next[baseKey] = '';
         } else if (VOLCENGINE_DEFAULT_BASE_URLS.has(next[baseKey])) {
           // 单模型离开 Agent Plans: 清空过时的 plan/v3 端点, 否则该模型的
           // {MODEL}_API_BASE 仍优先于新 provider 的默认端点
@@ -1364,10 +1447,29 @@ export const Settings: React.FC = () => {
     handleFieldChange('ai_provider_format', 'volcengine');
   };
 
+  const selectApimartPlan = () => {
+    setFormData(prev => ({
+      ...prev,
+      ai_provider_format: 'apimart',
+      api_base_url: APIMART_BASE_URL,
+      text_model: APIMART_RECOMMENDED_MODELS.text,
+      image_caption_model: APIMART_RECOMMENDED_MODELS.caption,
+      image_model: APIMART_RECOMMENDED_MODELS.image,
+      text_model_source: 'apimart',
+      image_caption_model_source: 'apimart',
+      image_model_source: 'apimart',
+      text_api_base_url: APIMART_BASE_URL,
+      image_caption_api_base_url: APIMART_BASE_URL,
+      image_api_base_url: APIMART_BASE_URL,
+      openai_image_api_protocol: 'auto',
+    }));
+  };
+
   const isAihubmixPlanActive =
     (formData.ai_provider_format === 'gemini' || formData.ai_provider_format === 'openai')
     && (formData.api_base_url || '').includes('api.inferera.com');
   const isVolcenginePlanActive = formData.ai_provider_format === 'volcengine';
+  const isApimartPlanActive = formData.ai_provider_format === 'apimart';
 
   const providerPlanCards = [
     {
@@ -1388,6 +1490,7 @@ export const Settings: React.FC = () => {
       onSelect: selectAihubmixPlan,
       href: INFERERA_AFFILIATE_URL,
       linkLabel: t('settings.providerComparison.aihubmix.link'),
+      tone: 'blue',
     },
     {
       key: 'volcengine',
@@ -1407,6 +1510,27 @@ export const Settings: React.FC = () => {
       onSelect: selectVolcenginePlan,
       href: volcengineAgentPlansUrl,
       linkLabel: t('settings.providerComparison.volcengine.link'),
+      tone: 'amber',
+    },
+    {
+      key: 'apimart',
+      testId: 'provider-plan-apimart',
+      active: isApimartPlanActive,
+      name: t('settings.providerComparison.apimart.name'),
+      tagline: t('settings.providerComparison.apimart.tagline'),
+      suitedFor: t('settings.providerComparison.apimart.suitedFor'),
+      points: [
+        t('settings.providerComparison.apimart.point1'),
+        t('settings.providerComparison.apimart.point2'),
+        t('settings.providerComparison.apimart.point3'),
+      ],
+      cta: t('settings.providerComparison.apimart.cta'),
+      activeLabel: t('settings.providerComparison.apimart.active'),
+      note: t('settings.providerComparison.apimart.note'),
+      onSelect: selectApimartPlan,
+      href: APIMART_AFFILIATE_URL,
+      linkLabel: t('settings.providerComparison.apimart.link'),
+      tone: 'violet',
     },
   ];
 
@@ -1890,23 +2014,23 @@ export const Settings: React.FC = () => {
                   </p>
                 </div>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {providerPlanCards.map(plan => (
-                  <div
-                    key={plan.key}
-                    data-testid={plan.testId}
-                    className={`flex flex-col rounded-lg border p-3 transition-colors ${
-                      plan.active
-                        ? plan.key === 'aihubmix'
-                          ? 'border-blue-500 bg-blue-50/70 ring-1 ring-blue-500/30 dark:bg-blue-950/20'
-                          : 'border-amber-500 bg-amber-50/70 ring-1 ring-amber-500/30 dark:bg-amber-950/20'
-                        : 'border-gray-200 hover:border-gray-300 dark:border-border-primary dark:hover:border-gray-500'
-                    }`}
-                  >
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {providerPlanCards.map(plan => {
+                  const tone = PROVIDER_PLAN_TONES[plan.tone];
+                  return (
+                    <div
+                      key={plan.key}
+                      data-testid={plan.testId}
+                      className={`flex flex-col rounded-lg border p-3 transition-colors ${
+                        plan.active
+                          ? tone.active
+                          : 'border-gray-200 hover:border-gray-300 dark:border-border-primary dark:hover:border-gray-500'
+                      }`}
+                    >
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <p className="text-sm font-semibold text-gray-900 dark:text-foreground-primary">{plan.name}</p>
-                        <p className={`text-xs font-medium ${plan.key === 'aihubmix' ? 'text-blue-600 dark:text-blue-300' : 'text-amber-700 dark:text-amber-300'}`}>
+                        <p className={`text-xs font-medium ${tone.accent}`}>
                           {plan.tagline}
                         </p>
                       </div>
@@ -1939,17 +2063,14 @@ export const Settings: React.FC = () => {
                         href={plan.href}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className={`text-xs font-medium underline-offset-2 hover:underline ${
-                          plan.key === 'aihubmix'
-                            ? 'text-blue-600 hover:text-blue-700 dark:text-blue-300'
-                            : 'text-amber-700 hover:text-amber-800 dark:text-amber-300'
-                        }`}
+                        className={`text-xs font-medium underline-offset-2 hover:underline ${tone.link}`}
                       >
                         {plan.linkLabel}
                       </a>
                     </div>
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -1971,7 +2092,9 @@ export const Settings: React.FC = () => {
                     ? t('settings.volcenginePromo.providerHint')
                     : option.value === 'doubao'
                       ? t('settings.doubaoVolcenginePromo.providerHint')
-                      : null;
+                      : option.value === 'apimart'
+                        ? t('settings.apimartPromo.providerHint')
+                        : null;
 
                   return (
                     <button
@@ -1981,7 +2104,9 @@ export const Settings: React.FC = () => {
                       aria-checked={isSelected}
                       disabled={isDisabled}
                       data-provider={option.value}
-                      onClick={() => handleFieldChange('ai_provider_format', option.value)}
+                      onClick={() => option.value === 'apimart'
+                        ? selectApimartPlan()
+                        : handleFieldChange('ai_provider_format', option.value)}
                       className={`inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-banana-500 focus:ring-offset-2 dark:focus:ring-offset-background-primary ${
                         isSelected
                           ? 'border-banana-500 bg-banana-400 font-medium text-gray-950 shadow-sm'
@@ -2004,7 +2129,7 @@ export const Settings: React.FC = () => {
               <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">{t('settings.fields.aiProviderFormatDesc')}</p>
             </div>
 
-            {/* Gemini/OpenAI/Volcengine: API Key + Base URL */}
+            {/* API-key providers: API Key + Base URL */}
             {API_KEY_PROVIDERS.has(formData.ai_provider_format) && (
               <div className="space-y-3 pl-3 border-l-2 border-banana-300 dark:border-banana-600">
                 <Input
@@ -2034,7 +2159,9 @@ export const Settings: React.FC = () => {
                     label={t('settings.fields.apiKey')}
                     type="password"
                     placeholder={
-                      settings && (settings.api_key_length as number) > 0
+                      settings
+                      && String(settings.ai_provider_format || '').toLowerCase() === String(formData.ai_provider_format || '').toLowerCase()
+                      && (settings.api_key_length as number) > 0
                         ? t('settings.fields.apiKeySet', { length: settings.api_key_length })
                         : t('settings.fields.apiKeyPlaceholder')
                     }
