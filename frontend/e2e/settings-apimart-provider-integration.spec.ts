@@ -136,9 +136,19 @@ test.describe('Settings: APIMart provider pill', () => {
   });
 
   test('fills APIMart models when a per-model source switches to APIMart', async ({ page }) => {
-    await page.route(url => url.pathname === '/api/settings', route =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockSettings) })
-    );
+    let savedPayload: Record<string, unknown> | null = null;
+    await page.route(url => url.pathname === '/api/settings', async route => {
+      if (route.request().method() === 'PUT') {
+        savedPayload = route.request().postDataJSON() as Record<string, unknown>;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ ...mockSettings, data: { ...mockSettings.data, ...savedPayload } }),
+        });
+        return;
+      }
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockSettings) });
+    });
 
     await page.goto('/settings');
     await page.getByTestId('text_model_source-select').selectOption('apimart');
@@ -150,6 +160,7 @@ test.describe('Settings: APIMart provider pill', () => {
     await expect(modelInputs.nth(1)).toHaveValue('gpt-image-2');
     await expect(modelInputs.nth(2)).toHaveValue('gpt-4o');
 
+    await page.locator('input[type="password"]').nth(1).fill('replacement-text-key');
     await modelInputs.nth(0).fill('custom-text-model');
     await page.getByTestId('text_model_source-select').selectOption('gemini');
     await page.getByTestId('image_model_source-select').selectOption('openai');
@@ -158,6 +169,12 @@ test.describe('Settings: APIMart provider pill', () => {
     await expect(modelInputs.nth(0)).toHaveValue('custom-text-model');
     await expect(modelInputs.nth(1)).toHaveValue('');
     await expect(modelInputs.nth(2)).toHaveValue('');
+
+    await page.getByRole('button', { name: /保存设置/ }).click();
+    await expect(page.getByText('设置保存成功')).toBeVisible();
+    expect(savedPayload?.text_api_key).toBe('replacement-text-key');
+    expect(savedPayload?.image_api_key).toBeNull();
+    expect(savedPayload?.image_caption_api_key).toBeNull();
   });
 
   test('reselecting APIMart preserves custom endpoint and models', async ({ page }) => {

@@ -631,11 +631,11 @@ const initialFormData = {
   image_caption_model_source: '',
   lazyllm_api_keys: {} as Record<string, string>,
   // Per-model API credentials (for gemini/openai per-model overrides)
-  text_api_key: '',
+  text_api_key: '' as string | null,
   text_api_base_url: '',
-  image_api_key: '',
+  image_api_key: '' as string | null,
   image_api_base_url: '',
-  image_caption_api_key: '',
+  image_caption_api_key: '' as string | null,
   image_caption_api_base_url: '',
   openai_image_api_protocol: 'auto',
   // ElevenLabs TTS
@@ -1241,9 +1241,9 @@ export const Settings: React.FC = () => {
       if (mineru_token) payload.mineru_token = mineru_token;
       if (baidu_api_key) payload.baidu_api_key = baidu_api_key;
       if (elevenlabs_api_key) payload.elevenlabs_api_key = elevenlabs_api_key;
-      if (text_api_key) payload.text_api_key = text_api_key;
-      if (image_api_key) payload.image_api_key = image_api_key;
-      if (image_caption_api_key) payload.image_caption_api_key = image_caption_api_key;
+      if (text_api_key !== '') payload.text_api_key = text_api_key;
+      if (image_api_key !== '') payload.image_api_key = image_api_key;
+      if (image_caption_api_key !== '') payload.image_caption_api_key = image_caption_api_key;
 
       // Send lazyllm API keys (only non-empty values)
       const nonEmptyKeys = Object.fromEntries(
@@ -1323,6 +1323,11 @@ export const Settings: React.FC = () => {
         image_model_source: 'image_model',
         image_caption_model_source: 'image_caption_model',
       };
+      const perModelApiKeyKeys: Record<string, string> = {
+        text_model_source: 'text_api_key',
+        image_model_source: 'image_api_key',
+        image_caption_model_source: 'image_caption_api_key',
+      };
 
       if (key === 'ai_provider_format') {
         if (
@@ -1363,6 +1368,14 @@ export const Settings: React.FC = () => {
       } else if (perModelBaseKeys[key]) {
         const baseKey = perModelBaseKeys[key];
         const modelKey = perModelModelKeys[key];
+        const apiKeyKey = perModelApiKeyKeys[key];
+        if (
+          prev[key as keyof typeof prev] === 'apimart'
+          && value !== 'apimart'
+          && prev[apiKeyKey as keyof typeof prev] === ''
+        ) {
+          next[apiKeyKey] = null;
+        }
         if (
           prev[key as keyof typeof prev] === 'apimart'
           && value !== 'apimart'
@@ -1894,7 +1907,7 @@ export const Settings: React.FC = () => {
                     ? t('settings.fields.perModelApiKeySet', { length: settings[item.apiKeyLengthKey] as number })
                     : t('settings.fields.perModelApiKeyPlaceholder')
                 }
-                value={formData[item.apiKeyKey] as string}
+                value={(formData[item.apiKeyKey] as string | null) || ''}
                 onChange={(e) => handleFieldChange(item.apiKeyKey, e.target.value)}
               />
               <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">

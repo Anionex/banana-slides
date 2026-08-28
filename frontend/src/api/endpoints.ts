@@ -1321,9 +1321,9 @@ export const updateSettings = async (
     mineru_token?: string;
     baidu_api_key?: string;
     elevenlabs_api_key?: string;
-    text_api_key?: string;
-    image_api_key?: string;
-    image_caption_api_key?: string;
+    text_api_key?: string | null;
+    image_api_key?: string | null;
+    image_caption_api_key?: string | null;
     lazyllm_api_keys?: Record<string, string>;
   }
 ): Promise<ApiResponse<Settings>> => {
