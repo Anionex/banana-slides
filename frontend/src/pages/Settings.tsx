@@ -1371,11 +1371,7 @@ export const Settings: React.FC = () => {
         const apiKeyKey = perModelApiKeyKeys[key];
         const previousSource = prev[key as keyof typeof prev];
         if (previousSource !== value && (previousSource === 'apimart' || value === 'apimart')) {
-          // Entering APIMart always discards the previous provider's typed key.
-          // Leaving APIMart keeps a replacement key entered before the switch.
-          if (value === 'apimart' || prev[apiKeyKey as keyof typeof prev] === '') {
-            next[apiKeyKey] = null;
-          }
+          next[apiKeyKey] = null;
         }
         if (
           prev[key as keyof typeof prev] === 'apimart'

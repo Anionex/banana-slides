@@ -167,7 +167,6 @@ test.describe('Settings: APIMart provider pill', () => {
     expect(savedPayload?.image_api_key).toBeNull();
     expect(savedPayload?.image_caption_api_key).toBeNull();
 
-    await page.locator('input[type="password"]').nth(1).fill('replacement-text-key');
     await modelInputs.nth(0).fill('custom-text-model');
     await page.getByTestId('text_model_source-select').selectOption('gemini');
     await page.getByTestId('image_model_source-select').selectOption('openai');
@@ -176,6 +175,7 @@ test.describe('Settings: APIMart provider pill', () => {
     await expect(modelInputs.nth(0)).toHaveValue('custom-text-model');
     await expect(modelInputs.nth(1)).toHaveValue('');
     await expect(modelInputs.nth(2)).toHaveValue('');
+    await page.locator('input[type="password"]').nth(1).fill('replacement-text-key');
 
     await page.getByRole('button', { name: /保存设置/ }).click();
     await expect(page.getByText('设置保存成功').last()).toBeVisible();
