@@ -85,15 +85,21 @@ def temporary_settings_override(settings_override: dict):
         provider_keys = _provider_api_config_keys(active_format)
 
         # 应用覆盖设置
-        if settings_override.get("api_key") and provider_keys:
+        if "api_key" in settings_override and provider_keys:
             key_config, _ = provider_keys
             original_values[key_config] = current_app.config.get(key_config)
-            current_app.config[key_config] = settings_override["api_key"]
+            if settings_override["api_key"]:
+                current_app.config[key_config] = settings_override["api_key"]
+            else:
+                current_app.config.pop(key_config, None)
 
-        if settings_override.get("api_base_url") and provider_keys:
+        if "api_base_url" in settings_override and provider_keys:
             _, base_config = provider_keys
             original_values[base_config] = current_app.config.get(base_config)
-            current_app.config[base_config] = settings_override["api_base_url"]
+            if settings_override["api_base_url"]:
+                current_app.config[base_config] = settings_override["api_base_url"]
+            else:
+                current_app.config.pop(base_config, None)
 
         if settings_override.get("ai_provider_format"):
             original_values["AI_PROVIDER_FORMAT"] = current_app.config.get("AI_PROVIDER_FORMAT")
@@ -130,14 +136,20 @@ def temporary_settings_override(settings_override: dict):
             prefix = model_type.upper()
             key_field = f'{model_type}_api_key'
             base_field = f'{model_type}_api_base_url'
-            if settings_override.get(key_field):
+            if key_field in settings_override:
                 config_key = f'{prefix}_API_KEY'
                 original_values[config_key] = current_app.config.get(config_key)
-                current_app.config[config_key] = settings_override[key_field]
-            if settings_override.get(base_field):
+                if settings_override[key_field]:
+                    current_app.config[config_key] = settings_override[key_field]
+                else:
+                    current_app.config.pop(config_key, None)
+            if base_field in settings_override:
                 config_key = f'{prefix}_API_BASE'
                 original_values[config_key] = current_app.config.get(config_key)
-                current_app.config[config_key] = settings_override[base_field]
+                if settings_override[base_field]:
+                    current_app.config[config_key] = settings_override[base_field]
+                else:
+                    current_app.config.pop(config_key, None)
 
         if settings_override.get("mineru_api_base"):
             original_values["MINERU_API_BASE"] = current_app.config.get("MINERU_API_BASE")

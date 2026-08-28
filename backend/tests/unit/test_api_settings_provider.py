@@ -47,6 +47,27 @@ def test_get_test_image_path_prefers_pyinstaller_meipass(tmp_path, monkeypatch):
     assert settings_controller._get_test_image_path() == bundled_asset
 
 
+def test_temporary_settings_override_clears_explicit_null_credentials():
+    app = Flask(__name__)
+    app.config.update(
+        AI_PROVIDER_FORMAT='apimart',
+        APIMART_API_KEY='saved-global-key',
+        TEXT_API_KEY='saved-text-key',
+    )
+
+    with app.app_context():
+        with temporary_settings_override({
+            'ai_provider_format': 'apimart',
+            'api_key': None,
+            'text_api_key': None,
+        }):
+            assert 'APIMART_API_KEY' not in app.config
+            assert 'TEXT_API_KEY' not in app.config
+
+        assert app.config['APIMART_API_KEY'] == 'saved-global-key'
+        assert app.config['TEXT_API_KEY'] == 'saved-text-key'
+
+
 def _build_sync_settings(**overrides):
     defaults = {
         'ai_provider_format': 'gemini',
