@@ -1388,9 +1388,18 @@ export const Settings: React.FC = () => {
           if (next.text_model === APIMART_RECOMMENDED_MODELS.text) next.text_model = '';
           if (next.image_model === APIMART_RECOMMENDED_MODELS.image) next.image_model = '';
           if (next.image_caption_model === APIMART_RECOMMENDED_MODELS.caption) next.image_caption_model = '';
-          if (next.text_model_source === 'apimart') next.text_model_source = '';
-          if (next.image_model_source === 'apimart') next.image_model_source = '';
-          if (next.image_caption_model_source === 'apimart') next.image_caption_model_source = '';
+          if (next.text_model_source === 'apimart') {
+            next.text_model_source = String(value);
+            next.text_api_key = '';
+          }
+          if (next.image_model_source === 'apimart') {
+            next.image_model_source = String(value);
+            next.image_api_key = '';
+          }
+          if (next.image_caption_model_source === 'apimart') {
+            next.image_caption_model_source = String(value);
+            next.image_caption_api_key = '';
+          }
           if (APIMART_DEFAULT_BASE_URLS.has(next.text_api_base_url)) next.text_api_base_url = '';
           if (APIMART_DEFAULT_BASE_URLS.has(next.image_api_base_url)) next.image_api_base_url = '';
           if (APIMART_DEFAULT_BASE_URLS.has(next.image_caption_api_base_url)) next.image_caption_api_base_url = '';
@@ -1489,15 +1498,15 @@ export const Settings: React.FC = () => {
         if (next.image_model === APIMART_RECOMMENDED_MODELS.image) next.image_model = '';
         if (next.image_caption_model === APIMART_RECOMMENDED_MODELS.caption) next.image_caption_model = '';
         if (next.text_model_source === 'apimart') {
-          next.text_model_source = '';
+          next.text_model_source = provider;
           next.text_api_key = '';
         }
         if (next.image_model_source === 'apimart') {
-          next.image_model_source = '';
+          next.image_model_source = provider;
           next.image_api_key = '';
         }
         if (next.image_caption_model_source === 'apimart') {
-          next.image_caption_model_source = '';
+          next.image_caption_model_source = provider;
           next.image_caption_api_key = '';
         }
         if (APIMART_DEFAULT_BASE_URLS.has(next.text_api_base_url)) next.text_api_base_url = '';
@@ -1522,11 +1531,12 @@ export const Settings: React.FC = () => {
       text_model: APIMART_RECOMMENDED_MODELS.text,
       image_caption_model: APIMART_RECOMMENDED_MODELS.caption,
       image_model: APIMART_RECOMMENDED_MODELS.image,
-      // Inherit the global APIMart credentials instead of activating stale
-      // per-model API keys that may belong to another provider.
-      text_model_source: '',
-      image_caption_model_source: '',
-      image_model_source: '',
+      // Persist an explicit source so environment-level per-model sources
+      // cannot override the APIMart plan. The backend still falls back to the
+      // global APIMart credential when no APIMart per-model key is supplied.
+      text_model_source: 'apimart',
+      image_caption_model_source: 'apimart',
+      image_model_source: 'apimart',
       text_api_key: '',
       image_caption_api_key: '',
       image_api_key: '',

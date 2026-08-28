@@ -104,9 +104,9 @@ test.describe('Settings: provider plan comparison', () => {
       .toHaveValue('gpt-image-2');
     await expect(modelGroup(page, 'image_caption_model_source-select').locator('input[type="text"]').first())
       .toHaveValue('gpt-4o');
-    await expect(page.getByTestId('text_model_source-select')).toHaveValue('');
-    await expect(page.getByTestId('image_model_source-select')).toHaveValue('');
-    await expect(page.getByTestId('image_caption_model_source-select')).toHaveValue('');
+    await expect(page.getByTestId('text_model_source-select')).toHaveValue('apimart');
+    await expect(page.getByTestId('image_model_source-select')).toHaveValue('apimart');
+    await expect(page.getByTestId('image_caption_model_source-select')).toHaveValue('apimart');
   });
 
   test('switching from APIMart to Volcengine clears APIMart per-model overrides first', async ({ page }) => {
@@ -135,9 +135,9 @@ test.describe('Settings: provider plan comparison', () => {
 
     await expect(page.getByTestId('global-api-config-section').locator('input').first())
       .toHaveValue('https://ark.cn-beijing.volces.com/api/plan/v3');
-    await expect(page.getByTestId('text_model_source-select')).toHaveValue('');
-    await expect(page.getByTestId('image_model_source-select')).toHaveValue('');
-    await expect(page.getByTestId('image_caption_model_source-select')).toHaveValue('');
+    await expect(page.getByTestId('text_model_source-select')).toHaveValue('volcengine');
+    await expect(page.getByTestId('image_model_source-select')).toHaveValue('volcengine');
+    await expect(page.getByTestId('image_caption_model_source-select')).toHaveValue('volcengine');
     await expect(modelGroup(page, 'text_model_source-select').locator('input[type="text"]').first()).toHaveValue('');
     await expect(modelGroup(page, 'image_model_source-select').locator('input[type="text"]').first()).toHaveValue('');
     await expect(modelGroup(page, 'image_caption_model_source-select').locator('input[type="text"]').first()).toHaveValue('');
@@ -248,9 +248,9 @@ test.describe('Settings: provider plan comparison', () => {
     await expect(modelGroup(page, 'text_model_source-select').locator('input[type="text"]').first()).toHaveValue('');
     await expect(modelGroup(page, 'image_model_source-select').locator('input[type="text"]').first()).toHaveValue('');
     await expect(modelGroup(page, 'image_caption_model_source-select').locator('input[type="text"]').first()).toHaveValue('');
-    await expect(page.getByTestId('text_model_source-select')).toHaveValue('');
-    await expect(page.getByTestId('image_model_source-select')).toHaveValue('');
-    await expect(page.getByTestId('image_caption_model_source-select')).toHaveValue('');
+    await expect(page.getByTestId('text_model_source-select')).toHaveValue('gemini');
+    await expect(page.getByTestId('image_model_source-select')).toHaveValue('gemini');
+    await expect(page.getByTestId('image_caption_model_source-select')).toHaveValue('gemini');
   });
 
   test('choosing Volcengine from the comparison applies the Agent Plan config', async ({ page }) => {

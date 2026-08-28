@@ -81,7 +81,12 @@ def get_provider_format() -> str:
     return (os.getenv('AI_PROVIDER_FORMAT') or 'gemini').lower()
 
 
-def _resolve_setting(key: str, fallback: Optional[str] = None) -> Optional[str]:
+def _resolve_setting(
+    key: str,
+    fallback: Optional[str] = None,
+    *,
+    allow_environment: bool = True,
+) -> Optional[str]:
     """Look up a configuration value using the standard priority chain.
 
     Empty-string values are treated as unset at every level: a blank value
@@ -105,10 +110,11 @@ def _resolve_setting(key: str, fallback: Optional[str] = None) -> Optional[str]:
         pass  # outside Flask request context
 
     # 2) Try environment
-    env_val = os.getenv(key)
-    if env_val:
-        logger.debug("Setting %s resolved from environment", key)
-        return env_val
+    if allow_environment:
+        env_val = os.getenv(key)
+        if env_val:
+            logger.debug("Setting %s resolved from environment", key)
+            return env_val
 
     # 3) Fallback
     if fallback is not None:
@@ -245,7 +251,22 @@ def _get_model_type_provider_config(model_type: str) -> Dict[str, Any]:
     """
     prefix = model_type.upper()  # TEXT, IMAGE, IMAGE_CAPTION
     source_key = f'{prefix}_MODEL_SOURCE'
-    source = _resolve_setting(source_key)
+    source_from_settings = False
+    try:
+        from flask import current_app
+        source_from_settings = bool(
+            current_app
+            and current_app.config.get(f'{source_key}_FROM_SETTINGS')
+        )
+    except RuntimeError:
+        pass
+
+    # An explicit Settings-page override must not fall through to a legacy
+    # environment source after the user clears or changes it.
+    source = _resolve_setting(
+        source_key,
+        allow_environment=not source_from_settings,
+    )
 
     if not source:
         # No per-model override, use global config
@@ -253,9 +274,15 @@ def _get_model_type_provider_config(model_type: str) -> Dict[str, Any]:
 
     source_lower = source.lower()
 
+    def resolve_model_setting(suffix: str) -> Optional[str]:
+        return _resolve_setting(
+            f'{prefix}_{suffix}',
+            allow_environment=not source_from_settings,
+        )
+
     if source_lower == 'gemini':
-        api_key = _resolve_setting(f'{prefix}_API_KEY') or _resolve_setting('GOOGLE_API_KEY')
-        api_base = _resolve_setting(f'{prefix}_API_BASE') or _resolve_setting('GOOGLE_API_BASE')
+        api_key = resolve_model_setting('API_KEY') or _resolve_setting('GOOGLE_API_KEY')
+        api_base = resolve_model_setting('API_BASE') or _resolve_setting('GOOGLE_API_BASE')
         if not api_key:
             raise ValueError(
                 f"API key is required for {model_type} model with Gemini provider. "
@@ -265,10 +292,10 @@ def _get_model_type_provider_config(model_type: str) -> Dict[str, Any]:
         return {'format': 'gemini', 'api_key': api_key, 'api_base': api_base}
 
     elif source_lower == 'openai':
-        api_key = (_resolve_setting(f'{prefix}_API_KEY')
+        api_key = (resolve_model_setting('API_KEY')
                    or _resolve_setting('OPENAI_API_KEY')
                    or _resolve_setting('GOOGLE_API_KEY'))
-        api_base = (_resolve_setting(f'{prefix}_API_BASE')
+        api_base = (resolve_model_setting('API_BASE')
                     or _resolve_setting('OPENAI_API_BASE', 'https://api.inferera.com/v1'))
 
         if not api_key:
@@ -280,10 +307,10 @@ def _get_model_type_provider_config(model_type: str) -> Dict[str, Any]:
         return {'format': 'openai', 'api_key': api_key, 'api_base': api_base}
 
     elif source_lower == 'volcengine':
-        api_key = (_resolve_setting(f'{prefix}_API_KEY')
+        api_key = (resolve_model_setting('API_KEY')
                    or _resolve_setting('VOLCENGINE_API_KEY')
                    or _resolve_setting('ARK_API_KEY'))
-        api_base = (_resolve_setting(f'{prefix}_API_BASE')
+        api_base = (resolve_model_setting('API_BASE')
                     or _resolve_setting('VOLCENGINE_API_BASE', 'https://ark.cn-beijing.volces.com/api/plan/v3'))
 
         if not api_key:
@@ -295,9 +322,9 @@ def _get_model_type_provider_config(model_type: str) -> Dict[str, Any]:
         return {'format': 'volcengine', 'api_key': api_key, 'api_base': api_base}
 
     elif source_lower == 'apimart':
-        api_key = (_resolve_setting(f'{prefix}_API_KEY')
+        api_key = (resolve_model_setting('API_KEY')
                    or _resolve_setting('APIMART_API_KEY'))
-        api_base = (_resolve_setting(f'{prefix}_API_BASE')
+        api_base = (resolve_model_setting('API_BASE')
                     or _resolve_setting('APIMART_API_BASE', 'https://api.apimart.ai/v1'))
         if not api_key:
             raise ValueError(
@@ -318,10 +345,10 @@ def _get_model_type_provider_config(model_type: str) -> Dict[str, Any]:
         return {'format': 'codex', 'api_key': oauth_token}
 
     elif source_lower == 'anthropic':
-        api_key = (_resolve_setting(f'{prefix}_API_KEY')
+        api_key = (resolve_model_setting('API_KEY')
                    or _resolve_setting('ANTHROPIC_API_KEY')
                    or _resolve_setting('OPENAI_API_KEY'))
-        api_base = (_resolve_setting(f'{prefix}_API_BASE')
+        api_base = (resolve_model_setting('API_BASE')
                     or _resolve_setting('ANTHROPIC_API_BASE', 'https://api.anthropic.com'))
         if not api_key:
             raise ValueError(

@@ -124,12 +124,34 @@ def temporary_settings_override(settings_override: dict):
             ("image_caption_model_source", "IMAGE_CAPTION_MODEL_SOURCE"),
         ]:
             if source_field in settings_override:
+                marker_key = f"{config_key}_FROM_SETTINGS"
+                previous_source = current_app.config.get(config_key)
+                previous_from_settings = bool(current_app.config.get(marker_key))
                 original_values[config_key] = current_app.config.get(config_key)
+                original_values[marker_key] = current_app.config.get(marker_key)
                 val = settings_override[source_field]
                 if val:
                     current_app.config[config_key] = val
                 else:
                     current_app.config.pop(config_key, None)
+                current_app.config[marker_key] = True
+
+                # A source selected in the UI cannot safely inherit generic
+                # per-model credentials from another provider's environment.
+                # Preserve them only when this is the same persisted override.
+                if not (previous_from_settings and previous_source == val):
+                    prefix = config_key.removesuffix("_MODEL_SOURCE")
+                    for suffix, override_field in [
+                        ("API_KEY", f"{source_field.removesuffix('_model_source')}_api_key"),
+                        ("API_BASE", f"{source_field.removesuffix('_model_source')}_api_base_url"),
+                    ]:
+                        if override_field not in settings_override:
+                            credential_key = f"{prefix}_{suffix}"
+                            original_values.setdefault(
+                                credential_key,
+                                current_app.config.get(credential_key),
+                            )
+                            current_app.config.pop(credential_key, None)
 
         # Per-model API credentials override
         for model_type in ('text', 'image', 'image_caption'):
@@ -138,14 +160,14 @@ def temporary_settings_override(settings_override: dict):
             base_field = f'{model_type}_api_base_url'
             if key_field in settings_override:
                 config_key = f'{prefix}_API_KEY'
-                original_values[config_key] = current_app.config.get(config_key)
+                original_values.setdefault(config_key, current_app.config.get(config_key))
                 if settings_override[key_field]:
                     current_app.config[config_key] = settings_override[key_field]
                 else:
                     current_app.config.pop(config_key, None)
             if base_field in settings_override:
                 config_key = f'{prefix}_API_BASE'
-                original_values[config_key] = current_app.config.get(config_key)
+                original_values.setdefault(config_key, current_app.config.get(config_key))
                 if settings_override[base_field]:
                     current_app.config[config_key] = settings_override[base_field]
                 else:
@@ -777,15 +799,18 @@ def _sync_settings_to_config(settings: Settings):
     for model_type, source_attr in [('TEXT', 'text_model_source'), ('IMAGE', 'image_model_source'), ('IMAGE_CAPTION', 'image_caption_model_source')]:
         source_val = getattr(settings, source_attr, None)
         config_key = f'{model_type}_MODEL_SOURCE'
+        marker_key = f'{config_key}_FROM_SETTINGS'
         if source_val:
             old_source = current_app.config.get(config_key)
             if old_source != source_val:
                 ai_config_changed = True
             current_app.config[config_key] = source_val
+            current_app.config[marker_key] = True
         else:
             if config_key in current_app.config:
                 ai_config_changed = True
             current_app.config.pop(config_key, None)
+            current_app.config[marker_key] = False
 
     # Sync per-model API credentials (for gemini/openai per-model overrides)
     for model_type in ('text', 'image', 'image_caption'):

@@ -457,8 +457,8 @@ def test_settings_to_dict_uses_volcengine_defaults_for_per_model_source(monkeypa
     assert data['image_caption_api_base_url'] is None
 
 
-def test_settings_to_dict_uses_specific_per_model_api_defaults(monkeypatch):
-    """Per-model provider rows should prefer TEXT/IMAGE-specific env credentials."""
+def test_settings_to_dict_ignores_generic_env_credentials_for_saved_source(monkeypatch):
+    """A saved source must not present another provider's generic env credential."""
     from config import Config
     from models.settings import Settings
 
@@ -473,9 +473,87 @@ def test_settings_to_dict_uses_specific_per_model_api_defaults(monkeypatch):
     settings = Settings(ai_provider_format='gemini', text_model_source='volcengine')
     data = settings.to_dict()
 
-    assert data['text_api_base_url'] == 'https://text-volc.example/api/v3'
-    assert data['text_api_key_length'] == len('text-volc-key')
+    assert data['text_api_base_url'] == 'https://global-volc.example/api/v3'
+    assert data['text_api_key_length'] == len('global-volc-key')
     assert data['api_base_url'] == 'https://generativelanguage.googleapis.com'
+
+
+def test_sync_apimart_source_blocks_legacy_per_model_environment_credentials(monkeypatch):
+    """A saved APIMart source uses APIMart globals, never an old TEXT_* env key."""
+    from config import Config
+
+    monkeypatch.setattr(Config, 'AI_PROVIDER_FORMAT', 'gemini')
+    monkeypatch.setattr(Config, 'GOOGLE_API_BASE', 'https://google-env.example')
+    monkeypatch.setattr(Config, 'GOOGLE_API_KEY', 'google-env-key')
+    monkeypatch.setattr(Config, 'OPENAI_API_BASE', 'https://openai-env.example/v1')
+    monkeypatch.setattr(Config, 'OPENAI_API_KEY', 'openai-env-key')
+    monkeypatch.setattr(Config, 'APIMART_API_BASE', 'https://api.apimart.ai/v1')
+    monkeypatch.setattr(Config, 'APIMART_API_KEY', 'apimart-global-key')
+
+    app = Flask(__name__)
+    app.config.update(
+        AI_PROVIDER_FORMAT='gemini',
+        TEXT_MODEL_SOURCE='openai',
+        TEXT_API_KEY='legacy-openai-text-key',
+        TEXT_API_BASE='https://legacy-openai.example/v1',
+        APIMART_API_KEY='apimart-global-key',
+        APIMART_API_BASE='https://api.apimart.ai/v1',
+    )
+    settings = _build_sync_settings(
+        ai_provider_format='apimart',
+        text_model_source='apimart',
+    )
+
+    with app.app_context():
+        with patch('services.task_manager.sync_resource_limits'):
+            with patch('services.ai_service_manager.clear_ai_service_cache'):
+                _sync_settings_to_config(settings)
+
+        config = ai_providers._get_model_type_provider_config('text')
+
+    assert app.config['TEXT_MODEL_SOURCE'] == 'apimart'
+    assert app.config['TEXT_MODEL_SOURCE_FROM_SETTINGS'] is True
+    assert 'TEXT_API_KEY' not in app.config
+    assert 'TEXT_API_BASE' not in app.config
+    assert config == {
+        'format': 'apimart',
+        'api_key': 'apimart-global-key',
+        'api_base': 'https://api.apimart.ai/v1',
+    }
+
+
+def test_temporary_apimart_source_blocks_and_restores_legacy_per_model_credentials():
+    """Unsaved service tests isolate APIMart from the previous source's key."""
+    app = Flask(__name__)
+    app.config.update(
+        AI_PROVIDER_FORMAT='gemini',
+        TEXT_MODEL_SOURCE='openai',
+        TEXT_API_KEY='legacy-openai-text-key',
+        TEXT_API_BASE='https://legacy-openai.example/v1',
+        APIMART_API_KEY='apimart-global-key',
+        APIMART_API_BASE='https://api.apimart.ai/v1',
+    )
+
+    with app.app_context():
+        with temporary_settings_override({
+            'ai_provider_format': 'apimart',
+            'text_model_source': 'apimart',
+            'text_api_key': None,
+            'text_api_base_url': None,
+        }):
+            assert app.config['TEXT_MODEL_SOURCE_FROM_SETTINGS'] is True
+            assert 'TEXT_API_KEY' not in app.config
+            assert 'TEXT_API_BASE' not in app.config
+            assert ai_providers._get_model_type_provider_config('text') == {
+                'format': 'apimart',
+                'api_key': 'apimart-global-key',
+                'api_base': 'https://api.apimart.ai/v1',
+            }
+
+        assert app.config['TEXT_MODEL_SOURCE'] == 'openai'
+        assert 'TEXT_MODEL_SOURCE_FROM_SETTINGS' not in app.config
+        assert app.config['TEXT_API_KEY'] == 'legacy-openai-text-key'
+        assert app.config['TEXT_API_BASE'] == 'https://legacy-openai.example/v1'
 
 
 def test_sync_settings_scopes_global_api_override_to_active_provider(monkeypatch):

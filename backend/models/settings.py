@@ -131,10 +131,17 @@ class Settings(db.Model):
         text_model_source = self._val('text_model_source', d)
         image_model_source = self._val('image_model_source', d)
         image_caption_model_source = self._val('image_caption_model_source', d)
-        text_api_defaults = Settings._get_api_defaults_for_provider(text_model_source, 'TEXT')
-        image_api_defaults = Settings._get_api_defaults_for_provider(image_model_source, 'IMAGE')
+        text_api_defaults = Settings._get_api_defaults_for_provider(
+            text_model_source,
+            None if self.text_model_source is not None else 'TEXT',
+        )
+        image_api_defaults = Settings._get_api_defaults_for_provider(
+            image_model_source,
+            None if self.image_model_source is not None else 'IMAGE',
+        )
         image_caption_api_defaults = Settings._get_api_defaults_for_provider(
-            image_caption_model_source, 'IMAGE_CAPTION'
+            image_caption_model_source,
+            None if self.image_caption_model_source is not None else 'IMAGE_CAPTION',
         )
         text_api_key = self.text_api_key if self.text_api_key is not None else text_api_defaults['api_key']
         image_api_key = self.image_api_key if self.image_api_key is not None else image_api_defaults['api_key']
