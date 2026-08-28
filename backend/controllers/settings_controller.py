@@ -126,7 +126,6 @@ def temporary_settings_override(settings_override: dict):
             if source_field in settings_override:
                 marker_key = f"{config_key}_FROM_SETTINGS"
                 previous_source = current_app.config.get(config_key)
-                previous_from_settings = bool(current_app.config.get(marker_key))
                 original_values[config_key] = current_app.config.get(config_key)
                 original_values[marker_key] = current_app.config.get(marker_key)
                 val = settings_override[source_field]
@@ -139,7 +138,7 @@ def temporary_settings_override(settings_override: dict):
                 # A source selected in the UI cannot safely inherit generic
                 # per-model credentials from another provider's environment.
                 # Preserve them only when this is the same persisted override.
-                if not (previous_from_settings and previous_source == val):
+                if previous_source != val:
                     prefix = config_key.removesuffix("_MODEL_SOURCE")
                     for suffix, override_field in [
                         ("API_KEY", f"{source_field.removesuffix('_model_source')}_api_key"),
@@ -151,7 +150,13 @@ def temporary_settings_override(settings_override: dict):
                                 credential_key,
                                 current_app.config.get(credential_key),
                             )
+                            credential_marker = f"{credential_key}_FROM_SETTINGS"
+                            original_values.setdefault(
+                                credential_marker,
+                                current_app.config.get(credential_marker),
+                            )
                             current_app.config.pop(credential_key, None)
+                            current_app.config[credential_marker] = True
 
         # Per-model API credentials override
         for model_type in ('text', 'image', 'image_caption'):
@@ -160,18 +165,24 @@ def temporary_settings_override(settings_override: dict):
             base_field = f'{model_type}_api_base_url'
             if key_field in settings_override:
                 config_key = f'{prefix}_API_KEY'
+                marker_key = f'{config_key}_FROM_SETTINGS'
                 original_values.setdefault(config_key, current_app.config.get(config_key))
+                original_values.setdefault(marker_key, current_app.config.get(marker_key))
                 if settings_override[key_field]:
                     current_app.config[config_key] = settings_override[key_field]
                 else:
                     current_app.config.pop(config_key, None)
+                current_app.config[marker_key] = True
             if base_field in settings_override:
                 config_key = f'{prefix}_API_BASE'
+                marker_key = f'{config_key}_FROM_SETTINGS'
                 original_values.setdefault(config_key, current_app.config.get(config_key))
+                original_values.setdefault(marker_key, current_app.config.get(marker_key))
                 if settings_override[base_field]:
                     current_app.config[config_key] = settings_override[base_field]
                 else:
                     current_app.config.pop(config_key, None)
+                current_app.config[marker_key] = True
 
         if settings_override.get("mineru_api_base"):
             original_values["MINERU_API_BASE"] = current_app.config.get("MINERU_API_BASE")
@@ -426,10 +437,12 @@ def update_settings():
             base_field = f'{model_type}_api_base_url'
 
             if key_field in data:
-                setattr(settings, key_field, data[key_field] or None)
+                raw_key = data[key_field]
+                setattr(settings, key_field, str(raw_key) if raw_key else "")
 
             if base_field in data:
-                setattr(settings, base_field, (data[base_field] or "").strip() or None)
+                raw_base = data[base_field]
+                setattr(settings, base_field, str(raw_base).strip() if raw_base else "")
 
         if "lazyllm_api_keys" in data:
             keys_data = data["lazyllm_api_keys"]
@@ -818,6 +831,8 @@ def _sync_settings_to_config(settings: Settings):
         for suffix, setting_suffix in [('_API_KEY', '_api_key'), ('_API_BASE', '_api_base_url')]:
             config_key = f'{prefix}{suffix}'
             val = getattr(settings, f'{model_type}{setting_suffix}', None)
+            marker_key = f'{config_key}_FROM_SETTINGS'
+            current_app.config[marker_key] = val is not None
             if val:
                 if current_app.config.get(config_key) != val:
                     ai_config_changed = True

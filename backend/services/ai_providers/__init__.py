@@ -275,9 +275,20 @@ def _get_model_type_provider_config(model_type: str) -> Dict[str, Any]:
     source_lower = source.lower()
 
     def resolve_model_setting(suffix: str) -> Optional[str]:
+        setting_key = f'{prefix}_{suffix}'
+        setting_from_settings = False
+        try:
+            from flask import current_app
+            setting_from_settings = bool(
+                current_app
+                and current_app.config.get(f'{setting_key}_FROM_SETTINGS')
+            )
+        except RuntimeError:
+            pass
+
         return _resolve_setting(
-            f'{prefix}_{suffix}',
-            allow_environment=not source_from_settings,
+            setting_key,
+            allow_environment=not setting_from_settings,
         )
 
     if source_lower == 'gemini':

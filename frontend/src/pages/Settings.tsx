@@ -1393,7 +1393,9 @@ export const Settings: React.FC = () => {
             next.text_api_key = '';
           }
           if (next.image_model_source === 'apimart') {
-            next.image_model_source = String(value);
+            next.image_model_source = isImageModelSourceSelectable(String(value))
+              ? String(value)
+              : 'doubao';
             next.image_api_key = '';
           }
           if (next.image_caption_model_source === 'apimart') {

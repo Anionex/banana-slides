@@ -63,9 +63,11 @@ def test_temporary_settings_override_clears_explicit_null_credentials():
         }):
             assert 'APIMART_API_KEY' not in app.config
             assert 'TEXT_API_KEY' not in app.config
+            assert app.config['TEXT_API_KEY_FROM_SETTINGS'] is True
 
         assert app.config['APIMART_API_KEY'] == 'saved-global-key'
         assert app.config['TEXT_API_KEY'] == 'saved-text-key'
+        assert 'TEXT_API_KEY_FROM_SETTINGS' not in app.config
 
 
 def _build_sync_settings(**overrides):
@@ -156,6 +158,33 @@ def test_update_settings_accepts_apimart_provider():
     data = response.get_json()
     assert data['success'] is True
     assert data['data']['ai_provider_format'] == 'apimart'
+
+
+def test_update_settings_persists_explicit_per_model_credential_clear():
+    """Null per-model credentials are tombstones, while DB NULL still means use env."""
+    app = Flask(__name__)
+    settings = _build_settings()
+
+    with app.app_context():
+        with app.test_request_context(
+            '/api/settings/',
+            method='PUT',
+            json={
+                'text_model_source': 'apimart',
+                'text_api_key': None,
+                'text_api_base_url': None,
+            },
+        ):
+            with patch('controllers.settings_controller.Settings.get_settings', return_value=settings):
+                with patch('controllers.settings_controller.db.session.commit'):
+                    with patch('controllers.settings_controller._sync_settings_to_config'):
+                        response, status_code = update_settings()
+
+    assert status_code == 200
+    assert response.get_json()['success'] is True
+    assert settings.text_model_source == 'apimart'
+    assert settings.text_api_key == ''
+    assert settings.text_api_base_url == ''
 
 
 def test_volcengine_text_provider_uses_modelark_openai_compatible_base():
@@ -457,8 +486,8 @@ def test_settings_to_dict_uses_volcengine_defaults_for_per_model_source(monkeypa
     assert data['image_caption_api_base_url'] is None
 
 
-def test_settings_to_dict_ignores_generic_env_credentials_for_saved_source(monkeypatch):
-    """A saved source must not present another provider's generic env credential."""
+def test_settings_to_dict_uses_specific_per_model_api_defaults(monkeypatch):
+    """Saved sources still support documented TEXT/IMAGE environment credentials."""
     from config import Config
     from models.settings import Settings
 
@@ -473,8 +502,8 @@ def test_settings_to_dict_ignores_generic_env_credentials_for_saved_source(monke
     settings = Settings(ai_provider_format='gemini', text_model_source='volcengine')
     data = settings.to_dict()
 
-    assert data['text_api_base_url'] == 'https://global-volc.example/api/v3'
-    assert data['text_api_key_length'] == len('global-volc-key')
+    assert data['text_api_base_url'] == 'https://text-volc.example/api/v3'
+    assert data['text_api_key_length'] == len('text-volc-key')
     assert data['api_base_url'] == 'https://generativelanguage.googleapis.com'
 
 
@@ -502,6 +531,8 @@ def test_sync_apimart_source_blocks_legacy_per_model_environment_credentials(mon
     settings = _build_sync_settings(
         ai_provider_format='apimart',
         text_model_source='apimart',
+        text_api_key='',
+        text_api_base_url='',
     )
 
     with app.app_context():
@@ -513,6 +544,8 @@ def test_sync_apimart_source_blocks_legacy_per_model_environment_credentials(mon
 
     assert app.config['TEXT_MODEL_SOURCE'] == 'apimart'
     assert app.config['TEXT_MODEL_SOURCE_FROM_SETTINGS'] is True
+    assert app.config['TEXT_API_KEY_FROM_SETTINGS'] is True
+    assert app.config['TEXT_API_BASE_FROM_SETTINGS'] is True
     assert 'TEXT_API_KEY' not in app.config
     assert 'TEXT_API_BASE' not in app.config
     assert config == {
@@ -542,6 +575,8 @@ def test_temporary_apimart_source_blocks_and_restores_legacy_per_model_credentia
             'text_api_base_url': None,
         }):
             assert app.config['TEXT_MODEL_SOURCE_FROM_SETTINGS'] is True
+            assert app.config['TEXT_API_KEY_FROM_SETTINGS'] is True
+            assert app.config['TEXT_API_BASE_FROM_SETTINGS'] is True
             assert 'TEXT_API_KEY' not in app.config
             assert 'TEXT_API_BASE' not in app.config
             assert ai_providers._get_model_type_provider_config('text') == {

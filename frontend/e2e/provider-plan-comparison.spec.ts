@@ -143,6 +143,32 @@ test.describe('Settings: provider plan comparison', () => {
     await expect(modelGroup(page, 'image_caption_model_source-select').locator('input[type="text"]').first()).toHaveValue('');
   });
 
+  test('switching from APIMart to a text-only vendor keeps a capable image source', async ({ page }) => {
+    await page.route(url => url.pathname === '/api/settings', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mockSettings({
+          ai_provider_format: 'apimart',
+          api_base_url: 'https://api.apimart.ai/v1',
+          text_model: 'gpt-5',
+          image_model: 'gpt-image-2',
+          image_caption_model: 'gpt-4o',
+          text_model_source: 'apimart',
+          image_model_source: 'apimart',
+          image_caption_model_source: 'apimart',
+        })),
+      })
+    );
+    await page.goto('/settings');
+
+    await page.getByTestId('global-provider-pills').locator('[data-provider="deepseek"]').click();
+
+    await expect(page.getByTestId('text_model_source-select')).toHaveValue('deepseek');
+    await expect(page.getByTestId('image_model_source-select')).toHaveValue('doubao');
+    await expect(page.getByTestId('image_caption_model_source-select')).toHaveValue('deepseek');
+  });
+
   test('service testing an unsaved APIMart switch clears stored and typed global keys', async ({ page }) => {
     let testPayload: Record<string, unknown> | null = null;
     const settingsResponse = mockSettings({

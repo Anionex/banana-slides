@@ -383,6 +383,7 @@ def _load_settings_to_config(app):
             for suffix, setting_suffix in [('_API_KEY', '_api_key'), ('_API_BASE', '_api_base_url')]:
                 config_key = f'{prefix}{suffix}'
                 val = getattr(settings, f'{model_type}{setting_suffix}', None)
+                app.config[f'{config_key}_FROM_SETTINGS'] = val is not None
                 if val:
                     app.config[config_key] = val
                     if suffix == '_API_BASE':
