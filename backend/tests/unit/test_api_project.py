@@ -10,6 +10,24 @@ from unittest.mock import patch
 from conftest import assert_success_response, assert_error_response
 
 
+@pytest.mark.parametrize(('raw_error', 'expected'), [
+    ('400 API key not valid: secret-value', 'API key is invalid'),
+    ('403 balance is insufficient', 'API quota or balance is insufficient'),
+    ('403 permission denied', 'API permission denied'),
+    ('429 rate limit exceeded', 'API rate limit exceeded'),
+    ('404 model not found for API version', 'Configured AI model is unavailable'),
+    ('Connection refused by custom endpoint', 'AI service connection failed; check API base URL'),
+    ('unexpected parser failure', '生成过程中发生内部错误'),
+])
+def test_safe_generation_error_message(raw_error, expected):
+    from controllers.project_controller import _safe_generation_error_message
+
+    message = _safe_generation_error_message(RuntimeError(raw_error))
+
+    assert message == expected
+    assert 'secret-value' not in message
+
+
 class TestProjectCreate:
     """项目创建测试"""
     
@@ -401,6 +419,66 @@ class TestProjectOutlineStream:
 
         assert pages[0]['part'] == ''
         assert pages[1]['part'] is None
+
+    def test_outline_stream_exposes_actionable_api_error_without_provider_details(self, client, monkeypatch):
+        response = client.post('/api/projects', json={
+            'creation_type': 'idea',
+            'idea_prompt': '测试 API 错误恢复',
+        })
+        project_id = assert_success_response(response, 201)['data']['project_id']
+
+        class FakeAIService:
+            def generate_outline_stream(self, project_context, language=None):
+                raise RuntimeError('400 API key not valid: secret-value')
+                yield  # pragma: no cover
+
+        monkeypatch.setattr('controllers.project_controller.get_ai_service', lambda: FakeAIService())
+
+        stream_response = client.post(
+            f'/api/projects/{project_id}/generate/outline/stream',
+            json={'language': 'zh'},
+            buffered=True,
+        )
+        body = stream_response.get_data(as_text=True)
+
+        assert stream_response.status_code == 200
+        assert 'event: error' in body
+        assert 'API key is invalid' in body
+        assert 'secret-value' not in body
+
+    def test_description_stream_exposes_actionable_quota_error(self, client, monkeypatch):
+        response = client.post('/api/projects', json={
+            'creation_type': 'idea',
+            'idea_prompt': '测试描述 API 错误恢复',
+        })
+        project_id = assert_success_response(response, 201)['data']['project_id']
+        page_response = client.post(f'/api/projects/{project_id}/pages', json={
+            'order_index': 0,
+            'outline_content': {'title': '第一页', 'points': ['要点']},
+        })
+        assert_success_response(page_response, 201)
+
+        class FakeAIService:
+            def flatten_outline(self, outline):
+                return [{'title': '第一页', 'points': ['要点']}]
+
+            def generate_descriptions_stream(self, *args, **kwargs):
+                raise RuntimeError('403 balance is insufficient: account detail')
+                yield  # pragma: no cover
+
+        monkeypatch.setattr('controllers.project_controller.get_ai_service', lambda: FakeAIService())
+
+        stream_response = client.post(
+            f'/api/projects/{project_id}/generate/descriptions/stream',
+            json={'language': 'zh'},
+            buffered=True,
+        )
+        body = stream_response.get_data(as_text=True)
+
+        assert stream_response.status_code == 200
+        assert 'event: error' in body
+        assert 'API quota or balance is insufficient' in body
+        assert 'account detail' not in body
 
     def test_flatten_outline_strips_title_and_part_whitespace(self):
         """归一化时应清理标题和分组名首尾空白"""
