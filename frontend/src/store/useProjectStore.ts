@@ -875,6 +875,10 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     const pages = currentProject.pages.filter((p) => p.id);
     if (pages.length === 0) return;
+    if (pages.some((page) => page.status === 'GENERATING_DESCRIPTION')) {
+      devLog('[生成描述] 当前项目已有描述生成任务，跳过重复请求');
+      return;
+    }
 
     // 检查描述生成模式，优先从 sessionStorage 缓存读取以避免额外 API 调用
     let mode: string = 'streaming';
@@ -1060,11 +1064,15 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           throw new Error(t('store.noTaskId'));
         }
 
+        set({ activeTaskId: taskId });
+
         let pollErrors = 0;
+        let pollTimeoutReported = false;
         const pollAndSync = async () => {
           try {
             const taskResponse = await api.getTaskStatus(projectId, taskId);
             const task = taskResponse.data;
+            pollErrors = 0;
 
             if (task) {
               if (task.progress) {
@@ -1093,23 +1101,24 @@ export const useProjectStore = create<ProjectState>((set, get) => {
               } else if (task.status === 'PENDING' || task.status === 'PROCESSING') {
                 setTimeout(pollAndSync, 2000);
               }
+            } else {
+              setTimeout(pollAndSync, 2000);
             }
           } catch (error: any) {
             console.error('[生成描述] 轮询错误:', error);
             pollErrors++;
-            if (pollErrors >= 10) {
-              console.error('[生成描述] 轮询错误次数过多，停止轮询');
+            if (pollErrors >= 10 && !pollTimeoutReported) {
+              console.error('[生成描述] 轮询错误次数过多，降低频率继续轮询');
               const message = normalizeErrorMessage(error.message || t('store.generateDescTimeout'));
               set({
                 taskProgress: null,
-                activeTaskId: null,
                 error: message,
                 errorRecovery: { message, path: recoveryPath, state: recoveryState },
               });
-              return;
+              pollTimeoutReported = true;
             }
             await syncTaskProjectIfCurrent();
-            setTimeout(pollAndSync, 2000);
+            setTimeout(pollAndSync, pollErrors >= 10 ? 10000 : 2000);
           }
         };
 

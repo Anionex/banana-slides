@@ -240,6 +240,9 @@ export const DetailEditor: React.FC = () => {
   const [generationMode, setGenerationMode] = useState<'streaming' | 'parallel'>('streaming');
   const [extraFieldNames, setExtraFieldNames] = useState<string[]>(DEFAULT_EXTRA_FIELDS);
   const [imagePromptFields, setImagePromptFields] = useState<string[]>(DEFAULT_IMAGE_PROMPT_FIELDS);
+  const isBatchGenerating = currentProject?.pages.some(
+    (page) => page.status === 'GENERATING_DESCRIPTION'
+  ) ?? false;
   // 可选字段池（localStorage 持久化，包含所有已知字段名）
   const [availableFields, setAvailableFields] = useState<string[]>(() => {
     try {
@@ -777,6 +780,7 @@ export const DetailEditor: React.FC = () => {
               variant="primary"
               icon={<Sparkles size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={handleGenerateAll}
+              loading={isBatchGenerating}
               className="flex-1 sm:flex-initial text-sm md:text-base"
             >
               {t('detail.batchGenerate')}

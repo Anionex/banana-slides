@@ -31,6 +31,7 @@ import {
   generateDescriptions,
   generateOutlineStream,
   getProject,
+  getTaskStatus,
   uploadTemplateAsset,
 } from '@/api/endpoints'
 
@@ -488,5 +489,57 @@ describe('useProjectStore 描述失败回滚', () => {
     })
 
     expect(result.current.currentProject?.pages[0].status).toBe('DRAFT')
+  })
+
+  it('轮询连续失败后保持生成锁定并继续恢复任务状态', async () => {
+    vi.useFakeTimers()
+    vi.mocked(generateDescriptions).mockResolvedValueOnce({ data: { task_id: 'task-desc' } } as any)
+    vi.mocked(getTaskStatus).mockRejectedValue(new Error('poll unavailable'))
+    vi.mocked(getProject).mockRejectedValue(new Error('sync unavailable'))
+    const completedProject = {
+      ...useProjectStore.getState().currentProject,
+      pages: [{ id: 'page-1', status: 'DESCRIPTION_GENERATED', order_index: 0, outline_content: { title: 'Page', points: [] } }],
+    }
+    const { result } = renderHook(() => useProjectStore())
+
+    try {
+      await act(async () => {
+        await result.current.generateDescriptions()
+      })
+
+      expect(result.current.activeTaskId).toBe('task-desc')
+      expect(result.current.currentProject?.pages[0].status).toBe('GENERATING_DESCRIPTION')
+
+      for (let attempt = 0; attempt < 10; attempt++) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(2000)
+        })
+      }
+
+      expect(vi.mocked(getTaskStatus)).toHaveBeenCalledTimes(10)
+      expect(result.current.activeTaskId).toBe('task-desc')
+      expect(result.current.currentProject?.pages[0].status).toBe('GENERATING_DESCRIPTION')
+
+      await act(async () => {
+        await result.current.generateDescriptions()
+      })
+      expect(vi.mocked(generateDescriptions)).toHaveBeenCalledTimes(1)
+
+      vi.mocked(getTaskStatus).mockResolvedValueOnce({
+        data: { task_id: 'task-desc', status: 'COMPLETED' },
+      } as any)
+      vi.mocked(getProject).mockResolvedValue({ data: completedProject } as any)
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10000)
+      })
+
+      expect(vi.mocked(getTaskStatus)).toHaveBeenCalledTimes(11)
+      expect(result.current.activeTaskId).toBeNull()
+      expect(result.current.currentProject?.pages[0].status).toBe('DESCRIPTION_GENERATED')
+    } finally {
+      vi.clearAllTimers()
+      vi.useRealTimers()
+    }
   })
 })

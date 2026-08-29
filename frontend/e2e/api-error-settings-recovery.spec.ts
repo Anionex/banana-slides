@@ -875,6 +875,77 @@ test.describe('API error settings recovery', () => {
     }
   })
 
+  test('mock: an uncertain parallel task keeps batch generation locked', async ({ page }) => {
+    const projectId = 'mock-parallel-task-locked'
+    const project = {
+      id: projectId,
+      project_id: projectId,
+      creation_type: 'idea',
+      status: 'OUTLINE_GENERATED',
+      pages: [{
+        id: `${projectId}-page`,
+        page_id: `${projectId}-page`,
+        order_index: 0,
+        outline_content: { title: '仍在确认任务状态', points: ['避免重复计费'] },
+        status: 'GENERATING_DESCRIPTION',
+      }],
+    }
+    let generationRequestCount = 0
+
+    await page.addInitScript(() => {
+      sessionStorage.setItem('banana-settings', JSON.stringify({
+        description_generation_mode: 'parallel',
+      }))
+      localStorage.setItem('hasSeenHelpModal', 'true')
+    })
+    await page.route(
+      (url) => url.pathname.startsWith('/api/'),
+      async (route) => {
+        const request = route.request()
+        const url = new URL(request.url())
+
+        if (url.pathname === `/api/projects/${projectId}` && request.method() === 'GET') {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ success: true, data: project }),
+          })
+        }
+
+        if (url.pathname === `/api/projects/${projectId}/generate/descriptions` && request.method() === 'POST') {
+          generationRequestCount += 1
+        }
+
+        if (url.pathname === '/api/settings' && request.method() === 'GET') {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              success: true,
+              data: {
+                ai_provider_format: 'gemini',
+                description_generation_mode: 'parallel',
+                description_extra_fields: [],
+              },
+            }),
+          })
+        }
+
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: [] }),
+        })
+      }
+    )
+
+    await page.goto(`/project/${projectId}/detail`)
+    const batchButton = page.getByRole('button', { name: '批量生成描述' })
+    await expect(batchButton).toBeDisabled()
+    await batchButton.click({ force: true })
+    expect(generationRequestCount).toBe(0)
+  })
+
   test('integration: description quota error saves real settings and returns to the same project', async ({ page }) => {
     const { projectId } = await seedProjectWithImages(BACKEND_URL, 1)
     const settingsResponse = await fetch(`${BACKEND_URL}/api/settings`)
