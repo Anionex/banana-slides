@@ -528,6 +528,7 @@ describe('useProjectStore 描述失败回滚', () => {
       vi.mocked(getTaskStatus).mockResolvedValue({
         data: { task_id: 'task-desc', status: 'COMPLETED' },
       } as any)
+      window.history.pushState({}, '', '/')
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(10000)
@@ -537,12 +538,21 @@ describe('useProjectStore 描述失败回滚', () => {
       expect(result.current.activeTaskId).toBe('task-desc')
       expect(result.current.currentProject?.pages[0].status).toBe('GENERATING_DESCRIPTION')
 
-      vi.mocked(getProject).mockResolvedValue({ data: completedProject } as any)
+      window.history.pushState({}, '', '/project/proj-desc/detail')
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(10000)
+        await vi.advanceTimersByTimeAsync(2000)
       })
 
       expect(vi.mocked(getTaskStatus)).toHaveBeenCalledTimes(12)
+      expect(result.current.activeTaskId).toBe('task-desc')
+      expect(result.current.currentProject?.pages[0].status).toBe('GENERATING_DESCRIPTION')
+
+      vi.mocked(getProject).mockResolvedValue({ data: completedProject } as any)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000)
+      })
+
+      expect(vi.mocked(getTaskStatus)).toHaveBeenCalledTimes(13)
       expect(result.current.activeTaskId).toBeNull()
       expect(result.current.currentProject?.pages[0].status).toBe('DESCRIPTION_GENERATED')
     } finally {

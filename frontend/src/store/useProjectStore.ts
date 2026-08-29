@@ -1082,7 +1082,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
               }
 
               if (task.status === 'COMPLETED') {
-                if (getRouteProjectId() !== projectId) {
+                if (get().currentProject?.id !== projectId) {
                   set({ taskProgress: null, activeTaskId: null });
                   return;
                 }
@@ -1091,7 +1091,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
                 if (synced) {
                   set({ taskProgress: null, activeTaskId: null });
                 } else {
-                  setTimeout(pollAndSync, 10000);
+                  setTimeout(pollAndSync, 2000);
                 }
               } else if (task.status === 'FAILED') {
                 const message = normalizeErrorMessage(

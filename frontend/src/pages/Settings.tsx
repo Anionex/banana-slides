@@ -499,7 +499,11 @@ import {
   writeSettingsCache,
 } from '@/utils/settingsCache';
 import type { OpenAIOAuthCacheStatus } from '@/utils/settingsCache';
-import { updateSettingsSerially } from '@/utils/settingsUpdates';
+import {
+  getSettingsAfterPendingUpdates,
+  resetSettingsSerially,
+  updateSettingsSerially,
+} from '@/utils/settingsUpdates';
 
 // 配置项类型定义
 type FieldType = 'text' | 'password' | 'number' | 'select' | 'buttons' | 'switch';
@@ -1271,7 +1275,7 @@ export const Settings: React.FC<SettingsProps> = ({ onSaveSuccess, saveLabel }) 
     const settingsRequestId = beginSettingsCacheRequest();
     setIsLoading(true);
     try {
-      const response = await api.getSettings();
+      const response = await getSettingsAfterPendingUpdates();
       if (response.data) {
         const cacheAccepted = writeSettingsCache(response.data, settingsRequestId);
         const loadedSettings = cacheAccepted ? response.data : readSettingsCache() || response.data;
@@ -1374,7 +1378,7 @@ export const Settings: React.FC<SettingsProps> = ({ onSaveSuccess, saveLabel }) 
       async () => {
         setIsSaving(true);
         try {
-          const response = await api.resetSettings();
+          const response = await resetSettingsSerially();
           if (response.data) {
             writeSettingsCache(response.data);
             oauthStatusRef.current = {
