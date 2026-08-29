@@ -263,6 +263,7 @@ export const DetailEditor: React.FC = () => {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const fileMenuRef = useRef<HTMLDivElement>(null);
   const settingsSaveTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const pendingSettingsUpdatesRef = useRef<Record<string, unknown>>({});
 
   // Load settings from DB on mount
   useEffect(() => {
@@ -292,25 +293,35 @@ export const DetailEditor: React.FC = () => {
     return () => { cancelled = true; };
   }, []);
 
-  // Debounced save settings to DB
-  const saveSettingsDebounced = useCallback((updates: Record<string, unknown>) => {
-    if (settingsSaveTimerRef.current) clearTimeout(settingsSaveTimerRef.current);
-    settingsSaveTimerRef.current = setTimeout(async () => {
-      try {
-        const res = await updateSettingsSerially(updates as any);
-        if (res.data) {
-          // PUT responses are full server snapshots; commit them in completion order.
-          writeSettingsCache(res.data);
-        }
-      } catch (e) {
-        console.error('Failed to save settings:', e);
-      }
-    }, 800);
+  const flushPendingSettingsUpdates = useCallback(() => {
+    if (settingsSaveTimerRef.current) {
+      clearTimeout(settingsSaveTimerRef.current);
+      settingsSaveTimerRef.current = undefined;
+    }
+    const updates = pendingSettingsUpdatesRef.current;
+    if (Object.keys(updates).length === 0) return;
+    pendingSettingsUpdatesRef.current = {};
+
+    void updateSettingsSerially(updates as any)
+      .then((res) => {
+        if (res.data) writeSettingsCache(res.data);
+      })
+      .catch((error) => {
+        console.error('Failed to save settings:', error);
+      });
   }, []);
 
-  useEffect(() => () => {
+  // Debounced save settings to DB
+  const saveSettingsDebounced = useCallback((updates: Record<string, unknown>) => {
+    pendingSettingsUpdatesRef.current = {
+      ...pendingSettingsUpdatesRef.current,
+      ...updates,
+    };
     if (settingsSaveTimerRef.current) clearTimeout(settingsSaveTimerRef.current);
-  }, []);
+    settingsSaveTimerRef.current = setTimeout(flushPendingSettingsUpdates, 800);
+  }, [flushPendingSettingsUpdates]);
+
+  useEffect(() => () => flushPendingSettingsUpdates(), [flushPendingSettingsUpdates]);
 
   // 额外字段拖拽排序
   const fieldSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));

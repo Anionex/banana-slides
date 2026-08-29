@@ -896,7 +896,7 @@ test.describe('API error settings recovery', () => {
       description_extra_fields: ['配图与素材', '版式与重点', '演讲者备注'],
       image_prompt_extra_fields: ['配图与素材', '版式与重点'],
     }
-    let settingsGetCount = 0
+    let settingsPageGetCount = 0
     let signalSaveStarted!: () => void
     const saveStarted = new Promise<void>((resolve) => { signalSaveStarted = resolve })
     let releaseSave!: () => void
@@ -922,7 +922,10 @@ test.describe('API error settings recovery', () => {
         }
 
         if (url.pathname === '/api/settings' && request.method() === 'GET') {
-          settingsGetCount += 1
+          const referer = request.headers()['referer']
+          if (referer && new URL(referer).pathname === '/settings') {
+            settingsPageGetCount += 1
+          }
           return route.fulfill({
             status: 200,
             contentType: 'application/json',
@@ -956,8 +959,7 @@ test.describe('API error settings recovery', () => {
       await page.goto(`/project/${projectId}/detail`)
       await page.getByRole('button', { name: '描述设置' }).click()
       await page.getByRole('button', { name: '并行', exact: true }).click()
-      await saveStarted
-      const settingsGetCountBeforeNavigation = settingsGetCount
+      await page.getByRole('button', { name: '演讲者备注' }).click()
 
       await page.evaluate(() => {
         const currentState = window.history.state || {}
@@ -969,17 +971,26 @@ test.describe('API error settings recovery', () => {
         window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }))
       })
       await expect(page).toHaveURL(/\/settings$/)
+      await saveStarted
       await page.waitForTimeout(500)
-      expect(settingsGetCount).toBe(settingsGetCountBeforeNavigation)
+      expect(settingsPageGetCount).toBe(0)
 
       releaseSave()
       await saveCompleted
-      await expect.poll(() => settingsGetCount).toBeGreaterThan(settingsGetCountBeforeNavigation)
+      await expect.poll(() => settingsPageGetCount).toBeGreaterThan(0)
       await expect(page.getByRole('heading', { name: '系统设置' })).toBeVisible()
       expect(await page.evaluate(() => {
         const cached = sessionStorage.getItem('banana-settings')
-        return cached ? JSON.parse(cached).description_generation_mode : null
-      })).toBe('parallel')
+        if (!cached) return null
+        const settings = JSON.parse(cached)
+        return {
+          mode: settings.description_generation_mode,
+          fields: settings.description_extra_fields,
+        }
+      })).toEqual({
+        mode: 'parallel',
+        fields: ['配图与素材', '版式与重点'],
+      })
     } finally {
       releaseSave()
     }
