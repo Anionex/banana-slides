@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { API_ERROR_RECOVERY } from '@/hooks/useApiSettingsRecovery';
 import { useTranslation } from 'react-i18next';
 import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain, ArrowUp, HelpCircle, Link2, ChevronDown, Volume2, Info, RefreshCw, CheckCircle, Lightbulb, Sparkles, AlertCircle } from 'lucide-react';
 import { useT } from '@/hooks/useT';
@@ -2597,7 +2598,7 @@ export const SettingsPage: React.FC = () => {
     recovery?: unknown;
     sourceState?: unknown;
   } | null;
-  const recoveryFrom = navigationState?.recovery === 'api-error'
+  const recoveryFrom = navigationState?.recovery === API_ERROR_RECOVERY
     && typeof navigationState.from === 'string'
     && navigationState.from.startsWith('/')
     && !navigationState.from.startsWith('//')

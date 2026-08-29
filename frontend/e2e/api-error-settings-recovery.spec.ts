@@ -120,7 +120,7 @@ test.describe('API error settings recovery', () => {
     await expect(page).toHaveURL(/\/history$/)
   })
 
-  test('mock: leaving recovery without saving returns without retrying generation', async ({ page }) => {
+  test('mock: browser Back from recovery returns without retrying generation', async ({ page }) => {
     const projectId = 'mock-api-recovery-cancel'
     const { getOutlineRequestCount } = await mockOutlineRecoveryApis(page, projectId)
 
@@ -130,12 +130,152 @@ test.describe('API error settings recovery', () => {
 
     await page.getByRole('button', { name: '检查 API 设置' }).click()
     await expect(page).toHaveURL(/\/settings$/)
-    await page.getByRole('button', { name: '返回编辑器' }).click()
+    await page.goBack()
 
     await expect(page).toHaveURL(new RegExp(`/project/${projectId}/outline$`))
     await expect(page.getByText('编辑大纲', { exact: true })).toBeVisible()
     await page.waitForTimeout(750)
     expect(getOutlineRequestCount()).toBe(1)
+  })
+
+  test('mock: stale application access code does not offer API settings recovery', async ({ page }) => {
+    const projectId = 'mock-stale-access-code'
+    const project = {
+      id: projectId,
+      project_id: projectId,
+      creation_type: 'idea',
+      idea_prompt: 'Stale access code project',
+      status: 'DRAFT',
+      pages: [],
+    }
+
+    await page.route(
+      (url) => url.pathname.startsWith('/api/'),
+      async (route) => {
+        const request = route.request()
+        const url = new URL(request.url())
+
+        if (url.pathname === `/api/projects/${projectId}/generate/outline/stream`) {
+          return route.fulfill({
+            status: 403,
+            contentType: 'application/json',
+            body: JSON.stringify({ error: 'Access code required' }),
+          })
+        }
+
+        if (url.pathname === `/api/projects/${projectId}` && request.method() === 'GET') {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ success: true, data: project }),
+          })
+        }
+
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: {} }),
+        })
+      }
+    )
+
+    await page.goto(`/project/${projectId}/outline`)
+
+    await expect(page.getByText('访问口令已失效，请刷新页面后重新验证。')).toBeVisible()
+    await expect(page.getByRole('button', { name: '检查 API 设置' })).toHaveCount(0)
+  })
+
+  test('mock: parallel description task failure offers API settings recovery', async ({ page }) => {
+    const projectId = 'mock-parallel-description-error'
+    const pageId = 'mock-parallel-page'
+    const taskId = 'mock-parallel-task'
+    const project = {
+      id: projectId,
+      project_id: projectId,
+      creation_type: 'idea',
+      status: 'OUTLINE_GENERATED',
+      pages: [{
+        id: pageId,
+        page_id: pageId,
+        order_index: 0,
+        outline_content: { title: '并行描述页', points: ['要点'] },
+        status: 'DRAFT',
+      }],
+    }
+
+    await page.addInitScript(() => {
+      sessionStorage.setItem('banana-settings', JSON.stringify({
+        description_generation_mode: 'parallel',
+      }))
+    })
+    await page.route(
+      (url) => url.pathname.startsWith('/api/'),
+      async (route) => {
+        const request = route.request()
+        const url = new URL(request.url())
+
+        if (url.pathname === `/api/projects/${projectId}` && request.method() === 'GET') {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ success: true, data: project }),
+          })
+        }
+
+        if (url.pathname === `/api/projects/${projectId}/generate/descriptions` && request.method() === 'POST') {
+          return route.fulfill({
+            status: 202,
+            contentType: 'application/json',
+            body: JSON.stringify({ success: true, data: { task_id: taskId } }),
+          })
+        }
+
+        if (url.pathname === `/api/projects/${projectId}/tasks/${taskId}`) {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              success: true,
+              data: {
+                task_id: taskId,
+                status: 'FAILED',
+                progress: { total: 1, completed: 0, failed: 1 },
+                error_message: 'API quota or balance is insufficient',
+              },
+            }),
+          })
+        }
+
+        if (url.pathname === '/api/settings' && request.method() === 'GET') {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              success: true,
+              data: {
+                ai_provider_format: 'gemini',
+                description_generation_mode: 'parallel',
+                description_extra_fields: [],
+              },
+            }),
+          })
+        }
+
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: [] }),
+        })
+      }
+    )
+
+    await page.goto(`/project/${projectId}/detail`)
+    await page.getByRole('button', { name: '批量生成描述' }).click()
+
+    const settingsAction = page.getByRole('button', { name: '检查 API 设置' })
+    await expect(settingsAction).toBeVisible({ timeout: 5000 })
+    await settingsAction.click()
+    await expect(page).toHaveURL(/\/settings$/)
   })
 
   test('integration: description quota error saves real settings and returns to the same project', async ({ page }) => {
@@ -189,6 +329,7 @@ test.describe('API error settings recovery', () => {
       await expect(page).toHaveURL(new RegExp(`/project/${projectId}/detail$`))
       await expect(page.getByText('编辑页面描述', { exact: true })).toBeVisible()
     } finally {
+      await page.unrouteAll({ behavior: 'wait' })
       await fetch(`${BACKEND_URL}/api/projects/${projectId}`, { method: 'DELETE' })
     }
   })

@@ -128,7 +128,7 @@ import { useImagePaste, buildMaterialsMarkdown } from '@/hooks/useImagePaste';
 import type { Material } from '@/types';
 import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtils';
 import type { Page } from '@/types';
-import { useApiSettingsRecovery } from '@/hooks/useApiSettingsRecovery';
+import { consumeOutlineRecoverySuppression, useApiSettingsRecovery } from '@/hooks/useApiSettingsRecovery';
 
 // 可排序的卡片包装器
 const SortableCard: React.FC<{
@@ -429,10 +429,13 @@ export const OutlineEditor: React.FC = () => {
   };
 
   useEffect(() => {
-    if (!currentProject?.id || currentProject.pages.length > 0 || isOutlineStreaming) return;
+    if (!currentProject?.id) return;
+    const currentPath = `${location.pathname}${location.search}${location.hash}`;
+    const suppressAfterRecovery = apiSettingsRecovered || consumeOutlineRecoverySuppression(currentPath);
+    if (currentProject.pages.length > 0 || isOutlineStreaming) return;
     if (!['idea', 'outline', 'descriptions'].includes(currentProject.creation_type || 'idea')) return;
     if (autoGenerateStartedRef.current === currentProject.id) return;
-    if (apiSettingsRecovered) {
+    if (suppressAfterRecovery) {
       autoGenerateStartedRef.current = currentProject.id;
       return;
     }
@@ -452,7 +455,7 @@ export const OutlineEditor: React.FC = () => {
         show(withApiSettingsRecovery(error, { message, type: 'error' }));
       }
     })();
-  }, [apiSettingsRecovered, currentProject?.id, currentProject?.pages.length, currentProject?.creation_type, generateOutlineStream, isOutlineStreaming, show, t, withApiSettingsRecovery]);
+  }, [apiSettingsRecovered, currentProject?.id, currentProject?.pages.length, currentProject?.creation_type, generateOutlineStream, isOutlineStreaming, location.hash, location.pathname, location.search, show, t, withApiSettingsRecovery]);
 
   const handleAiRefineOutline = useCallback(async (requirement: string, previousRequirements: string[]) => {
     if (!currentProject || !projectId) return;

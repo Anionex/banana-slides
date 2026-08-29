@@ -49,12 +49,20 @@ describe('normalizeErrorMessage', () => {
     ['API rate limit exceeded', '请求过于频繁'],
     ['Configured AI model is unavailable', 'AI 模型不可用'],
     ['AI service connection failed; check API base URL', '检查 API 地址'],
+    ['Access code required', '刷新页面后重新验证'],
   ])('localizes provider recovery errors: %s', (raw, expected) => {
     expect(normalizeErrorMessage(raw)).toContain(expected);
   });
 });
 
 describe('isApiSettingsError', () => {
+  test('does not reclassify a normalized application access-code 403 as provider recovery', () => {
+    expect(isApiSettingsError(normalizeErrorMessage('HTTP 403'))).toBe(false);
+
+    localStorage.setItem('i18nextLng', 'en');
+    expect(isApiSettingsError(normalizeErrorMessage('HTTP 403'))).toBe(false);
+  });
+
   test.each([
     'HTTP 401',
     '403 Forbidden',

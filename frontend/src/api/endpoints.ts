@@ -150,6 +150,31 @@ export interface OutlineStreamCallbacks {
   onError: (message: string) => void;
 }
 
+async function readStreamHttpError(response: Response): Promise<string> {
+  const fallback = `HTTP ${response.status}`;
+
+  try {
+    const payload = await response.json() as {
+      message?: unknown;
+      error?: unknown;
+    };
+    const error = payload.error;
+    const message = typeof error === 'string'
+      ? error
+      : error && typeof error === 'object'
+        ? (error as { message?: unknown }).message
+        : payload.message;
+    if (typeof message !== 'string') return fallback;
+
+    const normalized = message.trim().toLowerCase();
+    return normalized.includes('access code required') || normalized.includes('invalid access code')
+      ? message.trim()
+      : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export const generateOutlineStream = async (
   projectId: string,
   callbacks: OutlineStreamCallbacks,
@@ -169,7 +194,7 @@ export const generateOutlineStream = async (
   });
 
   if (!response.ok || !response.body) {
-    callbacks.onError(`HTTP ${response.status}`);
+    callbacks.onError(await readStreamHttpError(response));
     return;
   }
 
@@ -282,7 +307,7 @@ export const generateDescriptionsStream = async (
   });
 
   if (!response.ok || !response.body) {
-    callbacks.onError(`HTTP ${response.status}`);
+    callbacks.onError(await readStreamHttpError(response));
     return;
   }
 

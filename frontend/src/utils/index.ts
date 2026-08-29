@@ -168,6 +168,8 @@ export function normalizeErrorMessage(errorMessage: string | null | undefined): 
     return isZh ? '当前 AI 模型不可用，请检查 API 设置中的模型名称。' : 'The configured AI model is unavailable. Check the model name in API settings.';
   } else if (message.includes('ai service connection failed; check api base url')) {
     return isZh ? '无法连接 AI 服务，请检查 API 地址或稍后重试。' : 'Could not connect to the AI service. Check the API base URL or retry later.';
+  } else if (message.includes('access code required') || message.includes('invalid access code')) {
+    return isZh ? '访问口令已失效，请刷新页面后重新验证。' : 'The access code is no longer valid. Refresh the page and verify it again.';
   } else if (message.includes('no template image found')) {
     return isZh
       ? '当前项目还没有模板，请先点击页面工具栏的"更换模板"按钮，选择或上传一张模板图片后再生成。'
@@ -201,7 +203,7 @@ export function normalizeErrorMessage(errorMessage: string | null | undefined): 
     }
     return isZh ? '认证失败，请检查 API 密钥配置。' : 'Authentication failed. Please check API key settings.';
   } else if (message.includes('403') || message.includes('forbidden')) {
-    return isZh ? '访问被拒绝，请检查 API 权限配置。' : 'Access denied. Please check API permissions.';
+    return isZh ? '访问被拒绝，请刷新页面后重新验证访问口令。' : 'Access denied. Refresh the page and verify the access code.';
   } else if (message.includes('aspect_ratio') || message.includes('aspect ratio')) {
     return isZh
       ? '当前画面比例不被该模型支持，请在项目设置中尝试其他画面比例后重试。'
@@ -312,8 +314,6 @@ export function isApiSettingsError(error: unknown): boolean {
     '密钥配置',
     '密钥无效',
     '未配置密钥',
-    '访问被拒绝',
-    '权限配置',
     '权限不足',
     'api 地址',
     'api base url',
