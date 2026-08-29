@@ -88,6 +88,40 @@ def test_openai_image_chat_path_explicitly_requests_non_stream():
     assert client.chat.completions.create.call_args.kwargs["stream"] is False
 
 
+def _run_image_service_test(model: str, image_path):
+    from flask import Flask
+    from controllers.settings_controller import _test_image_model
+    from models import Settings
+
+    app = Flask(__name__)
+    app.config.update(IMAGE_MODEL=model)
+    service = MagicMock()
+    service.generate_image.return_value = SimpleNamespace(size=(16, 16))
+    settings = SimpleNamespace(image_aspect_ratio="16:9", image_resolution="2K")
+
+    with app.app_context():
+        with patch.object(Settings, "get_settings", return_value=settings), patch(
+            "controllers.settings_controller.AIService", return_value=service
+        ), patch("controllers.settings_controller._get_test_image_path", return_value=image_path):
+            _test_image_model()
+
+    return service.generate_image.call_args.kwargs["ref_image_path"]
+
+
+def test_image_service_avoids_gpt_image_edit_endpoint(tmp_path):
+    image_path = tmp_path / "test.png"
+    Image.new("RGB", (16, 16), color="white").save(image_path)
+
+    assert _run_image_service_test("gpt-image-2", image_path) is None
+
+
+def test_image_service_keeps_reference_for_non_gpt_model(tmp_path):
+    image_path = tmp_path / "test.png"
+    Image.new("RGB", (16, 16), color="white").save(image_path)
+
+    assert _run_image_service_test("gemini-3-pro-image-preview", image_path) == str(image_path)
+
+
 def test_anthropic_chat_path_explicitly_requests_non_stream():
     client = MagicMock()
     client.chat.completions.create.return_value = _chat_response(

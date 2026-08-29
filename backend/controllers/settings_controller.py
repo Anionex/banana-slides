@@ -1003,9 +1003,11 @@ def _test_image_model():
     test_image_path = _get_test_image_path()
     prompt = "生成一张简洁、明亮、适合演示文稿的背景图。"
     settings = Settings.get_settings()
+    image_model = (current_app.config.get("IMAGE_MODEL", "") or "").lower()
+    ref_image_path = None if image_model.startswith("gpt-image-") else str(test_image_path)
     result = ai_service.generate_image(
         prompt=prompt,
-        ref_image_path=str(test_image_path),
+        ref_image_path=ref_image_path,
         aspect_ratio=settings.image_aspect_ratio or "16:9",
         resolution=settings.image_resolution or "2K"
     )
