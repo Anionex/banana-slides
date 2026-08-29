@@ -22,7 +22,7 @@
   <a href="https://github.com/Anionex/banana-slides/stargazers"><img src="https://img.shields.io/github/stars/Anionex/banana-slides?style=flat-square&color=FFD700" alt="GitHub Stars"></a>
   <a href="https://github.com/Anionex/banana-slides/network"><img src="https://img.shields.io/github/forks/Anionex/banana-slides?style=flat-square&color=FFD700" alt="GitHub Forks"></a>
   <a href="https://github.com/Anionex/banana-slides/watchers"><img src="https://img.shields.io/github/watchers/Anionex/banana-slides?style=flat-square&color=FFD700" alt="GitHub Watchers"></a>
-  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.4"><img src="https://img.shields.io/badge/version-v0.9.0--rc.4-44cc11?style=flat-square" alt="Version"></a>
+  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.5"><img src="https://img.shields.io/badge/version-v0.9.0--rc.5-44cc11?style=flat-square" alt="Version"></a>
   <a href="https://github.com/Anionex/banana-slides/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Anionex/banana-slides?color=0055aa&style=flat-square" alt="License"></a>
   <br>
   <img src="https://img.shields.io/badge/Docker-Build-4A90D9?logo=docker&logoColor=white&style=flat-square" alt="Docker Build">
@@ -38,7 +38,7 @@
   &nbsp;|&nbsp;
   <a href="https://docs.bananaslides.online/"><b>📖 文档</b></a>
   &nbsp;|&nbsp;
-  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.4"><b>💻 桌面版 RC4</b></a>
+  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.5"><b>💻 桌面版 RC5</b></a>
   &nbsp;|&nbsp;
  <a href="https://github.com/Anionex/banana-slides#-%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95"><b>部署方法</b></a>
 </p>
@@ -73,6 +73,7 @@
 </details>
 
 ## 🔥 最新动态
+- **[2026-08-29]**：0.9.0 候选版本 5 发布，新增沉浸式在线幻灯片播放器与 APIMart OpenAI-compatible Provider 预设，桌面版更新检查现可正确跟随 RC 通道；同时改进 PPT 改造的 MinerU 凭据错误提示、修复参考文档远程图片 SSRF 风险，并让图片编辑默认进入框选状态；[查看下载与安装说明](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.5)
 - **[2026-08-20]**：0.9.0 候选版本 4 发布，重点修复桌面打包版 LazyLLM 在线供应商不可用（qwen 等）与 SOCKS 代理依赖缺失，并恢复预览页「上一步」返回描述编辑页、修复导出任务弹层遮挡与桌面端属性抽屉交互；[一键下载并安装](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.4)
 - **[2026-08-20]**：预览页恢复「上一步」按钮，可从幻灯片预览一键返回描述编辑页继续修改
 - **[2026-08-20]**：修复导出任务弹层被页面属性抽屉遮挡的问题；桌面端页面属性抽屉默认展开并自动适配窗口宽度
