@@ -12,6 +12,8 @@ from conftest import assert_success_response, assert_error_response
 
 @pytest.mark.parametrize(('raw_error', 'expected'), [
     ('400 API key not valid: secret-value', 'API key is invalid'),
+    ('GOOGLE_API_KEY (from database settings or environment) is required', 'API key is invalid'),
+    ('API key is required for text model with OpenAI provider', 'API key is invalid'),
     ('403 balance is insufficient', 'API quota or balance is insufficient'),
     ('403 permission denied', 'API permission denied'),
     ('429 rate limit exceeded', 'API rate limit exceeded'),

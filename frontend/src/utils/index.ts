@@ -338,6 +338,8 @@ export function isApiSettingsError(error: unknown): boolean {
     'api_key',
     'unauthorized',
     'forbidden',
+    'permission denied',
+    'permission was denied',
     'authentication failed',
     'invalid credential',
     'invalid key',

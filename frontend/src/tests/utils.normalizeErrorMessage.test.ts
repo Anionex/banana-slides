@@ -129,6 +129,7 @@ describe('isApiSettingsError', () => {
     '429 Too Many Requests',
     'usage limit has been exhausted',
     'balance is insufficient',
+    'API permission was denied. Please check API settings.',
     '认证失败，请检查 API 密钥配置',
     { response: { status: 401, data: { error: { message: 'invalid credential' } } } },
   ])('recognizes settings-recoverable API failures: %j', (error) => {

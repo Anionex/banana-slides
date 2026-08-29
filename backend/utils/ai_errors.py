@@ -16,11 +16,14 @@ def safe_generation_error_message(error: Exception) -> str:
     """Return an actionable provider error without exposing provider details."""
     message = str(error).lower()
 
-    if any(token in message for token in (
-        'api key not valid', 'invalid api key', 'api_key_invalid',
-        'invalid_api_key', 'incorrect api key', 'unauthorized',
-        'authentication failed', 'authentication_error',
-    )):
+    if (
+        any(token in message for token in (
+            'api key not valid', 'invalid api key', 'api_key_invalid',
+            'invalid_api_key', 'incorrect api key', 'unauthorized',
+            'authentication failed', 'authentication_error', 'api key is required',
+        ))
+        or ('api_key' in message and 'is required' in message)
+    ):
         return 'API key is invalid'
     if any(token in message for token in (
         'insufficient balance', 'balance is insufficient', 'insufficient_quota',
