@@ -112,4 +112,44 @@ test.describe('Settings APIMart provider pill', () => {
       .toHaveAttribute('aria-checked', 'true');
     await expect(page.getByText('如何获取 APIMart API Key')).toBeVisible();
   });
+
+  test('preserves models that use explicit per-model providers', async ({ page }) => {
+    let savedPayload: Record<string, unknown> | undefined;
+    const explicitModels = {
+      text_model: 'gemini-custom-text',
+      image_model: 'gemini-custom-image',
+      image_caption_model: 'gemini-custom-caption',
+      text_model_source: 'gemini',
+      image_model_source: 'gemini',
+      image_caption_model_source: 'gemini',
+      openai_image_api_protocol: 'chat',
+    };
+
+    await page.route(url => url.pathname === '/api/settings', async route => {
+      if (route.request().method() === 'PUT') {
+        savedPayload = route.request().postDataJSON() as Record<string, unknown>;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: { ...settingsData, ...savedPayload } }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: { ...settingsData, ...explicitModels } }),
+      });
+    });
+
+    await page.goto('/settings');
+    await page.getByTestId('global-provider-pills').locator('[data-provider="apimart"]').click();
+    await page.getByRole('button', { name: '保存设置' }).click();
+
+    for (const [key, value] of Object.entries(explicitModels)) {
+      expect(savedPayload?.[key]).toBe(value);
+    }
+    expect(savedPayload?.ai_provider_format).toBe('openai');
+    expect(savedPayload?.api_base_url).toBe(APIMART_BASE_URL);
+  });
 });

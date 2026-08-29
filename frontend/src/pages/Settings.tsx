@@ -1411,10 +1411,12 @@ export const Settings: React.FC = () => {
       ...prev,
       ai_provider_format: 'openai',
       api_base_url: APIMART_BASE_URL,
-      text_model: APIMART_RECOMMENDED_MODELS.text,
-      image_model: APIMART_RECOMMENDED_MODELS.image,
-      image_caption_model: APIMART_RECOMMENDED_MODELS.caption,
-      openai_image_api_protocol: 'images',
+      text_model: prev.text_model_source ? prev.text_model : APIMART_RECOMMENDED_MODELS.text,
+      image_model: prev.image_model_source ? prev.image_model : APIMART_RECOMMENDED_MODELS.image,
+      image_caption_model: prev.image_caption_model_source
+        ? prev.image_caption_model
+        : APIMART_RECOMMENDED_MODELS.caption,
+      openai_image_api_protocol: prev.image_model_source ? prev.openai_image_api_protocol : 'images',
     }));
   };
 
