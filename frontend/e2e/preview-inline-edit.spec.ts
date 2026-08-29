@@ -224,11 +224,12 @@ test.describe('In-place edit - desktop (mock)', () => {
     await expect(pill(page)).toBeVisible()
   })
 
-  test('boxes a region on the canvas image and attaches the crop', async ({ page }) => {
+  test('defaults to region selection and attaches a crop without an extra click', async ({ page }) => {
     await mockPreview(page)
     await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
     await pill(page).getByRole('button', { name: /^编辑$/ }).click()
-    await page.getByRole('button', { name: /区域选图/ }).click()
+
+    await expect(page.getByRole('button', { name: /结束区域选图/ })).toBeVisible()
 
     const imageBox = await dragRegion(page)
 
@@ -319,7 +320,6 @@ test.describe('In-place edit - desktop (mock)', () => {
     // so its attachments row must not keep reserving grid-track height once we
     // leave edit — otherwise the still-visible pill gets shoved down.
     await pill(page).getByRole('button', { name: /^编辑$/ }).click()
-    await page.getByRole('button', { name: /区域选图/ }).click()
     await dragRegion(page)
     await expect(page.getByTestId('inline-edit-attachment-thumb')).toHaveCount(1)
     await panel(page).getByRole('button', { name: /^取消$/ }).click()
@@ -337,7 +337,6 @@ test.describe('In-place edit - desktop (mock)', () => {
     await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
     await pill(page).getByRole('button', { name: /^编辑$/ }).click()
     await promptBox(page).fill('把标题改成蓝色')
-    await page.getByRole('button', { name: /区域选图/ }).click()
     await dragRegion(page)
     await expect(page.getByTestId('inline-edit-attachment-thumb')).toHaveCount(1)
 
@@ -384,7 +383,6 @@ test.describe('In-place edit - desktop (mock)', () => {
     await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
     await pill(page).getByRole('button', { name: /^编辑$/ }).click()
     await promptBox(page).fill('把标题改成蓝色')
-    await page.getByRole('button', { name: /区域选图/ }).click()
     await dragRegion(page)
     await expect(page.getByTestId('inline-edit-attachment-thumb')).toHaveCount(1)
 
@@ -408,6 +406,7 @@ test.describe('In-place edit - narrow screens (mock)', () => {
     await page.getByTestId('preview-docked-toolbar').getByRole('button', { name: /^编辑$/ }).click()
 
     await expect(page.getByRole('heading', { name: /编辑页面/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: /结束区域选图/ })).toBeVisible()
     await expect(panel(page)).toBeHidden()
   })
 })
@@ -433,7 +432,6 @@ test.describe('In-place edit - integration', () => {
 
     await pill(page).getByRole('button', { name: /^编辑$/ }).click()
     await expect(panel(page)).toBeVisible()
-    await page.getByRole('button', { name: /区域选图/ }).click()
     await dragRegion(page)
 
     await expect(page.getByTestId('inline-edit-selection')).toBeVisible()

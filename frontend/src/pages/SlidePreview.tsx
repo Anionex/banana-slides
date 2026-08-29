@@ -1225,8 +1225,8 @@ export const SlidePreview: React.FC = () => {
       });
     }
 
-    // 打开编辑弹窗时，清空上一次的选区和模式
-    setIsRegionSelectionMode(false);
+    // 每次进入编辑都默认开启区域选图，用户可直接在图片上拖拽框选。
+    setIsRegionSelectionMode(true);
     setSelectionStart(null);
     setSelectionRect(null);
     setIsSelectingRegion(false);
