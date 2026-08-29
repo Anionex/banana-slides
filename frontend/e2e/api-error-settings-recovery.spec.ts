@@ -826,10 +826,7 @@ test.describe('API error settings recovery', () => {
     try {
       await page.goto(`/project/${projectId}/detail`)
       await page.getByRole('button', { name: '批量生成描述' }).click()
-      const confirmDialog = page.getByRole('dialog')
-      if (await confirmDialog.isVisible().catch(() => false)) {
-        await confirmDialog.getByRole('button', { name: '确定' }).click()
-      }
+      await page.getByRole('dialog').getByRole('button', { name: '确定' }).click()
       await streamStarted
       const sourceProjectGetCountBeforeLeaving = sourceProjectGetCount
 

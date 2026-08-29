@@ -136,7 +136,7 @@ interface ProjectState {
   
   // 项目操作
   initializeProject: (type: 'idea' | 'outline' | 'description' | 'blank', content: string, templateImage?: File, templateStyle?: string, referenceFileIds?: string[], aspectRatio?: string) => Promise<void>;
-  syncProject: (projectId?: string) => Promise<void>;
+  syncProject: (projectId?: string) => Promise<boolean>;
   
   // 页面操作
   updatePageLocal: (pageId: string, data: any) => void;
@@ -385,7 +385,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     if (!targetProjectId) {
       console.warn('syncProject: 没有可用的项目ID');
-      return;
+      return false;
     }
 
     try {
@@ -397,7 +397,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
             targetProjectId,
             routeProjectId,
           });
-          return;
+          return false;
         }
         const project = normalizeProject(response.data);
         devLog('[syncProject] 同步项目数据:', {
@@ -408,7 +408,9 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         set({ currentProject: project });
         // 确保 localStorage 中保存了项目ID
         localStorage.setItem('currentProjectId', project.id!);
+        return true;
       }
+      return false;
     } catch (error: any) {
       const routeProjectId = getRouteProjectId();
       if (routeProjectId && routeProjectId !== targetProjectId) {
@@ -416,7 +418,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           targetProjectId,
           routeProjectId,
         });
-        return;
+        return false;
       }
 
       // 提取更详细的错误信息
@@ -457,6 +459,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       } else {
         set({ error: normalizeErrorMessage(errorMessage) });
       }
+      return false;
     }
   },
 
@@ -711,11 +714,14 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     const originalPages = currentProject.pages;
     const restoreOriginalPages = () => {
-      set((state) => ({
-        currentProject: state.currentProject?.id === projectId
-          ? { ...state.currentProject, pages: originalPages }
-          : state.currentProject,
-      }));
+      set((state) => {
+        if (state.currentProject?.id !== projectId) return state;
+        const pagesAreTransient = state.currentProject.pages.length === 0
+          || state.currentProject.pages.every((page) => page.id?.startsWith('streaming-'));
+        return pagesAreTransient
+          ? { currentProject: { ...state.currentProject, pages: originalPages } }
+          : state;
+      });
     };
 
     const finishStream = () => {
@@ -812,6 +818,14 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     } catch (error: any) {
       console.error('[流式大纲] 错误:', error);
       streamDone = true;
+      await renderPromise;
+      if (doneData) {
+        const { currentProject: proj } = get();
+        if (proj?.id === projectId) {
+          set({ currentProject: normalizeProject({ ...proj, pages: doneData.pages }) });
+        }
+        return { complete: doneData.complete ?? false, active: isViewingTargetProject() };
+      }
       restoreOriginalPages();
       if (!isViewingTargetProject()) {
         // 已切换离开发起生成的项目：过期失败不再抛出，避免在后来打开的项目中弹提示
@@ -875,8 +889,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       );
       const syncStreamProjectIfCurrent = async (): Promise<boolean> => {
         if (getRouteProjectId() === projectId) {
-          await get().syncProject(projectId);
-          return true;
+          return get().syncProject(projectId);
         }
         return false;
       };
@@ -1000,8 +1013,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       );
       const syncTaskProjectIfCurrent = async (): Promise<boolean> => {
         if (getRouteProjectId() === projectId) {
-          await get().syncProject(projectId);
-          return true;
+          return get().syncProject(projectId);
         }
         return false;
       };

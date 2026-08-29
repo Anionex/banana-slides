@@ -227,8 +227,15 @@ export const generateOutlineStream = async (
       try {
         const parsed = JSON.parse(eventData);
         if (eventType === 'page') callbacks.onPage(parsed);
-        else if (eventType === 'done') callbacks.onDone(parsed);
-        else if (eventType === 'error') callbacks.onError(parsed.message);
+        else if (eventType === 'done') {
+          callbacks.onDone(parsed);
+          void reader.cancel().catch(() => undefined);
+          return;
+        } else if (eventType === 'error') {
+          callbacks.onError(parsed.message);
+          void reader.cancel().catch(() => undefined);
+          return;
+        }
       } catch {
         // Skip malformed events
       }
@@ -339,8 +346,15 @@ export const generateDescriptionsStream = async (
       try {
         const parsed = JSON.parse(eventData);
         if (eventType === 'description') callbacks.onDescription(parsed);
-        else if (eventType === 'done') callbacks.onDone(parsed);
-        else if (eventType === 'error') callbacks.onError(parsed.message);
+        else if (eventType === 'done') {
+          callbacks.onDone(parsed);
+          void reader.cancel().catch(() => undefined);
+          return;
+        } else if (eventType === 'error') {
+          callbacks.onError(parsed.message);
+          void reader.cancel().catch(() => undefined);
+          return;
+        }
       } catch {
         // Skip malformed events
       }

@@ -26,7 +26,13 @@ vi.mock('@/api/endpoints', () => ({
   generateOutlineStream: vi.fn(),
 }))
 
-import { deleteTemplateAsset, uploadTemplateAsset, generateOutlineStream } from '@/api/endpoints'
+import {
+  deleteTemplateAsset,
+  generateDescriptions,
+  generateOutlineStream,
+  getProject,
+  uploadTemplateAsset,
+} from '@/api/endpoints'
 
 describe('useProjectStore', () => {
   beforeEach(() => {
@@ -396,6 +402,45 @@ describe('useProjectStore 流式大纲项目隔离', () => {
     expect(result.current.isOutlineStreaming).toBe(false)
   })
 
+  it('页面事件后传输失败时等待队列结束并恢复原页面', async () => {
+    const oldPage = { id: 'old-page', order_index: 0, outline_content: { title: 'Old', points: [] } }
+    const { result } = renderHook(() => useProjectStore())
+    vi.mocked(generateOutlineStream).mockImplementationOnce(
+      (async (_projectId: string, callbacks: any) => {
+        callbacks.onPage({ index: 0, title: 'Temporary', points: ['p'] })
+        throw new Error('connection reset')
+      }) as any
+    )
+
+    act(() => { result.current.setCurrentProject({ ...projectA, pages: [oldPage] } as any) })
+
+    await act(async () => {
+      await expect(result.current.generateOutlineStream()).rejects.toThrow('connection reset')
+    })
+
+    expect(result.current.currentProject?.pages).toEqual([oldPage])
+  })
+
+  it('done 事件后的传输失败保留已持久化的新页面', async () => {
+    const newPage = { id: 'new-page', order_index: 0, outline_content: { title: 'New', points: [] } }
+    const { result } = renderHook(() => useProjectStore())
+    vi.mocked(generateOutlineStream).mockImplementationOnce(
+      (async (_projectId: string, callbacks: any) => {
+        callbacks.onDone({ total: 1, complete: true, pages: [newPage] })
+        throw new Error('connection reset after done')
+      }) as any
+    )
+
+    act(() => { result.current.setCurrentProject(projectA as any) })
+
+    await act(async () => {
+      await expect(result.current.generateOutlineStream()).resolves.toEqual({ complete: true, active: true })
+    })
+
+    expect(result.current.currentProject?.pages).toEqual([newPage])
+    expect(result.current.error).toBeNull()
+  })
+
   it('同项目已有流式任务时，重复调用直接返回', async () => {
     const { result } = renderHook(() => useProjectStore())
     let resolveStream!: () => void
@@ -414,5 +459,34 @@ describe('useProjectStore 流式大纲项目隔离', () => {
     resolveStream()
     await act(async () => { await first })
     expect(result.current.isOutlineStreaming).toBe(false)
+  })
+})
+
+describe('useProjectStore 描述失败回滚', () => {
+  beforeEach(() => {
+    vi.mocked(generateDescriptions).mockReset()
+    vi.mocked(getProject).mockReset()
+    sessionStorage.setItem('banana-settings', JSON.stringify({ description_generation_mode: 'parallel' }))
+    window.history.pushState({}, '', '/project/proj-desc/detail')
+    useProjectStore.setState({
+      currentProject: {
+        id: 'proj-desc',
+        status: 'OUTLINE_GENERATED',
+        pages: [{ id: 'page-1', status: 'DRAFT', order_index: 0, outline_content: { title: 'Page', points: [] } }],
+      } as any,
+      error: null,
+    })
+  })
+
+  it('补偿同步失败时仍回滚乐观生成状态', async () => {
+    vi.mocked(generateDescriptions).mockRejectedValueOnce(new Error('start failed'))
+    vi.mocked(getProject).mockRejectedValueOnce(new Error('sync failed'))
+    const { result } = renderHook(() => useProjectStore())
+
+    await act(async () => {
+      await expect(result.current.generateDescriptions()).rejects.toThrow('start failed')
+    })
+
+    expect(result.current.currentProject?.pages[0].status).toBe('DRAFT')
   })
 })
