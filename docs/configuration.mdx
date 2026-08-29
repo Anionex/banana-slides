@@ -35,6 +35,29 @@ OPENAI_API_KEY=your-api-key
 OPENAI_API_BASE=https://api.openai.com/v1
 ```
 
+## APIMart (OpenAI-Compatible)
+
+APIMart uses an OpenAI-compatible endpoint but returns image generation tasks asynchronously. Banana Slides sends `stream=false` for chat calls and polls APIMart image tasks automatically.
+
+```env
+AI_PROVIDER_FORMAT=openai
+OPENAI_API_KEY=your-apimart-api-key
+OPENAI_API_BASE=https://api.apimart.ai/v1
+TEXT_MODEL=gpt-5.6-sol
+IMAGE_MODEL=gpt-image-2
+IMAGE_CAPTION_MODEL=gpt-5.6-luna
+IMAGE_MODEL_SOURCE=openai
+IMAGE_CAPTION_MODEL_SOURCE=openai
+IMAGE_API_BASE=https://api.apimart.ai/v1
+IMAGE_CAPTION_API_BASE=https://api.apimart.ai/v1
+```
+
+Notes:
+
+- Use model IDs listed in the APIMart console. `gemini-3-pro-image` is not an APIMart model ID; use `gpt-image-2` or `gemini-3-pro-image-preview` when available.
+- If `IMAGE_MODEL_SOURCE` is empty, the image-specific `IMAGE_API_BASE` is ignored and image calls use the global `OPENAI_API_BASE`; set `IMAGE_MODEL_SOURCE=openai` when APIMart should be used only for image generation.
+- Image generation can take about one to two minutes; the app polls the async task until completion or timeout.
+
 ## Volcengine AgentPlans
 
 Volcengine ModelArk AgentPlans can be used through an OpenAI-compatible endpoint. Select "Volcengine AgentPlans" in Settings, or configure `.env`:

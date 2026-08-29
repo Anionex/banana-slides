@@ -193,7 +193,9 @@ def test_doubao_seedream_auto_protocol_uses_native_images_api():
     mock_client = MagicMock()
     mock_result = MagicMock()
     mock_result.data = [MagicMock(b64_json=None, url='https://example.com/img.png')]
-    mock_client.images.generate.return_value = mock_result
+    raw_response = MagicMock()
+    raw_response.json.return_value = {'data': [{'b64_json': None, 'url': 'https://example.com/img.png'}]}
+    mock_client.images.with_raw_response.generate.return_value = raw_response
 
     with patch('services.ai_providers.image.openai_provider.OpenAI'):
         provider = OpenAIImageProvider(
@@ -217,10 +219,11 @@ def test_doubao_seedream_auto_protocol_uses_native_images_api():
             resolution='2K',
         )
 
-    mock_client.images.generate.assert_called_once()
-    kwargs = mock_client.images.generate.call_args.kwargs
+    mock_client.images.with_raw_response.generate.assert_called_once()
+    kwargs = mock_client.images.with_raw_response.generate.call_args.kwargs
     assert kwargs['model'] == 'doubao-seedream-5.0-lite'
     assert 'quality' not in kwargs
+    mock_client.images.generate.assert_not_called()
     mock_client.chat.completions.create.assert_not_called()
 
 
@@ -278,7 +281,9 @@ def test_doubao_seedream_forced_images_protocol_without_references_uses_images_a
     mock_client = MagicMock()
     mock_result = MagicMock()
     mock_result.data = [MagicMock(b64_json=None, url='https://example.com/img.png')]
-    mock_client.images.generate.return_value = mock_result
+    raw_response = MagicMock()
+    raw_response.json.return_value = {'data': [{'b64_json': None, 'url': 'https://example.com/img.png'}]}
+    mock_client.images.with_raw_response.generate.return_value = raw_response
 
     with patch('services.ai_providers.image.openai_provider.OpenAI'):
         provider = OpenAIImageProvider(
@@ -300,7 +305,8 @@ def test_doubao_seedream_forced_images_protocol_without_references_uses_images_a
             resolution='2K',
         )
 
-    mock_client.images.generate.assert_called_once()
+    mock_client.images.with_raw_response.generate.assert_called_once()
+    mock_client.images.generate.assert_not_called()
     mock_client.chat.completions.create.assert_not_called()
 
 

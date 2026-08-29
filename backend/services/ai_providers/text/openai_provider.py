@@ -49,7 +49,8 @@ class OpenAITextProvider(TextProvider):
             model=self.model,
             messages=[
                 {"role": "user", "content": prompt}
-            ]
+            ],
+            stream=False,
         )
         return strip_think_tags(response.choices[0].message.content)
 
@@ -84,6 +85,7 @@ class OpenAITextProvider(TextProvider):
                     ],
                 }
             ],
+            stream=False,
         )
 
         message_content = response.choices[0].message.content

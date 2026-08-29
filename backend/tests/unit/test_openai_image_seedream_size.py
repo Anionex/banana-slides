@@ -38,11 +38,9 @@ def _make_provider(model: str = 'doubao-seedream-5.0-lite') -> OpenAIImageProvid
             model=model,
             image_api_protocol='auto',
         )
-    provider.client.images.generate = MagicMock(
-        return_value=SimpleNamespace(
-            data=[SimpleNamespace(b64_json=_make_b64_png())]
-        )
-    )
+    raw_response = MagicMock()
+    raw_response.json.return_value = {'data': [{'b64_json': _make_b64_png()}]}
+    provider.client.images.with_raw_response.generate.return_value = raw_response
     return provider
 
 
@@ -152,7 +150,7 @@ def test_generate_image_sends_seedream_valid_size():
         aspect_ratio='16:9',
         resolution='2K',
     )
-    request = provider.client.images.generate.call_args.kwargs
+    request = provider.client.images.with_raw_response.generate.call_args.kwargs
     assert request['size'] == '2848x1600'
 
 

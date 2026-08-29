@@ -26,11 +26,9 @@ def _make_provider(model: str = 'gpt-image-2') -> OpenAIImageProvider:
             model=model,
             image_api_protocol='auto',
         )
-    provider.client.images.edit = MagicMock(
-        return_value=SimpleNamespace(
-            data=[SimpleNamespace(b64_json=_make_b64_png(), url=None)]
-        )
-    )
+    raw_response = MagicMock()
+    raw_response.json.return_value = {'data': [{'b64_json': _make_b64_png(), 'url': None}]}
+    provider.client.images.with_raw_response.edit.return_value = raw_response
     return provider
 
 
@@ -52,7 +50,7 @@ def test_gpt_image_forwards_template_and_material_references_in_order():
     )
 
     assert isinstance(result, Image.Image)
-    request = provider.client.images.edit.call_args.kwargs
+    request = provider.client.images.with_raw_response.edit.call_args.kwargs
     assert isinstance(request['image'], list)
     assert [image.name for image in request['image']] == ['image_1.png', 'image_2.png']
     assert [_read_color(image) for image in request['image']] == [
@@ -71,7 +69,7 @@ def test_gpt_image_keeps_single_reference_proxy_compatible():
         resolution='1K',
     )
 
-    request = provider.client.images.edit.call_args.kwargs
+    request = provider.client.images.with_raw_response.edit.call_args.kwargs
     assert isinstance(request['image'], BytesIO)
     assert request['image'].name == 'image.png'
 
@@ -88,7 +86,7 @@ def test_gpt_image_accepts_palette_mode_reference():
         resolution='1K',
     )
 
-    request = provider.client.images.edit.call_args.kwargs
+    request = provider.client.images.with_raw_response.edit.call_args.kwargs
     assert Image.open(request['image']).mode == 'RGBA'
 
 
@@ -106,7 +104,7 @@ def test_forced_images_protocol_preserves_refs_for_custom_proxy_model():
         resolution='1K',
     )
 
-    request = provider.client.images.edit.call_args.kwargs
+    request = provider.client.images.with_raw_response.edit.call_args.kwargs
     assert isinstance(request['image'], list)
     assert len(request['image']) == 2
 
@@ -123,7 +121,7 @@ def test_invalid_edit_size_falls_back_to_square(caplog, invalid_size):
         resolution='1K',
     )
 
-    request = provider.client.images.edit.call_args.kwargs
+    request = provider.client.images.with_raw_response.edit.call_args.kwargs
     assert request['size'] == '1024x1024'
     assert Image.open(request['image']).size == (1024, 1024)
     assert "falling back to 1024x1024" in caplog.text
@@ -158,7 +156,7 @@ def test_dall_e_2_keeps_documented_single_reference_limit(caplog):
         resolution='1K',
     )
 
-    request = provider.client.images.edit.call_args.kwargs
+    request = provider.client.images.with_raw_response.edit.call_args.kwargs
     assert isinstance(request['image'], BytesIO)
     assert _read_color(request['image']) == (255, 0, 0)
     assert 'ignoring 1 additional image(s)' in caplog.text
