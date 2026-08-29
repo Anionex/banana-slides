@@ -28,7 +28,7 @@ const settingsData = {
   image_api_base_url: '',
   image_caption_api_key_length: 0,
   image_caption_api_base_url: '',
-  openai_image_api_protocol: 'auto',
+  openai_image_api_protocol: 'chat',
   openai_oauth_connected: false,
 };
 
@@ -86,6 +86,7 @@ test.describe('Settings APIMart provider pill', () => {
     expect(savedPayload?.text_model).toBe('gpt-5');
     expect(savedPayload?.image_model).toBe('gpt-image-2');
     expect(savedPayload?.image_caption_model).toBe('gpt-4o');
+    expect(savedPayload?.openai_image_api_protocol).toBe('images');
   });
 
   test('recognizes a saved APIMart endpoint as the APIMart pill', async ({ page }) => {
@@ -101,6 +102,7 @@ test.describe('Settings APIMart provider pill', () => {
           text_model: 'gpt-5',
           image_model: 'gpt-image-2',
           image_caption_model: 'gpt-4o',
+          openai_image_api_protocol: 'images',
         },
       }),
     }));

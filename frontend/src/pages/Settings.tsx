@@ -1414,6 +1414,7 @@ export const Settings: React.FC = () => {
       text_model: APIMART_RECOMMENDED_MODELS.text,
       image_model: APIMART_RECOMMENDED_MODELS.image,
       image_caption_model: APIMART_RECOMMENDED_MODELS.caption,
+      openai_image_api_protocol: 'images',
     }));
   };
 
