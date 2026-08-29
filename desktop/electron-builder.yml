@@ -16,6 +16,7 @@ files:
   - "storage-config.js"
   - "preload.js"
   - "auto-updater.js"
+  - "github-release-client.js"
   - "update-policy.js"
   - "build-meta.json"
   - "splash.html"
