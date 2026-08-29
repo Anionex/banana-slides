@@ -161,6 +161,46 @@ def test_parallel_description_page_count_mismatch_recovers_project_and_pages(app
         assert all(page.status == 'DRAFT' for page in pages)
 
 
+def test_outer_description_failure_does_not_count_existing_descriptions_as_task_success(app, client):
+    project_id = _create_description_project(client)
+
+    with app.app_context():
+        pages = Page.query.filter_by(project_id=project_id).all()
+        for index, page in enumerate(pages, 1):
+            page.set_description_content({'text': f'已有描述 {index}'})
+            page.status = 'DESCRIPTION_GENERATED'
+        project = db.session.get(Project, project_id)
+        project.status = 'GENERATING_DESCRIPTIONS'
+        db.session.commit()
+        task_id = _create_task(project_id)
+
+    class MismatchedAIService:
+        def flatten_outline(self, outline):
+            return outline[:1]
+
+    generate_descriptions_task(
+        task_id,
+        project_id,
+        MismatchedAIService(),
+        object(),
+        [{'title': '只有一页', 'points': ['要点']}],
+        app=app,
+    )
+
+    with app.app_context():
+        task = db.session.get(Task, task_id)
+        project = db.session.get(Project, project_id)
+        pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+
+        assert task.status == 'FAILED'
+        assert task.get_progress() == {'total': 2, 'completed': 0, 'failed': 2}
+        assert project.status == 'DESCRIPTIONS_GENERATED'
+        assert [page.get_description_content()['text'] for page in pages] == [
+            '已有描述 1',
+            '已有描述 2',
+        ]
+
+
 def test_parallel_description_future_failure_restores_generating_pages(app, client):
     project_id = _create_description_project(client)
 

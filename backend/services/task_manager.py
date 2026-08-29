@@ -40,21 +40,24 @@ def recover_description_task_failure(task_id: str, project_id: str, error: Excep
             if page.status == 'GENERATING_DESCRIPTION':
                 page.status = 'DESCRIPTION_GENERATED' if page.description_content else 'DRAFT'
 
-        completed = sum(1 for page in pages if page.description_content)
+        has_descriptions = any(page.description_content for page in pages)
         task = db.session.get(Task, task_id)
         if task:
+            progress = task.get_progress() or {}
+            completed = max(0, min(len(pages), int(progress.get('completed', 0) or 0)))
+            failed = max(int(progress.get('failed', 0) or 0), len(pages) - completed)
             task.status = 'FAILED'
             task.error_message = safe_generation_error_message(error)
             task.completed_at = datetime.utcnow()
             task.set_progress({
                 'total': len(pages),
                 'completed': completed,
-                'failed': max(0, len(pages) - completed),
+                'failed': failed,
             })
 
         project = db.session.get(Project, project_id)
         if project:
-            project.status = 'DESCRIPTIONS_GENERATED' if completed else 'OUTLINE_GENERATED'
+            project.status = 'DESCRIPTIONS_GENERATED' if has_descriptions else 'OUTLINE_GENERATED'
 
         db.session.commit()
     except Exception:
