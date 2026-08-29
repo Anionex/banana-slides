@@ -20,9 +20,9 @@ from conftest import assert_success_response, assert_error_response
     ('unexpected parser failure', '生成过程中发生内部错误'),
 ])
 def test_safe_generation_error_message(raw_error, expected):
-    from controllers.project_controller import _safe_generation_error_message
+    from utils.ai_errors import safe_generation_error_message
 
-    message = _safe_generation_error_message(RuntimeError(raw_error))
+    message = safe_generation_error_message(RuntimeError(raw_error))
 
     assert message == expected
     assert 'secret-value' not in message

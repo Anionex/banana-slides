@@ -19,6 +19,7 @@ from sqlalchemy.exc import OperationalError
 from PIL import Image, ImageDraw, ImageFilter
 from models import db, Task, Page, Material, PageImageVersion, Settings, ProjectTemplateAsset, Project
 from utils import get_filtered_pages
+from utils.ai_errors import safe_generation_error_message
 from utils.image_utils import check_image_resolution
 
 logger = logging.getLogger(__name__)
@@ -609,6 +610,7 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
             # Generate descriptions in parallel
             completed = 0
             failed = 0
+            first_error = None
             
             def generate_single_desc(page_id, page_outline, page_index):
                 """
@@ -666,6 +668,8 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                         if error:
                             page.status = 'FAILED'
                             failed += 1
+                            if first_error is None:
+                                first_error = error
                         else:
                             page.set_description_content(desc_content)
                             page.status = 'DESCRIPTION_GENERATED'
@@ -680,28 +684,38 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                         db.session.commit()
                         logger.info(f"Description Progress: {completed}/{len(pages)} pages completed")
             
-            # Mark task as completed
+            # A partially or fully failed batch must surface an actionable task error.
             task = Task.query.get(task_id)
             if task:
-                task.status = 'COMPLETED'
+                task.status = 'FAILED' if failed else 'COMPLETED'
+                task.error_message = (
+                    safe_generation_error_message(RuntimeError(first_error))
+                    if first_error else None
+                )
                 task.completed_at = datetime.utcnow()
                 db.session.commit()
-                logger.info(f"Task {task_id} COMPLETED - {completed} pages generated, {failed} failed")
+                logger.info(
+                    f"Task {task_id} {task.status} - "
+                    f"{completed} pages generated, {failed} failed"
+                )
             
             # Update project status
-            from models import Project
             project = Project.query.get(project_id)
-            if project and failed == 0:
-                project.status = 'DESCRIPTIONS_GENERATED'
+            if project:
+                project.status = (
+                    'DESCRIPTIONS_GENERATED' if failed == 0 or completed > 0
+                    else 'OUTLINE_GENERATED'
+                )
                 db.session.commit()
-                logger.info(f"Project {project_id} status updated to DESCRIPTIONS_GENERATED")
+                logger.info(f"Project {project_id} status updated to {project.status}")
         
         except Exception as e:
+            logger.error(f"Description task {task_id} failed: {e}", exc_info=True)
             # Mark task as failed
             task = Task.query.get(task_id)
             if task:
                 task.status = 'FAILED'
-                task.error_message = str(e)
+                task.error_message = safe_generation_error_message(e)
                 task.completed_at = datetime.utcnow()
                 db.session.commit()
 

@@ -30,48 +30,11 @@ from utils import (
     success_response, error_response, not_found, bad_request,
     parse_page_ids_from_body, get_filtered_pages
 )
+from utils.ai_errors import safe_generation_error_message
 
 logger = logging.getLogger(__name__)
 
 project_bp = Blueprint('projects', __name__, url_prefix='/api/projects')
-
-
-def _safe_generation_error_message(error: Exception) -> str:
-    """Return an actionable message for known provider failures without leaking details."""
-    message = str(error).lower()
-
-    if any(token in message for token in (
-        'api key not valid', 'invalid api key', 'api_key_invalid',
-        'invalid_api_key', 'incorrect api key', 'unauthorized',
-        'authentication failed', 'authentication_error',
-    )):
-        return 'API key is invalid'
-    if any(token in message for token in (
-        'insufficient balance', 'balance is insufficient', 'insufficient_quota',
-        'quota exceeded', 'quota exhausted', 'usage limit', 'credits exhausted',
-    )):
-        return 'API quota or balance is insufficient'
-    if any(token in message for token in (
-        'permission denied', 'permission_denied', 'forbidden', 'access denied',
-    )):
-        return 'API permission denied'
-    if any(token in message for token in (
-        'rate limit', 'rate_limit_exceeded', 'too many requests',
-        'resource_exhausted', 'resource exhausted',
-    )):
-        return 'API rate limit exceeded'
-    if any(token in message for token in (
-        'model not found', 'model does not exist', 'invalid model',
-        'not found for api version', 'not supported for generatecontent',
-    )):
-        return 'Configured AI model is unavailable'
-    if any(token in message for token in (
-        'connection refused', 'failed to establish a new connection',
-        'name or service not known', 'nodename nor servname provided',
-    )):
-        return 'AI service connection failed; check API base URL'
-
-    return '生成过程中发生内部错误'
 
 
 def _get_required_project_content(data, creation_type):
@@ -691,7 +654,7 @@ def generate_outline_stream(project_id):
                 except Exception as rollback_exc:
                     logger.warning(f"Session rollback failed: {rollback_exc}", exc_info=True)
                 logger.error(f"generate_outline_stream failed: {str(e)}", exc_info=True)
-                yield _sse_event('error', {'message': _safe_generation_error_message(e)})
+                yield _sse_event('error', {'message': safe_generation_error_message(e)})
 
     return Response(
         stream_with_context(sse_generate()),
@@ -1048,7 +1011,7 @@ def generate_descriptions_stream(project_id):
                 except Exception as recover_exc:
                     logger.warning(f"Failed to recover page statuses: {recover_exc}", exc_info=True)
 
-                yield _sse_event('error', {'message': _safe_generation_error_message(e)})
+                yield _sse_event('error', {'message': safe_generation_error_message(e)})
 
     return Response(
         stream_with_context(sse_generate()),
