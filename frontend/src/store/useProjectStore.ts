@@ -85,6 +85,11 @@ function getRouteProjectId(): string | null {
     : window.location.pathname;
   return routePath.match(/^\/project\/([^/]+)/)?.[1] || null;
 }
+
+function getCurrentRouteState(): unknown {
+  if (typeof window === 'undefined') return undefined;
+  return window.history.state?.usr;
+}
 const t = getT(storeI18n);
 
 // 清理旧原型遗留的 per-project localStorage key（交接文档 §3：旧 demo 数据不迁移）。
@@ -115,7 +120,7 @@ interface ProjectState {
   activeTaskId: string | null;
   taskProgress: { total: number; completed: number } | null;
   error: string | null;
-  errorRecovery: { message: string; path: string } | null;
+  errorRecovery: { message: string; path: string; state?: unknown } | null;
   // 每个页面的生成任务ID映射 (pageId -> taskId)
   pageGeneratingTasks: Record<string, string>;
   // 警告消息
@@ -882,6 +887,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       // 流式模式
       const projectId = currentProject.id;
       const recoveryPath = `/project/${projectId}/detail`;
+      const recoveryState = getCurrentRouteState();
       const originalPageStatuses = new Map(
         currentProject.pages
           .filter((page) => page.id)
@@ -963,7 +969,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
             const normalizedMessage = normalizeErrorMessage(message);
             set({
               error: normalizedMessage,
-              errorRecovery: { message: normalizedMessage, path: recoveryPath },
+              errorRecovery: { message: normalizedMessage, path: recoveryPath, state: recoveryState },
             });
             streamDone = true;
           },
@@ -997,7 +1003,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         const message = normalizeErrorMessage(error.message || t('store.generateDescFailed'));
         set({
           error: message,
-          errorRecovery: { message, path: recoveryPath },
+          errorRecovery: { message, path: recoveryPath, state: recoveryState },
           isDescriptionStreaming: false,
         });
         throw error;
@@ -1006,6 +1012,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       // 并行模式（原有逻辑）
       const projectId = currentProject.id;
       const recoveryPath = `/project/${projectId}/detail`;
+      const recoveryState = getCurrentRouteState();
       const originalPageStatuses = new Map(
         currentProject.pages
           .filter((page) => page.id)
@@ -1079,7 +1086,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
                   taskProgress: null,
                   activeTaskId: null,
                   error: message,
-                  errorRecovery: { message, path: recoveryPath },
+                  errorRecovery: { message, path: recoveryPath, state: recoveryState },
                 });
                 await syncTaskProjectIfCurrent();
               } else if (task.status === 'PENDING' || task.status === 'PROCESSING') {
@@ -1096,7 +1103,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
                 taskProgress: null,
                 activeTaskId: null,
                 error: message,
-                errorRecovery: { message, path: recoveryPath },
+                errorRecovery: { message, path: recoveryPath, state: recoveryState },
               });
               await syncTaskProjectIfCurrent();
               return;
@@ -1120,7 +1127,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         );
         set({
           error: message,
-          errorRecovery: { message, path: recoveryPath },
+          errorRecovery: { message, path: recoveryPath, state: recoveryState },
         });
         throw error;
       }

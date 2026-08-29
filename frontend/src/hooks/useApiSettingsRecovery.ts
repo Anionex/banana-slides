@@ -10,6 +10,7 @@ const RECOVERY_SUPPRESSION_TTL_MS = 30 * 60 * 1000;
 
 export interface ApiSettingsRecoveryState {
   from: string;
+  fromState?: unknown;
   openedFrom: string;
   recovery: typeof API_ERROR_RECOVERY;
 }
@@ -27,6 +28,11 @@ function getCurrentRoutePath(): string {
     return window.location.hash.slice(1);
   }
   return `${window.location.pathname}${window.location.search}${window.location.hash}`;
+}
+
+function getCurrentRouteState(): unknown {
+  if (typeof window === 'undefined') return undefined;
+  return window.history.state?.usr;
 }
 
 function markOutlineRecoverySuppression(path: string) {
@@ -85,7 +91,7 @@ export function useApiSettingsRecovery() {
   const { i18n } = useTranslation();
   const isZh = i18n.language?.startsWith('zh') ?? true;
 
-  const openApiSettings = useCallback((fromOverride?: string) => {
+  const openApiSettings = useCallback((fromOverride?: string, fromStateOverride?: unknown) => {
     const currentPath = getCurrentRoutePath();
     const from = fromOverride?.startsWith('/') && !fromOverride.startsWith('//')
       ? fromOverride
@@ -93,6 +99,7 @@ export function useApiSettingsRecovery() {
     markOutlineRecoverySuppression(from);
     const state: ApiSettingsRecoveryState = {
       from,
+      fromState: fromStateOverride !== undefined ? fromStateOverride : getCurrentRouteState(),
       openedFrom: currentPath,
       recovery: API_ERROR_RECOVERY,
     };
@@ -103,6 +110,7 @@ export function useApiSettingsRecovery() {
     error: unknown,
     options: ToastOptions,
     recoveryFrom?: string,
+    recoveryState?: unknown,
   ): ToastOptions => {
     if (!isApiSettingsError(error) && !isApiSettingsError(options.message)) return options;
 
@@ -110,7 +118,7 @@ export function useApiSettingsRecovery() {
       ...options,
       duration: options.duration ?? 10000,
       actionLabel: isZh ? '检查 API 设置' : 'Check API Settings',
-      onAction: () => openApiSettings(recoveryFrom),
+      onAction: () => openApiSettings(recoveryFrom, recoveryState),
     };
   }, [isZh, openApiSettings]);
 

@@ -387,6 +387,7 @@ test.describe('API error settings recovery', () => {
       }],
     }
     let taskFailureReturned = false
+    let staleSourceGetReturned = false
     let signalTaskSyncStarted!: () => void
     const taskSyncStarted = new Promise<void>((resolve) => { signalTaskSyncStarted = resolve })
     let releaseTaskSync!: () => void
@@ -404,7 +405,8 @@ test.describe('API error settings recovery', () => {
         const url = new URL(request.url())
 
         if (url.pathname === `/api/projects/${projectId}` && request.method() === 'GET') {
-          if (taskFailureReturned) {
+          if (taskFailureReturned && !staleSourceGetReturned) {
+            staleSourceGetReturned = true
             signalTaskSyncStarted()
             await taskSyncRelease
             return route.fulfill({
@@ -479,7 +481,21 @@ test.describe('API error settings recovery', () => {
       }
     )
 
-    await page.goto(`/project/${projectId}/detail`)
+    await page.goto('/history')
+    await page.evaluate((url) => {
+      const currentState = window.history.state || {}
+      window.history.pushState(
+        {
+          ...currentState,
+          idx: (currentState.idx ?? 0) + 1,
+          key: 'parallel-error-from-history',
+          usr: { from: 'history' },
+        },
+        '',
+        url
+      )
+      window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }))
+    }, `/project/${projectId}/detail`)
     await page.getByRole('button', { name: '批量生成描述' }).click()
     await taskSyncStarted
 
@@ -510,6 +526,7 @@ test.describe('API error settings recovery', () => {
     await expect(page).toHaveURL(/\/settings$/)
     await page.getByRole('button', { name: '返回编辑器' }).click()
     await expect(page).toHaveURL(new RegExp(`/project/${projectId}/detail$`))
+    expect(await page.evaluate(() => window.history.state?.usr)).toEqual({ from: 'history' })
   })
 
   test('mock: recovery action reads the route at click time after the toast is shown', async ({ page }) => {
