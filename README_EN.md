@@ -22,7 +22,7 @@
   <a href="https://github.com/Anionex/banana-slides/stargazers"><img src="https://img.shields.io/github/stars/Anionex/banana-slides?style=flat-square&color=FFD700" alt="GitHub Stars"></a>
   <a href="https://github.com/Anionex/banana-slides/network"><img src="https://img.shields.io/github/forks/Anionex/banana-slides?style=flat-square&color=FFD700" alt="GitHub Forks"></a>
   <a href="https://github.com/Anionex/banana-slides/watchers"><img src="https://img.shields.io/github/watchers/Anionex/banana-slides?style=flat-square&color=FFD700" alt="GitHub Watchers"></a>
-  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.4"><img src="https://img.shields.io/badge/version-v0.9.0--rc.4-44cc11?style=flat-square" alt="Version"></a>
+  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.5"><img src="https://img.shields.io/badge/version-v0.9.0--rc.5-44cc11?style=flat-square" alt="Version"></a>
   <a href="https://github.com/Anionex/banana-slides/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Anionex/banana-slides?color=0055aa&style=flat-square" alt="License"></a>
   <br>
   <img src="https://img.shields.io/badge/Docker-Build-4A90D9?logo=docker&logoColor=white&style=flat-square" alt="Docker Build">
@@ -38,7 +38,7 @@
   &nbsp;|&nbsp;
   <a href="https://docs.bananaslides.online/"><b>📖 Documentation</b></a>
   &nbsp;|&nbsp;
-  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.4"><b>💻 Desktop RC4</b></a>
+  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.5"><b>💻 Desktop RC5</b></a>
   &nbsp;|&nbsp;
  <a href="https://github.com/Anionex/banana-slides#-%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95"><b>Deployment Guide</b></a>
 </p>
@@ -74,6 +74,7 @@
 
 ## 🔥 Latest Updates
 
+- **[2026-08-29]**: Release Candidate 5 of v0.9.0 is available, adding an immersive online slide player and an APIMart provider preset, while fixing desktop update checks so RC builds correctly follow the prerelease channel. It also improves MinerU credential guidance for PPT renovation, blocks SSRF through remote images in reference documents, and enables region selection by default in the image editor; [One-click download and install](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.5)
 - **[2026-08-20]**: Release Candidate 4 of v0.9.0 is available, fixing unavailable LazyLLM online providers (qwen etc.) and missing SOCKS proxy dependencies in desktop builds, restoring the previous-step button to return to the description editor, and fixing export task dialog occlusion and desktop property drawer interaction; [One-click download and install](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.4)
 - **[2026-08-20]**: The preview page restores the "Previous Step" button, letting you return to the description editor from the slide preview with one click
 - **[2026-08-20]**: Fixed the export task dialog being occluded by the page properties drawer; the desktop drawer now expands by default and adapts to the window width
