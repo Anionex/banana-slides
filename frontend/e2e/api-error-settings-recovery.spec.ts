@@ -590,6 +590,240 @@ test.describe('API error settings recovery', () => {
     expect(requestCount).toBe(1)
   })
 
+  test('mock: remount sync cannot re-enable a delayed single-page generation', async ({ page }) => {
+    const projectId = 'mock-single-page-remount-lock'
+    const otherProjectId = 'mock-single-page-remount-other'
+    const pageId = 'mock-single-page-remount-page'
+    const makeProject = (id: string, title: string) => ({
+      id,
+      project_id: id,
+      creation_type: 'idea',
+      status: 'OUTLINE_GENERATED',
+      pages: [{
+        id: id === projectId ? pageId : `${id}-page`,
+        page_id: id === projectId ? pageId : `${id}-page`,
+        order_index: 0,
+        outline_content: { title, points: ['要点'] },
+        status: 'DRAFT',
+      }],
+    })
+    const projects = {
+      [projectId]: makeProject(projectId, '生成锁来源页'),
+      [otherProjectId]: makeProject(otherProjectId, '临时查看的其他项目'),
+    }
+    let requestCount = 0
+    let signalRequestStarted!: () => void
+    const requestStarted = new Promise<void>((resolve) => { signalRequestStarted = resolve })
+    let releaseRequest!: () => void
+    const requestRelease = new Promise<void>((resolve) => { releaseRequest = resolve })
+
+    await page.addInitScript(() => {
+      sessionStorage.setItem('banana-settings', JSON.stringify({
+        description_generation_mode: 'streaming',
+      }))
+      localStorage.setItem('hasSeenHelpModal', 'true')
+    })
+    await page.route(
+      (url) => url.pathname.startsWith('/api/'),
+      async (route) => {
+        const request = route.request()
+        const url = new URL(request.url())
+
+        for (const [id, project] of Object.entries(projects)) {
+          if (url.pathname === `/api/projects/${id}` && request.method() === 'GET') {
+            return route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify({ success: true, data: project }),
+            })
+          }
+        }
+
+        if (
+          url.pathname === `/api/projects/${projectId}/pages/${pageId}/generate/description`
+          && request.method() === 'POST'
+        ) {
+          requestCount += 1
+          signalRequestStarted()
+          await requestRelease
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              success: true,
+              data: {
+                ...projects[projectId].pages[0],
+                status: 'DESCRIPTION_GENERATED',
+                description_content: { text: '延迟请求生成的新描述' },
+              },
+            }),
+          })
+        }
+
+        if (url.pathname === '/api/settings' && request.method() === 'GET') {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              success: true,
+              data: {
+                ai_provider_format: 'gemini',
+                description_generation_mode: 'streaming',
+                description_extra_fields: [],
+              },
+            }),
+          })
+        }
+
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: [] }),
+        })
+      }
+    )
+
+    const navigateWithinSpa = async (path: string, key: string) => {
+      await page.evaluate(({ path, key }) => {
+        const currentState = window.history.state || {}
+        window.history.pushState(
+          { ...currentState, idx: (currentState.idx ?? 0) + 1, key },
+          '',
+          path
+        )
+        window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }))
+      }, { path, key })
+    }
+
+    await page.goto(`/project/${projectId}/detail`)
+    await expect(page.getByText('还没有生成描述')).toBeVisible()
+    await page.getByRole('button', { name: '重新生成' }).click()
+    await requestStarted
+
+    await navigateWithinSpa(`/project/${otherProjectId}/detail`, 'single-page-lock-other')
+    await expect.poll(
+      () => page.evaluate(() => localStorage.getItem('currentProjectId'))
+    ).toBe(otherProjectId)
+    await navigateWithinSpa(`/project/${projectId}/detail`, 'single-page-lock-source')
+
+    const generatingButton = page.getByRole('button', { name: '生成中...' })
+    await expect(generatingButton).toBeVisible()
+    await expect(generatingButton).toBeDisabled()
+    expect(requestCount).toBe(1)
+
+    releaseRequest()
+    await expect(page.getByText('延迟请求生成的新描述')).toBeVisible()
+    await expect(page.getByRole('button', { name: '重新生成' })).toBeEnabled()
+    expect(requestCount).toBe(1)
+  })
+
+  test('mock: reopening the editor refreshes a single-page result after the response is lost', async ({ page }) => {
+    const projectId = 'mock-single-page-lost-response'
+    const pageId = 'mock-single-page-lost-response-page'
+    const project = {
+      id: projectId,
+      project_id: projectId,
+      creation_type: 'idea',
+      status: 'DESCRIPTIONS_GENERATED',
+      pages: [{
+        id: pageId,
+        page_id: pageId,
+        order_index: 0,
+        outline_content: { title: '响应丢失测试页', points: ['要点'] },
+        description_content: { text: '旧描述' },
+        status: 'DESCRIPTION_GENERATED',
+      }],
+    }
+    let signalRequestStarted!: () => void
+    const requestStarted = new Promise<void>((resolve) => { signalRequestStarted = resolve })
+    let releaseRequest!: () => void
+    const requestRelease = new Promise<void>((resolve) => { releaseRequest = resolve })
+
+    await page.addInitScript(() => {
+      sessionStorage.setItem('banana-settings', JSON.stringify({
+        description_generation_mode: 'streaming',
+      }))
+      localStorage.setItem('hasSeenHelpModal', 'true')
+    })
+    await page.route(
+      (url) => url.pathname.startsWith('/api/'),
+      async (route) => {
+        const request = route.request()
+        const url = new URL(request.url())
+
+        if (url.pathname === `/api/projects/${projectId}` && request.method() === 'GET') {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ success: true, data: project }),
+          })
+        }
+
+        if (
+          url.pathname === `/api/projects/${projectId}/pages/${pageId}/generate/description`
+          && request.method() === 'POST'
+        ) {
+          signalRequestStarted()
+          await requestRelease
+          project.pages[0].description_content = { text: '后端已提交的新描述' }
+          return route.abort('failed')
+        }
+
+        if (url.pathname === '/api/settings' && request.method() === 'GET') {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              success: true,
+              data: {
+                ai_provider_format: 'gemini',
+                description_generation_mode: 'streaming',
+                description_extra_fields: [],
+              },
+            }),
+          })
+        }
+
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: [] }),
+        })
+      }
+    )
+
+    await page.goto(`/project/${projectId}/detail`)
+    await expect(page.getByText('旧描述')).toBeVisible()
+    await page.getByRole('button', { name: '重新生成' }).click()
+    await page.getByRole('dialog').getByRole('button', { name: '确定' }).click()
+    await requestStarted
+
+    await page.evaluate(() => {
+      const currentState = window.history.state || {}
+      window.history.pushState(
+        { ...currentState, idx: (currentState.idx ?? 0) + 1, key: 'single-page-lost-response-home' },
+        '',
+        '/'
+      )
+      window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }))
+    })
+    releaseRequest()
+    await page.waitForTimeout(300)
+
+    await page.evaluate((path) => {
+      const currentState = window.history.state || {}
+      window.history.pushState(
+        { ...currentState, idx: (currentState.idx ?? 0) + 1, key: 'single-page-lost-response-return' },
+        '',
+        path
+      )
+      window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }))
+    }, `/project/${projectId}/detail`)
+
+    await expect(page.getByText('后端已提交的新描述')).toBeVisible()
+    await expect(page.getByText('旧描述')).not.toBeVisible()
+  })
+
   test('mock: background parallel failure returns to the task project after switching projects', async ({ page }) => {
     const projectId = 'mock-parallel-description-error'
     const otherProjectId = 'mock-parallel-current-project'
@@ -1640,7 +1874,7 @@ test.describe('API error settings recovery', () => {
         status: 'DESCRIPTION_GENERATED',
       }],
     }
-    let projectGetCount = 0
+    let blockNextProjectGet = false
     let signalStaleSyncStarted!: () => void
     const staleSyncStarted = new Promise<void>((resolve) => { signalStaleSyncStarted = resolve })
     let releaseStaleSync!: () => void
@@ -1664,8 +1898,8 @@ test.describe('API error settings recovery', () => {
         const url = new URL(request.url())
 
         if (url.pathname === `/api/projects/${projectId}` && request.method() === 'GET') {
-          projectGetCount += 1
-          if (projectGetCount === 3) {
+          if (blockNextProjectGet) {
+            blockNextProjectGet = false
             signalStaleSyncStarted()
             await staleSyncRelease
           }
@@ -1714,6 +1948,27 @@ test.describe('API error settings recovery', () => {
     )
 
     await page.goto(`/project/${projectId}/detail`)
+    await expect(page.getByRole('button', { name: '批量生成描述' })).toBeEnabled()
+    await page.evaluate((path) => {
+      const currentState = window.history.state || {}
+      window.history.pushState(
+        { ...currentState, idx: (currentState.idx ?? 0) + 1, key: 'stale-sync-outline' },
+        '',
+        path
+      )
+      window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }))
+    }, `/project/${projectId}/outline`)
+    await expect(page.getByText('编辑大纲', { exact: true })).toBeVisible()
+    blockNextProjectGet = true
+    await page.evaluate((path) => {
+      const currentState = window.history.state || {}
+      window.history.pushState(
+        { ...currentState, idx: (currentState.idx ?? 0) + 1, key: 'stale-sync-detail' },
+        '',
+        path
+      )
+      window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }))
+    }, `/project/${projectId}/detail`)
     await expect(page.getByRole('button', { name: '批量生成描述' })).toBeEnabled()
     await staleSyncStarted
 

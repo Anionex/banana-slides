@@ -18,6 +18,7 @@ vi.mock('@/api/endpoints', () => ({
   generateOutline: vi.fn(),
   generateDescriptions: vi.fn(),
   generatePageDescription: vi.fn(),
+  regenerateRenovationPage: vi.fn(),
   generateImages: vi.fn(),
   getTaskStatus: vi.fn(),
   exportPPTX: vi.fn(),
@@ -32,6 +33,7 @@ import {
   generateDescriptions,
   generateOutlineStream,
   generatePageDescription,
+  regenerateRenovationPage,
   getProject,
   getTaskStatus,
   uploadTemplateAsset,
@@ -488,6 +490,7 @@ describe('useProjectStore 描述失败回滚', () => {
   beforeEach(() => {
     vi.mocked(generateDescriptions).mockReset()
     vi.mocked(generatePageDescription).mockReset()
+    vi.mocked(regenerateRenovationPage).mockReset()
     vi.mocked(getProject).mockReset()
     vi.mocked(getTaskStatus).mockReset()
     sessionStorage.setItem('banana-settings', JSON.stringify({ description_generation_mode: 'parallel' }))
@@ -503,6 +506,7 @@ describe('useProjectStore 描述失败回滚', () => {
       activeTaskId: null,
       taskProgress: null,
       descriptionGeneratingProjectIds: [],
+      descriptionGeneratingPageKeys: [],
     })
   })
 
@@ -606,7 +610,93 @@ describe('useProjectStore 描述失败回滚', () => {
     expect(getProject).not.toHaveBeenCalled()
   })
 
-  it('轮询连续失败后保持生成锁定并继续恢复任务状态', async () => {
+  it('单页描述请求期间的新同步快照不会解除独立页面锁', async () => {
+    let resolveRequest!: (value: any) => void
+    vi.mocked(generatePageDescription).mockImplementationOnce(
+      () => new Promise((resolve) => { resolveRequest = resolve })
+    )
+    vi.mocked(getProject).mockResolvedValueOnce({
+      data: {
+        id: 'proj-desc',
+        project_id: 'proj-desc',
+        status: 'OUTLINE_GENERATED',
+        pages: [{
+          id: 'page-1',
+          page_id: 'page-1',
+          status: 'DRAFT',
+          order_index: 0,
+          outline_content: { title: 'Server snapshot', points: [] },
+        }],
+      },
+    } as any)
+    const { result } = renderHook(() => useProjectStore())
+
+    let pending!: Promise<void>
+    act(() => { pending = result.current.generatePageDescription('page-1') })
+
+    await act(async () => {
+      await result.current.syncProject('proj-desc')
+    })
+    expect(result.current.currentProject?.pages[0].status).toBe('DRAFT')
+    expect(result.current.descriptionGeneratingPageKeys).toContain('proj-desc:page-1')
+
+    await act(async () => {
+      await result.current.generatePageDescription('page-1')
+    })
+    expect(generatePageDescription).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      resolveRequest({ data: { id: 'page-1', status: 'DESCRIPTION_GENERATED' } })
+      await pending
+    })
+    expect(result.current.descriptionGeneratingPageKeys).not.toContain('proj-desc:page-1')
+  })
+
+  it('翻新单页请求期间的新同步快照不会解除独立页面锁', async () => {
+    useProjectStore.setState((state) => ({
+      currentProject: { ...state.currentProject!, creation_type: 'ppt_renovation' } as any,
+    }))
+    let resolveRequest!: (value: any) => void
+    vi.mocked(regenerateRenovationPage).mockImplementationOnce(
+      () => new Promise((resolve) => { resolveRequest = resolve })
+    )
+    vi.mocked(getProject).mockResolvedValueOnce({
+      data: {
+        id: 'proj-desc',
+        project_id: 'proj-desc',
+        creation_type: 'ppt_renovation',
+        status: 'OUTLINE_GENERATED',
+        pages: [{
+          id: 'page-1',
+          page_id: 'page-1',
+          status: 'DRAFT',
+          order_index: 0,
+          outline_content: { title: 'Server snapshot', points: [] },
+        }],
+      },
+    } as any)
+    const { result } = renderHook(() => useProjectStore())
+
+    let pending!: Promise<void>
+    act(() => { pending = result.current.regenerateRenovationPage('page-1') })
+    await act(async () => {
+      await result.current.syncProject('proj-desc')
+    })
+
+    await act(async () => {
+      await result.current.regenerateRenovationPage('page-1')
+    })
+    expect(regenerateRenovationPage).toHaveBeenCalledTimes(1)
+    expect(result.current.descriptionGeneratingPageKeys).toContain('proj-desc:page-1')
+
+    await act(async () => {
+      resolveRequest({ data: { id: 'page-1', status: 'DESCRIPTION_GENERATED' } })
+      await pending
+    })
+    expect(result.current.descriptionGeneratingPageKeys).not.toContain('proj-desc:page-1')
+  })
+
+  it('轮询连续失败后继续查询，但终态在离开来源项目时停止定时器', async () => {
     vi.useFakeTimers()
     vi.mocked(generateDescriptions).mockResolvedValueOnce({ data: { task_id: 'task-desc' } } as any)
     vi.mocked(getTaskStatus).mockRejectedValue(new Error('poll unavailable'))
@@ -650,8 +740,10 @@ describe('useProjectStore 描述失败回滚', () => {
       })
 
       expect(vi.mocked(getTaskStatus)).toHaveBeenCalledTimes(11)
-      expect(result.current.activeTaskId).toBe('task-desc')
+      expect(result.current.activeTaskId).toBeNull()
       expect(result.current.currentProject?.pages[0].status).toBe('GENERATING_DESCRIPTION')
+      expect(result.current.descriptionGeneratingProjectIds).not.toContain('proj-desc')
+      expect(vi.getTimerCount()).toBe(0)
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(6000)
@@ -659,17 +751,9 @@ describe('useProjectStore 描述失败回滚', () => {
       expect(vi.mocked(getTaskStatus)).toHaveBeenCalledTimes(11)
 
       window.history.pushState({}, '', '/project/proj-desc/detail')
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(2000)
-      })
-
-      expect(vi.mocked(getTaskStatus)).toHaveBeenCalledTimes(11)
-      expect(result.current.activeTaskId).toBe('task-desc')
-      expect(result.current.currentProject?.pages[0].status).toBe('GENERATING_DESCRIPTION')
-
       vi.mocked(getProject).mockResolvedValue({ data: completedProject } as any)
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(2000)
+        await result.current.syncProject('proj-desc')
       })
 
       expect(vi.mocked(getTaskStatus)).toHaveBeenCalledTimes(11)
@@ -681,7 +765,7 @@ describe('useProjectStore 描述失败回滚', () => {
     }
   })
 
-  it('任务在 Home 失败时等待返回来源项目同步部分成功结果', async () => {
+  it('任务在 Home 失败时停止轮询，返回来源项目后同步部分成功结果', async () => {
     vi.useFakeTimers()
     vi.mocked(generateDescriptions).mockResolvedValueOnce({ data: { task_id: 'task-partial' } } as any)
     vi.mocked(getTaskStatus).mockResolvedValue({
@@ -714,10 +798,12 @@ describe('useProjectStore 描述失败回滚', () => {
         await vi.advanceTimersByTimeAsync(2000)
       })
 
-      expect(result.current.activeTaskId).toBe('task-partial')
+      expect(result.current.activeTaskId).toBeNull()
       expect(result.current.currentProject?.pages[0].status).toBe('GENERATING_DESCRIPTION')
       expect(result.current.errorRecovery?.path).toBe('/project/proj-desc/detail')
       expect(getProject).not.toHaveBeenCalled()
+      expect(result.current.descriptionGeneratingProjectIds).not.toContain('proj-desc')
+      expect(vi.getTimerCount()).toBe(0)
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(6000)
@@ -727,7 +813,7 @@ describe('useProjectStore 描述失败回滚', () => {
 
       window.history.pushState({}, '', '/project/proj-desc/detail')
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(2000)
+        await result.current.syncProject('proj-desc')
       })
 
       expect(result.current.activeTaskId).toBeNull()

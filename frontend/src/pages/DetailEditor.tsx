@@ -234,6 +234,7 @@ export const DetailEditor: React.FC = () => {
     regenerateRenovationPage,
     switchTemplateMode,
     descriptionGeneratingProjectIds,
+    descriptionGeneratingPageKeys,
   } = useProjectStore();
   const { show, ToastContainer } = useToast();
   const { withApiSettingsRecovery } = useApiSettingsRecovery();
@@ -451,18 +452,8 @@ export const DetailEditor: React.FC = () => {
 
   // 加载项目数据
   useEffect(() => {
-    if (projectId && (!currentProject || currentProject.id !== projectId)) {
-      // 直接使用 projectId 同步项目数据
-      syncProject(projectId);
-    } else if (projectId && currentProject && currentProject.id === projectId) {
-      // 如果项目已存在，也同步一次以确保数据是最新的（特别是从描述生成后）
-      // 但只在首次加载时同步，避免频繁请求
-      const shouldSync = !currentProject.pages.some(p => p.description_content);
-      if (shouldSync) {
-        syncProject(projectId);
-      }
-    }
-  }, [projectId, currentProject?.id]); // 只在 projectId 或项目ID变化时更新
+    if (projectId) syncProject(projectId);
+  }, [projectId]);
 
   // 同步描述生成要求
   useEffect(() => {
@@ -1077,11 +1068,14 @@ export const DetailEditor: React.FC = () => {
               ) : (
                 currentProject.pages.map((page, index) => {
                 const pageId = page.id || page.page_id;
+                const isPageGenerating = descriptionGeneratingPageKeys.includes(
+                  `${currentProject.id}:${pageId}`
+                );
                 // Renovation processing: treat pages without description as generating
                 const hasDescription = page.description_content && (
                   (typeof page.description_content === 'object' && 'text' in page.description_content && page.description_content.text?.trim())
                 );
-                const effectivePage = (isRenovationProcessing && !hasDescription)
+                const effectivePage = ((isRenovationProcessing && !hasDescription) || isPageGenerating)
                   ? { ...page, status: 'GENERATING_DESCRIPTION' as const }
                   : page;
                 return (
