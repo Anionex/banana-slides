@@ -178,6 +178,108 @@ test.describe('API error settings recovery', () => {
     expect(getOutlineRequestCount()).toBe(1)
   })
 
+  test('mock: delayed outline stream failure on Home returns to its source project', async ({ page }) => {
+    const projectId = 'mock-delayed-outline-source'
+    const pageId = 'mock-delayed-outline-page'
+    const project = {
+      id: projectId,
+      project_id: projectId,
+      creation_type: 'idea',
+      status: 'OUTLINE_GENERATED',
+      pages: [{
+        id: pageId,
+        page_id: pageId,
+        order_index: 0,
+        outline_content: { title: '延迟失败前的旧大纲', points: ['旧要点'] },
+        status: 'DRAFT',
+      }],
+    }
+    let outlineRequestCount = 0
+    let signalOutlineStarted!: () => void
+    const outlineStarted = new Promise<void>((resolve) => { signalOutlineStarted = resolve })
+    let releaseOutline!: () => void
+    const outlineRelease = new Promise<void>((resolve) => { releaseOutline = resolve })
+
+    await page.route(
+      (url) => url.pathname.startsWith('/api/'),
+      async (route) => {
+        const request = route.request()
+        const url = new URL(request.url())
+
+        if (url.pathname === `/api/projects/${projectId}` && request.method() === 'GET') {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ success: true, data: project }),
+          })
+        }
+
+        if (
+          url.pathname === `/api/projects/${projectId}/generate/outline/stream`
+          && request.method() === 'POST'
+        ) {
+          outlineRequestCount += 1
+          signalOutlineStarted()
+          await outlineRelease
+          return route.fulfill({
+            status: 200,
+            headers: { 'Content-Type': 'text/event-stream' },
+            body: 'event: error\ndata: {"message":"401 Unauthorized: invalid API key"}\n\n',
+          })
+        }
+
+        if (url.pathname === '/api/settings' && request.method() === 'GET') {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              success: true,
+              data: {
+                ai_provider_format: 'gemini',
+                description_generation_mode: 'streaming',
+                description_extra_fields: [],
+              },
+            }),
+          })
+        }
+
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: [] }),
+        })
+      }
+    )
+
+    await page.goto(`/project/${projectId}/outline`)
+    await expect(page.getByText('延迟失败前的旧大纲')).toBeVisible()
+    await page.getByRole('button', { name: '重新生成大纲' }).click()
+    await page.getByRole('dialog').getByRole('button', { name: '确定' }).click()
+    await outlineStarted
+
+    await page.evaluate(() => {
+      const currentState = window.history.state || {}
+      window.history.pushState(
+        { ...currentState, idx: (currentState.idx ?? 0) + 1, key: 'outline-failure-home' },
+        '',
+        '/'
+      )
+      window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }))
+    })
+    await expect(page).toHaveURL(/\/$/)
+
+    releaseOutline()
+    const settingsAction = page.getByRole('button', { name: '检查 API 设置' })
+    await expect(settingsAction).toBeVisible()
+    await settingsAction.click()
+    await expect(page).toHaveURL(/\/settings$/)
+    await page.getByRole('button', { name: '返回编辑器' }).click()
+
+    await expect(page).toHaveURL(new RegExp(`/project/${projectId}/outline$`))
+    await expect(page.getByText('延迟失败前的旧大纲')).toBeVisible()
+    expect(outlineRequestCount).toBe(1)
+  })
+
   test('mock: stale application access code does not offer API settings recovery', async ({ page }) => {
     const projectId = 'mock-stale-access-code'
     const project = {
@@ -316,45 +418,176 @@ test.describe('API error settings recovery', () => {
       }
     )
 
-    const navigateWithinSpa = async (path: string, key: string) => {
-      await page.evaluate(({ path, key }) => {
+    const navigateWithinSpa = async (path: string, key: string, usr?: unknown) => {
+      await page.evaluate(({ path, key, usr }) => {
         const currentState = window.history.state || {}
         window.history.pushState(
-          { ...currentState, idx: (currentState.idx ?? 0) + 1, key },
+          { ...currentState, idx: (currentState.idx ?? 0) + 1, key, usr },
           '',
           path
         )
         window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }))
-      }, { path, key })
+      }, { path, key, usr })
     }
 
-    await page.goto(`/project/${sourceProjectId}/outline`)
+    await page.goto('/history')
+    await navigateWithinSpa(
+      `/project/${sourceProjectId}/outline`,
+      'local-outline-source-project',
+      { from: 'history' }
+    )
     const outlineRefineInput = page.getByPlaceholder(/例如：增加一页/).first()
     await outlineRefineInput.fill('触发大纲 API 错误')
     await outlineRefineInput.press('Control+Enter')
     let settingsAction = page.getByRole('button', { name: '检查 API 设置' })
     await expect(settingsAction).toBeVisible()
 
-    await navigateWithinSpa(`/project/${otherProjectId}/outline`, 'local-outline-other-project')
+    await navigateWithinSpa(
+      `/project/${otherProjectId}/outline`,
+      'local-outline-other-project',
+      { from: 'other-project' }
+    )
     await expect(page.getByText('当前查看项目页面')).toBeVisible()
     await settingsAction.click()
     await expect(page).toHaveURL(/\/settings$/)
     await page.getByRole('button', { name: '返回编辑器' }).click()
     await expect(page).toHaveURL(new RegExp(`/project/${sourceProjectId}/outline$`))
+    await expect.poll(() => page.evaluate(() => window.history.state?.usr)).toEqual({ from: 'history' })
 
-    await page.goto(`/project/${sourceProjectId}/detail`)
+    await navigateWithinSpa(
+      `/project/${sourceProjectId}/detail`,
+      'local-detail-source-project',
+      { from: 'outline' }
+    )
     const detailRefineInput = page.getByPlaceholder(/例如：让描述更详细/).first()
     await detailRefineInput.fill('触发描述 API 错误')
     await detailRefineInput.press('Control+Enter')
     settingsAction = page.getByRole('button', { name: '检查 API 设置' })
     await expect(settingsAction).toBeVisible()
 
-    await navigateWithinSpa(`/project/${otherProjectId}/detail`, 'local-detail-other-project')
+    await navigateWithinSpa(
+      `/project/${otherProjectId}/detail`,
+      'local-detail-other-project',
+      { from: 'other-project' }
+    )
     await expect(page.getByText('当前查看项目页面')).toBeVisible()
     await settingsAction.click()
     await expect(page).toHaveURL(/\/settings$/)
     await page.getByRole('button', { name: '返回编辑器' }).click()
     await expect(page).toHaveURL(new RegExp(`/project/${sourceProjectId}/detail$`))
+    await expect.poll(() => page.evaluate(() => window.history.state?.usr)).toEqual({ from: 'outline' })
+  })
+
+  test('mock: delayed single-page description failure on Home keeps its source route', async ({ page }) => {
+    const projectId = 'mock-delayed-single-page-source'
+    const pageId = 'mock-delayed-single-page'
+    const project = {
+      id: projectId,
+      project_id: projectId,
+      creation_type: 'idea',
+      status: 'DESCRIPTION_GENERATED',
+      pages: [{
+        id: pageId,
+        page_id: pageId,
+        order_index: 0,
+        outline_content: { title: '单页错误来源', points: ['要点'] },
+        description_content: { text: '保留的单页旧描述' },
+        status: 'DESCRIPTION_GENERATED',
+      }],
+    }
+    let requestCount = 0
+    let signalRequestStarted!: () => void
+    const requestStarted = new Promise<void>((resolve) => { signalRequestStarted = resolve })
+    let releaseRequest!: () => void
+    const requestRelease = new Promise<void>((resolve) => { releaseRequest = resolve })
+
+    await page.addInitScript(() => {
+      sessionStorage.setItem('banana-settings', JSON.stringify({
+        description_generation_mode: 'streaming',
+      }))
+      localStorage.setItem('hasSeenHelpModal', 'true')
+    })
+    await page.route(
+      (url) => url.pathname.startsWith('/api/'),
+      async (route) => {
+        const request = route.request()
+        const url = new URL(request.url())
+
+        if (url.pathname === `/api/projects/${projectId}` && request.method() === 'GET') {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ success: true, data: project }),
+          })
+        }
+
+        if (
+          url.pathname === `/api/projects/${projectId}/pages/${pageId}/generate/description`
+          && request.method() === 'POST'
+        ) {
+          requestCount += 1
+          signalRequestStarted()
+          await requestRelease
+          return route.fulfill({
+            status: 503,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              success: false,
+              error: { code: 'AI_SERVICE_ERROR', message: 'API key is invalid' },
+            }),
+          })
+        }
+
+        if (url.pathname === '/api/settings' && request.method() === 'GET') {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              success: true,
+              data: {
+                ai_provider_format: 'gemini',
+                description_generation_mode: 'streaming',
+                description_extra_fields: [],
+              },
+            }),
+          })
+        }
+
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: [] }),
+        })
+      }
+    )
+
+    await page.goto(`/project/${projectId}/detail`)
+    await expect(page.getByText('保留的单页旧描述')).toBeVisible()
+    await page.getByRole('button', { name: '重新生成' }).first().click()
+    await page.getByRole('dialog').getByRole('button', { name: '确定' }).click()
+    await requestStarted
+
+    await page.evaluate(() => {
+      const currentState = window.history.state || {}
+      window.history.pushState(
+        { ...currentState, idx: (currentState.idx ?? 0) + 1, key: 'single-page-failure-home' },
+        '',
+        '/'
+      )
+      window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }))
+    })
+    await expect(page).toHaveURL(/\/$/)
+
+    releaseRequest()
+    const settingsAction = page.getByRole('button', { name: '检查 API 设置' })
+    await expect(settingsAction).toBeVisible()
+    await settingsAction.click()
+    await expect(page).toHaveURL(/\/settings$/)
+    await page.getByRole('button', { name: '返回编辑器' }).click()
+
+    await expect(page).toHaveURL(new RegExp(`/project/${projectId}/detail$`))
+    await expect(page.getByText('保留的单页旧描述')).toBeVisible()
+    expect(requestCount).toBe(1)
   })
 
   test('mock: background parallel failure returns to the task project after switching projects', async ({ page }) => {
@@ -529,7 +762,7 @@ test.describe('API error settings recovery', () => {
     expect(await page.evaluate(() => window.history.state?.usr)).toEqual({ from: 'history' })
   })
 
-  test('mock: recovery action reads the route at click time after the toast is shown', async ({ page }) => {
+  test('mock: recovery action keeps the source route after the toast is shown', async ({ page }) => {
     const projectId = 'mock-stale-toast-source'
     const otherProjectId = 'mock-stale-toast-current'
     const taskId = 'mock-stale-toast-task'
@@ -1267,6 +1500,122 @@ test.describe('API error settings recovery', () => {
 
     await expect(page).toHaveURL(new RegExp(`/project/${projectId}/detail$`))
     await expect(page.getByText('后端保留的部分成功描述')).toBeVisible({ timeout: 5000 })
+    await expect(page.getByRole('button', { name: '批量生成描述' })).toBeEnabled()
+  })
+
+  test('mock: stale same-project sync cannot unlock an active paid generation request', async ({ page }) => {
+    const projectId = 'mock-stale-same-project-sync'
+    const pageId = 'mock-stale-same-project-page'
+    const project = {
+      id: projectId,
+      project_id: projectId,
+      creation_type: 'idea',
+      status: 'OUTLINE_GENERATED',
+      pages: [{
+        id: pageId,
+        page_id: pageId,
+        order_index: 0,
+        outline_content: { title: '旧同步快照页面', points: ['要点'] },
+        status: 'DRAFT',
+      }],
+    }
+    const completedProject = {
+      ...project,
+      status: 'DESCRIPTION_GENERATED',
+      pages: [{
+        ...project.pages[0],
+        description_content: { text: '新生成描述' },
+        status: 'DESCRIPTION_GENERATED',
+      }],
+    }
+    let projectGetCount = 0
+    let signalStaleSyncStarted!: () => void
+    const staleSyncStarted = new Promise<void>((resolve) => { signalStaleSyncStarted = resolve })
+    let releaseStaleSync!: () => void
+    const staleSyncRelease = new Promise<void>((resolve) => { releaseStaleSync = resolve })
+    let generationPostCount = 0
+    let signalGenerationStarted!: () => void
+    const generationStarted = new Promise<void>((resolve) => { signalGenerationStarted = resolve })
+    let releaseGeneration!: () => void
+    const generationRelease = new Promise<void>((resolve) => { releaseGeneration = resolve })
+
+    await page.addInitScript(() => {
+      sessionStorage.setItem('banana-settings', JSON.stringify({
+        description_generation_mode: 'streaming',
+      }))
+      localStorage.setItem('hasSeenHelpModal', 'true')
+    })
+    await page.route(
+      (url) => url.pathname.startsWith('/api/'),
+      async (route) => {
+        const request = route.request()
+        const url = new URL(request.url())
+
+        if (url.pathname === `/api/projects/${projectId}` && request.method() === 'GET') {
+          projectGetCount += 1
+          if (projectGetCount === 3) {
+            signalStaleSyncStarted()
+            await staleSyncRelease
+          }
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ success: true, data: project }),
+          })
+        }
+
+        if (
+          url.pathname === `/api/projects/${projectId}/generate/descriptions/stream`
+          && request.method() === 'POST'
+        ) {
+          generationPostCount += 1
+          signalGenerationStarted()
+          await generationRelease
+          return route.fulfill({
+            status: 200,
+            headers: { 'Content-Type': 'text/event-stream' },
+            body: `event: done\ndata: ${JSON.stringify({ total: 1, pages: completedProject.pages })}\n\n`,
+          })
+        }
+
+        if (url.pathname === '/api/settings' && request.method() === 'GET') {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              success: true,
+              data: {
+                ai_provider_format: 'gemini',
+                description_generation_mode: 'streaming',
+                description_extra_fields: [],
+              },
+            }),
+          })
+        }
+
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: [] }),
+        })
+      }
+    )
+
+    await page.goto(`/project/${projectId}/detail`)
+    await expect(page.getByRole('button', { name: '批量生成描述' })).toBeEnabled()
+    await staleSyncStarted
+
+    await page.getByRole('button', { name: '批量生成描述' }).click()
+    await generationStarted
+    await expect(page.getByRole('button', { name: '生成中...' })).toBeDisabled()
+
+    releaseStaleSync()
+    await page.waitForTimeout(150)
+    await expect(page.getByRole('button', { name: '生成中...' })).toBeDisabled()
+    expect(generationPostCount).toBe(1)
+
+    releaseGeneration()
+    await expect(page.getByText('新生成描述')).toBeVisible()
     await expect(page.getByRole('button', { name: '批量生成描述' })).toBeEnabled()
   })
 

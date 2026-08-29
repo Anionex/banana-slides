@@ -17,6 +17,7 @@ vi.mock('@/api/endpoints', () => ({
   updatePageOutline: vi.fn(),
   generateOutline: vi.fn(),
   generateDescriptions: vi.fn(),
+  generatePageDescription: vi.fn(),
   generateImages: vi.fn(),
   getTaskStatus: vi.fn(),
   exportPPTX: vi.fn(),
@@ -30,6 +31,7 @@ import {
   deleteTemplateAsset,
   generateDescriptions,
   generateOutlineStream,
+  generatePageDescription,
   getProject,
   getTaskStatus,
   uploadTemplateAsset,
@@ -254,15 +256,17 @@ describe('useProjectStore 流式大纲项目隔离', () => {
 
   beforeEach(() => {
     vi.mocked(generateOutlineStream).mockReset()
+    window.history.pushState({ usr: { source: 'outline-a' } }, '', '/project/proj-a/outline')
     useProjectStore.setState({
       currentProject: null,
       error: null,
+      errorRecovery: null,
       isOutlineStreaming: false,
       outlineStreamingProjectIds: [],
     })
   })
 
-  it('离开项目后，该项目的流式失败不设置错误、不抛出并返回 active=false', async () => {
+  it('离开项目后，传输失败保留来源项目恢复上下文且不抛出', async () => {
     const { result } = renderHook(() => useProjectStore())
     let rejectStream!: (err: Error) => void
     vi.mocked(generateOutlineStream).mockImplementationOnce(
@@ -275,14 +279,22 @@ describe('useProjectStore 流式大纲项目隔离', () => {
     act(() => { pending = result.current.generateOutlineStream() })
 
     // 流未结束时切到另一个项目
-    act(() => { result.current.setCurrentProject(projectB as any) })
+    act(() => {
+      window.history.pushState({ usr: { source: 'outline-b' } }, '', '/project/proj-b/outline')
+      result.current.setCurrentProject(projectB as any)
+    })
 
     await act(async () => {
       rejectStream(new Error('Failed to fetch'))
       await expect(pending).resolves.toEqual({ complete: false, active: false })
     })
 
-    expect(result.current.error).toBeNull()
+    expect(result.current.error).toBeTruthy()
+    expect(result.current.errorRecovery).toEqual({
+      message: result.current.error,
+      path: '/project/proj-a/outline',
+      state: { source: 'outline-a' },
+    })
     expect(result.current.isOutlineStreaming).toBe(false)
     expect(result.current.outlineStreamingProjectIds).toEqual([])
     expect(result.current.currentProject?.id).toBe('proj-b')
@@ -323,7 +335,7 @@ describe('useProjectStore 流式大纲项目隔离', () => {
     expect(result.current.isOutlineStreaming).toBe(false)
   })
 
-  it('SSE error 事件在切走项目后到达时不设置错误、不抛出', async () => {
+  it('SSE error 事件在切走项目后到达时保留来源项目恢复上下文', async () => {
     const { result } = renderHook(() => useProjectStore())
     let emitError!: (message: string) => void
     let resolveStream!: () => void
@@ -339,7 +351,10 @@ describe('useProjectStore 流式大纲项目隔离', () => {
     act(() => { pending = result.current.generateOutlineStream() })
 
     // 流未结束时切到另一个项目
-    act(() => { result.current.setCurrentProject(projectB as any) })
+    act(() => {
+      window.history.pushState({ usr: { source: 'outline-b' } }, '', '/project/proj-b/outline')
+      result.current.setCurrentProject(projectB as any)
+    })
 
     await act(async () => {
       emitError('AI service unavailable')
@@ -347,7 +362,12 @@ describe('useProjectStore 流式大纲项目隔离', () => {
       await expect(pending).resolves.toEqual({ complete: false, active: false })
     })
 
-    expect(result.current.error).toBeNull()
+    expect(result.current.error).toBe('AI service temporarily unavailable. Please try again later.')
+    expect(result.current.errorRecovery).toEqual({
+      message: 'AI service temporarily unavailable. Please try again later.',
+      path: '/project/proj-a/outline',
+      state: { source: 'outline-a' },
+    })
     expect(result.current.currentProject?.id).toBe('proj-b')
     expect(result.current.currentProject?.pages).toHaveLength(0)
   })
@@ -400,6 +420,7 @@ describe('useProjectStore 流式大纲项目隔离', () => {
     })
 
     expect(result.current.error).toBe('boom')
+    expect(result.current.errorRecovery?.path).toBe('/project/proj-a/outline')
     expect(result.current.isOutlineStreaming).toBe(false)
   })
 
@@ -466,6 +487,7 @@ describe('useProjectStore 流式大纲项目隔离', () => {
 describe('useProjectStore 描述失败回滚', () => {
   beforeEach(() => {
     vi.mocked(generateDescriptions).mockReset()
+    vi.mocked(generatePageDescription).mockReset()
     vi.mocked(getProject).mockReset()
     vi.mocked(getTaskStatus).mockReset()
     sessionStorage.setItem('banana-settings', JSON.stringify({ description_generation_mode: 'parallel' }))
@@ -477,6 +499,10 @@ describe('useProjectStore 描述失败回滚', () => {
         pages: [{ id: 'page-1', status: 'DRAFT', order_index: 0, outline_content: { title: 'Page', points: [] } }],
       } as any,
       error: null,
+      errorRecovery: null,
+      activeTaskId: null,
+      taskProgress: null,
+      descriptionGeneratingProjectIds: [],
     })
   })
 
@@ -490,6 +516,94 @@ describe('useProjectStore 描述失败回滚', () => {
     })
 
     expect(result.current.currentProject?.pages[0].status).toBe('DRAFT')
+  })
+
+  it('生成开始前发出的同项目同步响应不会覆盖生成锁或允许重复提交', async () => {
+    vi.useFakeTimers()
+    let resolveStaleSync!: (value: any) => void
+    vi.mocked(getProject).mockImplementationOnce(
+      () => new Promise((resolve) => { resolveStaleSync = resolve })
+    )
+    vi.mocked(generateDescriptions).mockResolvedValueOnce({ data: { task_id: 'task-stale-sync' } } as any)
+    const { result } = renderHook(() => useProjectStore())
+
+    try {
+      let staleSync!: Promise<boolean>
+      act(() => { staleSync = result.current.syncProject('proj-desc') })
+
+      await act(async () => {
+        await result.current.generateDescriptions()
+      })
+
+      await act(async () => {
+        resolveStaleSync({
+          data: {
+            id: 'proj-desc',
+            project_id: 'proj-desc',
+            status: 'OUTLINE_GENERATED',
+            pages: [{
+              id: 'page-1',
+              page_id: 'page-1',
+              status: 'DRAFT',
+              order_index: 0,
+              outline_content: { title: 'Stale page', points: [] },
+            }],
+          },
+        })
+        await expect(staleSync).resolves.toBe(false)
+      })
+
+      expect(result.current.currentProject?.pages[0].status).toBe('GENERATING_DESCRIPTION')
+      expect(result.current.descriptionGeneratingProjectIds).toContain('proj-desc')
+
+      await act(async () => {
+        await result.current.generateDescriptions()
+      })
+      expect(generateDescriptions).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.clearAllTimers()
+      vi.useRealTimers()
+      useProjectStore.setState({ descriptionGeneratingProjectIds: [], activeTaskId: null })
+    }
+  })
+
+  it('单页描述失败发生在离开来源项目后时保留准确恢复上下文', async () => {
+    let rejectRequest!: (error: Error) => void
+    vi.mocked(generatePageDescription).mockImplementationOnce(
+      () => new Promise((_, reject) => { rejectRequest = reject })
+    )
+    window.history.pushState(
+      { usr: { source: 'single-page-description' } },
+      '',
+      '/project/proj-desc/detail'
+    )
+    const { result } = renderHook(() => useProjectStore())
+
+    let pending!: Promise<void>
+    act(() => { pending = result.current.generatePageDescription('page-1') })
+
+    act(() => {
+      window.history.pushState({ usr: { source: 'other-project' } }, '', '/project/proj-other/detail')
+      result.current.setCurrentProject({
+        id: 'proj-other',
+        status: 'OUTLINE_GENERATED',
+        pages: [{ id: 'page-1', status: 'DRAFT', outline_content: { title: 'Other', points: [] } }],
+      } as any)
+    })
+
+    await act(async () => {
+      rejectRequest(new Error('API key is invalid'))
+      await expect(pending).rejects.toThrow('API key is invalid')
+    })
+
+    expect(result.current.currentProject?.id).toBe('proj-other')
+    expect(result.current.currentProject?.pages[0].status).toBe('DRAFT')
+    expect(result.current.errorRecovery).toEqual({
+      message: result.current.error,
+      path: '/project/proj-desc/detail',
+      state: { source: 'single-page-description' },
+    })
+    expect(getProject).not.toHaveBeenCalled()
   })
 
   it('轮询连续失败后保持生成锁定并继续恢复任务状态', async () => {

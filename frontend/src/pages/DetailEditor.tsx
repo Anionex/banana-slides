@@ -233,6 +233,7 @@ export const DetailEditor: React.FC = () => {
     generatePageDescription,
     regenerateRenovationPage,
     switchTemplateMode,
+    descriptionGeneratingProjectIds,
   } = useProjectStore();
   const { show, ToastContainer } = useToast();
   const { withApiSettingsRecovery } = useApiSettingsRecovery();
@@ -245,9 +246,11 @@ export const DetailEditor: React.FC = () => {
   const [generationMode, setGenerationMode] = useState<'streaming' | 'parallel'>('streaming');
   const [extraFieldNames, setExtraFieldNames] = useState<string[]>(DEFAULT_EXTRA_FIELDS);
   const [imagePromptFields, setImagePromptFields] = useState<string[]>(DEFAULT_IMAGE_PROMPT_FIELDS);
-  const isBatchGenerating = currentProject?.pages.some(
+  const isBatchGenerating = Boolean(
+    currentProject?.id && descriptionGeneratingProjectIds.includes(currentProject.id)
+  ) || (currentProject?.pages.some(
     (page) => page.status === 'GENERATING_DESCRIPTION'
-  ) ?? false;
+  ) ?? false);
   // 可选字段池（localStorage 持久化，包含所有已知字段名）
   const [availableFields, setAvailableFields] = useState<string[]>(() => {
     try {
@@ -520,6 +523,7 @@ export const DetailEditor: React.FC = () => {
   const handleRegeneratePage = async (pageId: string) => {
     if (!currentProject) return;
     const recoveryPath = `/project/${currentProject.id}/detail`;
+    const recoveryState = location.state;
 
     const page = currentProject.pages.find((p) => p.id === pageId);
     if (!page) return;
@@ -539,7 +543,7 @@ export const DetailEditor: React.FC = () => {
         show(withApiSettingsRecovery(error, {
           message: `${t('detail.messages.generateFailed')}: ${error.message || t('common.unknownError')}`,
           type: 'error'
-        }, recoveryPath));
+        }, recoveryPath, recoveryState, true));
       }
     };
 
@@ -596,11 +600,13 @@ export const DetailEditor: React.FC = () => {
       show(withApiSettingsRecovery(
         error,
         { message: errorMessage, type: 'error' },
-        `/project/${projectId}/detail`
+        `/project/${projectId}/detail`,
+        location.state,
+        true
       ));
       throw error; // 抛出错误让组件知道失败了
     }
-  }, [currentProject, projectId, syncProject, show, t, withApiSettingsRecovery]);
+  }, [currentProject, location.state, projectId, syncProject, show, t, withApiSettingsRecovery]);
 
   // 导出页面描述为 Markdown 文件
   const handleExportDescriptions = useCallback(() => {

@@ -395,6 +395,7 @@ export const OutlineEditor: React.FC = () => {
   const handleGenerateOutline = async () => {
     if (!currentProject) return;
     const recoveryPath = `/project/${currentProject.id}/outline`;
+    const recoveryState = location.state;
 
     const doGenerate = async (lockPageCount?: boolean) => {
       try {
@@ -407,7 +408,13 @@ export const OutlineEditor: React.FC = () => {
       } catch (error: any) {
         console.error('生成大纲失败:', error);
         const message = error.friendlyMessage || error.message || t('outline.messages.generateFailed');
-        show(withApiSettingsRecovery(error, { message, type: 'error' }, recoveryPath));
+        show(withApiSettingsRecovery(
+          error,
+          { message, type: 'error' },
+          recoveryPath,
+          recoveryState,
+          true
+        ));
       }
     };
 
@@ -453,10 +460,16 @@ export const OutlineEditor: React.FC = () => {
       } catch (error: any) {
         console.error('自动生成大纲失败:', error);
         const message = error.message || t('outline.messages.generateFailed');
-        show(withApiSettingsRecovery(error, { message, type: 'error' }, recoveryPath));
+        show(withApiSettingsRecovery(
+          error,
+          { message, type: 'error' },
+          recoveryPath,
+          location.state,
+          true
+        ));
       }
     })();
-  }, [currentProject?.id, currentProject?.pages.length, currentProject?.creation_type, generateOutlineStream, isOutlineStreaming, location.hash, location.pathname, location.search, show, t, withApiSettingsRecovery]);
+  }, [currentProject?.id, currentProject?.pages.length, currentProject?.creation_type, generateOutlineStream, isOutlineStreaming, location.hash, location.pathname, location.search, location.state, show, t, withApiSettingsRecovery]);
 
   const handleAiRefineOutline = useCallback(async (requirement: string, previousRequirements: string[]) => {
     if (!currentProject || !projectId) return;
@@ -476,11 +489,13 @@ export const OutlineEditor: React.FC = () => {
       show(withApiSettingsRecovery(
         error,
         { message: errorMessage, type: 'error' },
-        `/project/${projectId}/outline`
+        `/project/${projectId}/outline`,
+        location.state,
+        true
       ));
       throw error;
     }
-  }, [currentProject, projectId, syncProject, show, withApiSettingsRecovery]);
+  }, [currentProject, location.state, projectId, syncProject, show, withApiSettingsRecovery]);
 
   // 导出大纲为 Markdown 文件
   const handleExportOutline = useCallback(() => {
