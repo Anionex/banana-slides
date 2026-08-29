@@ -409,6 +409,15 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         localStorage.setItem('currentProjectId', project.id!);
       }
     } catch (error: any) {
+      const routeProjectId = getRouteProjectId();
+      if (routeProjectId && routeProjectId !== targetProjectId) {
+        devLog('[syncProject] 忽略已离开项目的过期错误响应:', {
+          targetProjectId,
+          routeProjectId,
+        });
+        return;
+      }
+
       // 提取更详细的错误信息
       let errorMessage = t('store.syncFailed');
       let shouldClearStorage = false;

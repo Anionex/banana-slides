@@ -877,10 +877,12 @@ def generate_descriptions(project_id):
         if task_id:
             recover_description_task_failure(task_id, project_id, e)
         logger.error(f"generate_descriptions failed: {str(e)}", exc_info=True)
+        safe_message = safe_generation_error_message(e)
+        is_ai_configuration_error = safe_message != 'Generation failed due to an internal error'
         return error_response(
-            'AI_SERVICE_ERROR',
-            safe_generation_error_message(e),
-            503,
+            'AI_SERVICE_ERROR' if is_ai_configuration_error else 'SERVER_ERROR',
+            safe_message,
+            503 if is_ai_configuration_error else 500,
         )
 
 

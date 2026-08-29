@@ -240,6 +240,14 @@ test.describe('API error settings recovery', () => {
           if (taskFailureReturned) {
             signalTaskSyncStarted()
             await taskSyncRelease
+            return route.fulfill({
+              status: 404,
+              contentType: 'application/json',
+              body: JSON.stringify({
+                success: false,
+                error: { code: 'NOT_FOUND', message: 'Stale project response' },
+              }),
+            })
           }
           return route.fulfill({
             status: 200,
