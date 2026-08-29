@@ -525,16 +525,24 @@ describe('useProjectStore 描述失败回滚', () => {
       })
       expect(vi.mocked(generateDescriptions)).toHaveBeenCalledTimes(1)
 
-      vi.mocked(getTaskStatus).mockResolvedValueOnce({
+      vi.mocked(getTaskStatus).mockResolvedValue({
         data: { task_id: 'task-desc', status: 'COMPLETED' },
       } as any)
-      vi.mocked(getProject).mockResolvedValue({ data: completedProject } as any)
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(10000)
       })
 
       expect(vi.mocked(getTaskStatus)).toHaveBeenCalledTimes(11)
+      expect(result.current.activeTaskId).toBe('task-desc')
+      expect(result.current.currentProject?.pages[0].status).toBe('GENERATING_DESCRIPTION')
+
+      vi.mocked(getProject).mockResolvedValue({ data: completedProject } as any)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10000)
+      })
+
+      expect(vi.mocked(getTaskStatus)).toHaveBeenCalledTimes(12)
       expect(result.current.activeTaskId).toBeNull()
       expect(result.current.currentProject?.pages[0].status).toBe('DESCRIPTION_GENERATED')
     } finally {

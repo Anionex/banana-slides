@@ -875,7 +875,7 @@ test.describe('API error settings recovery', () => {
     }
   })
 
-  test('mock: overlapping partial settings saves cache the last server commit', async ({ page }) => {
+  test('mock: overlapping partial settings saves are serialized before caching', async ({ page }) => {
     const projectId = 'mock-overlapping-settings-saves'
     const project = {
       id: projectId,
@@ -904,6 +904,7 @@ test.describe('API error settings recovery', () => {
     const firstSaveCompleted = new Promise<void>((resolve) => { signalFirstSaveCompleted = resolve })
     let signalSecondSaveCompleted!: () => void
     const secondSaveCompleted = new Promise<void>((resolve) => { signalSecondSaveCompleted = resolve })
+    let settingsPutCount = 0
     let parallelRequestCount = 0
     let streamingRequestCount = 0
 
@@ -933,15 +934,17 @@ test.describe('API error settings recovery', () => {
         }
 
         if (url.pathname === '/api/settings' && request.method() === 'PUT') {
+          settingsPutCount += 1
           const updates = JSON.parse(request.postData() || '{}')
           if ('description_generation_mode' in updates) {
+            Object.assign(serverSettings, updates)
+            const committedSnapshot = { ...serverSettings }
             signalFirstSaveStarted()
             await firstSaveRelease
-            Object.assign(serverSettings, updates)
             await route.fulfill({
               status: 200,
               contentType: 'application/json',
-              body: JSON.stringify({ success: true, data: serverSettings }),
+              body: JSON.stringify({ success: true, data: committedSnapshot }),
             })
             signalFirstSaveCompleted()
             return
@@ -990,9 +993,13 @@ test.describe('API error settings recovery', () => {
       await firstSaveStarted
 
       await page.getByRole('button', { name: '演讲者备注' }).click()
-      await secondSaveCompleted
+      await page.waitForTimeout(1200)
+      expect(settingsPutCount).toBe(1)
+
       releaseFirstSave()
       await firstSaveCompleted
+      await secondSaveCompleted
+      expect(settingsPutCount).toBe(2)
 
       await expect.poll(() => page.evaluate(() => {
         const cached = sessionStorage.getItem('banana-settings')

@@ -499,6 +499,7 @@ import {
   writeSettingsCache,
 } from '@/utils/settingsCache';
 import type { OpenAIOAuthCacheStatus } from '@/utils/settingsCache';
+import { updateSettingsSerially } from '@/utils/settingsUpdates';
 
 // 配置项类型定义
 type FieldType = 'text' | 'password' | 'number' | 'select' | 'buttons' | 'switch';
@@ -1328,7 +1329,7 @@ export const Settings: React.FC<SettingsProps> = ({ onSaveSuccess, saveLabel }) 
       }
 
       const oauthRevisionAtSaveStart = oauthStatusRef.current?.revision ?? 0;
-      const response = await api.updateSettings(payload);
+      const response = await updateSettingsSerially(payload);
       if (response.data) {
         const savedSettings = mergeSettingsWithOpenAIOAuthStatus(
           response.data,

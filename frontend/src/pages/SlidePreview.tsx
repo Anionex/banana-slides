@@ -326,10 +326,11 @@ import { PagePropertiesDrawer, clampWidth, readStoredDrawerWidth } from '@/compo
 import { useProjectStore } from '@/store/useProjectStore';
 import { useExportTasksStore, type ExportTaskType } from '@/store/useExportTasksStore';
 import { getImageUrl } from '@/api/client';
-import { getPageImageVersions, setCurrentImageVersion, updateProject, uploadTemplate, exportPPTX as apiExportPPTX, exportPDF as apiExportPDF, exportImages as apiExportImages, exportEditablePPTX as apiExportEditablePPTX, exportVideo as apiExportVideo, getSettings, getElevenLabsVoices, updateSettings } from '@/api/endpoints';
+import { getPageImageVersions, setCurrentImageVersion, updateProject, uploadTemplate, exportPPTX as apiExportPPTX, exportPDF as apiExportPDF, exportImages as apiExportImages, exportEditablePPTX as apiExportEditablePPTX, exportVideo as apiExportVideo, getSettings, getElevenLabsVoices } from '@/api/endpoints';
 import type { ImageVersion, DescriptionContent, ExportExtractorMethod, ExportInpaintMethod, Page, NarrationConfig } from '@/types';
 import { normalizeErrorMessage } from '@/utils';
 import { writeSettingsCache } from '@/utils/settingsCache';
+import { updateSettingsSerially } from '@/utils/settingsUpdates';
 
 const VIDEO_VOICE_OPTIONS = [
   { group: '中文', voices: [
@@ -823,7 +824,7 @@ export const SlidePreview: React.FC = () => {
     setImageQualityControlEnabled(nextValue);
     setIsSavingImageQualityControl(true);
     try {
-      const response = await updateSettings({ enable_image_quality_control: nextValue });
+      const response = await updateSettingsSerially({ enable_image_quality_control: nextValue });
       if (response.data) {
         setImageQualityControlEnabled(Boolean(response.data.enable_image_quality_control));
         writeSettingsCache(response.data);

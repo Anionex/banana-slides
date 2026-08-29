@@ -1081,11 +1081,18 @@ export const useProjectStore = create<ProjectState>((set, get) => {
                 }
               }
 
-              await syncTaskProjectIfCurrent();
-
               if (task.status === 'COMPLETED') {
-                set({ taskProgress: null, activeTaskId: null });
-                await syncTaskProjectIfCurrent();
+                if (getRouteProjectId() !== projectId) {
+                  set({ taskProgress: null, activeTaskId: null });
+                  return;
+                }
+
+                const synced = await syncTaskProjectIfCurrent();
+                if (synced) {
+                  set({ taskProgress: null, activeTaskId: null });
+                } else {
+                  setTimeout(pollAndSync, 10000);
+                }
               } else if (task.status === 'FAILED') {
                 const message = normalizeErrorMessage(
                   task.error_message || task.error || t('store.generateDescFailed')
@@ -1099,6 +1106,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
                   errorRecovery: { message, path: recoveryPath, state: recoveryState },
                 });
               } else if (task.status === 'PENDING' || task.status === 'PROCESSING') {
+                await syncTaskProjectIfCurrent();
                 setTimeout(pollAndSync, 2000);
               }
             } else {

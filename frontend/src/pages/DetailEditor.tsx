@@ -133,11 +133,12 @@ const detailI18n = {
 import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal, ReferenceFileList, MaterialSelector, ImportMarkdownModal } from '@/components/shared';
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
-import { refineDescriptions, getTaskStatus, addPages, updateProject, getSettings, updateSettings } from '@/api/endpoints';
+import { refineDescriptions, getTaskStatus, addPages, updateProject, getSettings } from '@/api/endpoints';
 import { normalizeRenovationErrorMessage } from '@/utils';
 import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtils';
 import { useApiSettingsRecovery } from '@/hooks/useApiSettingsRecovery';
 import { beginSettingsCacheRequest, writeSettingsCache } from '@/utils/settingsCache';
+import { updateSettingsSerially } from '@/utils/settingsUpdates';
 
 // 详细程度图标 — 暂时屏蔽，效果不够理想
 // const DETAIL_LEVEL_LINES: Record<string, number[]> = {
@@ -296,7 +297,7 @@ export const DetailEditor: React.FC = () => {
     if (settingsSaveTimerRef.current) clearTimeout(settingsSaveTimerRef.current);
     settingsSaveTimerRef.current = setTimeout(async () => {
       try {
-        const res = await updateSettings(updates as any);
+        const res = await updateSettingsSerially(updates as any);
         if (res.data) {
           // PUT responses are full server snapshots; commit them in completion order.
           writeSettingsCache(res.data);
