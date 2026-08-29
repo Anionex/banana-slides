@@ -81,19 +81,20 @@ test.describe('Settings: Volcengine AgentPlans provider', () => {
     });
   });
 
-  test('shows every provider and the Volcengine benefits before the user selects it', async ({ page }) => {
+  test('shows exposed providers and the Volcengine benefits before the user selects it', async ({ page }) => {
     await page.goto('/settings');
 
     const pills = page.getByTestId('global-provider-pills').locator('[data-provider]');
-    await expect(pills).toHaveCount(14);
+    await expect(pills).toHaveCount(13);
     await expect(globalProviderPill(page, 'gemini')).toHaveAttribute('aria-checked', 'true');
     await expect(globalProviderPill(page, 'openai')).toBeVisible();
-    await expect(globalProviderPill(page, 'ppio')).toBeVisible();
-    await expect(globalProviderPill(page, 'aiping')).toBeVisible();
+    await expect(globalProviderPill(page, 'ppio')).toHaveCount(0);
+    await expect(globalProviderPill(page, 'aiping')).toHaveCount(0);
     await expect(globalProviderPill(page, 'volcengine')).toContainText('火山 Agent Plan');
-    await expect(globalProviderPill(page, 'volcengine')).toContainText('国内直连 · 高性价比');
+    await expect(globalProviderPill(page, 'volcengine')).toContainText('国内直连');
+    await expect(globalProviderPill(page, 'volcengine')).not.toContainText('高性价比');
     await expect(globalProviderPill(page, 'doubao')).toContainText('Doubao（豆包）');
-    await expect(globalProviderPill(page, 'doubao')).toContainText('国内直连');
+    await expect(globalProviderPill(page, 'doubao')).not.toContainText('国内直连');
 
     await globalProviderPill(page, 'volcengine').click();
     await expect(globalProviderPill(page, 'volcengine')).toHaveAttribute('aria-checked', 'true');

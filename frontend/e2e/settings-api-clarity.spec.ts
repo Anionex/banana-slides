@@ -14,7 +14,8 @@ test('default API config section shows every provider as visible pills', async (
   await expect(pills.locator('[data-provider="gemini"]')).toBeVisible();
   await expect(pills.locator('[data-provider="openai"]')).toBeVisible();
   await expect(pills.locator('[data-provider="deepseek"]')).toBeVisible();
-  await expect(pills.locator('[data-provider="volcengine"]')).toContainText('国内直连 · 高性价比');
+  await expect(pills.locator('[data-provider="volcengine"]')).toContainText('国内直连');
+  await expect(pills.locator('[data-provider="volcengine"]')).not.toContainText('高性价比');
 });
 
 test('per-model provider placeholder references default config', async ({ page }) => {

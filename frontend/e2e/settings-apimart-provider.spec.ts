@@ -62,8 +62,7 @@ test.describe('Settings APIMart provider pill', () => {
     await expect(page.getByText('如何获取 APIMart API Key')).toBeVisible();
     await expect(page.getByRole('link', { name: '打开 APIMart →' }))
       .toHaveAttribute('href', 'https://go.apimart.ai/gh-banana-slides');
-    await expect(page.getByTestId('provider-plan-comparison').locator('[data-testid^="provider-plan-"]'))
-      .toHaveCount(2);
+    await expect(apimartPill).toContainText('仅需 $0.006/张');
 
     const modelProviderOptions = page.locator('select').filter({ has: page.locator('option[value=""]') });
     await expect(modelProviderOptions.first().locator('option[value="apimart"]')).toHaveCount(0);
@@ -71,9 +70,9 @@ test.describe('Settings APIMart provider pill', () => {
     const apiSection = page.getByTestId('global-api-config-section');
     await expect(apiSection.locator('input').first()).toHaveValue(APIMART_BASE_URL);
     const modelInputs = page.locator('input[placeholder^="留空使用环境变量配置"]');
-    await expect(modelInputs.nth(0)).toHaveValue('gpt-5');
+    await expect(modelInputs.nth(0)).toHaveValue('gpt-5.6-sol');
     await expect(modelInputs.nth(1)).toHaveValue('gpt-image-2');
-    await expect(modelInputs.nth(2)).toHaveValue('gpt-4o');
+    await expect(modelInputs.nth(2)).toHaveValue('gpt-5.6-luna');
 
     await page.getByTestId('global-provider-pills').locator('[data-provider="openai"]').click();
     await expect(apiSection.locator('input').first()).toHaveValue('https://api.openai.com/v1');
@@ -83,9 +82,9 @@ test.describe('Settings APIMart provider pill', () => {
     await expect(page.getByText('设置保存成功')).toBeVisible();
     expect(savedPayload?.ai_provider_format).toBe('openai');
     expect(savedPayload?.api_base_url).toBe(APIMART_BASE_URL);
-    expect(savedPayload?.text_model).toBe('gpt-5');
+    expect(savedPayload?.text_model).toBe('gpt-5.6-sol');
     expect(savedPayload?.image_model).toBe('gpt-image-2');
-    expect(savedPayload?.image_caption_model).toBe('gpt-4o');
+    expect(savedPayload?.image_caption_model).toBe('gpt-5.6-luna');
     expect(savedPayload?.openai_image_api_protocol).toBe('images');
   });
 
@@ -99,9 +98,9 @@ test.describe('Settings APIMart provider pill', () => {
           ...settingsData,
           ai_provider_format: 'openai',
           api_base_url: APIMART_BASE_URL,
-          text_model: 'gpt-5',
+          text_model: 'gpt-5.6-sol',
           image_model: 'gpt-image-2',
-          image_caption_model: 'gpt-4o',
+          image_caption_model: 'gpt-5.6-luna',
           openai_image_api_protocol: 'images',
         },
       }),

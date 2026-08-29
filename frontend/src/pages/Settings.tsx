@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain, ArrowUp, HelpCircle, Link2, ChevronDown, Volume2, Info, RefreshCw, CheckCircle, Lightbulb } from 'lucide-react';
+import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain, ArrowUp, HelpCircle, Link2, ChevronDown, Volume2, Info, RefreshCw, CheckCircle, Lightbulb, Sparkles } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { appVersion } from '@/utils/appVersion';
 import { isDesktop } from '@/utils';
@@ -151,19 +151,18 @@ const settingsI18n = {
       },
       apimartApiKeyTip: { before: "当前已选择 APIMart，请前往 ", linkLabel: "APIMart 获取 API Key", after: "" },
       providerComparison: {
-        title: "不知道怎么选？两个推荐方案对比",
-        subtitle: "按自己的使用场景选择，选择结果会同步到默认 API 配置",
-        aihubmix: {
-          name: "AIHubMix 聚合 API",
-          tagline: "海外 SOTA · 高并发稳定",
-          suitedFor: "适合：需要最新海外模型、高并发或团队使用",
-          point1: "可用海外 SOTA 模型：GPT、Claude、Gemini 等",
-          point2: "高并发、稳定、可用性高",
-          point3: "按量付费，一个 Key 同时兼容 Gemini / OpenAI 格式",
-          cta: "使用此方案",
+        apimart: {
+          name: "APIMart",
+          providerHint: "仅需 $0.006/张",
+          tagline: "低价生图 · 按量付费",
+          suitedFor: "适合：高频图片生成、批量出图或关注使用成本",
+          point1: "GPT-Image-2 低至 $0.006/张",
+          point2: "1 美元可生成 160+ 张图片",
+          point3: "按量付费、无月费",
+          cta: "使用 APIMart",
           active: "当前方案",
-          link: "获取 API Key →",
-          note: "自动切回 AIHubMix 端点；默认用 Gemini 格式，已用 OpenAI 格式则沿用",
+          link: "注册并获取 API Key →",
+          note: "自动填入 APIMart 端点和推荐模型",
         },
         volcengine: {
           name: "火山 Agent Plan",
@@ -179,7 +178,7 @@ const settingsI18n = {
         },
       },
       volcenginePromo: {
-        providerHint: "国内直连 · 高性价比",
+        providerHint: "国内直连",
         title: "为什么选择火山 Agent Plan？",
         body: "相比海外主流官方 API，价格更低、性价比更高，生成效果接近；国内直连，无需特殊网络环境。订阅后还可用于日常使用和其他兼容工具，不局限于 Banana Slides。官方活动页目前还提供 Agent Plan / Coding Plan 限时折扣、豆包模型资源包和免费 Tokens。",
         cta: "查看优惠并订阅",
@@ -385,19 +384,18 @@ const settingsI18n = {
       },
       apimartApiKeyTip: { before: "APIMart is selected. Get an API key from ", linkLabel: "APIMart", after: "" },
       providerComparison: {
-        title: "Not sure which one? Compare the two recommended plans",
-        subtitle: "Pick by your own scenario; the selection is applied to the default API config",
-        aihubmix: {
-          name: "AIHubMix Aggregated API",
-          tagline: "Overseas SOTA · High concurrency",
-          suitedFor: "Best for: latest overseas models, high concurrency, or team usage",
-          point1: "Access overseas SOTA models: GPT, Claude, Gemini and more",
-          point2: "Stable under high concurrency with strong availability",
-          point3: "Pay as you go; one key works with Gemini / OpenAI formats",
-          cta: "Use this plan",
+        apimart: {
+          name: "APIMart",
+          providerHint: "Only $0.006/image",
+          tagline: "Low-cost images · Pay as you go",
+          suitedFor: "Best for: frequent image generation, batch workloads, or cost-conscious usage",
+          point1: "GPT-Image-2 from $0.006 per image",
+          point2: "Generate 160+ images per dollar",
+          point3: "Pay as you go with no monthly fee",
+          cta: "Use APIMart",
           active: "Current plan",
-          link: "Get an API key →",
-          note: "Switches back to the AIHubMix endpoint (defaults to Gemini; keeps OpenAI format when already in use)",
+          link: "Sign up and get an API key →",
+          note: "Fills the APIMart endpoint and recommended models automatically",
         },
         volcengine: {
           name: "Volcengine Agent Plan",
@@ -413,7 +411,7 @@ const settingsI18n = {
         },
       },
       volcenginePromo: {
-        providerHint: "Cost-effective",
+        providerHint: "Direct access",
         title: "Why choose Volcengine Agent Plan?",
         body: "It is more cost-effective than major overseas model APIs while offering comparable generation quality. The subscription can also be used for everyday work and other compatible tools—not only Banana Slides. The official campaign currently includes Agent Plan and Coding Plan discounts, Doubao model bundles, and free Tokens.",
         cta: "View plans and subscribe",
@@ -519,8 +517,6 @@ interface ServiceTestState {
 
 const INFERERA_AFFILIATE_URL = 'https://api.inferera.com/?aff=17EC';
 const APIMART_SIGNUP_URL = 'https://go.apimart.ai/gh-banana-slides';
-const INFERERA_OPENAI_BASE_URL = 'https://api.inferera.com/v1';
-const INFERERA_GEMINI_BASE_URL = 'https://api.inferera.com/gemini';
 const OPENAI_BASE_URL = 'https://api.openai.com/v1';
 const APIMART_BASE_URL = 'https://api.apimart.ai/v1';
 const VOLCENGINE_AGENTPLANS_CN_URL = 'https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides';
@@ -549,15 +545,15 @@ const getAllProviderSources = (isZh: boolean) => [
   { value: 'volcengine', label: isZh ? '火山 Agent Plan' : 'Volcengine Agent Plan' },
   { value: 'doubao', label: isZh ? 'Doubao（豆包）' : 'Doubao / ModelArk' },
   { value: 'codex', label: 'Codex (OpenAI OAuth)' },
-  ...LAZYLLM_SOURCES.filter(s => s.value !== 'openai' && s.value !== 'doubao'), // avoid duplicate promoted providers
+  ...LAZYLLM_SOURCES.filter(s => !['openai', 'doubao', 'ppio', 'aiping'].includes(s.value)), // avoid duplicate or non-partner providers
 ];
 
 // 需要 API Key + Base URL 的提供商（非 LazyLLM 厂商）
 const API_KEY_PROVIDERS = new Set(['gemini', 'openai', 'volcengine']);
 const APIMART_RECOMMENDED_MODELS = {
-  text: 'gpt-5',
+  text: 'gpt-5.6-sol',
   image: 'gpt-image-2',
-  caption: 'gpt-4o',
+  caption: 'gpt-5.6-luna',
 };
 const isApimartBaseUrl = (url: string) =>
   url.trim().replace(/\/+$/, '') === APIMART_BASE_URL;
@@ -941,9 +937,11 @@ export const Settings: React.FC = () => {
   const oauthAttemptRef = useRef(0);
   const allProviderSources = getAllProviderSources(isZh);
   const globalProviderSources = [
-    ...allProviderSources.slice(0, 2),
+    allProviderSources[0],
     { value: 'apimart', label: 'APIMart' },
-    ...allProviderSources.slice(2),
+    allProviderSources[2],
+    allProviderSources[1],
+    ...allProviderSources.slice(3),
   ];
   const volcengineAgentPlansUrl = isZh ? VOLCENGINE_AGENTPLANS_CN_URL : VOLCENGINE_AGENTPLANS_EN_URL;
   const volcengineLogoUrl = isZh ? '/volcengine/huoshan.png' : '/volcengine/byteplus.png';
@@ -1438,18 +1436,6 @@ export const Settings: React.FC = () => {
     });
   };
 
-  const selectAihubmixPlan = () => {
-    setFormData(prev => ({
-      ...prev,
-      ai_provider_format: prev.ai_provider_format === 'gemini' || prev.ai_provider_format === 'openai'
-        ? prev.ai_provider_format
-        : 'gemini',
-      api_base_url: prev.ai_provider_format === 'openai'
-        ? INFERERA_OPENAI_BASE_URL
-        : INFERERA_GEMINI_BASE_URL,
-    }));
-  };
-
   const selectVolcenginePlan = () => {
     handleFieldChange('ai_provider_format', 'volcengine');
   };
@@ -1488,30 +1474,28 @@ export const Settings: React.FC = () => {
     handleFieldChange('ai_provider_format', provider);
   };
 
-  const isAihubmixPlanActive =
-    (formData.ai_provider_format === 'gemini' || formData.ai_provider_format === 'openai')
-    && (formData.api_base_url || '').includes('api.inferera.com');
+  const isApimartPlanActive = usesApimartProvider;
   const isVolcenginePlanActive = formData.ai_provider_format === 'volcengine';
 
-  const providerPlanCards = [
+  const providerPromotions = [
     {
-      key: 'aihubmix',
-      testId: 'provider-plan-aihubmix',
-      active: isAihubmixPlanActive,
-      name: t('settings.providerComparison.aihubmix.name'),
-      tagline: t('settings.providerComparison.aihubmix.tagline'),
-      suitedFor: t('settings.providerComparison.aihubmix.suitedFor'),
+      key: 'apimart',
+      testId: 'provider-plan-apimart',
+      active: isApimartPlanActive,
+      name: t('settings.providerComparison.apimart.name'),
+      tagline: t('settings.providerComparison.apimart.tagline'),
+      suitedFor: t('settings.providerComparison.apimart.suitedFor'),
       points: [
-        t('settings.providerComparison.aihubmix.point1'),
-        t('settings.providerComparison.aihubmix.point2'),
-        t('settings.providerComparison.aihubmix.point3'),
+        t('settings.providerComparison.apimart.point1'),
+        t('settings.providerComparison.apimart.point2'),
+        t('settings.providerComparison.apimart.point3'),
       ],
-      cta: t('settings.providerComparison.aihubmix.cta'),
-      activeLabel: t('settings.providerComparison.aihubmix.active'),
-      note: t('settings.providerComparison.aihubmix.note'),
-      onSelect: selectAihubmixPlan,
-      href: INFERERA_AFFILIATE_URL,
-      linkLabel: t('settings.providerComparison.aihubmix.link'),
+      cta: t('settings.providerComparison.apimart.cta'),
+      activeLabel: t('settings.providerComparison.apimart.active'),
+      note: t('settings.providerComparison.apimart.note'),
+      onSelect: selectApimartProvider,
+      href: APIMART_SIGNUP_URL,
+      linkLabel: t('settings.providerComparison.apimart.link'),
     },
     {
       key: 'volcengine',
@@ -1998,85 +1982,6 @@ export const Settings: React.FC = () => {
           </h2>
           <p className="text-sm text-gray-500 dark:text-foreground-tertiary mb-4">{t('settings.sections.apiConfigDesc')}</p>
           <div className="space-y-3">
-            {/* 推荐方案对比 */}
-            <div
-              data-testid="provider-plan-comparison"
-              className="rounded-xl border border-gray-200 bg-white p-4 dark:border-border-primary dark:bg-background-secondary"
-            >
-              <div className="mb-3 flex items-start gap-2">
-                <Lightbulb size={16} className="mt-0.5 shrink-0 text-banana-500" />
-                <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-foreground-primary">
-                    {t('settings.providerComparison.title')}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-foreground-tertiary">
-                    {t('settings.providerComparison.subtitle')}
-                  </p>
-                </div>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {providerPlanCards.map(plan => (
-                  <div
-                    key={plan.key}
-                    data-testid={plan.testId}
-                    className={`flex flex-col rounded-lg border p-3 transition-colors ${
-                      plan.active
-                        ? plan.key === 'aihubmix'
-                          ? 'border-blue-500 bg-blue-50/70 ring-1 ring-blue-500/30 dark:bg-blue-950/20'
-                          : 'border-amber-500 bg-amber-50/70 ring-1 ring-amber-500/30 dark:bg-amber-950/20'
-                        : 'border-gray-200 hover:border-gray-300 dark:border-border-primary dark:hover:border-gray-500'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900 dark:text-foreground-primary">{plan.name}</p>
-                        <p className={`text-xs font-medium ${plan.key === 'aihubmix' ? 'text-blue-600 dark:text-blue-300' : 'text-amber-700 dark:text-amber-300'}`}>
-                          {plan.tagline}
-                        </p>
-                      </div>
-                      {plan.active && (
-                        <span className="shrink-0 rounded-full bg-gray-900/5 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-white/10 dark:text-foreground-secondary">
-                          {plan.activeLabel}
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-2 text-xs text-gray-500 dark:text-foreground-tertiary">{plan.suitedFor}</p>
-                    <ul className="mt-2 flex-1 space-y-1.5">
-                      {plan.points.map(point => (
-                        <li key={point} className="flex items-start gap-1.5 text-xs text-gray-700 dark:text-foreground-secondary">
-                          <CheckCircle size={14} className="mt-0.5 shrink-0 text-emerald-500" />
-                          <span>{point}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    <p className="mt-2 text-[11px] text-gray-400 dark:text-foreground-tertiary">{plan.note}</p>
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <Button
-                        variant={plan.active ? 'secondary' : 'primary'}
-                        size="sm"
-                        disabled={plan.active}
-                        onClick={plan.onSelect}
-                      >
-                        {plan.active ? plan.activeLabel : plan.cta}
-                      </Button>
-                      <a
-                        href={plan.href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`text-xs font-medium underline-offset-2 hover:underline ${
-                          plan.key === 'aihubmix'
-                            ? 'text-blue-600 hover:text-blue-700 dark:text-blue-300'
-                            : 'text-amber-700 hover:text-amber-800 dark:text-amber-300'
-                        }`}
-                      >
-                        {plan.linkLabel}
-                      </a>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
             {/* 默认提供商胶囊选择 */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">
@@ -2093,35 +1998,119 @@ export const Settings: React.FC = () => {
                   const isDisabled = option.value === 'codex' && !settings?.openai_oauth_connected;
                   const hint = option.value === 'volcengine'
                     ? t('settings.volcenginePromo.providerHint')
-                    : option.value === 'doubao'
-                      ? t('settings.doubaoVolcenginePromo.providerHint')
+                    : option.value === 'apimart'
+                      ? t('settings.providerComparison.apimart.providerHint')
                       : null;
+                  const hoverPlanKey = option.value === 'apimart' || option.value === 'volcengine'
+                    ? option.value
+                    : null;
+                  const hoverPlan = hoverPlanKey
+                    ? providerPromotions.find(plan => plan.key === hoverPlanKey) ?? null
+                    : null;
 
                   return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      role="radio"
-                      aria-checked={isSelected}
-                      disabled={isDisabled}
-                      data-provider={option.value}
-                      onClick={() => selectGlobalProvider(option.value)}
-                      className={`inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-banana-500 focus:ring-offset-2 dark:focus:ring-offset-background-primary ${
-                        isSelected
-                          ? 'border-banana-500 bg-banana-400 font-medium text-gray-950 shadow-sm'
-                          : 'border-gray-200 bg-white text-gray-700 hover:border-banana-300 hover:bg-banana-50 dark:border-border-primary dark:bg-background-secondary dark:text-foreground-secondary dark:hover:border-banana-700 dark:hover:bg-banana-950/30'
-                      } disabled:cursor-not-allowed disabled:opacity-45`}
-                    >
-                      <span>{option.label}</span>
-                      {hint && (
-                        <span className={`text-[11px] ${isSelected ? 'text-gray-800' : 'text-amber-700 dark:text-amber-300'}`}>
-                          {hint}
-                        </span>
+                    <div key={option.value} className="group relative">
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={isSelected}
+                        aria-describedby={hoverPlan ? `${hoverPlan.testId}-popover` : undefined}
+                        disabled={isDisabled}
+                        data-provider={option.value}
+                        onClick={() => selectGlobalProvider(option.value)}
+                        className={`inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-banana-500 focus:ring-offset-2 dark:focus:ring-offset-background-primary ${
+                          isSelected
+                            ? 'border-banana-500 bg-banana-400 font-medium text-gray-950 shadow-sm'
+                            : 'border-gray-200 bg-white text-gray-700 hover:border-banana-300 hover:bg-banana-50 dark:border-border-primary dark:bg-background-secondary dark:text-foreground-secondary dark:hover:border-banana-700 dark:hover:bg-banana-950/30'
+                        } disabled:cursor-not-allowed disabled:opacity-45`}
+                      >
+                        <span>{option.label}</span>
+                        {hoverPlan && (
+                          <span
+                            aria-hidden="true"
+                            className={`inline-flex h-4 w-4 items-center justify-center rounded-full ${
+                              hoverPlan.key === 'apimart'
+                                ? 'bg-violet-100 text-violet-600 dark:bg-violet-950/70 dark:text-violet-300'
+                                : 'bg-amber-100 text-amber-700 dark:bg-amber-950/70 dark:text-amber-300'
+                            }`}
+                          >
+                            <Sparkles size={10} className="animate-pulse" />
+                          </span>
+                        )}
+                        {hint && (
+                          <span className={`text-[11px] ${isSelected ? 'text-gray-800' : 'text-amber-700 dark:text-amber-300'}`}>
+                            {hint}
+                          </span>
+                        )}
+                        {isDisabled && (
+                          <span className="text-[11px]">{t('settings.openaiOAuth.disconnected')}</span>
+                        )}
+                      </button>
+
+                      {hoverPlan && (
+                        <div
+                          id={`${hoverPlan.testId}-popover`}
+                          data-testid={hoverPlan.testId}
+                          className="pointer-events-none invisible absolute left-0 top-full z-50 w-[22rem] max-w-[calc(100vw-3rem)] translate-y-1 pt-2 opacity-0 transition-all duration-150 group-hover:pointer-events-auto group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100"
+                        >
+                          <div className={`rounded-xl border bg-white p-4 shadow-xl dark:bg-background-secondary ${
+                            hoverPlan.key === 'apimart'
+                              ? 'border-violet-200 dark:border-violet-900'
+                              : 'border-amber-200 dark:border-amber-900'
+                          }`}>
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-gray-900 dark:text-foreground-primary">{hoverPlan.name}</p>
+                                <p className={`mt-0.5 text-xs font-medium ${
+                                  hoverPlan.key === 'apimart'
+                                    ? 'text-violet-600 dark:text-violet-300'
+                                    : 'text-amber-700 dark:text-amber-300'
+                                }`}>
+                                  {hoverPlan.tagline}
+                                </p>
+                              </div>
+                              {hoverPlan.active && (
+                                <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-white/10 dark:text-foreground-secondary">
+                                  {hoverPlan.activeLabel}
+                                </span>
+                              )}
+                            </div>
+                            <p className="mt-2 text-xs text-gray-500 dark:text-foreground-tertiary">{hoverPlan.suitedFor}</p>
+                            <ul className="mt-3 space-y-1.5">
+                              {hoverPlan.points.map(point => (
+                                <li key={point} className="flex items-start gap-1.5 text-xs text-gray-700 dark:text-foreground-secondary">
+                                  <CheckCircle size={14} className="mt-0.5 shrink-0 text-emerald-500" />
+                                  <span>{point}</span>
+                                </li>
+                              ))}
+                            </ul>
+                            <p className="mt-2 text-[11px] text-gray-400 dark:text-foreground-tertiary">{hoverPlan.note}</p>
+                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                              <Button
+                                variant={hoverPlan.active ? 'secondary' : 'primary'}
+                                size="sm"
+                                disabled={hoverPlan.active}
+                                onClick={hoverPlan.onSelect}
+                              >
+                                {hoverPlan.active ? hoverPlan.activeLabel : hoverPlan.cta}
+                              </Button>
+                              <a
+                                href={hoverPlan.href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`text-xs font-medium underline-offset-2 hover:underline ${
+                                  hoverPlan.key === 'apimart'
+                                    ? 'text-violet-600 hover:text-violet-700 dark:text-violet-300'
+                                    : 'text-amber-700 hover:text-amber-800 dark:text-amber-300'
+                                }`}
+                              >
+                                {hoverPlan.linkLabel}
+                              </a>
+                            </div>
+                          </div>
+                        </div>
                       )}
-                      {isDisabled && (
-                        <span className="text-[11px]">{t('settings.openaiOAuth.disconnected')}</span>
-                      )}
-                    </button>
+                    </div>
                   );
                 })}
               </div>
