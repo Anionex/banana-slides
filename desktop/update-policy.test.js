@@ -147,3 +147,12 @@ test('ignores releases without an installer for the current platform', () => {
 
   assert.equal(release?.tag_name, 'v0.9.0');
 });
+
+test('accepts electron-builder Linux x64 artifact names', () => {
+  assert.equal(updatePolicy.releaseHasDesktopAsset({
+    assets: [{ name: 'BananaSlides-0.9.1-linux-x64.AppImage' }],
+  }, 'linux', 'x64'), true);
+  assert.equal(updatePolicy.releaseHasDesktopAsset({
+    assets: [{ name: 'BananaSlides-0.9.1-linux-x64.deb' }],
+  }, 'linux', 'x64'), true);
+});

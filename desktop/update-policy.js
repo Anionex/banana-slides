@@ -40,8 +40,8 @@ function getDesktopAssetPatterns(platform, arch) {
   }
   if (platform === 'linux' && arch === 'x64') {
     return [
-      /linux[-_]x86_64.*\.appimage$/i,
-      /linux[-_]amd64.*\.deb$/i,
+      /linux[-_](?:x64|x86_64).*\.appimage$/i,
+      /linux[-_](?:x64|amd64).*\.deb$/i,
     ];
   }
   if (platform === 'linux' && arch === 'arm64') {
