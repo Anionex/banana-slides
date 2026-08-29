@@ -34,6 +34,15 @@ describe('settings cache request ordering', () => {
     expect(readSettingsCache()?.description_generation_mode).toBe('parallel');
   });
 
+  it('orders authoritative mutation responses by server completion', () => {
+    const staleReadRequest = beginSettingsCacheRequest();
+
+    expect(writeSettingsCache(makeSettings('parallel'))).toBe(true);
+    expect(writeSettingsCache(makeSettings('streaming'))).toBe(true);
+    expect(writeSettingsCache(makeSettings('parallel'), staleReadRequest)).toBe(false);
+    expect(readSettingsCache()?.description_generation_mode).toBe('streaming');
+  });
+
   it('preserves a newer OAuth status when applying a successful settings save', () => {
     const merged = mergeSettingsWithOpenAIOAuthStatus(
       {

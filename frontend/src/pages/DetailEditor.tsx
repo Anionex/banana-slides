@@ -296,10 +296,10 @@ export const DetailEditor: React.FC = () => {
     if (settingsSaveTimerRef.current) clearTimeout(settingsSaveTimerRef.current);
     settingsSaveTimerRef.current = setTimeout(async () => {
       try {
-        const settingsRequestId = beginSettingsCacheRequest();
         const res = await updateSettings(updates as any);
         if (res.data) {
-          writeSettingsCache(res.data, settingsRequestId);
+          // PUT responses are full server snapshots; commit them in completion order.
+          writeSettingsCache(res.data);
         }
       } catch (e) {
         console.error('Failed to save settings:', e);

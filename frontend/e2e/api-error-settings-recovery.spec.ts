@@ -875,6 +875,146 @@ test.describe('API error settings recovery', () => {
     }
   })
 
+  test('mock: overlapping partial settings saves cache the last server commit', async ({ page }) => {
+    const projectId = 'mock-overlapping-settings-saves'
+    const project = {
+      id: projectId,
+      project_id: projectId,
+      creation_type: 'idea',
+      status: 'OUTLINE_GENERATED',
+      pages: [{
+        id: `${projectId}-page`,
+        page_id: `${projectId}-page`,
+        order_index: 0,
+        outline_content: { title: '并发设置保存', points: ['以服务端最终状态为准'] },
+        status: 'DRAFT',
+      }],
+    }
+    const serverSettings: Record<string, unknown> = {
+      ai_provider_format: 'gemini',
+      description_generation_mode: 'streaming',
+      description_extra_fields: ['配图与素材', '版式与重点', '演讲者备注'],
+      image_prompt_extra_fields: ['配图与素材', '版式与重点'],
+    }
+    let signalFirstSaveStarted!: () => void
+    const firstSaveStarted = new Promise<void>((resolve) => { signalFirstSaveStarted = resolve })
+    let releaseFirstSave!: () => void
+    const firstSaveRelease = new Promise<void>((resolve) => { releaseFirstSave = resolve })
+    let signalFirstSaveCompleted!: () => void
+    const firstSaveCompleted = new Promise<void>((resolve) => { signalFirstSaveCompleted = resolve })
+    let signalSecondSaveCompleted!: () => void
+    const secondSaveCompleted = new Promise<void>((resolve) => { signalSecondSaveCompleted = resolve })
+    let parallelRequestCount = 0
+    let streamingRequestCount = 0
+
+    await page.addInitScript(() => {
+      localStorage.setItem('hasSeenHelpModal', 'true')
+    })
+    await page.route(
+      (url) => url.pathname.startsWith('/api/'),
+      async (route) => {
+        const request = route.request()
+        const url = new URL(request.url())
+
+        if (url.pathname === `/api/projects/${projectId}` && request.method() === 'GET') {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ success: true, data: project }),
+          })
+        }
+
+        if (url.pathname === '/api/settings' && request.method() === 'GET') {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ success: true, data: serverSettings }),
+          })
+        }
+
+        if (url.pathname === '/api/settings' && request.method() === 'PUT') {
+          const updates = JSON.parse(request.postData() || '{}')
+          if ('description_generation_mode' in updates) {
+            signalFirstSaveStarted()
+            await firstSaveRelease
+            Object.assign(serverSettings, updates)
+            await route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify({ success: true, data: serverSettings }),
+            })
+            signalFirstSaveCompleted()
+            return
+          }
+
+          Object.assign(serverSettings, updates)
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ success: true, data: serverSettings }),
+          })
+          signalSecondSaveCompleted()
+          return
+        }
+
+        if (url.pathname === `/api/projects/${projectId}/generate/descriptions` && request.method() === 'POST') {
+          parallelRequestCount += 1
+          return route.fulfill({
+            status: 503,
+            contentType: 'application/json',
+            body: JSON.stringify({ success: false, error: { message: 'stop after endpoint assertion' } }),
+          })
+        }
+
+        if (url.pathname === `/api/projects/${projectId}/generate/descriptions/stream` && request.method() === 'POST') {
+          streamingRequestCount += 1
+          return route.fulfill({
+            status: 200,
+            headers: { 'Content-Type': 'text/event-stream' },
+            body: 'event: error\ndata: {"message":"stop after endpoint assertion"}\n\n',
+          })
+        }
+
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: [] }),
+        })
+      }
+    )
+
+    try {
+      await page.goto(`/project/${projectId}/detail`)
+      await page.getByRole('button', { name: '描述设置' }).click()
+      await page.getByRole('button', { name: '并行', exact: true }).click()
+      await firstSaveStarted
+
+      await page.getByRole('button', { name: '演讲者备注' }).click()
+      await secondSaveCompleted
+      releaseFirstSave()
+      await firstSaveCompleted
+
+      await expect.poll(() => page.evaluate(() => {
+        const cached = sessionStorage.getItem('banana-settings')
+        if (!cached) return null
+        const settings = JSON.parse(cached)
+        return {
+          mode: settings.description_generation_mode,
+          fields: settings.description_extra_fields,
+        }
+      })).toEqual({
+        mode: 'parallel',
+        fields: ['配图与素材', '版式与重点'],
+      })
+
+      await page.getByRole('button', { name: '批量生成描述' }).click()
+      await expect.poll(() => parallelRequestCount).toBe(1)
+      expect(streamingRequestCount).toBe(0)
+    } finally {
+      releaseFirstSave()
+    }
+  })
+
   test('mock: an uncertain parallel task keeps batch generation locked', async ({ page }) => {
     const projectId = 'mock-parallel-task-locked'
     const project = {
