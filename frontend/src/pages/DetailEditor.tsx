@@ -135,6 +135,7 @@ import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { refineDescriptions, getTaskStatus, addPages, updateProject, getSettings, updateSettings } from '@/api/endpoints';
 import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtils';
+import { useApiSettingsRecovery } from '@/hooks/useApiSettingsRecovery';
 
 // 详细程度图标 — 暂时屏蔽，效果不够理想
 // const DETAIL_LEVEL_LINES: Record<string, number[]> = {
@@ -227,6 +228,7 @@ export const DetailEditor: React.FC = () => {
     switchTemplateMode,
   } = useProjectStore();
   const { show, ToastContainer } = useToast();
+  const { withApiSettingsRecovery } = useApiSettingsRecovery();
   const { confirm, ConfirmDialog } = useConfirm();
   const [isAiRefining, setIsAiRefining] = React.useState(false);
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
@@ -500,10 +502,10 @@ export const DetailEditor: React.FC = () => {
         }
         show({ message: t('detail.messages.generateSuccess'), type: 'success' });
       } catch (error: any) {
-        show({
+        show(withApiSettingsRecovery(error, {
           message: `${t('detail.messages.generateFailed')}: ${error.message || t('common.unknownError')}`,
           type: 'error'
-        });
+        }));
       }
     };
 
@@ -557,10 +559,10 @@ export const DetailEditor: React.FC = () => {
       const errorMessage = error?.response?.data?.error?.message 
         || error?.message 
         || t('detail.messages.refineFailed');
-      show({ message: errorMessage, type: 'error' });
+      show(withApiSettingsRecovery(error, { message: errorMessage, type: 'error' }));
       throw error; // 抛出错误让组件知道失败了
     }
-  }, [currentProject, projectId, syncProject, show, t]);
+  }, [currentProject, projectId, syncProject, show, t, withApiSettingsRecovery]);
 
   // 导出页面描述为 Markdown 文件
   const handleExportDescriptions = useCallback(() => {

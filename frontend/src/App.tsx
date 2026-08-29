@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Home } from './pages/Home';
 import { Landing } from './pages/Landing';
 import { History } from './pages/History';
@@ -12,10 +12,28 @@ import { useProjectStore } from './store/useProjectStore';
 import { useToast, AccessCodeGuard, DesktopTitleBar, UpdateChecker } from './components/shared';
 import { getDesktopTopInset } from './components/shared/UpdateChecker';
 import { isDesktop } from '@/utils';
+import { useApiSettingsRecovery } from '@/hooks/useApiSettingsRecovery';
+
+function GlobalErrorToasts() {
+  const { error, setError } = useProjectStore();
+  const { show, ToastContainer } = useToast();
+  const location = useLocation();
+  const { withApiSettingsRecovery } = useApiSettingsRecovery();
+
+  useEffect(() => {
+    if (!error) return;
+
+    const isEditorRoute = /^\/project\/[^/]+\/(outline|detail)$/.test(location.pathname);
+    const toast = { message: error, type: 'error' as const };
+    show(isEditorRoute ? withApiSettingsRecovery(error, toast) : toast);
+    setError(null);
+  }, [error, location.pathname, setError, show, withApiSettingsRecovery]);
+
+  return <ToastContainer />;
+}
 
 function App() {
-  const { currentProject, syncProject, error, setError } = useProjectStore();
-  const { show, ToastContainer } = useToast();
+  const { currentProject, syncProject } = useProjectStore();
   const [isUpdateVisible, setIsUpdateVisible] = useState(false);
 
   // 恢复项目状态
@@ -25,15 +43,6 @@ function App() {
       syncProject();
     }
   }, [currentProject, syncProject]);
-
-  // 显示全局错误
-  useEffect(() => {
-    if (error) {
-      show({ message: error, type: 'error' });
-      setError(null);
-    }
-  }, [error, setError, show]);
-
 
   return (
     <>
@@ -56,7 +65,7 @@ function App() {
                   <Route path="/project/:projectId/preview" element={<SlidePreview />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
-                <ToastContainer />
+                <GlobalErrorToasts />
               </Router>
             );
           })()}

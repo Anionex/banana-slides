@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from 'vitest';
-import { normalizeErrorMessage } from '@/utils';
+import { isApiSettingsError, normalizeErrorMessage } from '@/utils';
 
 describe('normalizeErrorMessage', () => {
   beforeEach(() => {
@@ -40,5 +40,40 @@ describe('normalizeErrorMessage', () => {
     const message = normalizeErrorMessage("HTTPSConnectionPool(host='api.openai.com', port=443): Max retries exceeded");
     expect(message).not.toContain('Codex');
     expect(message).toContain('网络连接中断');
+  });
+
+  test.each([
+    ['API key is invalid', 'API 密钥无效'],
+    ['API quota or balance is insufficient', '余额或配额不足'],
+    ['API permission denied', 'API 权限不足'],
+    ['API rate limit exceeded', '请求过于频繁'],
+    ['Configured AI model is unavailable', 'AI 模型不可用'],
+    ['AI service connection failed; check API base URL', '检查 API 地址'],
+  ])('localizes provider recovery errors: %s', (raw, expected) => {
+    expect(normalizeErrorMessage(raw)).toContain(expected);
+  });
+});
+
+describe('isApiSettingsError', () => {
+  test.each([
+    'HTTP 401',
+    '403 Forbidden',
+    '429 Too Many Requests',
+    'usage limit has been exhausted',
+    'balance is insufficient',
+    '认证失败，请检查 API 密钥配置',
+    { response: { status: 401, data: { error: { message: 'invalid credential' } } } },
+  ])('recognizes settings-recoverable API failures: %j', (error) => {
+    expect(isApiSettingsError(error)).toBe(true);
+  });
+
+  test.each([
+    '500 Internal Server Error',
+    '503 Service Unavailable',
+    'Network error',
+    'Gateway timeout',
+    new Error('File parsing failed'),
+  ])('does not redirect unrelated failures to settings: %j', (error) => {
+    expect(isApiSettingsError(error)).toBe(false);
   });
 });
