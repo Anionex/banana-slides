@@ -65,6 +65,12 @@ describe('normalizeErrorMessage', () => {
     );
   });
 
+  test('localizes disconnected Codex OAuth as a settings recovery error', () => {
+    const raw = 'OpenAI OAuth is not connected. Please connect in Settings.';
+    expect(normalizeErrorMessage(raw)).toContain('重新登录 OpenAI');
+    expect(isApiSettingsError(normalizeErrorMessage(raw))).toBe(true);
+  });
+
   test('maps MinerU credential failures in the renovation workflow to a concrete recovery step', () => {
     const message = normalizeRenovationErrorMessage(
       'Failed to get upload URL: MinerU API returned 401 Unauthorized: token expired'

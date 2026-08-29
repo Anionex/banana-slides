@@ -21,6 +21,7 @@ def safe_generation_error_message(error: Exception) -> str:
             'api key not valid', 'invalid api key', 'api_key_invalid',
             'invalid_api_key', 'incorrect api key', 'unauthorized',
             'authentication failed', 'authentication_error', 'api key is required',
+            'oauth is not connected',
         ))
         or ('api_key' in message and 'is required' in message)
     ):

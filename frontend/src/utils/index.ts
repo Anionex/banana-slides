@@ -144,6 +144,12 @@ export function normalizeErrorMessage(
     || message.includes('openai oauth')
   );
 
+  if (isCodexContext && message.includes('not connected')) {
+    return isZh
+      ? 'Codex 登录已过期或未连接，请前往设置重新登录 OpenAI 账号后再试。'
+      : 'Your Codex login has expired or is disconnected. Please reconnect your OpenAI account in Settings and try again.';
+  }
+
   // Handle specific error messages
   if (
     message.includes('api key is invalid')
@@ -344,6 +350,8 @@ export function isApiSettingsError(error: unknown): boolean {
     'invalid credential',
     'invalid key',
     'not connected',
+    '登录已过期',
+    '重新登录 openai',
     'quota',
     'usage limit',
     'rate limit',

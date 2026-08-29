@@ -877,7 +877,11 @@ def generate_descriptions(project_id):
         if task_id:
             recover_description_task_failure(task_id, project_id, e)
         logger.error(f"generate_descriptions failed: {str(e)}", exc_info=True)
-        return error_response('SERVER_ERROR', str(e), 500)
+        return error_response(
+            'AI_SERVICE_ERROR',
+            safe_generation_error_message(e),
+            503,
+        )
 
 
 @project_bp.route('/<project_id>/generate/descriptions/stream', methods=['POST'])

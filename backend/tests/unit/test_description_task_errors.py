@@ -185,6 +185,25 @@ def test_description_endpoint_persists_generating_state_before_submit(app, clien
     assert response.status_code == 202
 
 
+def test_description_endpoint_safely_surfaces_provider_initialization_failure(app, client):
+    project_id = _create_description_project(client, page_count=1)
+
+    with patch(
+        'controllers.project_controller.get_ai_service',
+        side_effect=ValueError('GOOGLE_API_KEY (from database settings or environment) is required'),
+    ):
+        response = client.post(f'/api/projects/{project_id}/generate/descriptions', json={})
+
+    assert response.status_code == 503
+    assert response.get_json()['error']['message'] == 'API key is invalid'
+
+    with app.app_context():
+        project = db.session.get(Project, project_id)
+        tasks = Task.query.filter_by(project_id=project_id).all()
+        assert project.status != 'GENERATING_DESCRIPTIONS'
+        assert tasks == []
+
+
 def test_parallel_description_batch_prefers_actionable_provider_error():
     message = prioritized_generation_error_message([
         'unexpected parser failure with private details',

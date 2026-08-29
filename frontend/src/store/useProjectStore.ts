@@ -1020,7 +1020,13 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       } catch (error: any) {
         console.error('[生成描述] 启动任务失败:', error);
         await get().syncProject();
-        set({ error: normalizeErrorMessage(error.message || t('store.startGenerationFailed')) });
+        const message = normalizeErrorMessage(
+          error?.response?.data?.error?.message
+          || error?.response?.data?.message
+          || error.message
+          || t('store.startGenerationFailed')
+        );
+        set({ error: message });
         throw error;
       }
     }

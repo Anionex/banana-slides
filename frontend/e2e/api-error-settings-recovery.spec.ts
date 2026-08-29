@@ -451,6 +451,83 @@ test.describe('API error settings recovery', () => {
     await expect(page).toHaveURL(new RegExp(`/project/${projectId}/detail$`))
   })
 
+  test('mock: provider initialization failure before task creation offers settings recovery', async ({ page }) => {
+    const projectId = 'mock-parallel-provider-init-error'
+    const project = {
+      id: projectId,
+      project_id: projectId,
+      creation_type: 'idea',
+      status: 'OUTLINE_GENERATED',
+      pages: [{
+        id: `${projectId}-page`,
+        page_id: `${projectId}-page`,
+        order_index: 0,
+        outline_content: { title: '未配置 API Key', points: ['要点'] },
+        status: 'DRAFT',
+      }],
+    }
+
+    await page.addInitScript(() => {
+      sessionStorage.setItem('banana-settings', JSON.stringify({
+        description_generation_mode: 'parallel',
+      }))
+    })
+    await page.route(
+      (url) => url.pathname.startsWith('/api/'),
+      async (route) => {
+        const request = route.request()
+        const url = new URL(request.url())
+
+        if (url.pathname === `/api/projects/${projectId}` && request.method() === 'GET') {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ success: true, data: project }),
+          })
+        }
+
+        if (url.pathname === `/api/projects/${projectId}/generate/descriptions` && request.method() === 'POST') {
+          return route.fulfill({
+            status: 503,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              success: false,
+              error: { code: 'AI_SERVICE_ERROR', message: 'API key is invalid' },
+            }),
+          })
+        }
+
+        if (url.pathname === '/api/settings' && request.method() === 'GET') {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              success: true,
+              data: {
+                ai_provider_format: 'gemini',
+                description_generation_mode: 'parallel',
+                description_extra_fields: [],
+              },
+            }),
+          })
+        }
+
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: [] }),
+        })
+      }
+    )
+
+    await page.goto(`/project/${projectId}/detail`)
+    await page.getByRole('button', { name: '批量生成描述' }).click()
+    const settingsAction = page.getByRole('button', { name: '检查 API 设置' })
+    await expect(settingsAction).toBeVisible()
+    await settingsAction.click()
+    await expect(page).toHaveURL(/\/settings$/)
+  })
+
   test('integration: description quota error saves real settings and returns to the same project', async ({ page }) => {
     const { projectId } = await seedProjectWithImages(BACKEND_URL, 1)
     let settingsGetCount = 0
