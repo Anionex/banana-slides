@@ -108,14 +108,24 @@ describe('Settings quality control', () => {
     });
   });
 
-  it('completes recovery navigation when a newer cache write supersedes the save response', async () => {
+  it('merges the saved configuration with the current OAuth status before returning', async () => {
     const onSaveSuccess = vi.fn();
-    updateSettings.mockResolvedValue({
-      data: { ...baseSettings, text_model: 'superseded-save-response' },
+    getSettings.mockResolvedValue({
+      data: {
+        ...baseSettings,
+        openai_oauth_connected: true,
+        openai_oauth_account_id: 'oauth-account',
+      },
     });
-    const cacheSpy = vi.spyOn(settingsCache, 'writeSettingsCache').mockImplementation(
-      (settings) => settings.text_model !== 'superseded-save-response'
-    );
+    updateSettings.mockResolvedValue({
+      data: {
+        ...baseSettings,
+        text_model: 'saved-model',
+        openai_oauth_connected: false,
+        openai_oauth_account_id: null,
+      },
+    });
+    const cacheSpy = vi.spyOn(settingsCache, 'writeSettingsCache');
 
     render(
       <MemoryRouter>
@@ -129,6 +139,11 @@ describe('Settings quality control', () => {
     await waitFor(() => {
       expect(updateSettings).toHaveBeenCalled();
       expect(onSaveSuccess).toHaveBeenCalledTimes(1);
+      expect(cacheSpy).toHaveBeenCalledWith(expect.objectContaining({
+        text_model: 'saved-model',
+        openai_oauth_connected: true,
+        openai_oauth_account_id: 'oauth-account',
+      }));
     });
     cacheSpy.mockRestore();
   });

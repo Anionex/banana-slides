@@ -492,7 +492,11 @@ import * as api from '@/api/endpoints';
 import type { OutputLanguage, UpdateCheckInfo } from '@/api/endpoints';
 import { OUTPUT_LANGUAGE_OPTIONS } from '@/api/endpoints';
 import type { Settings as SettingsType } from '@/types';
-import { beginSettingsCacheRequest, writeSettingsCache } from '@/utils/settingsCache';
+import {
+  beginSettingsCacheRequest,
+  mergeSettingsWithOpenAIOAuthStatus,
+  writeSettingsCache,
+} from '@/utils/settingsCache';
 
 // 配置项类型定义
 type FieldType = 'text' | 'password' | 'number' | 'select' | 'buttons' | 'switch';
@@ -950,6 +954,7 @@ export const Settings: React.FC<SettingsProps> = ({ onSaveSuccess, saveLabel }) 
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const oauthMonitorStopRef = useRef<(() => void) | null>(null);
   const oauthAttemptRef = useRef(0);
+  const oauthStatusRef = useRef<{ connected: boolean; accountId: string | null } | null>(null);
   const allProviderSources = getAllProviderSources(isZh);
   const globalProviderSources = [
     allProviderSources[0],
@@ -994,6 +999,7 @@ export const Settings: React.FC<SettingsProps> = ({ onSaveSuccess, saveLabel }) 
   }, [settings]);
 
   const applyOAuthStatus = useCallback((connected: boolean, accountId: string | null) => {
+    oauthStatusRef.current = { connected, accountId };
     setSettings(prev => {
       if (!prev) return prev;
       return {
@@ -1264,6 +1270,10 @@ export const Settings: React.FC<SettingsProps> = ({ onSaveSuccess, saveLabel }) 
     try {
       const response = await api.getSettings();
       if (response.data && writeSettingsCache(response.data, settingsRequestId)) {
+        oauthStatusRef.current = {
+          connected: Boolean(response.data.openai_oauth_connected),
+          accountId: response.data.openai_oauth_account_id || null,
+        };
         setSettings(response.data);
         setFormData(formDataFromSettings(response.data));
       }
@@ -1279,6 +1289,7 @@ export const Settings: React.FC<SettingsProps> = ({ onSaveSuccess, saveLabel }) 
   };
 
   const markOpenAIOAuthDisconnected = () => {
+    oauthStatusRef.current = { connected: false, accountId: null };
     setSettings(prev => {
       if (!prev) return prev;
       return {
@@ -1319,12 +1330,14 @@ export const Settings: React.FC<SettingsProps> = ({ onSaveSuccess, saveLabel }) 
         payload.lazyllm_api_keys = nonEmptyKeys;
       }
 
-      const settingsRequestId = beginSettingsCacheRequest();
       const response = await api.updateSettings(payload);
       if (response.data) {
-        if (writeSettingsCache(response.data, settingsRequestId)) {
-          setSettings(response.data);
-        }
+        const savedSettings = mergeSettingsWithOpenAIOAuthStatus(
+          response.data,
+          oauthStatusRef.current
+        );
+        writeSettingsCache(savedSettings);
+        setSettings(savedSettings);
         // Clear all sensitive fields after save
         setFormData(prev => ({
           ...prev,
@@ -1360,6 +1373,10 @@ export const Settings: React.FC<SettingsProps> = ({ onSaveSuccess, saveLabel }) 
           const response = await api.resetSettings();
           if (response.data) {
             if (writeSettingsCache(response.data, settingsRequestId)) {
+              oauthStatusRef.current = {
+                connected: Boolean(response.data.openai_oauth_connected),
+                accountId: response.data.openai_oauth_account_id || null,
+              };
               setSettings(response.data);
               setFormData(formDataFromSettings(response.data));
             }

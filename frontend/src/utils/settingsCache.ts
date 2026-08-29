@@ -5,6 +5,11 @@ const SETTINGS_CACHE_KEY = 'banana-settings';
 let nextRequestId = 0;
 let latestCommittedRequestId = 0;
 
+export interface OpenAIOAuthCacheStatus {
+  connected: boolean;
+  accountId: string | null;
+}
+
 export function beginSettingsCacheRequest(): number {
   nextRequestId += 1;
   return nextRequestId;
@@ -30,4 +35,16 @@ export function writeSettingsCache(settings: Settings, requestId?: number): bool
     console.warn('Failed to persist settings in sessionStorage:', error);
   }
   return true;
+}
+
+export function mergeSettingsWithOpenAIOAuthStatus(
+  settings: Settings,
+  oauthStatus: OpenAIOAuthCacheStatus | null
+): Settings {
+  if (!oauthStatus) return settings;
+  return {
+    ...settings,
+    openai_oauth_connected: oauthStatus.connected,
+    openai_oauth_account_id: oauthStatus.accountId,
+  };
 }
