@@ -1132,6 +1132,133 @@ test.describe('API error settings recovery', () => {
     }
   })
 
+  test('mock: a failed background task syncs partial results after returning from Home', async ({ page }) => {
+    const projectId = 'mock-failed-task-partial-results'
+    const taskId = 'mock-failed-task-partial-results-task'
+    const pageId = `${projectId}-page`
+    const project = {
+      id: projectId,
+      project_id: projectId,
+      creation_type: 'idea',
+      status: 'DESCRIPTION_GENERATED',
+      pages: [{
+        id: pageId,
+        page_id: pageId,
+        order_index: 0,
+        outline_content: { title: '部分成功结果', points: ['后台已提交'] },
+        description_content: { text: '旧描述' },
+        status: 'DESCRIPTION_GENERATED',
+      }],
+    }
+    const finalProject = {
+      ...project,
+      pages: [{
+        ...project.pages[0],
+        description_content: { text: '后端保留的部分成功描述' },
+      }],
+    }
+    let taskFailureReturned = false
+    let signalTaskStarted!: () => void
+    const taskStarted = new Promise<void>((resolve) => { signalTaskStarted = resolve })
+
+    await page.addInitScript(() => {
+      sessionStorage.setItem('banana-settings', JSON.stringify({
+        description_generation_mode: 'parallel',
+      }))
+      localStorage.setItem('hasSeenHelpModal', 'true')
+    })
+    await page.route(
+      (url) => url.pathname.startsWith('/api/'),
+      async (route) => {
+        const request = route.request()
+        const url = new URL(request.url())
+
+        if (url.pathname === `/api/projects/${projectId}` && request.method() === 'GET') {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              success: true,
+              data: taskFailureReturned ? finalProject : project,
+            }),
+          })
+        }
+
+        if (url.pathname === `/api/projects/${projectId}/generate/descriptions` && request.method() === 'POST') {
+          signalTaskStarted()
+          return route.fulfill({
+            status: 202,
+            contentType: 'application/json',
+            body: JSON.stringify({ success: true, data: { task_id: taskId } }),
+          })
+        }
+
+        if (url.pathname === `/api/projects/${projectId}/tasks/${taskId}`) {
+          taskFailureReturned = true
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              success: true,
+              data: {
+                task_id: taskId,
+                status: 'FAILED',
+                error_message: 'API quota or balance is insufficient',
+              },
+            }),
+          })
+        }
+
+        if (url.pathname === '/api/settings' && request.method() === 'GET') {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              success: true,
+              data: {
+                ai_provider_format: 'gemini',
+                description_generation_mode: 'parallel',
+                description_extra_fields: [],
+              },
+            }),
+          })
+        }
+
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: [] }),
+        })
+      }
+    )
+
+    await page.goto(`/project/${projectId}/detail`)
+    await page.getByRole('button', { name: '批量生成描述' }).click()
+    await page.getByRole('dialog').getByRole('button', { name: '确定' }).click()
+    await taskStarted
+
+    await page.evaluate(() => {
+      const currentState = window.history.state || {}
+      window.history.pushState(
+        { ...currentState, idx: (currentState.idx ?? 0) + 1, key: 'failed-task-home' },
+        '',
+        '/'
+      )
+      window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }))
+    })
+    await expect(page).toHaveURL(/\/$/)
+
+    const settingsAction = page.getByRole('button', { name: '检查 API 设置' })
+    await expect(settingsAction).toBeVisible({ timeout: 5000 })
+    await settingsAction.click()
+    await expect(page).toHaveURL(/\/settings$/)
+    await page.getByRole('button', { name: '返回编辑器' }).click()
+
+    await expect(page).toHaveURL(new RegExp(`/project/${projectId}/detail$`))
+    await expect(page.getByText('后端保留的部分成功描述')).toBeVisible({ timeout: 5000 })
+    await expect(page.getByRole('button', { name: '批量生成描述' })).toBeEnabled()
+  })
+
   test('mock: an uncertain parallel task keeps batch generation locked', async ({ page }) => {
     const projectId = 'mock-parallel-task-locked'
     const project = {

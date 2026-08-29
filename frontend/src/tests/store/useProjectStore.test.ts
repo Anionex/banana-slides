@@ -467,6 +467,7 @@ describe('useProjectStore 描述失败回滚', () => {
   beforeEach(() => {
     vi.mocked(generateDescriptions).mockReset()
     vi.mocked(getProject).mockReset()
+    vi.mocked(getTaskStatus).mockReset()
     sessionStorage.setItem('banana-settings', JSON.stringify({ description_generation_mode: 'parallel' }))
     window.history.pushState({}, '', '/project/proj-desc/detail')
     useProjectStore.setState({
@@ -555,6 +556,57 @@ describe('useProjectStore 描述失败回滚', () => {
       expect(vi.mocked(getTaskStatus)).toHaveBeenCalledTimes(13)
       expect(result.current.activeTaskId).toBeNull()
       expect(result.current.currentProject?.pages[0].status).toBe('DESCRIPTION_GENERATED')
+    } finally {
+      vi.clearAllTimers()
+      vi.useRealTimers()
+    }
+  })
+
+  it('任务在 Home 失败时等待返回来源项目同步部分成功结果', async () => {
+    vi.useFakeTimers()
+    vi.mocked(generateDescriptions).mockResolvedValueOnce({ data: { task_id: 'task-partial' } } as any)
+    vi.mocked(getTaskStatus).mockResolvedValue({
+      data: {
+        task_id: 'task-partial',
+        status: 'FAILED',
+        error_message: 'API quota or balance is insufficient',
+      },
+    } as any)
+    const finalProject = {
+      ...useProjectStore.getState().currentProject,
+      pages: [{
+        id: 'page-1',
+        status: 'DESCRIPTION_GENERATED',
+        order_index: 0,
+        outline_content: { title: 'Page', points: [] },
+        description_content: { text: 'backend partial result' },
+      }],
+    }
+    vi.mocked(getProject).mockResolvedValue({ data: finalProject } as any)
+    const { result } = renderHook(() => useProjectStore())
+
+    try {
+      await act(async () => {
+        await result.current.generateDescriptions()
+      })
+      window.history.pushState({}, '', '/')
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000)
+      })
+
+      expect(result.current.activeTaskId).toBe('task-partial')
+      expect(result.current.currentProject?.pages[0].status).toBe('GENERATING_DESCRIPTION')
+      expect(result.current.errorRecovery?.path).toBe('/project/proj-desc/detail')
+      expect(getProject).not.toHaveBeenCalled()
+
+      window.history.pushState({}, '', '/project/proj-desc/detail')
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000)
+      })
+
+      expect(result.current.activeTaskId).toBeNull()
+      expect(result.current.currentProject?.pages[0].description_content).toEqual({ text: 'backend partial result' })
     } finally {
       vi.clearAllTimers()
       vi.useRealTimers()

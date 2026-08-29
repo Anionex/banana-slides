@@ -1097,14 +1097,24 @@ export const useProjectStore = create<ProjectState>((set, get) => {
                 const message = normalizeErrorMessage(
                   task.error_message || task.error || t('store.generateDescFailed')
                 );
+                if (get().currentProject?.id !== projectId) {
+                  set({
+                    taskProgress: null,
+                    activeTaskId: null,
+                    error: message,
+                    errorRecovery: { message, path: recoveryPath, state: recoveryState },
+                  });
+                  return;
+                }
+
                 const synced = await syncTaskProjectIfCurrent();
-                if (!synced) restoreOptimisticPageStatuses();
                 set({
                   taskProgress: null,
-                  activeTaskId: null,
+                  ...(synced ? { activeTaskId: null } : {}),
                   error: message,
                   errorRecovery: { message, path: recoveryPath, state: recoveryState },
                 });
+                if (!synced) setTimeout(pollAndSync, 2000);
               } else if (task.status === 'PENDING' || task.status === 'PROCESSING') {
                 await syncTaskProjectIfCurrent();
                 setTimeout(pollAndSync, 2000);
