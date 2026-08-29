@@ -7,6 +7,7 @@ import { appVersion } from '@/utils/appVersion';
 import { isDesktop } from '@/utils';
 import { startOpenAIOAuthMonitor } from '@/utils/openaiOAuthMonitor';
 import { DataStorageSettings } from '@/components/settings/DataStorageSettings';
+import type { DesktopUpdateCheckResult } from '@/types/desktopUpdate';
 
 // 组件内翻译
 const settingsI18n = {
@@ -37,6 +38,7 @@ const settingsI18n = {
         unknown: "无法判断当前是否为最新版本",
         failed: "检查更新失败",
         resultTitle: "检查更新结果",
+        download: "前往下载",
         close: "关闭",
       },
       openaiOAuth: {
@@ -270,6 +272,7 @@ const settingsI18n = {
         unknown: "Unable to determine whether this is the latest version",
         failed: "Failed to check for updates",
         resultTitle: "Update Check Result",
+        download: "Download",
         close: "Close",
       },
       openaiOAuth: {
@@ -688,6 +691,13 @@ const GlobalVendorKeyInput: React.FC<{
 
 type SettingsTranslator = ReturnType<typeof useT>;
 
+interface UpdateResultView {
+  status: 'up_to_date' | 'update_available' | 'unknown';
+  updateAvailable: boolean;
+  version: string;
+  downloadUrl?: string;
+}
+
 function getLatestVersion(info: UpdateCheckInfo): string {
   const sha = info.latest?.sha;
   if (sha) {
@@ -696,15 +706,40 @@ function getLatestVersion(info: UpdateCheckInfo): string {
   return info.latest?.tag || '';
 }
 
-function formatUpdateMessage(t: SettingsTranslator, info: UpdateCheckInfo): string {
+function toUpdateResultView(info: UpdateCheckInfo): UpdateResultView {
+  return {
+    status: info.status,
+    updateAvailable: info.update_available,
+    version: getLatestVersion(info),
+  };
+}
+
+function toDesktopUpdateResultView(info: DesktopUpdateCheckResult): UpdateResultView {
+  if (info.status === 'update_available' && info.update) {
+    return {
+      status: 'update_available',
+      updateAvailable: true,
+      version: info.update.version,
+      downloadUrl: info.update.url,
+    };
+  }
+
+  return {
+    status: 'up_to_date',
+    updateAvailable: false,
+    version: info.latestVersion,
+  };
+}
+
+function formatUpdateMessage(t: SettingsTranslator, info: UpdateResultView): string {
   if (info.status === 'up_to_date') return t('settings.about.upToDate');
-  if (info.status === 'update_available') return t('settings.about.updateAvailable', { version: getLatestVersion(info) });
+  if (info.status === 'update_available') return t('settings.about.updateAvailable', { version: info.version });
   return t('settings.about.unknown');
 }
 
 export const SettingsAbout: React.FC<{ t: SettingsTranslator }> = ({ t }) => {
   const [checkingUpdate, setCheckingUpdate] = useState(false);
-  const [updateInfo, setUpdateInfo] = useState<UpdateCheckInfo | null>(null);
+  const [updateInfo, setUpdateInfo] = useState<UpdateResultView | null>(null);
   const [updateError, setUpdateError] = useState('');
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
 
@@ -712,8 +747,13 @@ export const SettingsAbout: React.FC<{ t: SettingsTranslator }> = ({ t }) => {
     setCheckingUpdate(true);
     setUpdateError('');
     try {
-      const response = await api.checkForUpdates();
-      setUpdateInfo(response.data || null);
+      if (isDesktop) {
+        const response = await (window as any).electronAPI.checkForUpdates() as DesktopUpdateCheckResult;
+        setUpdateInfo(toDesktopUpdateResultView(response));
+      } else {
+        const response = await api.checkForUpdates();
+        setUpdateInfo(response.data ? toUpdateResultView(response.data) : null);
+      }
       setUpdateDialogOpen(true);
     } catch (error: any) {
       setUpdateInfo(null);
@@ -747,7 +787,7 @@ export const SettingsAbout: React.FC<{ t: SettingsTranslator }> = ({ t }) => {
               {t('settings.about.source')}
             </a>
             {updateInfo && (
-              <div className={updateInfo.update_available ? 'text-orange-600 dark:text-orange-400' : 'text-gray-600 dark:text-foreground-tertiary'}>
+              <div className={updateInfo.updateAvailable ? 'text-orange-600 dark:text-orange-400' : 'text-gray-600 dark:text-foreground-tertiary'}>
                 <div>{formatUpdateMessage(t, updateInfo)}</div>
               </div>
             )}
@@ -782,7 +822,7 @@ export const SettingsAbout: React.FC<{ t: SettingsTranslator }> = ({ t }) => {
                     aria-hidden="true"
                   />
                 )}
-                {updateInfo.update_available && (
+                {updateInfo.updateAvailable && (
                   <ArrowUp
                     size={44}
                     data-testid="update-available-icon"
@@ -790,7 +830,7 @@ export const SettingsAbout: React.FC<{ t: SettingsTranslator }> = ({ t }) => {
                     aria-hidden="true"
                   />
                 )}
-                <p className={updateInfo.update_available
+                <p className={updateInfo.updateAvailable
                   ? 'text-xl font-semibold text-orange-600 dark:text-orange-400'
                   : 'text-xl font-semibold text-gray-900 dark:text-foreground-primary'
                 }>
@@ -804,7 +844,15 @@ export const SettingsAbout: React.FC<{ t: SettingsTranslator }> = ({ t }) => {
               {t('settings.about.failed')}: {updateError}
             </p>
           )}
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            {updateInfo?.downloadUrl && (
+              <Button
+                size="sm"
+                onClick={() => (window as any).electronAPI.openExternal(updateInfo.downloadUrl)}
+              >
+                {t('settings.about.download')}
+              </Button>
+            )}
             <Button variant="secondary" size="sm" onClick={() => setUpdateDialogOpen(false)}>
               {t('settings.about.close')}
             </Button>

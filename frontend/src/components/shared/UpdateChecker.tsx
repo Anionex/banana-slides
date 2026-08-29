@@ -2,12 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { DESKTOP_TITLEBAR_HEIGHT, DESKTOP_UPDATE_BANNER_HEIGHT, isDesktop } from '@/utils';
-
-interface UpdateInfo {
-  version: string;
-  notes: string;
-  url: string;
-}
+import type { DesktopUpdateInfo, DesktopUpdateCheckResult } from '@/types/desktopUpdate';
 
 const updateI18n = {
   zh: { newVersion: '新版本', available: '可用', download: '前往下载' },
@@ -19,7 +14,7 @@ interface UpdateCheckerProps {
 }
 
 export function UpdateChecker({ onVisibilityChange }: UpdateCheckerProps) {
-  const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  const [update, setUpdate] = useState<DesktopUpdateInfo | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const onVisibilityChangeRef = useRef(onVisibilityChange);
   const t = useT(updateI18n);
@@ -34,8 +29,8 @@ export function UpdateChecker({ onVisibilityChange }: UpdateCheckerProps) {
 
     const timer = setTimeout(async () => {
       try {
-        const result = await (window as any).electronAPI.checkForUpdates();
-        if (result) setUpdate(result);
+        const result = await (window as any).electronAPI.checkForUpdates() as DesktopUpdateCheckResult;
+        if (result.update) setUpdate(result.update);
       } catch {
         // silently ignore update check failures
       }
