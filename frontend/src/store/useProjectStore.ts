@@ -709,6 +709,15 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     if (get().outlineStreamingProjectIds.includes(projectId)) return;
 
+    const originalPages = currentProject.pages;
+    const restoreOriginalPages = () => {
+      set((state) => ({
+        currentProject: state.currentProject?.id === projectId
+          ? { ...state.currentProject, pages: originalPages }
+          : state.currentProject,
+      }));
+    };
+
     const finishStream = () => {
       set((state) => {
         const outlineStreamingProjectIds = state.outlineStreamingProjectIds.filter((id) => id !== projectId);
@@ -797,11 +806,13 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         devLog('[流式大纲] 完成:', doneData.total, '个页面');
         return { complete: doneData.complete ?? false, active: isViewingTargetProject() };
       } else {
+        restoreOriginalPages();
         return { complete: false, active: isViewingTargetProject() };
       }
     } catch (error: any) {
       console.error('[流式大纲] 错误:', error);
       streamDone = true;
+      restoreOriginalPages();
       if (!isViewingTargetProject()) {
         // 已切换离开发起生成的项目：过期失败不再抛出，避免在后来打开的项目中弹提示
         return { complete: false, active: false };

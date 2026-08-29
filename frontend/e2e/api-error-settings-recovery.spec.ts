@@ -5,7 +5,11 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:3011'
 const FRONTEND_PORT = Number(new URL(BASE_URL).port || '3011')
 const BACKEND_URL = `http://localhost:${FRONTEND_PORT + 2000}`
 
-async function mockOutlineRecoveryApis(page: Page, projectId: string) {
+async function mockOutlineRecoveryApis(
+  page: Page,
+  projectId: string,
+  pages: Array<Record<string, unknown>> = []
+) {
   let outlineRequestCount = 0
   const project = {
     id: projectId,
@@ -13,7 +17,7 @@ async function mockOutlineRecoveryApis(page: Page, projectId: string) {
     creation_type: 'idea',
     idea_prompt: 'API recovery mock project',
     status: 'DRAFT',
-    pages: [],
+    pages,
   }
 
   await page.route(
@@ -140,6 +144,37 @@ test.describe('API error settings recovery', () => {
     await expect(page).toHaveURL(new RegExp(`/project/${projectId}/outline$`))
     await expect(page.getByText('编辑大纲', { exact: true })).toBeVisible()
     await page.waitForTimeout(750)
+    expect(getOutlineRequestCount()).toBe(1)
+  })
+
+  test('mock: failed manual outline regeneration restores saved pages before returning', async ({ page }) => {
+    const projectId = 'mock-api-recovery-existing-outline'
+    const pageId = 'mock-api-recovery-existing-page'
+    const { getOutlineRequestCount } = await mockOutlineRecoveryApis(page, projectId, [{
+      id: pageId,
+      page_id: pageId,
+      order_index: 0,
+      outline_content: { title: '保留的旧大纲', points: ['旧要点'] },
+      status: 'DRAFT',
+    }])
+
+    await page.goto(`/project/${projectId}/outline`)
+    await expect(page.getByText('保留的旧大纲')).toBeVisible()
+    expect(getOutlineRequestCount()).toBe(0)
+
+    await page.getByRole('button', { name: '重新生成大纲' }).click()
+    await page.getByRole('dialog').getByRole('button', { name: '确定' }).click()
+    const settingsAction = page.getByRole('button', { name: '检查 API 设置' })
+    await expect(settingsAction).toBeVisible()
+    expect(getOutlineRequestCount()).toBe(1)
+    await settingsAction.click()
+
+    await expect(page).toHaveURL(/\/settings$/)
+    await page.getByRole('button', { name: '返回编辑器' }).click()
+
+    await expect(page).toHaveURL(new RegExp(`/project/${projectId}/outline$`))
+    await expect(page.getByText('保留的旧大纲')).toBeVisible()
+    await expect(page.getByRole('button', { name: '重新生成大纲' })).toBeEnabled()
     expect(getOutlineRequestCount()).toBe(1)
   })
 
