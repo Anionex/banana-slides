@@ -1068,6 +1068,19 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
         let pollErrors = 0;
         let pollTimeoutReported = false;
+        const syncTerminalProject = async () => {
+          if (get().currentProject?.id !== projectId) {
+            set({ taskProgress: null, activeTaskId: null });
+            return;
+          }
+
+          const synced = await syncTaskProjectIfCurrent();
+          if (synced) {
+            set({ taskProgress: null, activeTaskId: null });
+          } else {
+            setTimeout(syncTerminalProject, 2000);
+          }
+        };
         const pollAndSync = async () => {
           try {
             const taskResponse = await api.getTaskStatus(projectId, taskId);
@@ -1082,39 +1095,17 @@ export const useProjectStore = create<ProjectState>((set, get) => {
               }
 
               if (task.status === 'COMPLETED') {
-                if (get().currentProject?.id !== projectId) {
-                  set({ taskProgress: null, activeTaskId: null });
-                  return;
-                }
-
-                const synced = await syncTaskProjectIfCurrent();
-                if (synced) {
-                  set({ taskProgress: null, activeTaskId: null });
-                } else {
-                  setTimeout(pollAndSync, 2000);
-                }
+                await syncTerminalProject();
               } else if (task.status === 'FAILED') {
                 const message = normalizeErrorMessage(
                   task.error_message || task.error || t('store.generateDescFailed')
                 );
-                if (get().currentProject?.id !== projectId) {
-                  set({
-                    taskProgress: null,
-                    activeTaskId: null,
-                    error: message,
-                    errorRecovery: { message, path: recoveryPath, state: recoveryState },
-                  });
-                  return;
-                }
-
-                const synced = await syncTaskProjectIfCurrent();
                 set({
                   taskProgress: null,
-                  ...(synced ? { activeTaskId: null } : {}),
                   error: message,
                   errorRecovery: { message, path: recoveryPath, state: recoveryState },
                 });
-                if (!synced) setTimeout(pollAndSync, 2000);
+                await syncTerminalProject();
               } else if (task.status === 'PENDING' || task.status === 'PROCESSING') {
                 await syncTaskProjectIfCurrent();
                 setTimeout(pollAndSync, 2000);

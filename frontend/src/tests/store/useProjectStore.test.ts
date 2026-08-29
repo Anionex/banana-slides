@@ -539,12 +539,17 @@ describe('useProjectStore 描述失败回滚', () => {
       expect(result.current.activeTaskId).toBe('task-desc')
       expect(result.current.currentProject?.pages[0].status).toBe('GENERATING_DESCRIPTION')
 
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(6000)
+      })
+      expect(vi.mocked(getTaskStatus)).toHaveBeenCalledTimes(11)
+
       window.history.pushState({}, '', '/project/proj-desc/detail')
       await act(async () => {
         await vi.advanceTimersByTimeAsync(2000)
       })
 
-      expect(vi.mocked(getTaskStatus)).toHaveBeenCalledTimes(12)
+      expect(vi.mocked(getTaskStatus)).toHaveBeenCalledTimes(11)
       expect(result.current.activeTaskId).toBe('task-desc')
       expect(result.current.currentProject?.pages[0].status).toBe('GENERATING_DESCRIPTION')
 
@@ -553,7 +558,7 @@ describe('useProjectStore 描述失败回滚', () => {
         await vi.advanceTimersByTimeAsync(2000)
       })
 
-      expect(vi.mocked(getTaskStatus)).toHaveBeenCalledTimes(13)
+      expect(vi.mocked(getTaskStatus)).toHaveBeenCalledTimes(11)
       expect(result.current.activeTaskId).toBeNull()
       expect(result.current.currentProject?.pages[0].status).toBe('DESCRIPTION_GENERATED')
     } finally {
@@ -598,6 +603,12 @@ describe('useProjectStore 描述失败回滚', () => {
       expect(result.current.activeTaskId).toBe('task-partial')
       expect(result.current.currentProject?.pages[0].status).toBe('GENERATING_DESCRIPTION')
       expect(result.current.errorRecovery?.path).toBe('/project/proj-desc/detail')
+      expect(getProject).not.toHaveBeenCalled()
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(6000)
+      })
+      expect(getTaskStatus).toHaveBeenCalledTimes(1)
       expect(getProject).not.toHaveBeenCalled()
 
       window.history.pushState({}, '', '/project/proj-desc/detail')
