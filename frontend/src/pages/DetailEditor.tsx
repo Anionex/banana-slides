@@ -304,6 +304,10 @@ export const DetailEditor: React.FC = () => {
     }, 800);
   }, []);
 
+  useEffect(() => () => {
+    if (settingsSaveTimerRef.current) clearTimeout(settingsSaveTimerRef.current);
+  }, []);
+
   // 额外字段拖拽排序
   const fieldSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const handleFieldDragEnd = useCallback((event: DragEndEvent) => {

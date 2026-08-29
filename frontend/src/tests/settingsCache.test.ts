@@ -41,11 +41,27 @@ describe('settings cache request ordering', () => {
         openai_oauth_connected: false,
         openai_oauth_account_id: null,
       },
-      { connected: true, accountId: 'oauth-account' }
+      { connected: true, accountId: 'oauth-account', revision: 2 },
+      1
     );
 
     expect(merged.description_generation_mode).toBe('parallel');
     expect(merged.openai_oauth_connected).toBe(true);
     expect(merged.openai_oauth_account_id).toBe('oauth-account');
+  });
+
+  it('keeps the save response when OAuth did not change during the request', () => {
+    const merged = mergeSettingsWithOpenAIOAuthStatus(
+      {
+        ...makeSettings('parallel'),
+        openai_oauth_connected: false,
+        openai_oauth_account_id: null,
+      },
+      { connected: true, accountId: 'stale-account', revision: 1 },
+      1
+    );
+
+    expect(merged.openai_oauth_connected).toBe(false);
+    expect(merged.openai_oauth_account_id).toBeNull();
   });
 });

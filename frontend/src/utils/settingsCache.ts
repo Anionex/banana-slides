@@ -8,6 +8,7 @@ let latestCommittedRequestId = 0;
 export interface OpenAIOAuthCacheStatus {
   connected: boolean;
   accountId: string | null;
+  revision: number;
 }
 
 export function beginSettingsCacheRequest(): number {
@@ -39,9 +40,10 @@ export function writeSettingsCache(settings: Settings, requestId?: number): bool
 
 export function mergeSettingsWithOpenAIOAuthStatus(
   settings: Settings,
-  oauthStatus: OpenAIOAuthCacheStatus | null
+  oauthStatus: OpenAIOAuthCacheStatus | null,
+  requestStartRevision: number
 ): Settings {
-  if (!oauthStatus) return settings;
+  if (!oauthStatus || oauthStatus.revision === requestStartRevision) return settings;
   return {
     ...settings,
     openai_oauth_connected: oauthStatus.connected,
