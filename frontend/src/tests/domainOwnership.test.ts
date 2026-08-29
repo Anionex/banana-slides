@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const approvedInfereraLink = /https:\/\/(?:api\.)?inferera\.com(?=[/?#\s)"'<>]|$)(?:[/?#][^\s)"'<>]*)?/gi;
 
 describe('domain ownership', () => {
   const firstPartyFiles = [
@@ -20,11 +21,15 @@ describe('domain ownership', () => {
   it.each(firstPartyFiles)('keeps the first-party domain in %s', (relativePath) => {
     const content = fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
     expect(content).toContain('bananaslides.online');
-    const contentWithoutProviderLinks = content.replace(
-      /https:\/\/(?:api\.)?inferera\.com(?:\/[^\s)"'<>]*)?/gi,
-      '',
-    );
+    const contentWithoutProviderLinks = content.replace(approvedInfereraLink, '');
     expect(contentWithoutProviderLinks.toLowerCase()).not.toContain('inferera.com');
+  });
+
+  it.each([
+    'https://inferera.com.evil/phish',
+    'https://api.inferera.com.cn/path',
+  ])('rejects lookalike provider hostname %s', (url) => {
+    expect(url.replace(approvedInfereraLink, '')).toContain('inferera.com');
   });
 
   const providerExamples = [
