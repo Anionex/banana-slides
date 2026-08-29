@@ -97,6 +97,48 @@ def test_generate_single_caption_vertex_uses_provider_factory():
             os.remove(image_path)
 
 
+@pytest.mark.parametrize('remote_url', [
+    'http://127.0.0.1/latest/meta-data/',
+    'https://169.254.169.254/latest/meta-data/',
+])
+def test_generate_single_caption_rejects_remote_urls(remote_url):
+    """Uploaded Markdown must not make the backend fetch attacker-controlled URLs."""
+    service = FileParserService(mineru_token='test-token', provider_format='openai')
+    mock_provider = MagicMock()
+    service._caption_provider = mock_provider
+
+    with patch('services.file_parser_service.requests.get') as mock_get:
+        caption = service._generate_single_caption(remote_url)
+
+    assert caption == ''
+    mock_get.assert_not_called()
+    mock_provider.generate_with_image.assert_not_called()
+
+
+def test_enhance_markdown_only_captions_local_mineru_images():
+    """Remote and unsupported image references remain untouched and are never submitted."""
+    service = FileParserService(mineru_token='test-token', provider_format='openai')
+    markdown = '\n'.join([
+        '![](http://127.0.0.1/internal.png)',
+        '![](/files/mineru/extract123/images/chart.png)',
+        '![](data:image/png;base64,AAAA)',
+    ])
+
+    with patch.object(service, '_can_generate_captions', return_value=True):
+        with patch.object(
+            service,
+            '_generate_captions_parallel',
+            return_value=(['本地图表'], 0),
+        ) as mock_generate:
+            enhanced, failed_count = service._enhance_markdown_with_captions(markdown)
+
+    assert failed_count == 0
+    assert '![](http://127.0.0.1/internal.png)' in enhanced
+    assert '![本地图表](/files/mineru/extract123/images/chart.png)' in enhanced
+    assert '![](data:image/png;base64,AAAA)' in enhanced
+    mock_generate.assert_called_once_with(['/files/mineru/extract123/images/chart.png'])
+
+
 def _build_mineru_zip() -> bytes:
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, 'w') as archive:
