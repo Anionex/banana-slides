@@ -45,4 +45,28 @@ function fetchGitHubJson(requestPath, options = {}) {
   });
 }
 
-module.exports = { fetchGitHubJson };
+async function fetchGitHubReleases(owner, repository, options = {}) {
+  const {
+    fetchPage = fetchGitHubJson,
+    perPage = 100,
+    ...requestOptions
+  } = options;
+  const releases = [];
+
+  for (let page = 1; ; page += 1) {
+    const payload = await fetchPage(
+      `/repos/${owner}/${repository}/releases?per_page=${perPage}&page=${page}`,
+      requestOptions,
+    );
+    if (!Array.isArray(payload)) {
+      throw new Error('GitHub API returned an invalid releases response');
+    }
+
+    releases.push(...payload);
+    if (payload.length < perPage) {
+      return releases;
+    }
+  }
+}
+
+module.exports = { fetchGitHubJson, fetchGitHubReleases };

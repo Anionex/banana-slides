@@ -54,6 +54,9 @@ jobs:
 
       - name: Desktop unit and icon contract tests
         run: cd desktop && npm test
+
+      - name: Desktop live update API integration test
+        run: cd desktop && npm run test:integration
         env:
           GITHUB_TOKEN: ${{ github.token }}
 

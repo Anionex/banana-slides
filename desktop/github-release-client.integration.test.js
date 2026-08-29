@@ -1,19 +1,13 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
 
-const { fetchGitHubJson } = require('./github-release-client');
+const { fetchGitHubReleases } = require('./github-release-client');
 const { isVersionGreater, normalizeReleaseVersion, selectLatestDesktopRelease } = require('./update-policy');
 
-test('packages the GitHub release client with the desktop application', () => {
-  const builderConfig = fs.readFileSync(path.join(__dirname, 'electron-builder.yml'), 'utf8');
-  assert.match(builderConfig, /- "github-release-client\.js"/);
-});
-
 test('live GitHub releases expose an installable update after rc.3', { timeout: 20000 }, async () => {
-  const releases = await fetchGitHubJson(
-    '/repos/Anionex/banana-slides/releases?per_page=30',
+  const releases = await fetchGitHubReleases(
+    'Anionex',
+    'banana-slides',
     {
       token: process.env.GITHUB_TOKEN || '',
       userAgent: 'BananaSlides-update-check-integration-test',

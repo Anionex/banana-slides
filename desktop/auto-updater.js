@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { app } = require('electron');
 const log = require('electron-log');
-const { fetchGitHubJson } = require('./github-release-client');
+const { fetchGitHubJson, fetchGitHubReleases } = require('./github-release-client');
 const {
   isVersionLess,
   normalizeReleaseVersion,
@@ -49,18 +49,15 @@ function extractReleaseTimestamp(commitData, releaseData) {
 async function checkForUpdates() {
   let releases;
   try {
-    releases = await fetchGitHubJson(
-      `/repos/${REPO_OWNER}/${REPO_NAME}/releases?per_page=30`,
+    releases = await fetchGitHubReleases(
+      REPO_OWNER,
+      REPO_NAME,
       { userAgent: `BananaSlides/${app.getVersion()}` },
     );
   } catch (error) {
     log.warn('[auto-updater] Failed to fetch releases:', error.message);
     throw error;
   }
-  if (!Array.isArray(releases)) {
-    throw new Error('GitHub API returned an invalid releases response');
-  }
-
   const currentVersion = app.getVersion();
   const release = selectLatestDesktopRelease(releases, currentVersion, process.platform, process.arch);
   if (!release) {
