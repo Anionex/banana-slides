@@ -77,6 +77,57 @@ def test_parallel_description_failure_sets_safe_failed_task(app, client):
         assert all(page.status == 'FAILED' for page in pages)
 
 
+def test_parallel_description_regeneration_failure_preserves_generated_project_status(app, client):
+    project_id = _create_description_project(client)
+
+    with app.app_context():
+        pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+        for index, page in enumerate(pages, 1):
+            page.set_description_content({'text': f'已有描述 {index}'})
+            page.status = 'DESCRIPTION_GENERATED'
+        project = db.session.get(Project, project_id)
+        project.status = 'DESCRIPTIONS_GENERATED'
+        db.session.commit()
+        task_id = _create_task(project_id)
+
+    class FailingAIService:
+        def flatten_outline(self, outline):
+            return outline
+
+        def generate_page_description(self, *args, **kwargs):
+            raise RuntimeError('401 invalid API key')
+
+    outline = [
+        {'title': '第一页', 'points': ['要点']},
+        {'title': '第二页', 'points': ['要点']},
+    ]
+
+    with patch('services.ai_service_manager.get_ai_service', return_value=FailingAIService()):
+        generate_descriptions_task(
+            task_id,
+            project_id,
+            FailingAIService(),
+            object(),
+            outline,
+            max_workers=2,
+            app=app,
+            language='zh',
+        )
+
+    with app.app_context():
+        task = db.session.get(Task, task_id)
+        project = db.session.get(Project, project_id)
+        pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+
+        assert task.status == 'FAILED'
+        assert task.get_progress() == {'total': 2, 'completed': 0, 'failed': 2}
+        assert project.status == 'DESCRIPTIONS_GENERATED'
+        assert [page.get_description_content()['text'] for page in pages] == [
+            '已有描述 1',
+            '已有描述 2',
+        ]
+
+
 def test_parallel_description_page_count_mismatch_recovers_project_and_pages(app, client):
     project_id = _create_description_project(client)
 

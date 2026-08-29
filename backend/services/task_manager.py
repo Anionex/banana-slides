@@ -743,10 +743,9 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
             # Update project status
             project = Project.query.get(project_id)
             if project:
-                project.status = (
-                    'DESCRIPTIONS_GENERATED' if failed == 0 or completed > 0
-                    else 'OUTLINE_GENERATED'
-                )
+                persisted_pages = Page.query.filter_by(project_id=project_id).all()
+                has_descriptions = any(page.description_content for page in persisted_pages)
+                project.status = 'DESCRIPTIONS_GENERATED' if has_descriptions else 'OUTLINE_GENERATED'
                 db.session.commit()
                 logger.info(f"Project {project_id} status updated to {project.status}")
         
