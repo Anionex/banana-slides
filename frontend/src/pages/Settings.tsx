@@ -1321,8 +1321,10 @@ export const Settings: React.FC<SettingsProps> = ({ onSaveSuccess, saveLabel }) 
 
       const settingsRequestId = beginSettingsCacheRequest();
       const response = await api.updateSettings(payload);
-      if (response.data && writeSettingsCache(response.data, settingsRequestId)) {
-        setSettings(response.data);
+      if (response.data) {
+        if (writeSettingsCache(response.data, settingsRequestId)) {
+          setSettings(response.data);
+        }
         // Clear all sensitive fields after save
         setFormData(prev => ({
           ...prev,
@@ -1356,9 +1358,11 @@ export const Settings: React.FC<SettingsProps> = ({ onSaveSuccess, saveLabel }) 
         try {
           const settingsRequestId = beginSettingsCacheRequest();
           const response = await api.resetSettings();
-          if (response.data && writeSettingsCache(response.data, settingsRequestId)) {
-            setSettings(response.data);
-            setFormData(formDataFromSettings(response.data));
+          if (response.data) {
+            if (writeSettingsCache(response.data, settingsRequestId)) {
+              setSettings(response.data);
+              setFormData(formDataFromSettings(response.data));
+            }
             show({ message: t('settings.messages.resetSuccess'), type: 'success' });
           }
         } catch (error: any) {

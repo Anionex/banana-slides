@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Settings } from '@/pages/Settings';
 import type { Settings as SettingsType } from '@/types';
+import * as settingsCache from '@/utils/settingsCache';
 
 const getSettings = vi.fn();
 const updateSettings = vi.fn();
@@ -105,5 +106,30 @@ describe('Settings quality control', () => {
         expect.objectContaining({ enable_image_quality_control: true })
       );
     });
+  });
+
+  it('completes recovery navigation when a newer cache write supersedes the save response', async () => {
+    const onSaveSuccess = vi.fn();
+    updateSettings.mockResolvedValue({
+      data: { ...baseSettings, text_model: 'superseded-save-response' },
+    });
+    const cacheSpy = vi.spyOn(settingsCache, 'writeSettingsCache').mockImplementation(
+      (settings) => settings.text_model !== 'superseded-save-response'
+    );
+
+    render(
+      <MemoryRouter>
+        <Settings onSaveSuccess={onSaveSuccess} saveLabel="保存并返回" />
+      </MemoryRouter>
+    );
+
+    await screen.findByText(/启用质量控制模式|Enable Quality Control/);
+    await userEvent.click(screen.getByRole('button', { name: '保存并返回' }));
+
+    await waitFor(() => {
+      expect(updateSettings).toHaveBeenCalled();
+      expect(onSaveSuccess).toHaveBeenCalledTimes(1);
+    });
+    cacheSpy.mockRestore();
   });
 });
