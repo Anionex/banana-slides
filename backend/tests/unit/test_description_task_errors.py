@@ -1,7 +1,15 @@
+from datetime import datetime, timedelta
 from unittest.mock import patch
 
 from models import db, Page, Project, Task
-from services.task_manager import generate_descriptions_task
+from services.task_manager import (
+    generate_descriptions_task,
+    recover_description_task_failure,
+    release_description_page,
+    release_description_project,
+    try_acquire_description_page,
+    try_acquire_description_project,
+)
 from utils.ai_errors import prioritized_generation_error_message
 
 
@@ -274,6 +282,213 @@ def test_description_endpoint_persists_generating_state_before_submit(app, clien
         response = client.post(f'/api/projects/{project_id}/generate/descriptions', json={})
 
     assert response.status_code == 202
+
+
+def test_description_endpoint_rejects_duplicate_project_task(app, client):
+    project_id = _create_description_project(client, page_count=1)
+
+    try:
+        with (
+            patch('controllers.project_controller.get_ai_service', return_value=object()),
+            patch('controllers.project_controller._get_project_reference_files_content', return_value=[]),
+            patch('controllers.project_controller.task_manager.submit_task'),
+        ):
+            first = client.post(f'/api/projects/{project_id}/generate/descriptions', json={})
+            second = client.post(f'/api/projects/{project_id}/generate/descriptions', json={})
+
+        assert first.status_code == 202
+        assert second.status_code == 409
+        assert second.get_json()['error']['code'] == 'GENERATION_IN_PROGRESS'
+        with app.app_context():
+            assert Task.query.filter_by(project_id=project_id).count() == 1
+    finally:
+        release_description_project(project_id)
+
+
+def test_project_description_guard_blocks_stream_and_single_page(app, client):
+    project_id = _create_description_project(client, page_count=1)
+    with app.app_context():
+        page_id = Page.query.filter_by(project_id=project_id).one().id
+
+    assert try_acquire_description_project(project_id)
+    try:
+        stream_response = client.post(
+            f'/api/projects/{project_id}/generate/descriptions/stream',
+            json={},
+        )
+        page_response = client.post(
+            f'/api/projects/{project_id}/pages/{page_id}/generate/description',
+            json={'force_regenerate': True},
+        )
+        assert stream_response.status_code == 409
+        assert page_response.status_code == 409
+    finally:
+        release_description_project(project_id)
+
+
+def test_page_description_guard_blocks_same_page_and_project_batch(app, client):
+    project_id = _create_description_project(client, page_count=1)
+    with app.app_context():
+        page_id = Page.query.filter_by(project_id=project_id).one().id
+
+    assert try_acquire_description_page(project_id, page_id)
+    try:
+        page_response = client.post(
+            f'/api/projects/{project_id}/pages/{page_id}/generate/description',
+            json={'force_regenerate': True},
+        )
+        batch_response = client.post(f'/api/projects/{project_id}/generate/descriptions', json={})
+        assert page_response.status_code == 409
+        assert batch_response.status_code == 409
+    finally:
+        release_description_page(project_id, page_id)
+
+
+def test_single_page_persists_generating_status_before_provider_call(app, client):
+    project_id = _create_description_project(client, page_count=1)
+    with app.app_context():
+        page_id = Page.query.filter_by(project_id=project_id).one().id
+
+    class InspectingAIService:
+        def generate_page_description(self, *_args, **_kwargs):
+            page = db.session.get(Page, page_id)
+            assert page.status == 'GENERATING_DESCRIPTION'
+            return {'text': '生成后的描述'}
+
+    with (
+        patch('controllers.page_controller.get_ai_service', return_value=InspectingAIService()),
+        patch('controllers.project_controller._get_project_reference_files_content', return_value=[]),
+    ):
+        response = client.post(
+            f'/api/projects/{project_id}/pages/{page_id}/generate/description',
+            json={'force_regenerate': True},
+        )
+
+    assert response.status_code == 200
+    with app.app_context():
+        assert db.session.get(Page, page_id).status == 'DESCRIPTION_GENERATED'
+
+
+def test_renovation_page_persists_generating_status_before_parse(app, client, tmp_path):
+    project_id = _create_description_project(client, page_count=1)
+    with app.app_context():
+        project = db.session.get(Project, project_id)
+        project.creation_type = 'ppt_renovation'
+        page = Page.query.filter_by(project_id=project_id).one()
+        page_id = page.id
+        db.session.commit()
+
+    upload_folder = tmp_path / 'uploads'
+    split_dir = upload_folder / project_id / 'split_pages'
+    split_dir.mkdir(parents=True)
+    (split_dir / 'page_1.pdf').write_bytes(b'%PDF-1.4\n')
+    app.config['UPLOAD_FOLDER'] = str(upload_folder)
+
+    class InspectingParser:
+        def __init__(self, **_kwargs):
+            pass
+
+        def parse_file(self, *_args):
+            assert db.session.get(Page, page_id).status == 'GENERATING_DESCRIPTION'
+            return None, '# parsed', None, None, False
+
+        def extract_header_footer_from_layout(self, _extract_id):
+            return ''
+
+    class RenovationAIService:
+        def extract_page_content(self, *_args, **_kwargs):
+            return {'title': '翻新页', 'points': ['要点'], 'description': '翻新描述'}
+
+    with (
+        patch('controllers.page_controller.get_ai_service', return_value=RenovationAIService()),
+        patch('services.file_parser_service.FileParserService', InspectingParser),
+    ):
+        response = client.post(
+            f'/api/projects/{project_id}/pages/{page_id}/regenerate-renovation',
+            json={},
+        )
+
+    assert response.status_code == 200
+    with app.app_context():
+        assert db.session.get(Page, page_id).status == 'DESCRIPTION_GENERATED'
+
+
+def test_stale_task_recovery_does_not_reset_newer_active_task(app, client):
+    project_id = _create_description_project(client, page_count=1)
+    with app.app_context():
+        page = Page.query.filter_by(project_id=project_id).one()
+        page.status = 'GENERATING_DESCRIPTION'
+        project = db.session.get(Project, project_id)
+        project.status = 'GENERATING_DESCRIPTIONS'
+        old_task = Task(
+            project_id=project_id,
+            task_type='GENERATE_DESCRIPTIONS',
+            status='PROCESSING',
+            created_at=datetime.utcnow() - timedelta(seconds=10),
+        )
+        newer_task = Task(
+            project_id=project_id,
+            task_type='GENERATE_DESCRIPTIONS',
+            status='PENDING',
+            created_at=datetime.utcnow(),
+        )
+        db.session.add_all([old_task, newer_task])
+        db.session.commit()
+        old_task_id = old_task.id
+        newer_task_id = newer_task.id
+
+        recover_description_task_failure(old_task_id, project_id, RuntimeError('old task failed'))
+
+        assert db.session.get(Task, old_task_id).status == 'FAILED'
+        assert db.session.get(Task, newer_task_id).status == 'PENDING'
+        assert db.session.get(Page, page.id).status == 'GENERATING_DESCRIPTION'
+        assert db.session.get(Project, project_id).status == 'GENERATING_DESCRIPTIONS'
+
+
+def test_project_get_repairs_stale_description_generation_state(app, client):
+    project_id = _create_description_project(client, page_count=1)
+    with app.app_context():
+        page = Page.query.filter_by(project_id=project_id).one()
+        page.status = 'GENERATING_DESCRIPTION'
+        project = db.session.get(Project, project_id)
+        project.status = 'GENERATING_DESCRIPTIONS'
+        stale_task = Task(
+            project_id=project_id,
+            task_type='GENERATE_DESCRIPTIONS',
+            status='PROCESSING',
+        )
+        db.session.add(stale_task)
+        db.session.commit()
+        page_id = page.id
+        task_id = stale_task.id
+
+    response = client.get(f'/api/projects/{project_id}')
+
+    assert response.status_code == 200
+    assert response.get_json()['data']['pages'][0]['status'] == 'DRAFT'
+    assert response.get_json()['data']['status'] == 'OUTLINE_GENERATED'
+    with app.app_context():
+        assert db.session.get(Page, page_id).status == 'DRAFT'
+        assert db.session.get(Task, task_id).status == 'FAILED'
+
+
+def test_project_get_preserves_live_description_generation_state(app, client):
+    project_id = _create_description_project(client, page_count=1)
+    with app.app_context():
+        page = Page.query.filter_by(project_id=project_id).one()
+        page.status = 'GENERATING_DESCRIPTION'
+        project = db.session.get(Project, project_id)
+        project.status = 'GENERATING_DESCRIPTIONS'
+        db.session.commit()
+
+    assert try_acquire_description_project(project_id)
+    try:
+        response = client.get(f'/api/projects/{project_id}')
+        assert response.status_code == 200
+        assert response.get_json()['data']['pages'][0]['status'] == 'GENERATING_DESCRIPTION'
+        assert response.get_json()['data']['status'] == 'GENERATING_DESCRIPTIONS'
+    finally:
+        release_description_project(project_id)
 
 
 def test_description_endpoint_safely_surfaces_provider_initialization_failure(app, client):

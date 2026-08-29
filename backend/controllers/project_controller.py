@@ -23,6 +23,10 @@ from services.task_manager import (
     task_manager,
     generate_descriptions_task,
     recover_description_task_failure,
+    try_acquire_description_project,
+    release_description_project,
+    is_description_project_active,
+    is_description_page_active,
     generate_images_task,
     process_ppt_renovation_task,
     get_image_prompt_field_names,
@@ -326,6 +330,37 @@ def get_project(project_id):
         
         if not project:
             return not_found('Project')
+
+        project_generation_active = is_description_project_active(project_id)
+        repaired_stale_state = False
+        for page in project.pages:
+            if (
+                page.status == 'GENERATING_DESCRIPTION'
+                and not project_generation_active
+                and not is_description_page_active(project_id, page.id)
+            ):
+                page.status = 'DESCRIPTION_GENERATED' if page.description_content else 'DRAFT'
+                repaired_stale_state = True
+
+        if not project_generation_active and project.status == 'GENERATING_DESCRIPTIONS':
+            project.status = (
+                'DESCRIPTIONS_GENERATED'
+                if any(page.description_content for page in project.pages)
+                else 'OUTLINE_GENERATED'
+            )
+            repaired_stale_state = True
+
+        if repaired_stale_state:
+            stale_tasks = Task.query.filter(
+                Task.project_id == project_id,
+                Task.task_type == 'GENERATE_DESCRIPTIONS',
+                Task.status.in_(['PENDING', 'PROCESSING']),
+            ).all()
+            for task in stale_tasks:
+                task.status = 'FAILED'
+                task.error_message = 'Generation was interrupted; please retry'
+                task.completed_at = datetime.utcnow()
+            db.session.commit()
         
         return success_response(project.to_dict(include_pages=True))
     
@@ -802,6 +837,8 @@ def generate_descriptions(project_id):
     }
     """
     task_id = None
+    guard_acquired = False
+    task_submitted = False
     try:
         project = Project.query.get(project_id)
         
@@ -819,6 +856,14 @@ def generate_descriptions(project_id):
         
         if not pages:
             return bad_request("No pages found for project")
+
+        if not try_acquire_description_project(project_id):
+            return error_response(
+                'GENERATION_IN_PROGRESS',
+                'Description generation is already in progress for this project',
+                409,
+            )
+        guard_acquired = True
         
         # Reconstruct outline from pages with part structure
         outline = _reconstruct_outline_from_pages(pages)
@@ -865,6 +910,7 @@ def generate_descriptions(project_id):
             language,
             detail_level
         )
+        task_submitted = True
         
         return success_response({
             'task_id': task.id,
@@ -884,6 +930,9 @@ def generate_descriptions(project_id):
             safe_message,
             503 if is_ai_configuration_error else 500,
         )
+    finally:
+        if guard_acquired and not task_submitted:
+            release_description_project(project_id)
 
 
 @project_bp.route('/<project_id>/generate/descriptions/stream', methods=['POST'])
@@ -910,6 +959,13 @@ def generate_descriptions_stream(project_id):
     detail_level = data.get('detail_level', 'default')
 
     app = current_app._get_current_object()
+
+    if not try_acquire_description_project(project_id):
+        return error_response(
+            'GENERATION_IN_PROGRESS',
+            'Description generation is already in progress for this project',
+            409,
+        )
 
     def sse_generate():
         with app.app_context():
@@ -1016,6 +1072,8 @@ def generate_descriptions_stream(project_id):
                     logger.warning(f"Failed to recover page statuses: {recover_exc}", exc_info=True)
 
                 yield _sse_event('error', {'message': safe_generation_error_message(e)})
+            finally:
+                release_description_project(project_id)
 
     return Response(
         stream_with_context(sse_generate()),
