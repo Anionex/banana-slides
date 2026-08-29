@@ -431,7 +431,8 @@ export const OutlineEditor: React.FC = () => {
   useEffect(() => {
     if (!currentProject?.id) return;
     const currentPath = `${location.pathname}${location.search}${location.hash}`;
-    const suppressAfterRecovery = apiSettingsRecovered || consumeOutlineRecoverySuppression(currentPath);
+    const hasRecoverySuppression = consumeOutlineRecoverySuppression(currentPath);
+    const suppressAfterRecovery = apiSettingsRecovered || hasRecoverySuppression;
     if (currentProject.pages.length > 0 || isOutlineStreaming) return;
     if (!['idea', 'outline', 'descriptions'].includes(currentProject.creation_type || 'idea')) return;
     if (autoGenerateStartedRef.current === currentProject.id) return;

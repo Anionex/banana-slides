@@ -415,6 +415,17 @@ class FileParserService:
                     logger.debug(f"Current task status: {task_status}, waiting...")
                     time.sleep(2)  # Wait 2 seconds before next poll
                     
+            except requests.exceptions.HTTPError as e:
+                status_code = getattr(e.response, 'status_code', None)
+                if status_code in (401, 403):
+                    error_msg = (
+                        f"MinerU task status request unauthorized (HTTP {status_code}) "
+                        f"at {result_url}: {e}"
+                    )
+                    logger.error(error_msg)
+                    return None, None, error_msg
+                logger.warning(f"HTTP error while polling result: {str(e)}, retrying...")
+                time.sleep(2)
             except requests.exceptions.RequestException as e:
                 logger.warning(f"Network error while polling result: {str(e)}, retrying...")
                 time.sleep(2)

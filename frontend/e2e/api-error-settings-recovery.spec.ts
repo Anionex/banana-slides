@@ -84,7 +84,7 @@ async function mockOutlineRecoveryApis(page: Page, projectId: string) {
 test.describe('API error settings recovery', () => {
   test('mock: outline authentication error opens settings and save returns to the editor', async ({ page }) => {
     const projectId = 'mock-api-recovery-outline'
-    await mockOutlineRecoveryApis(page, projectId)
+    const { getOutlineRequestCount } = await mockOutlineRecoveryApis(page, projectId)
 
     await page.goto('/history')
     await page.evaluate((url) => {
@@ -104,6 +104,7 @@ test.describe('API error settings recovery', () => {
 
     const settingsAction = page.getByRole('button', { name: '检查 API 设置' })
     await expect(settingsAction).toBeVisible()
+    expect(getOutlineRequestCount()).toBe(1)
     await settingsAction.click()
 
     await expect(page).toHaveURL(/\/settings$/)
@@ -118,6 +119,10 @@ test.describe('API error settings recovery', () => {
 
     await page.locator('header').getByRole('button', { name: '返回' }).click()
     await expect(page).toHaveURL(/\/history$/)
+
+    await page.goto(`/project/${projectId}/outline`)
+    await expect(page.getByRole('button', { name: '检查 API 设置' })).toBeVisible()
+    expect(getOutlineRequestCount()).toBe(2)
   })
 
   test('mock: browser Back from recovery returns without retrying generation', async ({ page }) => {
