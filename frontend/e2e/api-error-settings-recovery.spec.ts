@@ -1229,6 +1229,118 @@ test.describe('API error settings recovery', () => {
     }
   })
 
+  test('mock: reopening DetailEditor waits for its pending settings save before loading', async ({ page }) => {
+    const projectId = 'mock-detail-reopen-pending-settings'
+    const project = {
+      id: projectId,
+      project_id: projectId,
+      creation_type: 'idea',
+      status: 'OUTLINE_GENERATED',
+      pages: [{
+        id: `${projectId}-page`,
+        page_id: `${projectId}-page`,
+        order_index: 0,
+        outline_content: { title: '重新打开编辑器', points: ['等待设置保存'] },
+        status: 'DRAFT',
+      }],
+    }
+    const serverSettings: Record<string, unknown> = {
+      ai_provider_format: 'gemini',
+      description_generation_mode: 'streaming',
+      description_extra_fields: [],
+      image_prompt_extra_fields: [],
+    }
+    let settingsGetCount = 0
+    let signalSaveStarted!: () => void
+    const saveStarted = new Promise<void>((resolve) => { signalSaveStarted = resolve })
+    let releaseSave!: () => void
+    const saveRelease = new Promise<void>((resolve) => { releaseSave = resolve })
+
+    await page.addInitScript(() => {
+      localStorage.setItem('hasSeenHelpModal', 'true')
+    })
+    await page.route(
+      (url) => url.pathname.startsWith('/api/'),
+      async (route) => {
+        const request = route.request()
+        const url = new URL(request.url())
+
+        if (url.pathname === `/api/projects/${projectId}` && request.method() === 'GET') {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ success: true, data: project }),
+          })
+        }
+
+        if (url.pathname === '/api/settings' && request.method() === 'GET') {
+          settingsGetCount += 1
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ success: true, data: { ...serverSettings } }),
+          })
+        }
+
+        if (url.pathname === '/api/settings' && request.method() === 'PUT') {
+          const updates = JSON.parse(request.postData() || '{}')
+          signalSaveStarted()
+          await saveRelease
+          Object.assign(serverSettings, updates)
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ success: true, data: { ...serverSettings } }),
+          })
+        }
+
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: [] }),
+        })
+      }
+    )
+
+    try {
+      await page.goto(`/project/${projectId}/detail`)
+      await page.getByRole('button', { name: '描述设置' }).click()
+      await expect(page.getByRole('button', { name: '流式', exact: true })).toHaveClass(/bg-banana-500/)
+      const initialSettingsGetCount = settingsGetCount
+      await page.getByRole('button', { name: '并行', exact: true }).click()
+
+      await page.evaluate(() => {
+        const currentState = window.history.state || {}
+        window.history.pushState(
+          { ...currentState, idx: (currentState.idx ?? 0) + 1, key: 'pending-settings-home' },
+          '',
+          '/'
+        )
+        window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }))
+      })
+      await saveStarted
+
+      await page.evaluate((path) => {
+        const currentState = window.history.state || {}
+        window.history.pushState(
+          { ...currentState, idx: (currentState.idx ?? 0) + 1, key: 'pending-settings-detail' },
+          '',
+          path
+        )
+        window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }))
+      }, `/project/${projectId}/detail`)
+      await page.waitForTimeout(300)
+      expect(settingsGetCount).toBe(initialSettingsGetCount)
+
+      releaseSave()
+      await expect.poll(() => settingsGetCount).toBeGreaterThan(initialSettingsGetCount)
+      await page.getByRole('button', { name: '描述设置' }).click()
+      await expect(page.getByRole('button', { name: '并行', exact: true })).toHaveClass(/bg-banana-500/)
+    } finally {
+      releaseSave()
+    }
+  })
+
   test('mock: overlapping partial settings saves are serialized before caching', async ({ page }) => {
     const projectId = 'mock-overlapping-settings-saves'
     const project = {

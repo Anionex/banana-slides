@@ -133,7 +133,7 @@ const detailI18n = {
 import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal, ReferenceFileList, MaterialSelector, ImportMarkdownModal } from '@/components/shared';
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
-import { refineDescriptions, getTaskStatus, addPages, updateProject, getSettings } from '@/api/endpoints';
+import { refineDescriptions, getTaskStatus, addPages, updateProject } from '@/api/endpoints';
 import { normalizeRenovationErrorMessage } from '@/utils';
 import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtils';
 import { useApiSettingsRecovery } from '@/hooks/useApiSettingsRecovery';
@@ -142,7 +142,7 @@ import {
   resolveLatestSettingsResponse,
   writeSettingsCache,
 } from '@/utils/settingsCache';
-import { updateSettingsSerially } from '@/utils/settingsUpdates';
+import { getSettingsAfterPendingUpdates, updateSettingsSerially } from '@/utils/settingsUpdates';
 
 // 详细程度图标 — 暂时屏蔽，效果不够理想
 // const DETAIL_LEVEL_LINES: Record<string, number[]> = {
@@ -278,7 +278,7 @@ export const DetailEditor: React.FC = () => {
     const settingsRequestId = beginSettingsCacheRequest();
     (async () => {
       try {
-        const res = await getSettings();
+        const res = await getSettingsAfterPendingUpdates();
         const s = res.data;
         if (!s || cancelled) return;
         const loadedSettings = resolveLatestSettingsResponse(s, settingsRequestId);
