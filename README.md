@@ -73,7 +73,7 @@
 </details>
 
 ## 🔥 最新动态
-- **[2026-08-29]**：0.9.0 候选版本 5 发布，新增沉浸式在线幻灯片播放器与 APIMart Provider，桌面版更新检查现可正确跟随 RC 通道；同时改进 PPT 改造的 MinerU 凭据错误提示、修复参考文档远程图片 SSRF 风险，并让图片编辑默认进入框选状态；[一键下载并安装](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.5)
+- **[2026-08-29]**：0.9.0 候选版本 5 发布，新增沉浸式在线幻灯片播放器与 APIMart OpenAI-compatible Provider 预设，桌面版更新检查现可正确跟随 RC 通道；同时改进 PPT 改造的 MinerU 凭据错误提示、修复参考文档远程图片 SSRF 风险，并让图片编辑默认进入框选状态；[查看下载与安装说明](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.5)
 - **[2026-08-20]**：0.9.0 候选版本 4 发布，重点修复桌面打包版 LazyLLM 在线供应商不可用（qwen 等）与 SOCKS 代理依赖缺失，并恢复预览页「上一步」返回描述编辑页、修复导出任务弹层遮挡与桌面端属性抽屉交互；[一键下载并安装](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.4)
 - **[2026-08-20]**：预览页恢复「上一步」按钮，可从幻灯片预览一键返回描述编辑页继续修改
 - **[2026-08-20]**：修复导出任务弹层被页面属性抽屉遮挡的问题；桌面端页面属性抽屉默认展开并自动适配窗口宽度
