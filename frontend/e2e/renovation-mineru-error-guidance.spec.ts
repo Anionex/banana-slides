@@ -33,7 +33,7 @@ test.describe('PPT renovation MinerU error guidance', () => {
           data: {
             task_id: taskId,
             status: 'FAILED',
-            error_message: 'MinerU API returned 401 Unauthorized: token expired',
+            error_message: 'MinerU parsing failed: Network error while requesting upload URL: 401 Unauthorized',
             progress: { total: 1, completed: 0 },
           },
         }),

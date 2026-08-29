@@ -64,4 +64,12 @@ describe('normalizeErrorMessage', () => {
     expect(message).toContain('认证失败');
     expect(message).not.toContain('MinerU Token');
   });
+
+  test('does not mislabel an expired signed upload URL as a MinerU token failure', () => {
+    const message = normalizeRenovationErrorMessage(
+      'MinerU parsing failed: File upload failed: 403 Forbidden'
+    );
+    expect(message).toContain('访问被拒绝');
+    expect(message).not.toContain('MinerU Token');
+  });
 });
