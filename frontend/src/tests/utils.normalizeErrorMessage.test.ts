@@ -70,6 +70,9 @@ describe('isApiSettingsError', () => {
   test.each([
     '500 Internal Server Error',
     '503 Service Unavailable',
+    'HTTP 403',
+    { response: { status: 403, data: { error: 'Access code required' } } },
+    { response: { status: 403, data: { error: 'Invalid access code' } } },
     'Network error',
     'Gateway timeout',
     new Error('File parsing failed'),

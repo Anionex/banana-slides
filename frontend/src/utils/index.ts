@@ -281,7 +281,12 @@ export function isApiSettingsError(error: unknown): boolean {
   const message = collectErrorText(error).toLowerCase();
   if (!message) return false;
 
-  const statusMatch = message.match(/(?:http\s*)?\b(401|403|429)\b/);
+  if (message.includes('access code required') || message.includes('invalid access code')) {
+    return false;
+  }
+
+  // A bare 403 can be the application's access-code guard rather than the AI provider.
+  const statusMatch = message.match(/(?:http\s*)?\b(401|429)\b/);
   if (statusMatch) return true;
 
   return [
