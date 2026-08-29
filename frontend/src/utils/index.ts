@@ -234,7 +234,9 @@ export function normalizeRenovationErrorMessage(errorMessage: string | null | un
     || message.includes('token expired')
     || message.includes('invalid token')
     || message.includes('token invalid')
-    || message.includes('token has expired');
+    || message.includes('token has expired')
+    || message.includes('authenticate failed')
+    || message.includes('authentication failed');
 
   if (looksLikeMineruFailure && looksLikeCredentialFailure) {
     return isZh

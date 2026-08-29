@@ -51,6 +51,14 @@ describe('normalizeErrorMessage', () => {
     expect(message).toContain('重新创建翻新项目');
   });
 
+  test('maps MinerU business auth responses without an HTTP status', () => {
+    const message = normalizeRenovationErrorMessage(
+      'MinerU parsing failed: Failed to get upload URL: user authenticate failed'
+    );
+    expect(message).toContain('MinerU Token');
+    expect(message).toContain('服务测试');
+  });
+
   test('does not mislabel an unrelated provider authentication failure as MinerU', () => {
     const message = normalizeRenovationErrorMessage('OpenAI API returned 401 Unauthorized');
     expect(message).toContain('认证失败');

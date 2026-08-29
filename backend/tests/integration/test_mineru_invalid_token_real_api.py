@@ -1,10 +1,17 @@
 """Real MinerU authentication regression for PPT renovation."""
 
+import os
 import uuid
 
 import pytest
 
 from services.file_parser_service import FileParserService
+
+
+pytestmark = pytest.mark.skipif(
+    os.getenv("RUN_REAL_MINERU_AUTH_TEST") != "1",
+    reason="Set RUN_REAL_MINERU_AUTH_TEST=1 to call the official MinerU API",
+)
 
 
 @pytest.mark.integration
