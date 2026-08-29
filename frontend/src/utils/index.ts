@@ -115,8 +115,11 @@ export function generateId(): string {
 /**
  * 将错误消息转换为友好的中英文提示
  */
-export function normalizeErrorMessage(errorMessage: string | null | undefined): string {
-  const lang = localStorage.getItem('i18nextLng') || navigator.language || 'zh';
+export function normalizeErrorMessage(
+  errorMessage: string | null | undefined,
+  language?: string,
+): string {
+  const lang = language || localStorage.getItem('i18nextLng') || navigator.language || 'zh';
   const isZh = lang.startsWith('zh');
 
   if (!errorMessage) return isZh ? '操作失败' : 'Operation failed';
@@ -219,11 +222,11 @@ export function normalizeErrorMessage(errorMessage: string | null | undefined): 
  * 避免把其他 provider 的认证错误错误归因为 MinerU。
  */
 export function normalizeRenovationErrorMessage(errorMessage: string | null | undefined): string {
-  const normalized = normalizeErrorMessage(errorMessage);
   const rawMessage = typeof errorMessage === 'string' ? errorMessage : String(errorMessage || '');
   const message = rawMessage.toLowerCase();
   const lang = localStorage.getItem('banana-slides-language') || navigator.language || 'zh';
   const isZh = lang.startsWith('zh');
+  const normalized = normalizeErrorMessage(errorMessage, lang);
   const looksLikeMineruCredentialStage = message.includes('get upload url')
     || message.includes('requesting upload url')
     || message.includes('file-urls/batch')

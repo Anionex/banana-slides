@@ -82,4 +82,13 @@ describe('normalizeErrorMessage', () => {
     expect(message).toContain('PPT Renovation could not parse the PDF');
     expect(message).toContain('MinerU Configuration');
   });
+
+  test('uses the configured UI language for non-credential renovation failures', () => {
+    localStorage.setItem('banana-slides-language', 'en');
+    const message = normalizeRenovationErrorMessage(
+      'MinerU parsing failed: File upload failed: 403 Forbidden'
+    );
+    expect(message).toContain('Access denied');
+    expect(message).not.toContain('访问被拒绝');
+  });
 });
