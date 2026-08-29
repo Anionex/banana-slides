@@ -329,6 +329,7 @@ import { getImageUrl } from '@/api/client';
 import { getPageImageVersions, setCurrentImageVersion, updateProject, uploadTemplate, exportPPTX as apiExportPPTX, exportPDF as apiExportPDF, exportImages as apiExportImages, exportEditablePPTX as apiExportEditablePPTX, exportVideo as apiExportVideo, getSettings, getElevenLabsVoices, updateSettings } from '@/api/endpoints';
 import type { ImageVersion, DescriptionContent, ExportExtractorMethod, ExportInpaintMethod, Page, NarrationConfig } from '@/types';
 import { normalizeErrorMessage } from '@/utils';
+import { beginSettingsCacheRequest, writeSettingsCache } from '@/utils/settingsCache';
 
 const VIDEO_VOICE_OPTIONS = [
   { group: '中文', voices: [
@@ -822,10 +823,11 @@ export const SlidePreview: React.FC = () => {
     setImageQualityControlEnabled(nextValue);
     setIsSavingImageQualityControl(true);
     try {
+      const settingsRequestId = beginSettingsCacheRequest();
       const response = await updateSettings({ enable_image_quality_control: nextValue });
       if (response.data) {
         setImageQualityControlEnabled(Boolean(response.data.enable_image_quality_control));
-        sessionStorage.setItem('banana-settings', JSON.stringify(response.data));
+        writeSettingsCache(response.data, settingsRequestId);
       }
       show({ message: t('preview.qualityControlSaved'), type: 'success' });
     } catch (error: any) {

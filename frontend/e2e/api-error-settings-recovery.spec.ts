@@ -190,6 +190,138 @@ test.describe('API error settings recovery', () => {
     await expect(page.getByRole('button', { name: '检查 API 设置' })).toHaveCount(0)
   })
 
+  test('mock: editor-local recovery toasts return to the project that raised the error', async ({ page }) => {
+    const sourceProjectId = 'mock-local-toast-source'
+    const otherProjectId = 'mock-local-toast-current'
+    const makeProject = (id: string, title: string) => ({
+      id,
+      project_id: id,
+      creation_type: 'idea',
+      status: 'DESCRIPTION_GENERATED',
+      pages: [{
+        id: `${id}-page`,
+        page_id: `${id}-page`,
+        order_index: 0,
+        outline_content: { title, points: ['要点'] },
+        description_content: { text: `${title}的描述` },
+        status: 'DESCRIPTION_GENERATED',
+      }],
+    })
+    const projects = {
+      [sourceProjectId]: makeProject(sourceProjectId, '错误来源项目页面'),
+      [otherProjectId]: makeProject(otherProjectId, '当前查看项目页面'),
+    }
+
+    await page.addInitScript(() => {
+      sessionStorage.setItem('banana-settings', JSON.stringify({
+        description_generation_mode: 'streaming',
+      }))
+    })
+    await page.route(
+      (url) => url.pathname.startsWith('/api/'),
+      async (route) => {
+        const request = route.request()
+        const url = new URL(request.url())
+
+        for (const [id, project] of Object.entries(projects)) {
+          if (url.pathname === `/api/projects/${id}` && request.method() === 'GET') {
+            return route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify({ success: true, data: project }),
+            })
+          }
+        }
+
+        if (
+          request.method() === 'POST'
+          && (
+            url.pathname === `/api/projects/${sourceProjectId}/refine/outline`
+            || url.pathname === `/api/projects/${sourceProjectId}/refine/descriptions`
+          )
+        ) {
+          return route.fulfill({
+            status: 503,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              success: false,
+              error: { code: 'AI_SERVICE_ERROR', message: 'API key is invalid' },
+            }),
+          })
+        }
+
+        if (url.pathname === '/api/settings' && request.method() === 'GET') {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              success: true,
+              data: {
+                ai_provider_format: 'gemini',
+                description_generation_mode: 'streaming',
+                description_extra_fields: [],
+              },
+            }),
+          })
+        }
+
+        if (url.pathname.endsWith('/files')) {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ success: true, data: [] }),
+          })
+        }
+
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: [] }),
+        })
+      }
+    )
+
+    const navigateWithinSpa = async (path: string, key: string) => {
+      await page.evaluate(({ path, key }) => {
+        const currentState = window.history.state || {}
+        window.history.pushState(
+          { ...currentState, idx: (currentState.idx ?? 0) + 1, key },
+          '',
+          path
+        )
+        window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }))
+      }, { path, key })
+    }
+
+    await page.goto(`/project/${sourceProjectId}/outline`)
+    const outlineRefineInput = page.getByPlaceholder(/例如：增加一页/).first()
+    await outlineRefineInput.fill('触发大纲 API 错误')
+    await outlineRefineInput.press('Control+Enter')
+    let settingsAction = page.getByRole('button', { name: '检查 API 设置' })
+    await expect(settingsAction).toBeVisible()
+
+    await navigateWithinSpa(`/project/${otherProjectId}/outline`, 'local-outline-other-project')
+    await expect(page.getByText('当前查看项目页面')).toBeVisible()
+    await settingsAction.click()
+    await expect(page).toHaveURL(/\/settings$/)
+    await page.getByRole('button', { name: '返回编辑器' }).click()
+    await expect(page).toHaveURL(new RegExp(`/project/${sourceProjectId}/outline$`))
+
+    await page.goto(`/project/${sourceProjectId}/detail`)
+    const detailRefineInput = page.getByPlaceholder(/例如：让描述更详细/).first()
+    await detailRefineInput.fill('触发描述 API 错误')
+    await detailRefineInput.press('Control+Enter')
+    settingsAction = page.getByRole('button', { name: '检查 API 设置' })
+    await expect(settingsAction).toBeVisible()
+
+    await navigateWithinSpa(`/project/${otherProjectId}/detail`, 'local-detail-other-project')
+    await expect(page.getByText('当前查看项目页面')).toBeVisible()
+    await settingsAction.click()
+    await expect(page).toHaveURL(/\/settings$/)
+    await page.getByRole('button', { name: '返回编辑器' }).click()
+    await expect(page).toHaveURL(new RegExp(`/project/${sourceProjectId}/detail$`))
+  })
+
   test('mock: background parallel failure returns to the task project after switching projects', async ({ page }) => {
     const projectId = 'mock-parallel-description-error'
     const otherProjectId = 'mock-parallel-current-project'
@@ -471,7 +603,8 @@ test.describe('API error settings recovery', () => {
         page_id: `${projectId}-page`,
         order_index: 0,
         outline_content: { title: '未配置 API Key', points: ['要点'] },
-        status: 'DRAFT',
+        description_content: { text: '保留的旧描述' },
+        status: 'DESCRIPTION_GENERATED',
       }],
     }
     let sourceProjectGetCount = 0
@@ -543,6 +676,7 @@ test.describe('API error settings recovery', () => {
 
     await page.goto(`/project/${projectId}/detail`)
     await page.getByRole('button', { name: '批量生成描述' }).click()
+    await page.getByRole('dialog').getByRole('button', { name: '确定' }).click()
     await descriptionRequestStarted
     const sourceProjectGetCountBeforeLeaving = sourceProjectGetCount
 
@@ -565,16 +699,30 @@ test.describe('API error settings recovery', () => {
     await expect(page).toHaveURL(/\/settings$/)
     await page.getByRole('button', { name: '返回编辑器' }).click()
     await expect(page).toHaveURL(new RegExp(`/project/${projectId}/detail$`))
+    await expect(page.getByText('保留的旧描述')).toBeVisible()
+    await expect(page.getByRole('button', { name: '批量生成描述' })).toBeEnabled()
+    await expect(page.getByRole('button', { name: '生成中...' })).toHaveCount(0)
   })
 
   test('integration: description quota error saves real settings and returns to the same project', async ({ page }) => {
     const { projectId } = await seedProjectWithImages(BACKEND_URL, 1)
     const settingsResponse = await fetch(`${BACKEND_URL}/api/settings`)
     const settingsBody = await settingsResponse.json()
+    let streamingRequestCount = 0
+    let parallelRequestCount = 0
     let settingsSaved = false
-    let releasePostReturnSettingsGet!: () => void
-    const postReturnSettingsGetRelease = new Promise<void>((resolve) => {
-      releasePostReturnSettingsGet = resolve
+    let settingsGetCount = 0
+    let signalStaleSettingsGetStarted!: () => void
+    const staleSettingsGetStarted = new Promise<void>((resolve) => {
+      signalStaleSettingsGetStarted = resolve
+    })
+    let signalStaleSettingsGetCompleted!: () => void
+    const staleSettingsGetCompleted = new Promise<void>((resolve) => {
+      signalStaleSettingsGetCompleted = resolve
+    })
+    let releaseStaleSettingsGet!: () => void
+    const staleSettingsGetRelease = new Promise<void>((resolve) => {
+      releaseStaleSettingsGet = resolve
     })
 
     await page.route(
@@ -582,17 +730,25 @@ test.describe('API error settings recovery', () => {
       async (route) => {
         const method = route.request().method()
         if (method === 'GET') {
-          if (settingsSaved) {
-            await postReturnSettingsGetRelease
+          settingsGetCount += 1
+          const isStaleEditorRequest = settingsGetCount === 1
+          if (isStaleEditorRequest) {
+            signalStaleSettingsGetStarted()
+            await staleSettingsGetRelease
           }
-          return route.fulfill({
+          await route.fulfill({
             status: 200,
             contentType: 'application/json',
             body: JSON.stringify({
               ...settingsBody,
-              data: { ...settingsBody.data, description_generation_mode: 'streaming' },
+              data: {
+                ...settingsBody.data,
+                description_generation_mode: settingsSaved ? 'parallel' : 'streaming',
+              },
             }),
           })
+          if (isStaleEditorRequest) signalStaleSettingsGetCompleted()
+          return
         }
         if (method === 'PUT') {
           const response = await route.fetch()
@@ -607,16 +763,34 @@ test.describe('API error settings recovery', () => {
 
     await page.route(
       (url) => url.pathname === `/api/projects/${projectId}/generate/descriptions/stream`,
-      async (route) => route.fulfill({
-        status: 200,
-        headers: { 'Content-Type': 'text/event-stream' },
-        body: 'event: error\ndata: {"message":"403 balance is insufficient"}\n\n',
-      })
+      async (route) => {
+        streamingRequestCount += 1
+        return route.fulfill({
+          status: 200,
+          headers: { 'Content-Type': 'text/event-stream' },
+          body: 'event: error\ndata: {"message":"403 balance is insufficient"}\n\n',
+        })
+      }
+    )
+    await page.route(
+      (url) => url.pathname === `/api/projects/${projectId}/generate/descriptions`,
+      async (route) => {
+        parallelRequestCount += 1
+        return route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: false,
+            error: { code: 'AI_SERVICE_ERROR', message: 'API key is invalid' },
+          }),
+        })
+      }
     )
 
     try {
       await page.goto(`/project/${projectId}/detail`)
       await expect(page.getByText('编辑页面描述', { exact: true })).toBeVisible()
+      await staleSettingsGetStarted
 
       await page.getByRole('button', { name: '批量生成描述' }).click()
       const settingsAction = page.getByRole('button', { name: '检查 API 设置' })
@@ -644,10 +818,23 @@ test.describe('API error settings recovery', () => {
         const cached = sessionStorage.getItem('banana-settings')
         return cached ? JSON.parse(cached).description_generation_mode : null
       })).toBe('parallel')
-      releasePostReturnSettingsGet()
+      releaseStaleSettingsGet()
+      await staleSettingsGetCompleted
+      expect(await page.evaluate(() => {
+        const cached = sessionStorage.getItem('banana-settings')
+        return cached ? JSON.parse(cached).description_generation_mode : null
+      })).toBe('parallel')
       await expect(page.getByText('编辑页面描述', { exact: true })).toBeVisible()
+
+      await page.getByRole('button', { name: '批量生成描述' }).click()
+      const confirmDialog = page.getByRole('dialog')
+      if (await confirmDialog.isVisible().catch(() => false)) {
+        await confirmDialog.getByRole('button', { name: '确定' }).click()
+      }
+      await expect.poll(() => parallelRequestCount).toBe(1)
+      expect(streamingRequestCount).toBe(1)
     } finally {
-      releasePostReturnSettingsGet()
+      releaseStaleSettingsGet()
       await page.unrouteAll({ behavior: 'wait' })
       await fetch(`${BACKEND_URL}/api/projects/${projectId}`, { method: 'DELETE' })
     }

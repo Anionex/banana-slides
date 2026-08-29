@@ -137,6 +137,7 @@ import { refineDescriptions, getTaskStatus, addPages, updateProject, getSettings
 import { normalizeRenovationErrorMessage } from '@/utils';
 import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtils';
 import { useApiSettingsRecovery } from '@/hooks/useApiSettingsRecovery';
+import { beginSettingsCacheRequest, writeSettingsCache } from '@/utils/settingsCache';
 
 // 详细程度图标 — 暂时屏蔽，效果不够理想
 // const DETAIL_LEVEL_LINES: Record<string, number[]> = {
@@ -261,11 +262,13 @@ export const DetailEditor: React.FC = () => {
 
   // Load settings from DB on mount
   useEffect(() => {
+    let cancelled = false;
+    const settingsRequestId = beginSettingsCacheRequest();
     (async () => {
       try {
         const res = await getSettings();
         const s = res.data;
-        if (!s) return;
+        if (!s || cancelled || !writeSettingsCache(s, settingsRequestId)) return;
         setDetailLevel('default');
         // detail level from sessionStorage (backwards compat, then from DB if we add it later)
         const storedLevel = sessionStorage.getItem('banana-detail-level');
@@ -280,10 +283,9 @@ export const DetailEditor: React.FC = () => {
           localStorage.setItem('banana-available-extra-fields', JSON.stringify(merged));
           return merged;
         });
-        // Cache settings in sessionStorage for store to read
-        sessionStorage.setItem('banana-settings', JSON.stringify(s));
       } catch { /* ignore */ }
     })();
+    return () => { cancelled = true; };
   }, []);
 
   // Debounced save settings to DB
@@ -291,9 +293,10 @@ export const DetailEditor: React.FC = () => {
     if (settingsSaveTimerRef.current) clearTimeout(settingsSaveTimerRef.current);
     settingsSaveTimerRef.current = setTimeout(async () => {
       try {
+        const settingsRequestId = beginSettingsCacheRequest();
         const res = await updateSettings(updates as any);
         if (res.data) {
-          sessionStorage.setItem('banana-settings', JSON.stringify(res.data));
+          writeSettingsCache(res.data, settingsRequestId);
         }
       } catch (e) {
         console.error('Failed to save settings:', e);
@@ -490,6 +493,7 @@ export const DetailEditor: React.FC = () => {
 
   const handleRegeneratePage = async (pageId: string) => {
     if (!currentProject) return;
+    const recoveryPath = `/project/${currentProject.id}/detail`;
 
     const page = currentProject.pages.find((p) => p.id === pageId);
     if (!page) return;
@@ -509,7 +513,7 @@ export const DetailEditor: React.FC = () => {
         show(withApiSettingsRecovery(error, {
           message: `${t('detail.messages.generateFailed')}: ${error.message || t('common.unknownError')}`,
           type: 'error'
-        }));
+        }, recoveryPath));
       }
     };
 
@@ -563,7 +567,11 @@ export const DetailEditor: React.FC = () => {
       const errorMessage = error?.response?.data?.error?.message 
         || error?.message 
         || t('detail.messages.refineFailed');
-      show(withApiSettingsRecovery(error, { message: errorMessage, type: 'error' }));
+      show(withApiSettingsRecovery(
+        error,
+        { message: errorMessage, type: 'error' },
+        `/project/${projectId}/detail`
+      ));
       throw error; // 抛出错误让组件知道失败了
     }
   }, [currentProject, projectId, syncProject, show, t, withApiSettingsRecovery]);

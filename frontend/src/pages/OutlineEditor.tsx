@@ -394,6 +394,7 @@ export const OutlineEditor: React.FC = () => {
 
   const handleGenerateOutline = async () => {
     if (!currentProject) return;
+    const recoveryPath = `/project/${currentProject.id}/outline`;
 
     const doGenerate = async (lockPageCount?: boolean) => {
       try {
@@ -406,7 +407,7 @@ export const OutlineEditor: React.FC = () => {
       } catch (error: any) {
         console.error('生成大纲失败:', error);
         const message = error.friendlyMessage || error.message || t('outline.messages.generateFailed');
-        show(withApiSettingsRecovery(error, { message, type: 'error' }));
+        show(withApiSettingsRecovery(error, { message, type: 'error' }, recoveryPath));
       }
     };
 
@@ -429,6 +430,7 @@ export const OutlineEditor: React.FC = () => {
 
   useEffect(() => {
     if (!currentProject?.id) return;
+    const recoveryPath = `/project/${currentProject.id}/outline`;
     const currentPath = `${location.pathname}${location.search}${location.hash}`;
     const suppressAfterRecovery = consumeOutlineRecoverySuppression(currentPath);
     if (currentProject.pages.length > 0 || isOutlineStreaming) return;
@@ -451,7 +453,7 @@ export const OutlineEditor: React.FC = () => {
       } catch (error: any) {
         console.error('自动生成大纲失败:', error);
         const message = error.message || t('outline.messages.generateFailed');
-        show(withApiSettingsRecovery(error, { message, type: 'error' }));
+        show(withApiSettingsRecovery(error, { message, type: 'error' }, recoveryPath));
       }
     })();
   }, [currentProject?.id, currentProject?.pages.length, currentProject?.creation_type, generateOutlineStream, isOutlineStreaming, location.hash, location.pathname, location.search, show, t, withApiSettingsRecovery]);
@@ -471,7 +473,11 @@ export const OutlineEditor: React.FC = () => {
       const errorMessage = error?.response?.data?.error?.message
         || error?.message
         || t('outline.messages.refineFailed');
-      show(withApiSettingsRecovery(error, { message: errorMessage, type: 'error' }));
+      show(withApiSettingsRecovery(
+        error,
+        { message: errorMessage, type: 'error' },
+        `/project/${projectId}/outline`
+      ));
       throw error;
     }
   }, [currentProject, projectId, syncProject, show, withApiSettingsRecovery]);

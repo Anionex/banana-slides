@@ -492,6 +492,7 @@ import * as api from '@/api/endpoints';
 import type { OutputLanguage, UpdateCheckInfo } from '@/api/endpoints';
 import { OUTPUT_LANGUAGE_OPTIONS } from '@/api/endpoints';
 import type { Settings as SettingsType } from '@/types';
+import { beginSettingsCacheRequest, writeSettingsCache } from '@/utils/settingsCache';
 
 // 配置项类型定义
 type FieldType = 'text' | 'password' | 'number' | 'select' | 'buttons' | 'switch';
@@ -908,16 +909,6 @@ const formDataFromSettings = (data: SettingsType): typeof initialFormData => {
   };
 };
 
-const SETTINGS_CACHE_KEY = 'banana-settings';
-
-const persistSettingsCache = (settings: SettingsType) => {
-  try {
-    sessionStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify(settings));
-  } catch (error) {
-    console.warn('Failed to persist settings in sessionStorage:', error);
-  }
-};
-
 // Settings 组件 - 纯嵌入模式（可复用）
 interface SettingsProps {
   onSaveSuccess?: () => void;
@@ -998,7 +989,7 @@ export const Settings: React.FC<SettingsProps> = ({ onSaveSuccess, saveLabel }) 
 
   useEffect(() => {
     if (settings) {
-      persistSettingsCache(settings);
+      writeSettingsCache(settings);
     }
   }, [settings]);
 
@@ -1268,10 +1259,11 @@ export const Settings: React.FC<SettingsProps> = ({ onSaveSuccess, saveLabel }) 
   }, []);
 
   const loadSettings = async () => {
+    const settingsRequestId = beginSettingsCacheRequest();
     setIsLoading(true);
     try {
       const response = await api.getSettings();
-      if (response.data) {
+      if (response.data && writeSettingsCache(response.data, settingsRequestId)) {
         setSettings(response.data);
         setFormData(formDataFromSettings(response.data));
       }
@@ -1327,9 +1319,9 @@ export const Settings: React.FC<SettingsProps> = ({ onSaveSuccess, saveLabel }) 
         payload.lazyllm_api_keys = nonEmptyKeys;
       }
 
+      const settingsRequestId = beginSettingsCacheRequest();
       const response = await api.updateSettings(payload);
-      if (response.data) {
-        persistSettingsCache(response.data);
+      if (response.data && writeSettingsCache(response.data, settingsRequestId)) {
         setSettings(response.data);
         // Clear all sensitive fields after save
         setFormData(prev => ({
@@ -1362,8 +1354,9 @@ export const Settings: React.FC<SettingsProps> = ({ onSaveSuccess, saveLabel }) 
       async () => {
         setIsSaving(true);
         try {
+          const settingsRequestId = beginSettingsCacheRequest();
           const response = await api.resetSettings();
-          if (response.data) {
+          if (response.data && writeSettingsCache(response.data, settingsRequestId)) {
             setSettings(response.data);
             setFormData(formDataFromSettings(response.data));
             show({ message: t('settings.messages.resetSuccess'), type: 'success' });

@@ -9,6 +9,7 @@ import {
 import { devLog } from '@/utils/logger';
 import { triggerDownload } from '@/api/client';
 import { getT } from '@/utils/i18nHelper';
+import { readSettingsCache } from '@/utils/settingsCache';
 
 const storeI18n = {
   zh: {
@@ -847,15 +848,10 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     // 检查描述生成模式，优先从 sessionStorage 缓存读取以避免额外 API 调用
     let mode: string = 'streaming';
-    try {
-      const cached = sessionStorage.getItem('banana-settings');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (parsed?.description_generation_mode) {
-          mode = parsed.description_generation_mode;
-        }
-      }
-    } catch { /* ignore */ }
+    const cachedSettings = readSettingsCache();
+    if (cachedSettings?.description_generation_mode) {
+      mode = cachedSettings.description_generation_mode;
+    }
 
     if (mode === 'streaming') {
       // 流式模式
@@ -947,9 +943,32 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       // 并行模式（原有逻辑）
       const projectId = currentProject.id;
       const recoveryPath = `/project/${projectId}/detail`;
-      const syncTaskProjectIfCurrent = async () => {
+      const originalPageStatuses = new Map(
+        currentProject.pages
+          .filter((page) => page.id)
+          .map((page) => [page.id!, page.status] as const)
+      );
+      const syncTaskProjectIfCurrent = async (): Promise<boolean> => {
         if (getRouteProjectId() === projectId) {
           await get().syncProject(projectId);
+          return true;
+        }
+        return false;
+      };
+      const restoreOptimisticPageStatuses = () => {
+        const latestProject = get().currentProject;
+        if (!latestProject || latestProject.id !== projectId) return;
+
+        let changed = false;
+        const restoredPages = latestProject.pages.map((page) => {
+          if (!page.id || page.status !== 'GENERATING_DESCRIPTION') return page;
+          const originalStatus = originalPageStatuses.get(page.id);
+          if (!originalStatus || originalStatus === page.status) return page;
+          changed = true;
+          return { ...page, status: originalStatus };
+        });
+        if (changed) {
+          set({ currentProject: { ...latestProject, pages: restoredPages } });
         }
       };
 
@@ -1029,7 +1048,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
       } catch (error: any) {
         console.error('[生成描述] 启动任务失败:', error);
-        await syncTaskProjectIfCurrent();
+        const synced = await syncTaskProjectIfCurrent();
+        if (!synced) restoreOptimisticPageStatuses();
         const message = normalizeErrorMessage(
           error?.response?.data?.error?.message
           || error?.response?.data?.message
