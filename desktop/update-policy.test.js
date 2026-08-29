@@ -84,3 +84,66 @@ test('treats stable releases as newer than pre-release builds', () => {
     true,
   );
 });
+
+test('selects a newer pre-release for an app already on the pre-release channel', () => {
+  const release = updatePolicy.selectLatestDesktopRelease([
+    {
+      tag_name: 'v0.4.0',
+      draft: false,
+      prerelease: false,
+      assets: [],
+    },
+    {
+      tag_name: 'v0.9.0-rc.4',
+      draft: false,
+      prerelease: true,
+      assets: [{ name: 'BananaSlides-0.9.0-rc.4-mac-arm64.dmg' }],
+    },
+    {
+      tag_name: 'v0.9.0-rc.3',
+      draft: false,
+      prerelease: true,
+      assets: [{ name: 'BananaSlides-0.9.0-rc.3-mac-arm64.dmg' }],
+    },
+  ], '0.9.0-rc.3', 'darwin', 'arm64');
+
+  assert.equal(release?.tag_name, 'v0.9.0-rc.4');
+});
+
+test('stable builds do not opt into pre-release updates', () => {
+  const release = updatePolicy.selectLatestDesktopRelease([
+    {
+      tag_name: 'v1.0.0-rc.1',
+      draft: false,
+      prerelease: true,
+      assets: [{ name: 'BananaSlides-1.0.0-rc.1-win-x64-Setup.exe' }],
+    },
+    {
+      tag_name: 'v0.9.0',
+      draft: false,
+      prerelease: false,
+      assets: [{ name: 'BananaSlides-0.9.0-win-x64-Setup.exe' }],
+    },
+  ], '0.9.0', 'win32', 'x64');
+
+  assert.equal(release?.tag_name, 'v0.9.0');
+});
+
+test('ignores releases without an installer for the current platform', () => {
+  const release = updatePolicy.selectLatestDesktopRelease([
+    {
+      tag_name: 'v0.9.1',
+      draft: false,
+      prerelease: false,
+      assets: [{ name: 'BananaSlides-0.9.1-win-x64-Setup.exe' }],
+    },
+    {
+      tag_name: 'v0.9.0',
+      draft: false,
+      prerelease: false,
+      assets: [{ name: 'BananaSlides-0.9.0-mac-arm64.dmg' }],
+    },
+  ], '0.8.0', 'darwin', 'arm64');
+
+  assert.equal(release?.tag_name, 'v0.9.0');
+});

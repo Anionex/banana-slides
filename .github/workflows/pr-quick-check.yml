@@ -54,6 +54,8 @@ jobs:
 
       - name: Desktop unit and icon contract tests
         run: cd desktop && npm test
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Install frontend dependencies
         run: cd frontend && npm ci

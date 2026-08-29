@@ -1,52 +1,19 @@
 const fs = require('fs');
-const https = require('https');
 const path = require('path');
 const { app } = require('electron');
 const log = require('electron-log');
-const { isVersionLess, resolveCurrentBuildTimestamp, shouldNotifyUpdate } = require('./update-policy');
+const { fetchGitHubJson } = require('./github-release-client');
+const {
+  isVersionLess,
+  normalizeReleaseVersion,
+  resolveCurrentBuildTimestamp,
+  selectLatestDesktopRelease,
+  shouldNotifyUpdate,
+} = require('./update-policy');
 
 const REPO_OWNER = 'Anionex';
 const REPO_NAME = 'banana-slides';
 const BUILD_META_PATH = path.join(__dirname, 'build-meta.json');
-
-function fetchGitHubJson(requestPath) {
-  return new Promise((resolve) => {
-    const options = {
-      hostname: 'api.github.com',
-      path: requestPath,
-      headers: { 'User-Agent': `BananaSlides/${app.getVersion()}` },
-    };
-
-    const req = https.get(options, (res) => {
-      const chunks = [];
-      res.on('data', (chunk) => { chunks.push(chunk); });
-      res.on('end', () => {
-        if (res.statusCode !== 200) {
-          resolve(null);
-          return;
-        }
-
-        try {
-          const body = Buffer.concat(chunks).toString('utf8');
-          resolve(JSON.parse(body));
-        } catch (error) {
-          log.warn('[auto-updater] Parse error:', error.message);
-          resolve(null);
-        }
-      });
-    });
-
-    req.on('error', (error) => {
-      log.warn('[auto-updater] Network error:', error.message);
-      resolve(null);
-    });
-
-    req.setTimeout(10000, () => {
-      req.destroy();
-      resolve(null);
-    });
-  });
-}
 
 function readBuildMeta() {
   try {
@@ -80,39 +47,90 @@ function extractReleaseTimestamp(commitData, releaseData) {
 }
 
 async function checkForUpdates() {
-  const release = await fetchGitHubJson(`/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest`);
-  if (!release?.tag_name) {
-    return null;
+  let releases;
+  try {
+    releases = await fetchGitHubJson(
+      `/repos/${REPO_OWNER}/${REPO_NAME}/releases?per_page=30`,
+      { userAgent: `BananaSlides/${app.getVersion()}` },
+    );
+  } catch (error) {
+    log.warn('[auto-updater] Failed to fetch releases:', error.message);
+    throw error;
+  }
+  if (!Array.isArray(releases)) {
+    throw new Error('GitHub API returned an invalid releases response');
   }
 
   const currentVersion = app.getVersion();
-  const latestVersion = release.tag_name.replace(/^v/, '');
+  const release = selectLatestDesktopRelease(releases, currentVersion, process.platform, process.arch);
+  if (!release) {
+    return {
+      status: 'up_to_date',
+      currentVersion,
+      latestVersion: currentVersion,
+      update: null,
+    };
+  }
+
+  const latestVersion = normalizeReleaseVersion(release.tag_name);
+  if (!latestVersion) {
+    throw new Error(`GitHub release has an invalid version tag: ${release.tag_name}`);
+  }
   const buildMeta = readBuildMeta();
   const currentBuildTimestamp = resolveCurrentBuildTimestamp(buildMeta);
   if (shouldNotifyUpdate({ currentVersion, latestVersion })) {
     return {
-      version: latestVersion,
-      notes: release.body || '',
-      url: release.html_url,
+      status: 'update_available',
+      currentVersion,
+      latestVersion,
+      update: {
+        version: latestVersion,
+        notes: release.body || '',
+        url: release.html_url,
+      },
     };
   }
 
   if (isVersionLess(latestVersion, currentVersion)) {
-    return null;
+    return {
+      status: 'up_to_date',
+      currentVersion,
+      latestVersion,
+      update: null,
+    };
   }
 
-  const releaseCommit = await fetchGitHubJson(`/repos/${REPO_OWNER}/${REPO_NAME}/commits/${encodeURIComponent(release.tag_name)}`);
+  let releaseCommit;
+  try {
+    releaseCommit = await fetchGitHubJson(
+      `/repos/${REPO_OWNER}/${REPO_NAME}/commits/${encodeURIComponent(release.tag_name)}`,
+      { userAgent: `BananaSlides/${app.getVersion()}` },
+    );
+  } catch (error) {
+    log.warn('[auto-updater] Failed to fetch release commit:', error.message);
+    releaseCommit = null;
+  }
   const latestReleaseTimestamp = extractReleaseTimestamp(releaseCommit, release);
 
   if (shouldNotifyUpdate({ currentVersion, latestVersion, currentBuildTimestamp, latestReleaseTimestamp })) {
     return {
-      version: latestVersion,
-      notes: release.body || '',
-      url: release.html_url,
+      status: 'update_available',
+      currentVersion,
+      latestVersion,
+      update: {
+        version: latestVersion,
+        notes: release.body || '',
+        url: release.html_url,
+      },
     };
   }
 
-  return null;
+  return {
+    status: 'up_to_date',
+    currentVersion,
+    latestVersion,
+    update: null,
+  };
 }
 
 module.exports = {
