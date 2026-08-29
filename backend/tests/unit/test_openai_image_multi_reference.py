@@ -19,6 +19,7 @@ def _make_b64_png() -> str:
 
 
 def _make_provider(model: str = 'gpt-image-2') -> OpenAIImageProvider:
+    client = MagicMock()
     with patch('services.ai_providers.image.openai_provider.OpenAI'):
         provider = OpenAIImageProvider(
             api_key='test',
@@ -28,7 +29,8 @@ def _make_provider(model: str = 'gpt-image-2') -> OpenAIImageProvider:
         )
     raw_response = MagicMock()
     raw_response.json.return_value = {'data': [{'b64_json': _make_b64_png(), 'url': None}]}
-    provider.client.images.with_raw_response.edit.return_value = raw_response
+    client.images.with_raw_response.edit.return_value = raw_response
+    provider.client = client
     return provider
 
 
@@ -139,7 +141,7 @@ def test_gpt_image_rejects_more_than_sixteen_references():
             resolution='1K',
         )
 
-    provider.client.images.edit.assert_not_called()
+    provider.client.images.with_raw_response.edit.assert_not_called()
 
 
 def test_dall_e_2_keeps_documented_single_reference_limit(caplog):
