@@ -459,7 +459,7 @@ test.describe('API error settings recovery', () => {
     await expect(page).toHaveURL(new RegExp(`/project/${projectId}/detail$`))
   })
 
-  test('mock: provider initialization failure before task creation offers settings recovery', async ({ page }) => {
+  test('mock: delayed provider initialization failure keeps recovery bound to its source project', async ({ page }) => {
     const projectId = 'mock-parallel-provider-init-error'
     const project = {
       id: projectId,
@@ -474,11 +474,21 @@ test.describe('API error settings recovery', () => {
         status: 'DRAFT',
       }],
     }
+    let sourceProjectGetCount = 0
+    let signalDescriptionRequestStarted!: () => void
+    const descriptionRequestStarted = new Promise<void>((resolve) => {
+      signalDescriptionRequestStarted = resolve
+    })
+    let releaseDescriptionRequest!: () => void
+    const descriptionRequestRelease = new Promise<void>((resolve) => {
+      releaseDescriptionRequest = resolve
+    })
 
     await page.addInitScript(() => {
       sessionStorage.setItem('banana-settings', JSON.stringify({
         description_generation_mode: 'parallel',
       }))
+      localStorage.setItem('hasSeenHelpModal', 'true')
     })
     await page.route(
       (url) => url.pathname.startsWith('/api/'),
@@ -487,6 +497,7 @@ test.describe('API error settings recovery', () => {
         const url = new URL(request.url())
 
         if (url.pathname === `/api/projects/${projectId}` && request.method() === 'GET') {
+          sourceProjectGetCount += 1
           return route.fulfill({
             status: 200,
             contentType: 'application/json',
@@ -495,6 +506,8 @@ test.describe('API error settings recovery', () => {
         }
 
         if (url.pathname === `/api/projects/${projectId}/generate/descriptions` && request.method() === 'POST') {
+          signalDescriptionRequestStarted()
+          await descriptionRequestRelease
           return route.fulfill({
             status: 503,
             contentType: 'application/json',
@@ -530,27 +543,65 @@ test.describe('API error settings recovery', () => {
 
     await page.goto(`/project/${projectId}/detail`)
     await page.getByRole('button', { name: '批量生成描述' }).click()
+    await descriptionRequestStarted
+    const sourceProjectGetCountBeforeLeaving = sourceProjectGetCount
+
+    await page.evaluate(() => {
+      const currentState = window.history.state || {}
+      window.history.pushState(
+        { ...currentState, idx: (currentState.idx ?? 0) + 1, key: 'provider-init-failure-home' },
+        '',
+        '/'
+      )
+      window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }))
+    })
+    await expect(page).toHaveURL(/\/$/)
+
+    releaseDescriptionRequest()
     const settingsAction = page.getByRole('button', { name: '检查 API 设置' })
     await expect(settingsAction).toBeVisible()
+    expect(sourceProjectGetCount).toBe(sourceProjectGetCountBeforeLeaving)
     await settingsAction.click()
     await expect(page).toHaveURL(/\/settings$/)
+    await page.getByRole('button', { name: '返回编辑器' }).click()
+    await expect(page).toHaveURL(new RegExp(`/project/${projectId}/detail$`))
   })
 
   test('integration: description quota error saves real settings and returns to the same project', async ({ page }) => {
     const { projectId } = await seedProjectWithImages(BACKEND_URL, 1)
-    let settingsGetCount = 0
+    const settingsResponse = await fetch(`${BACKEND_URL}/api/settings`)
+    const settingsBody = await settingsResponse.json()
+    let settingsSaved = false
+    let releasePostReturnSettingsGet!: () => void
+    const postReturnSettingsGetRelease = new Promise<void>((resolve) => {
+      releasePostReturnSettingsGet = resolve
+    })
 
     await page.route(
       (url) => url.pathname === '/api/settings',
       async (route) => {
-        if (route.request().method() !== 'GET') return route.continue()
-        settingsGetCount += 1
-        if (settingsGetCount !== 1) return route.continue()
-
-        const response = await route.fetch()
-        const body = await response.json()
-        body.data = { ...body.data, description_generation_mode: 'streaming' }
-        return route.fulfill({ response, json: body })
+        const method = route.request().method()
+        if (method === 'GET') {
+          if (settingsSaved) {
+            await postReturnSettingsGetRelease
+          }
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              ...settingsBody,
+              data: { ...settingsBody.data, description_generation_mode: 'streaming' },
+            }),
+          })
+        }
+        if (method === 'PUT') {
+          const response = await route.fetch()
+          const body = await response.json()
+          body.data = { ...body.data, description_generation_mode: 'parallel' }
+          settingsSaved = true
+          return route.fulfill({ response, json: body })
+        }
+        return route.continue()
       }
     )
 
@@ -574,6 +625,10 @@ test.describe('API error settings recovery', () => {
 
       await expect(page).toHaveURL(/\/settings$/)
       await expect(page.getByText('修复 API 配置后返回继续创作')).toBeVisible()
+      expect(await page.evaluate(() => {
+        const cached = sessionStorage.getItem('banana-settings')
+        return cached ? JSON.parse(cached).description_generation_mode : null
+      })).toBe('streaming')
 
       const saveResponse = page.waitForResponse((response) => {
         const url = new URL(response.url())
@@ -585,8 +640,14 @@ test.describe('API error settings recovery', () => {
       await saveResponse
 
       await expect(page).toHaveURL(new RegExp(`/project/${projectId}/detail$`))
+      expect(await page.evaluate(() => {
+        const cached = sessionStorage.getItem('banana-settings')
+        return cached ? JSON.parse(cached).description_generation_mode : null
+      })).toBe('parallel')
+      releasePostReturnSettingsGet()
       await expect(page.getByText('编辑页面描述', { exact: true })).toBeVisible()
     } finally {
+      releasePostReturnSettingsGet()
       await page.unrouteAll({ behavior: 'wait' })
       await fetch(`${BACKEND_URL}/api/projects/${projectId}`, { method: 'DELETE' })
     }

@@ -908,6 +908,16 @@ const formDataFromSettings = (data: SettingsType): typeof initialFormData => {
   };
 };
 
+const SETTINGS_CACHE_KEY = 'banana-settings';
+
+const persistSettingsCache = (settings: SettingsType) => {
+  try {
+    sessionStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify(settings));
+  } catch (error) {
+    console.warn('Failed to persist settings in sessionStorage:', error);
+  }
+};
+
 // Settings 组件 - 纯嵌入模式（可复用）
 interface SettingsProps {
   onSaveSuccess?: () => void;
@@ -988,11 +998,7 @@ export const Settings: React.FC<SettingsProps> = ({ onSaveSuccess, saveLabel }) 
 
   useEffect(() => {
     if (settings) {
-      try {
-        sessionStorage.setItem('banana-settings', JSON.stringify(settings));
-      } catch (error) {
-        console.warn('Failed to persist settings in sessionStorage:', error);
-      }
+      persistSettingsCache(settings);
     }
   }, [settings]);
 
@@ -1323,6 +1329,7 @@ export const Settings: React.FC<SettingsProps> = ({ onSaveSuccess, saveLabel }) 
 
       const response = await api.updateSettings(payload);
       if (response.data) {
+        persistSettingsCache(response.data);
         setSettings(response.data);
         // Clear all sensitive fields after save
         setFormData(prev => ({

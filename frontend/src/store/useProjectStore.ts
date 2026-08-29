@@ -945,6 +945,14 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       }
     } else {
       // 并行模式（原有逻辑）
+      const projectId = currentProject.id;
+      const recoveryPath = `/project/${projectId}/detail`;
+      const syncTaskProjectIfCurrent = async () => {
+        if (getRouteProjectId() === projectId) {
+          await get().syncProject(projectId);
+        }
+      };
+
       set({ error: null, errorRecovery: null });
 
       const updatedPages = currentProject.pages.map((page) =>
@@ -953,7 +961,6 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       set({ currentProject: { ...currentProject, pages: updatedPages } });
 
       try {
-        const projectId = currentProject.id;
         if (!projectId) {
           throw new Error(t('store.projectIdMissing'));
         }
@@ -966,12 +973,6 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         }
 
         let pollErrors = 0;
-        const recoveryPath = `/project/${projectId}/detail`;
-        const syncTaskProjectIfCurrent = async () => {
-          if (getRouteProjectId() === projectId) {
-            await get().syncProject(projectId);
-          }
-        };
         const pollAndSync = async () => {
           try {
             const taskResponse = await api.getTaskStatus(projectId, taskId);
@@ -1028,14 +1029,17 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
       } catch (error: any) {
         console.error('[生成描述] 启动任务失败:', error);
-        await get().syncProject();
+        await syncTaskProjectIfCurrent();
         const message = normalizeErrorMessage(
           error?.response?.data?.error?.message
           || error?.response?.data?.message
           || error.message
           || t('store.startGenerationFailed')
         );
-        set({ error: message });
+        set({
+          error: message,
+          errorRecovery: { message, path: recoveryPath },
+        });
         throw error;
       }
     }
