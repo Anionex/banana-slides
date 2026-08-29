@@ -2592,7 +2592,11 @@ export const SettingsPage: React.FC = () => {
   const location = useLocation();
   const t = useT(settingsI18n);
   const [showTop, setShowTop] = useState(false);
-  const navigationState = location.state as { from?: unknown; recovery?: unknown } | null;
+  const navigationState = location.state as {
+    from?: unknown;
+    recovery?: unknown;
+    sourceState?: unknown;
+  } | null;
   const recoveryFrom = navigationState?.recovery === 'api-error'
     && typeof navigationState.from === 'string'
     && navigationState.from.startsWith('/')
@@ -2604,7 +2608,25 @@ export const SettingsPage: React.FC = () => {
     : false;
   const canNavigateBack = hasInAppBackHistory || Boolean((location.state as { from?: string } | null)?.from);
 
+  const returnFromRecovery = () => {
+    if (!recoveryFrom) return;
+
+    const sourceState = navigationState?.sourceState
+      && typeof navigationState.sourceState === 'object'
+      && !Array.isArray(navigationState.sourceState)
+      ? navigationState.sourceState as Record<string, unknown>
+      : {};
+    navigate(recoveryFrom, {
+      replace: true,
+      state: { ...sourceState, apiSettingsRecovered: true },
+    });
+  };
+
   const handleBack = () => {
+    if (recoveryFrom) {
+      returnFromRecovery();
+      return;
+    }
     if (canNavigateBack) {
       navigate(-1);
       return;
@@ -2613,12 +2635,7 @@ export const SettingsPage: React.FC = () => {
   };
 
   const handleRecoverySaveSuccess = () => {
-    if (recoveryFrom) {
-      navigate(recoveryFrom, {
-        replace: true,
-        state: { apiSettingsRecovered: true },
-      });
-    }
+    returnFromRecovery();
   };
 
   useEffect(() => {

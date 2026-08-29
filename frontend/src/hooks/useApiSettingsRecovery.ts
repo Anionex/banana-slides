@@ -9,6 +9,7 @@ export const API_ERROR_RECOVERY = 'api-error' as const;
 export interface ApiSettingsRecoveryState {
   from: string;
   recovery: typeof API_ERROR_RECOVERY;
+  sourceState?: Record<string, unknown>;
 }
 
 export function useApiSettingsRecovery() {
@@ -19,9 +20,18 @@ export function useApiSettingsRecovery() {
 
   const openApiSettings = useCallback(() => {
     const from = `${location.pathname}${location.search}${location.hash}`;
-    const state: ApiSettingsRecoveryState = { from, recovery: API_ERROR_RECOVERY };
+    const sourceState = location.state
+      && typeof location.state === 'object'
+      && !Array.isArray(location.state)
+      ? location.state as Record<string, unknown>
+      : undefined;
+    const state: ApiSettingsRecoveryState = {
+      from,
+      recovery: API_ERROR_RECOVERY,
+      ...(sourceState ? { sourceState } : {}),
+    };
     navigate('/settings', { state });
-  }, [location.hash, location.pathname, location.search, navigate]);
+  }, [location.hash, location.pathname, location.search, location.state, navigate]);
 
   const withApiSettingsRecovery = useCallback((error: unknown, options: ToastOptions): ToastOptions => {
     if (!isApiSettingsError(error) && !isApiSettingsError(options.message)) return options;

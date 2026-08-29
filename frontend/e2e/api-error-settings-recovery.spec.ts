@@ -6,6 +6,7 @@ const FRONTEND_PORT = Number(new URL(BASE_URL).port || '3011')
 const BACKEND_URL = `http://localhost:${FRONTEND_PORT + 2000}`
 
 async function mockOutlineRecoveryApis(page: Page, projectId: string) {
+  let outlineRequestCount = 0
   const project = {
     id: projectId,
     project_id: projectId,
@@ -22,6 +23,7 @@ async function mockOutlineRecoveryApis(page: Page, projectId: string) {
       const url = new URL(request.url())
 
       if (url.pathname === `/api/projects/${projectId}/generate/outline/stream`) {
+        outlineRequestCount += 1
         return route.fulfill({
           status: 200,
           headers: { 'Content-Type': 'text/event-stream' },
@@ -75,6 +77,8 @@ async function mockOutlineRecoveryApis(page: Page, projectId: string) {
       })
     }
   )
+
+  return { getOutlineRequestCount: () => outlineRequestCount }
 }
 
 test.describe('API error settings recovery', () => {
@@ -82,7 +86,21 @@ test.describe('API error settings recovery', () => {
     const projectId = 'mock-api-recovery-outline'
     await mockOutlineRecoveryApis(page, projectId)
 
-    await page.goto(`/project/${projectId}/outline`)
+    await page.goto('/history')
+    await page.evaluate((url) => {
+      const currentState = window.history.state || {}
+      window.history.pushState(
+        {
+          ...currentState,
+          idx: (currentState.idx ?? 0) + 1,
+          key: 'api-recovery-from-history',
+          usr: { from: 'history' },
+        },
+        '',
+        url
+      )
+      window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }))
+    }, `/project/${projectId}/outline`)
 
     const settingsAction = page.getByRole('button', { name: '检查 API 设置' })
     await expect(settingsAction).toBeVisible()
@@ -97,6 +115,27 @@ test.describe('API error settings recovery', () => {
     await expect(page).toHaveURL(new RegExp(`/project/${projectId}/outline$`))
     await expect(page.getByText('编辑大纲', { exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: '检查 API 设置' })).not.toBeVisible()
+
+    await page.locator('header').getByRole('button', { name: '返回' }).click()
+    await expect(page).toHaveURL(/\/history$/)
+  })
+
+  test('mock: leaving recovery without saving returns without retrying generation', async ({ page }) => {
+    const projectId = 'mock-api-recovery-cancel'
+    const { getOutlineRequestCount } = await mockOutlineRecoveryApis(page, projectId)
+
+    await page.goto(`/project/${projectId}/outline`)
+    await expect(page.getByRole('button', { name: '检查 API 设置' })).toBeVisible()
+    expect(getOutlineRequestCount()).toBe(1)
+
+    await page.getByRole('button', { name: '检查 API 设置' }).click()
+    await expect(page).toHaveURL(/\/settings$/)
+    await page.getByRole('button', { name: '返回编辑器' }).click()
+
+    await expect(page).toHaveURL(new RegExp(`/project/${projectId}/outline$`))
+    await expect(page.getByText('编辑大纲', { exact: true })).toBeVisible()
+    await page.waitForTimeout(750)
+    expect(getOutlineRequestCount()).toBe(1)
   })
 
   test('integration: description quota error saves real settings and returns to the same project', async ({ page }) => {
