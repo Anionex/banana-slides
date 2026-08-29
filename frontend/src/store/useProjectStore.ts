@@ -1100,8 +1100,6 @@ export const useProjectStore = create<ProjectState>((set, get) => {
             if (pollErrors >= 10) {
               console.error('[生成描述] 轮询错误次数过多，停止轮询');
               const message = normalizeErrorMessage(error.message || t('store.generateDescTimeout'));
-              const synced = await syncTaskProjectIfCurrent();
-              if (!synced) restoreOptimisticPageStatuses();
               set({
                 taskProgress: null,
                 activeTaskId: null,
