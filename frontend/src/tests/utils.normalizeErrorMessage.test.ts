@@ -3,6 +3,7 @@ import { normalizeErrorMessage, normalizeRenovationErrorMessage } from '@/utils'
 
 describe('normalizeErrorMessage', () => {
   beforeEach(() => {
+    localStorage.setItem('banana-slides-language', 'zh-CN');
     localStorage.setItem('i18nextLng', 'zh-CN');
   });
 
@@ -71,5 +72,14 @@ describe('normalizeErrorMessage', () => {
     );
     expect(message).toContain('访问被拒绝');
     expect(message).not.toContain('MinerU Token');
+  });
+
+  test('uses the configured UI language for MinerU recovery guidance', () => {
+    localStorage.setItem('banana-slides-language', 'en');
+    const message = normalizeRenovationErrorMessage(
+      'MinerU parsing failed: Failed to get upload URL: user authenticate failed'
+    );
+    expect(message).toContain('PPT Renovation could not parse the PDF');
+    expect(message).toContain('MinerU Configuration');
   });
 });

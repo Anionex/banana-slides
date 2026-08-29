@@ -222,7 +222,7 @@ export function normalizeRenovationErrorMessage(errorMessage: string | null | un
   const normalized = normalizeErrorMessage(errorMessage);
   const rawMessage = typeof errorMessage === 'string' ? errorMessage : String(errorMessage || '');
   const message = rawMessage.toLowerCase();
-  const lang = localStorage.getItem('i18nextLng') || navigator.language || 'zh';
+  const lang = localStorage.getItem('banana-slides-language') || navigator.language || 'zh';
   const isZh = lang.startsWith('zh');
   const looksLikeMineruCredentialStage = message.includes('get upload url')
     || message.includes('requesting upload url')
