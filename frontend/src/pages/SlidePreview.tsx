@@ -790,6 +790,13 @@ export const SlidePreview: React.FC = () => {
   const { show, ToastContainer } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
 
+  const resetRegionSelection = useCallback((enabled = false) => {
+    setIsRegionSelectionMode(enabled);
+    setSelectionStart(null);
+    setSelectionRect(null);
+    setIsSelectingRegion(false);
+  }, []);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -1225,11 +1232,8 @@ export const SlidePreview: React.FC = () => {
       });
     }
 
-    // 打开编辑弹窗时，清空上一次的选区和模式
-    setIsRegionSelectionMode(false);
-    setSelectionStart(null);
-    setSelectionRect(null);
-    setIsSelectingRegion(false);
+    // 每次进入编辑都默认开启区域选图，用户可直接在图片上拖拽框选。
+    resetRegionSelection(true);
 
     // lg+ 走就地编辑，窄屏没有上下分栏的空间，仍用弹窗
     if (window.matchMedia('(min-width: 1024px)').matches) {
@@ -1242,12 +1246,14 @@ export const SlidePreview: React.FC = () => {
 
   const exitInlineEditing = useCallback(() => {
     setIsInlineEditing(false);
-    setIsRegionSelectionMode(false);
     setShowAttachMenu(false);
-    setSelectionStart(null);
-    setSelectionRect(null);
-    setIsSelectingRegion(false);
-  }, []);
+    resetRegionSelection();
+  }, [resetRegionSelection]);
+
+  const closeEditModal = useCallback(() => {
+    setIsEditModalOpen(false);
+    resetRegionSelection();
+  }, [resetRegionSelection]);
 
   // 缩到 lg 以下时就地编辑的上下分栏已经放不下，退回预览态而不是让布局塌掉
   useEffect(() => {
@@ -1364,8 +1370,8 @@ export const SlidePreview: React.FC = () => {
     }));
 
     if (isInlineEditing) exitInlineEditing();
-    else setIsEditModalOpen(false);
-  }, [currentProject, selectedIndex, editPrompt, selectedContextImages, editPageImage, handleSaveOutlineAndDescription, isInlineEditing, exitInlineEditing]);
+    else closeEditModal();
+  }, [currentProject, selectedIndex, editPrompt, selectedContextImages, editPageImage, handleSaveOutlineAndDescription, isInlineEditing, exitInlineEditing, closeEditModal]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -1477,8 +1483,14 @@ export const SlidePreview: React.FC = () => {
     };
   };
 
-  const handleSelectionMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleSelectionPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isRegionSelectionMode || !imageRef.current) return;
+    e.preventDefault();
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Synthetic pointer events used by some browsers/tests may not be capturable.
+    }
     const rect = imageRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -1488,8 +1500,9 @@ export const SlidePreview: React.FC = () => {
     setSelectionRect(null);
   };
 
-  const handleSelectionMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleSelectionPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isRegionSelectionMode || !isSelectingRegion || !selectionStart || !imageRef.current) return;
+    e.preventDefault();
     const rect = imageRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -1505,7 +1518,10 @@ export const SlidePreview: React.FC = () => {
     setSelectionRect({ left, top, width, height });
   };
 
-  const handleSelectionMouseUp = async () => {
+  const handleSelectionPointerUp = async (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
     if (!isRegionSelectionMode || !isSelectingRegion || !selectionRect || !imageRef.current) {
       setIsSelectingRegion(false);
       setSelectionStart(null);
@@ -1578,6 +1594,15 @@ export const SlidePreview: React.FC = () => {
     } finally {
       // 不清理 selectionRect，让选区在界面上持续显示
     }
+  };
+
+  const handleSelectionPointerCancel = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    setIsSelectingRegion(false);
+    setSelectionStart(null);
+    setSelectionRect(null);
   };
 
   // 多选相关函数
@@ -2969,14 +2994,14 @@ export const SlidePreview: React.FC = () => {
               <div className="flex-1 overflow-y-auto min-h-0 flex items-center justify-center p-4 md:p-8">
                 <div className="max-w-5xl w-full">
                   <div
-                    className={`relative bg-white dark:bg-background-secondary rounded-lg shadow-xl overflow-hidden touch-manipulation transition-shadow ${
+                    className={`relative bg-white dark:bg-background-secondary rounded-lg shadow-xl overflow-hidden transition-shadow ${
                       isInlineEditing ? 'ring-2 ring-banana-400' : ''
-                    } ${isRegionSelectionMode ? 'cursor-crosshair' : ''}`}
+                    } ${isInlineEditing && isRegionSelectionMode ? 'cursor-crosshair touch-none' : 'touch-manipulation'}`}
                     style={{ aspectRatio: aspectRatioStyle }}
-                    onMouseDown={isInlineEditing ? handleSelectionMouseDown : undefined}
-                    onMouseMove={isInlineEditing ? handleSelectionMouseMove : undefined}
-                    onMouseUp={isInlineEditing ? handleSelectionMouseUp : undefined}
-                    onMouseLeave={isInlineEditing ? handleSelectionMouseUp : undefined}
+                    onPointerDown={isInlineEditing ? handleSelectionPointerDown : undefined}
+                    onPointerMove={isInlineEditing ? handleSelectionPointerMove : undefined}
+                    onPointerUp={isInlineEditing ? handleSelectionPointerUp : undefined}
+                    onPointerCancel={isInlineEditing ? handleSelectionPointerCancel : undefined}
                   >
                     {selectedPage?.generated_image_path ? (
                       <img
@@ -3019,9 +3044,10 @@ export const SlidePreview: React.FC = () => {
                       <>
                         <button
                           type="button"
+                          aria-pressed={isRegionSelectionMode}
+                          onPointerDown={(e) => e.stopPropagation()}
                           onClick={() => {
-                            setIsRegionSelectionMode((on) => !on);
-                            if (isRegionSelectionMode) setSelectionRect(null);
+                            resetRegionSelection(!isRegionSelectionMode);
                           }}
                           className={`absolute left-2 top-2 z-10 flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium shadow transition-colors ${
                             isRegionSelectionMode
@@ -3411,35 +3437,38 @@ export const SlidePreview: React.FC = () => {
       {/* 编辑对话框 */}
       <Modal
         isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
+        onClose={closeEditModal}
         title={t('preview.editPage')}
         size="lg"
       >
         <div className="space-y-4">
           {/* 图片（支持矩形区域选择） */}
           <div
-            className="bg-gray-100 dark:bg-background-secondary rounded-lg overflow-hidden relative"
+            className={`bg-gray-100 dark:bg-background-secondary rounded-lg overflow-hidden relative ${
+              isRegionSelectionMode ? 'cursor-crosshair touch-none' : 'touch-manipulation'
+            }`}
             style={{ aspectRatio: aspectRatioStyle }}
-            onMouseDown={handleSelectionMouseDown}
-            onMouseMove={handleSelectionMouseMove}
-            onMouseUp={handleSelectionMouseUp}
-            onMouseLeave={handleSelectionMouseUp}
+            onPointerDown={handleSelectionPointerDown}
+            onPointerMove={handleSelectionPointerMove}
+            onPointerUp={handleSelectionPointerUp}
+            onPointerCancel={handleSelectionPointerCancel}
           >
             {imageUrl && (
               <>
                 {/* 左上角：区域选图模式开关 */}
                 <button
                   type="button"
+                  aria-pressed={isRegionSelectionMode}
                   onClick={(e) => {
                     e.stopPropagation();
-                    // 切换矩形选择模式
-                    setIsRegionSelectionMode((prev) => !prev);
-                    // 切模式时清空当前选区
-                    setSelectionStart(null);
-                    setSelectionRect(null);
-                    setIsSelectingRegion(false);
+                    resetRegionSelection(!isRegionSelectionMode);
                   }}
-                  className="absolute top-2 left-2 z-10 px-2 py-1 rounded bg-white/80 text-[10px] text-gray-700 dark:text-foreground-secondary hover:bg-banana-50 dark:hover:bg-background-hover shadow-sm dark:shadow-background-primary/30 flex items-center gap-1"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className={`absolute top-2 left-2 z-10 px-2 py-1 rounded text-[10px] shadow-sm dark:shadow-background-primary/30 flex items-center gap-1 ${
+                    isRegionSelectionMode
+                      ? 'bg-banana-500 text-black'
+                      : 'bg-white/80 text-gray-700 dark:text-foreground-secondary hover:bg-banana-50 dark:hover:bg-background-hover'
+                  }`}
                 >
                   <Sparkles size={12} />
                   <span>{isRegionSelectionMode ? t('preview.endRegionSelect') : t('preview.regionSelect')}</span>
@@ -3669,13 +3698,13 @@ export const SlidePreview: React.FC = () => {
               variant="secondary" 
               onClick={() => {
                 handleSaveOutlineAndDescription();
-                setIsEditModalOpen(false);
+                closeEditModal();
               }}
             >
               {t('preview.saveOutlineOnly')}
             </Button>
             <div className="flex gap-3">
-              <Button variant="ghost" onClick={() => setIsEditModalOpen(false)}>
+              <Button variant="ghost" onClick={closeEditModal}>
                 {t('common.cancel')}
               </Button>
               <Button
