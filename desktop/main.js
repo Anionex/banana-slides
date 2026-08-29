@@ -331,23 +331,32 @@ function createAppMenu() {
         {
           label: '检查更新...',
           click: async () => {
-            const update = await autoUpdater.checkForUpdates();
-            if (update) {
-              const result = await dialog.showMessageBox(mainWindow, {
-                type: 'info',
-                title: '发现新版本',
-                message: `新版本 v${update.version} 可用`,
-                detail: update.notes.substring(0, 300),
-                buttons: ['前往下载', '稍后'],
-              });
-              if (result.response === 0) {
-                shell.openExternal(update.url);
+            try {
+              const checkResult = await autoUpdater.checkForUpdates();
+              if (checkResult.update) {
+                const result = await dialog.showMessageBox(mainWindow, {
+                  type: 'info',
+                  title: '发现新版本',
+                  message: `新版本 v${checkResult.update.version} 可用`,
+                  detail: checkResult.update.notes.substring(0, 300),
+                  buttons: ['前往下载', '稍后'],
+                });
+                if (result.response === 0) {
+                  shell.openExternal(checkResult.update.url);
+                }
+              } else {
+                dialog.showMessageBox(mainWindow, {
+                  type: 'info',
+                  title: '检查更新',
+                  message: '当前已是最新版本',
+                });
               }
-            } else {
+            } catch (error) {
+              log.error('[main] Failed to check for updates:', error);
               dialog.showMessageBox(mainWindow, {
-                type: 'info',
-                title: '检查更新',
-                message: '当前已是最新版本',
+                type: 'error',
+                title: '检查更新失败',
+                message: '无法连接更新服务，请检查网络后重试',
               });
             }
           },

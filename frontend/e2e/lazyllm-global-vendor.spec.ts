@@ -7,7 +7,10 @@
  *
  * Fix: vendor name is now stored directly in ai_provider_format (e.g., "doubao").
  */
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
+
+const globalProviderPill = (page: Page, provider: string) =>
+  page.getByTestId('global-provider-pills').locator(`[data-provider="${provider}"]`)
 
 // ─── Mock tests ────────────────────────────────────────────────────
 
@@ -58,8 +61,7 @@ test.describe('Global lazyllm vendor — mock tests', () => {
     await page.goto('/settings')
 
     // Select "doubao" as global provider
-    const globalProviderSelect = page.locator('select').first()
-    await globalProviderSelect.selectOption('doubao')
+    await globalProviderPill(page, 'doubao').click()
 
     // Fill doubao API key (vendor key input appears for lazyllm vendors)
     const vendorKeyInput = page.locator('input[type="password"]').first()
@@ -74,7 +76,7 @@ test.describe('Global lazyllm vendor — mock tests', () => {
     expect(capturedPayload.ai_provider_format).toBe('doubao')
   })
 
-  test('loading vendor name from backend displays correct dropdown value', async ({ page }) => {
+  test('loading vendor name from backend selects the correct provider pill', async ({ page }) => {
     const mockSettings = {
       success: true, message: 'Success',
       data: {
@@ -102,9 +104,7 @@ test.describe('Global lazyllm vendor — mock tests', () => {
 
     await page.goto('/settings')
 
-    // Global provider dropdown should show "qwen"
-    const globalSelect = page.locator('select').first()
-    await expect(globalSelect).toHaveValue('qwen')
+    await expect(globalProviderPill(page, 'qwen')).toHaveAttribute('aria-checked', 'true')
 
     // Vendor key input should be visible (not Gemini/OpenAI base URL fields)
     await expect(page.locator('text=API Base URL').first()).toBeHidden()
@@ -140,8 +140,7 @@ test.describe('Global lazyllm vendor — mock tests', () => {
     await page.goto('/settings')
 
     // resolveLazyllmVendor should resolve "lazyllm" to "doubao" (first configured vendor)
-    const globalSelect = page.locator('select').first()
-    await expect(globalSelect).toHaveValue('doubao')
+    await expect(globalProviderPill(page, 'doubao')).toHaveAttribute('aria-checked', 'true')
   })
 })
 
@@ -155,8 +154,7 @@ test.describe('Global lazyllm vendor — integration tests', () => {
     await page.goto('/settings')
 
     // Select doubao as global provider
-    const globalSelect = page.locator('select').first()
-    await globalSelect.selectOption('doubao')
+    await globalProviderPill(page, 'doubao').click()
 
     // Fill a test doubao API key
     const vendorKeyInput = page.locator('input[type="password"]').first()
@@ -170,15 +168,14 @@ test.describe('Global lazyllm vendor — integration tests', () => {
     await page.goto('/settings')
 
     // Should still show doubao (not fall back to generic lazyllm / deepseek)
-    await expect(page.locator('select').first()).toHaveValue('doubao')
+    await expect(globalProviderPill(page, 'doubao')).toHaveAttribute('aria-checked', 'true')
   })
 
   test('save qwen as global provider, verify backend stores vendor name', async ({ page }) => {
     await page.goto('/settings')
 
     // Select qwen
-    const globalSelect = page.locator('select').first()
-    await globalSelect.selectOption('qwen')
+    await globalProviderPill(page, 'qwen').click()
 
     // Fill qwen API key
     const vendorKeyInput = page.locator('input[type="password"]').first()
@@ -198,8 +195,7 @@ test.describe('Global lazyllm vendor — integration tests', () => {
     await page.goto('/settings')
 
     // First save doubao
-    const globalSelect = page.locator('select').first()
-    await globalSelect.selectOption('doubao')
+    await globalProviderPill(page, 'doubao').click()
     const vendorKeyInput = page.locator('input[type="password"]').first()
     await vendorKeyInput.fill('test-key')
     await page.getByRole('button', { name: /保存|Save/ }).click()

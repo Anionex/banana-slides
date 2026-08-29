@@ -42,8 +42,14 @@ Volcengine ModelArk AgentPlans can be used through an OpenAI-compatible endpoint
 ```env
 AI_PROVIDER_FORMAT=volcengine
 VOLCENGINE_API_KEY=your-volcengine-api-key
-VOLCENGINE_API_BASE=https://ark.cn-beijing.volces.com/api/v3
+VOLCENGINE_API_BASE=https://ark.cn-beijing.volces.com/api/plan/v3
 ```
+
+Notes:
+
+- **Agent Plans requires a dedicated API key**: the `ark-...` key created in the Agent Plans console only works against the `api/plan/v3` endpoint; a standard ModelArk key and the `api/v3` endpoint are not interchangeable.
+- **Use Agent Plans model names** (e.g. `doubao-seed-2.1-turbo`, `kimi-k2.6`) and `doubao-seedream-5.0-lite` for image generation; standard ModelArk endpoint IDs (e.g. `doubao-seed-2-1-pro-260628`) do not exist on Agent Plans.
+- Selecting "Volcengine AgentPlans" in Settings prefills the Agent Plans base URL and recommended models; standard ModelArk users should use the "Doubao (豆包)" path with `api/v3`.
 
 The generic API Key field in Settings can still override the API key, while the Base URL is managed automatically.
 
@@ -81,11 +87,16 @@ GLM_API_KEY=your-key          # Zhipu GLM
 SILICONFLOW_API_KEY=your-key  # SiliconFlow
 SENSENOVA_API_KEY=your-key    # SenseNova
 MINIMAX_API_KEY=your-key      # MiniMax
+KIMI_API_KEY=your-key         # Moonshot Kimi
+PPIO_API_KEY=your-key         # PPIO
+AIPING_API_KEY=your-key       # AIPing
 ```
 
 Banana Slides explicitly packages the LazyLLM online provider SDKs for domestic vendors:
 `volcengine-python-sdk[ark]` for Doubao/Volcengine, `dashscope` for Qwen/Wanxiang, and `zhipuai` for GLM/Zhipu.
 LazyLLM source provides `lazyllm install online-advanced`, but the current PyPI wheel may not publish that group as a standard extra; Docker and prebuilt images therefore rely on these explicit dependencies.
+
+Desktop builds (PyInstaller) explicitly collect and register every LazyLLM online vendor (qwen, doubao, deepseek, glm, kimi, minimax, sensenova, siliconflow, ppio, aiping, openai). LazyLLM discovers suppliers dynamically via `pkgutil.iter_modules`, which can fail inside a packaged runtime and cause `Unsupported source: xxx`; Banana Slides imports every supplier module explicitly when a provider is constructed and validates the configured vendor name (bundling the vendor SDKs - dashscope, zhipuai, volcenginesdkarkruntime, PyJWT - as well), so no extra configuration is needed.
 
 ## AIHubMix (Recommended Proxy)
 

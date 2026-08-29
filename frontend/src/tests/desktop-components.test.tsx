@@ -5,7 +5,12 @@ import type { ReactNode } from 'react';
 
 const mockElectronAPI = {
   getPlatform: vi.fn().mockReturnValue('win32'),
-  checkForUpdates: vi.fn().mockResolvedValue(null),
+  checkForUpdates: vi.fn().mockResolvedValue({
+    status: 'up_to_date',
+    currentVersion: '0.3.0',
+    latestVersion: '0.3.0',
+    update: null,
+  }),
   getBackendPort: vi.fn().mockReturnValue(15000),
   getAppVersion: vi.fn().mockResolvedValue('0.3.0'),
   openExternal: vi.fn().mockResolvedValue(undefined),
@@ -121,7 +126,12 @@ describe('UpdateChecker', () => {
   });
 
   it('renders nothing when no update available', async () => {
-    mockElectronAPI.checkForUpdates.mockResolvedValue(null);
+    mockElectronAPI.checkForUpdates.mockResolvedValue({
+      status: 'up_to_date',
+      currentVersion: '0.9.0',
+      latestVersion: '0.9.0',
+      update: null,
+    });
     const { UpdateChecker } = await import('../components/shared/UpdateChecker');
     const { container } = render(<UpdateChecker />);
     await act(async () => { vi.advanceTimersByTime(6000); });
@@ -130,9 +140,14 @@ describe('UpdateChecker', () => {
 
   it('shows update notification when new version available', async () => {
     mockElectronAPI.checkForUpdates.mockResolvedValue({
-      version: '1.0.0',
-      notes: 'New features',
-      url: 'https://github.com/Anionex/banana-slides/releases/tag/v1.0.0',
+      status: 'update_available',
+      currentVersion: '0.9.0',
+      latestVersion: '1.0.0',
+      update: {
+        version: '1.0.0',
+        notes: 'New features',
+        url: 'https://github.com/Anionex/banana-slides/releases/tag/v1.0.0',
+      },
     });
     const { UpdateChecker } = await import('../components/shared/UpdateChecker');
     render(<UpdateChecker />);
@@ -144,9 +159,14 @@ describe('UpdateChecker', () => {
   it('reports its visibility so the app can increase top padding', async () => {
     const onVisibilityChange = vi.fn();
     mockElectronAPI.checkForUpdates.mockResolvedValue({
-      version: '1.0.0',
-      notes: 'New features',
-      url: 'https://github.com/Anionex/banana-slides/releases/tag/v1.0.0',
+      status: 'update_available',
+      currentVersion: '0.9.0',
+      latestVersion: '1.0.0',
+      update: {
+        version: '1.0.0',
+        notes: 'New features',
+        url: 'https://github.com/Anionex/banana-slides/releases/tag/v1.0.0',
+      },
     });
     const { UpdateChecker } = await import('../components/shared/UpdateChecker');
     render(<UpdateChecker onVisibilityChange={onVisibilityChange} />);
@@ -157,9 +177,14 @@ describe('UpdateChecker', () => {
   it('opens external URL when download button clicked', async () => {
     const releaseUrl = 'https://github.com/Anionex/banana-slides/releases/tag/v1.0.0';
     mockElectronAPI.checkForUpdates.mockResolvedValue({
-      version: '1.0.0',
-      notes: 'New features',
-      url: releaseUrl,
+      status: 'update_available',
+      currentVersion: '0.9.0',
+      latestVersion: '1.0.0',
+      update: {
+        version: '1.0.0',
+        notes: 'New features',
+        url: releaseUrl,
+      },
     });
     const { UpdateChecker } = await import('../components/shared/UpdateChecker');
     render(<UpdateChecker />);
@@ -170,9 +195,14 @@ describe('UpdateChecker', () => {
 
   it('dismisses notification when close button clicked', async () => {
     mockElectronAPI.checkForUpdates.mockResolvedValue({
-      version: '1.0.0',
-      notes: 'New features',
-      url: 'https://example.com',
+      status: 'update_available',
+      currentVersion: '0.9.0',
+      latestVersion: '1.0.0',
+      update: {
+        version: '1.0.0',
+        notes: 'New features',
+        url: 'https://example.com',
+      },
     });
     const { UpdateChecker } = await import('../components/shared/UpdateChecker');
     render(<UpdateChecker />);
