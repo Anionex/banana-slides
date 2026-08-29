@@ -15,7 +15,7 @@
 
 import fs from 'fs'
 import path from 'path'
-import { test, expect, type Page } from '@playwright/test'
+import { devices, test, expect, type Page } from '@playwright/test'
 import { seedProjectWithImages } from './helpers/seed-project'
 
 const MOCK_PROJECT_ID = 'inline-edit-mock'
@@ -397,9 +397,16 @@ test.describe('In-place edit - desktop (mock)', () => {
 })
 
 test.describe('In-place edit - narrow screens (mock)', () => {
-  test.use({ viewport: { width: 390, height: 844 } })
+  const pixel7 = devices['Pixel 7']
+  test.use({
+    viewport: pixel7.viewport,
+    userAgent: pixel7.userAgent,
+    deviceScaleFactor: pixel7.deviceScaleFactor,
+    isMobile: pixel7.isMobile,
+    hasTouch: pixel7.hasTouch,
+  })
 
-  test('still opens the modal, with no in-place panel', async ({ page }) => {
+  test('opens the modal with touch region selection active and clears it on close', async ({ page }) => {
     await mockPreview(page)
     await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
 
@@ -408,6 +415,38 @@ test.describe('In-place edit - narrow screens (mock)', () => {
     await expect(page.getByRole('heading', { name: /编辑页面/ })).toBeVisible()
     await expect(page.getByRole('button', { name: /结束区域选图/ })).toBeVisible()
     await expect(panel(page)).toBeHidden()
+
+    const image = page.getByRole('img', { name: 'Current slide' })
+    const imageBox = (await image.boundingBox())!
+    const surface = image.locator('..')
+    const pointer = {
+      pointerId: 1,
+      pointerType: 'touch',
+      isPrimary: true,
+    }
+    await surface.dispatchEvent('pointerdown', {
+      ...pointer,
+      buttons: 1,
+      clientX: imageBox.x + imageBox.width * 0.3,
+      clientY: imageBox.y + imageBox.height * 0.3,
+    })
+    await surface.dispatchEvent('pointermove', {
+      ...pointer,
+      buttons: 1,
+      clientX: imageBox.x + imageBox.width * 0.6,
+      clientY: imageBox.y + imageBox.height * 0.6,
+    })
+    await surface.dispatchEvent('pointerup', {
+      ...pointer,
+      buttons: 0,
+      clientX: imageBox.x + imageBox.width * 0.6,
+      clientY: imageBox.y + imageBox.height * 0.6,
+    })
+
+    await expect(page.getByRole('img', { name: 'Uploaded 1' })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('heading', { name: /编辑页面/ })).toBeHidden()
+    await expect(canvasImage(page).locator('..')).not.toHaveClass(/cursor-crosshair/)
   })
 })
 
