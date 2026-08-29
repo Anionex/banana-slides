@@ -137,7 +137,11 @@ import { refineDescriptions, getTaskStatus, addPages, updateProject, getSettings
 import { normalizeRenovationErrorMessage } from '@/utils';
 import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtils';
 import { useApiSettingsRecovery } from '@/hooks/useApiSettingsRecovery';
-import { beginSettingsCacheRequest, writeSettingsCache } from '@/utils/settingsCache';
+import {
+  beginSettingsCacheRequest,
+  resolveLatestSettingsResponse,
+  writeSettingsCache,
+} from '@/utils/settingsCache';
 import { updateSettingsSerially } from '@/utils/settingsUpdates';
 
 // 详细程度图标 — 暂时屏蔽，效果不够理想
@@ -273,15 +277,18 @@ export const DetailEditor: React.FC = () => {
       try {
         const res = await getSettings();
         const s = res.data;
-        if (!s || cancelled || !writeSettingsCache(s, settingsRequestId)) return;
+        if (!s || cancelled) return;
+        const loadedSettings = resolveLatestSettingsResponse(s, settingsRequestId);
         setDetailLevel('default');
         // detail level from sessionStorage (backwards compat, then from DB if we add it later)
         const storedLevel = sessionStorage.getItem('banana-detail-level');
         if (storedLevel) setDetailLevel(storedLevel);
-        setGenerationMode(s.description_generation_mode || 'streaming');
-        const activeFields = s.description_extra_fields || DEFAULT_EXTRA_FIELDS;
+        setGenerationMode(loadedSettings.description_generation_mode || 'streaming');
+        const activeFields = loadedSettings.description_extra_fields || DEFAULT_EXTRA_FIELDS;
         setExtraFieldNames(activeFields);
-        if (s.image_prompt_extra_fields) setImagePromptFields(s.image_prompt_extra_fields);
+        if (loadedSettings.image_prompt_extra_fields) {
+          setImagePromptFields(loadedSettings.image_prompt_extra_fields);
+        }
         // 合并活跃字段到可选池
         setAvailableFields(prev => {
           const merged = [...new Set([...prev, ...activeFields])];

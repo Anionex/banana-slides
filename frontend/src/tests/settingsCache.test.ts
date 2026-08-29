@@ -4,6 +4,7 @@ import {
   beginSettingsCacheRequest,
   mergeSettingsWithOpenAIOAuthStatus,
   readSettingsCache,
+  resolveLatestSettingsResponse,
   writeSettingsCache,
 } from '@/utils/settingsCache';
 
@@ -41,6 +42,15 @@ describe('settings cache request ordering', () => {
     expect(writeSettingsCache(makeSettings('streaming'))).toBe(true);
     expect(writeSettingsCache(makeSettings('parallel'), staleReadRequest)).toBe(false);
     expect(readSettingsCache()?.description_generation_mode).toBe('streaming');
+  });
+
+  it('returns the winning cache when an older settings response loses', () => {
+    const olderRequest = beginSettingsCacheRequest();
+    const newerRequest = beginSettingsCacheRequest();
+    writeSettingsCache(makeSettings('parallel'), newerRequest);
+
+    expect(resolveLatestSettingsResponse(makeSettings('streaming'), olderRequest))
+      .toEqual(makeSettings('parallel'));
   });
 
   it('preserves a newer OAuth status when applying a successful settings save', () => {

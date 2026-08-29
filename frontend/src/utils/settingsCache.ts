@@ -38,6 +38,12 @@ export function writeSettingsCache(settings: Settings, requestId?: number): bool
   return true;
 }
 
+export function resolveLatestSettingsResponse(settings: Settings, requestId: number): Settings {
+  return writeSettingsCache(settings, requestId)
+    ? settings
+    : readSettingsCache() || settings;
+}
+
 export function mergeSettingsWithOpenAIOAuthStatus(
   settings: Settings,
   oauthStatus: OpenAIOAuthCacheStatus | null,
