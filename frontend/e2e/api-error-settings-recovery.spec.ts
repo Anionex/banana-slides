@@ -704,6 +704,128 @@ test.describe('API error settings recovery', () => {
     await expect(page.getByRole('button', { name: '生成中...' })).toHaveCount(0)
   })
 
+  test('mock: delayed streaming failure keeps recovery bound to its source project', async ({ page }) => {
+    const projectId = 'mock-streaming-description-error'
+    const pageId = 'mock-streaming-description-page'
+    const project = {
+      id: projectId,
+      project_id: projectId,
+      creation_type: 'idea',
+      status: 'DESCRIPTION_GENERATED',
+      pages: [{
+        id: pageId,
+        page_id: pageId,
+        order_index: 0,
+        outline_content: { title: '流式描述页', points: ['要点'] },
+        description_content: { text: '保留的流式旧描述' },
+        status: 'DESCRIPTION_GENERATED',
+      }],
+    }
+    let sourceProjectGetCount = 0
+    let signalStreamStarted!: () => void
+    const streamStarted = new Promise<void>((resolve) => {
+      signalStreamStarted = resolve
+    })
+    let releaseStream!: () => void
+    const streamRelease = new Promise<void>((resolve) => {
+      releaseStream = resolve
+    })
+
+    await page.addInitScript(() => {
+      sessionStorage.setItem('banana-settings', JSON.stringify({
+        description_generation_mode: 'streaming',
+      }))
+      localStorage.setItem('hasSeenHelpModal', 'true')
+    })
+    await page.route(
+      (url) => url.pathname.startsWith('/api/'),
+      async (route) => {
+        const request = route.request()
+        const url = new URL(request.url())
+
+        if (url.pathname === `/api/projects/${projectId}` && request.method() === 'GET') {
+          sourceProjectGetCount += 1
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ success: true, data: project }),
+          })
+        }
+
+        if (
+          url.pathname === `/api/projects/${projectId}/generate/descriptions/stream`
+          && request.method() === 'POST'
+        ) {
+          signalStreamStarted()
+          await streamRelease
+          return route.fulfill({
+            status: 200,
+            headers: { 'Content-Type': 'text/event-stream' },
+            body: 'event: error\ndata: {"message":"401 Unauthorized: invalid API key"}\n\n',
+          })
+        }
+
+        if (url.pathname === '/api/settings' && request.method() === 'GET') {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              success: true,
+              data: {
+                ai_provider_format: 'gemini',
+                description_generation_mode: 'streaming',
+                description_extra_fields: [],
+              },
+            }),
+          })
+        }
+
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: [] }),
+        })
+      }
+    )
+
+    try {
+      await page.goto(`/project/${projectId}/detail`)
+      await page.getByRole('button', { name: '批量生成描述' }).click()
+      const confirmDialog = page.getByRole('dialog')
+      if (await confirmDialog.isVisible().catch(() => false)) {
+        await confirmDialog.getByRole('button', { name: '确定' }).click()
+      }
+      await streamStarted
+      const sourceProjectGetCountBeforeLeaving = sourceProjectGetCount
+
+      await page.evaluate(() => {
+        const currentState = window.history.state || {}
+        window.history.pushState(
+          { ...currentState, idx: (currentState.idx ?? 0) + 1, key: 'streaming-failure-home' },
+          '',
+          '/'
+        )
+        window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }))
+      })
+      await expect(page).toHaveURL(/\/$/)
+
+      releaseStream()
+      const settingsAction = page.getByRole('button', { name: '检查 API 设置' })
+      await expect(settingsAction).toBeVisible()
+      expect(sourceProjectGetCount).toBe(sourceProjectGetCountBeforeLeaving)
+      await settingsAction.click()
+      await expect(page).toHaveURL(/\/settings$/)
+      await page.getByRole('button', { name: '返回编辑器' }).click()
+
+      await expect(page).toHaveURL(new RegExp(`/project/${projectId}/detail$`))
+      await expect(page.getByText('保留的流式旧描述')).toBeVisible()
+      await expect(page.getByRole('button', { name: '批量生成描述' })).toBeEnabled()
+      await expect(page.getByRole('button', { name: '生成中...' })).toHaveCount(0)
+    } finally {
+      releaseStream()
+    }
+  })
+
   test('integration: description quota error saves real settings and returns to the same project', async ({ page }) => {
     const { projectId } = await seedProjectWithImages(BACKEND_URL, 1)
     const settingsResponse = await fetch(`${BACKEND_URL}/api/settings`)

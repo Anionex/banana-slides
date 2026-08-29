@@ -855,7 +855,38 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     if (mode === 'streaming') {
       // 流式模式
-      set({ isDescriptionStreaming: true, error: null });
+      const projectId = currentProject.id;
+      const recoveryPath = `/project/${projectId}/detail`;
+      const originalPageStatuses = new Map(
+        currentProject.pages
+          .filter((page) => page.id)
+          .map((page) => [page.id!, page.status] as const)
+      );
+      const syncStreamProjectIfCurrent = async (): Promise<boolean> => {
+        if (getRouteProjectId() === projectId) {
+          await get().syncProject(projectId);
+          return true;
+        }
+        return false;
+      };
+      const restoreOptimisticPageStatuses = () => {
+        const latestProject = get().currentProject;
+        if (!latestProject || latestProject.id !== projectId) return;
+
+        let changed = false;
+        const restoredPages = latestProject.pages.map((page) => {
+          if (!page.id || page.status !== 'GENERATING_DESCRIPTION') return page;
+          const originalStatus = originalPageStatuses.get(page.id);
+          if (!originalStatus || originalStatus === page.status) return page;
+          changed = true;
+          return { ...page, status: originalStatus };
+        });
+        if (changed) {
+          set({ currentProject: { ...latestProject, pages: restoredPages } });
+        }
+      };
+
+      set({ isDescriptionStreaming: true, error: null, errorRecovery: null });
 
       const updatedPages = currentProject.pages.map((page) =>
         page.id ? { ...page, status: 'GENERATING_DESCRIPTION' as const } : page
@@ -873,7 +904,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           if (descQueue.length > 0) {
             const desc = descQueue.shift()!;
             const { currentProject: proj } = get();
-            if (proj) {
+            if (proj?.id === projectId) {
               const updatedPages = proj.pages.map((page) => {
                 if (page.id === desc.page_id) {
                   return {
@@ -900,12 +931,16 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       });
 
       try {
-        await api.generateDescriptionsStream(currentProject.id, {
+        await api.generateDescriptionsStream(projectId, {
           onDescription: (data) => { descQueue.push(data); },
           onDone: (data) => { doneData = data; },
           onError: (message) => {
             console.error('[流式描述] 错误:', message);
-            set({ error: normalizeErrorMessage(message) });
+            const normalizedMessage = normalizeErrorMessage(message);
+            set({
+              error: normalizedMessage,
+              errorRecovery: { message: normalizedMessage, path: recoveryPath },
+            });
             streamDone = true;
           },
         }, undefined, detailLevel);
@@ -915,7 +950,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
         if (doneData) {
           const { currentProject: proj } = get();
-          if (proj) {
+          if (proj?.id === projectId) {
             const normalized = normalizeProject({ ...proj, pages: doneData.pages });
             set({
               currentProject: normalized,
@@ -926,15 +961,19 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           devLog('[流式描述] 完成:', doneData.total, '个页面');
         } else {
           // 无 doneData（SSE error 或连接中断）→ 从后端恢复真实状态
-          await get().syncProject();
+          const synced = await syncStreamProjectIfCurrent();
+          if (!synced) restoreOptimisticPageStatuses();
           set({ isDescriptionStreaming: false });
         }
       } catch (error: any) {
         console.error('[流式描述] 错误:', error);
         streamDone = true;
-        await get().syncProject();
+        const synced = await syncStreamProjectIfCurrent();
+        if (!synced) restoreOptimisticPageStatuses();
+        const message = normalizeErrorMessage(error.message || t('store.generateDescFailed'));
         set({
-          error: normalizeErrorMessage(error.message || t('store.generateDescFailed')),
+          error: message,
+          errorRecovery: { message, path: recoveryPath },
           isDescriptionStreaming: false,
         });
         throw error;
