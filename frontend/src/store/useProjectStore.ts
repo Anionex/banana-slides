@@ -76,6 +76,14 @@ const storeI18n = {
     }
   }
 };
+
+function getRouteProjectId(): string | null {
+  if (typeof window === 'undefined') return null;
+  const routePath = window.location.hash.startsWith('#/')
+    ? window.location.hash.slice(1)
+    : window.location.pathname;
+  return routePath.match(/^\/project\/([^/]+)/)?.[1] || null;
+}
 const t = getT(storeI18n);
 
 // 清理旧原型遗留的 per-project localStorage key（交接文档 §3：旧 demo 数据不迁移）。
@@ -106,7 +114,7 @@ interface ProjectState {
   activeTaskId: string | null;
   taskProgress: { total: number; completed: number } | null;
   error: string | null;
-  errorRecoveryPath: string | null;
+  errorRecovery: { message: string; path: string } | null;
   // 每个页面的生成任务ID映射 (pageId -> taskId)
   pageGeneratingTasks: Record<string, string>;
   // 警告消息
@@ -272,7 +280,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
   activeTaskId: null,
   taskProgress: null,
   error: null,
-  errorRecoveryPath: null,
+  errorRecovery: null,
   pageGeneratingTasks: {},
   warningMessage: null,
   isOutlineStreaming: false,
@@ -283,7 +291,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
   // Setters
   setCurrentProject: (project) => set({ currentProject: project }),
   setGlobalLoading: (loading) => set({ isGlobalLoading: loading }),
-  setError: (error) => set({ error, ...(error === null ? { errorRecoveryPath: null } : {}) }),
+  setError: (error) => set({ error, ...(error === null ? { errorRecovery: null } : {}) }),
 
   // 初始化项目
   initializeProject: async (type, content, templateImage, templateStyle, referenceFileIds, aspectRatio) => {
@@ -382,6 +390,14 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     try {
       const response = await api.getProject(targetProjectId);
       if (response.data) {
+        const routeProjectId = getRouteProjectId();
+        if (routeProjectId && routeProjectId !== targetProjectId) {
+          devLog('[syncProject] 忽略已离开项目的过期响应:', {
+            targetProjectId,
+            routeProjectId,
+          });
+          return;
+        }
         const project = normalizeProject(response.data);
         devLog('[syncProject] 同步项目数据:', {
           projectId: project.id,
@@ -920,7 +936,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       }
     } else {
       // 并行模式（原有逻辑）
-      set({ error: null, errorRecoveryPath: null });
+      set({ error: null, errorRecovery: null });
 
       const updatedPages = currentProject.pages.map((page) =>
         page.id ? { ...page, status: 'GENERATING_DESCRIPTION' as const } : page
@@ -943,7 +959,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         let pollErrors = 0;
         const recoveryPath = `/project/${projectId}/detail`;
         const syncTaskProjectIfCurrent = async () => {
-          if (get().currentProject?.id === projectId) {
+          if (getRouteProjectId() === projectId) {
             await get().syncProject(projectId);
           }
         };
@@ -954,7 +970,9 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
             if (task) {
               if (task.progress) {
-                set({ taskProgress: task.progress });
+                if (getRouteProjectId() === projectId) {
+                  set({ taskProgress: task.progress });
+                }
               }
 
               await syncTaskProjectIfCurrent();
@@ -963,11 +981,14 @@ export const useProjectStore = create<ProjectState>((set, get) => {
                 set({ taskProgress: null, activeTaskId: null });
                 await syncTaskProjectIfCurrent();
               } else if (task.status === 'FAILED') {
+                const message = normalizeErrorMessage(
+                  task.error_message || task.error || t('store.generateDescFailed')
+                );
                 set({
                   taskProgress: null,
                   activeTaskId: null,
-                  error: normalizeErrorMessage(task.error_message || task.error || t('store.generateDescFailed')),
-                  errorRecoveryPath: recoveryPath,
+                  error: message,
+                  errorRecovery: { message, path: recoveryPath },
                 });
                 await syncTaskProjectIfCurrent();
               } else if (task.status === 'PENDING' || task.status === 'PROCESSING') {
@@ -979,11 +1000,12 @@ export const useProjectStore = create<ProjectState>((set, get) => {
             pollErrors++;
             if (pollErrors >= 10) {
               console.error('[生成描述] 轮询错误次数过多，停止轮询');
+              const message = normalizeErrorMessage(error.message || t('store.generateDescTimeout'));
               set({
                 taskProgress: null,
                 activeTaskId: null,
-                error: normalizeErrorMessage(error.message || t('store.generateDescTimeout')),
-                errorRecoveryPath: recoveryPath,
+                error: message,
+                errorRecovery: { message, path: recoveryPath },
               });
               await syncTaskProjectIfCurrent();
               return;

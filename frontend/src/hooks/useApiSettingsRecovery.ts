@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { ToastOptions } from '@/components/shared/Toast';
 import { isApiSettingsError } from '@/utils';
@@ -20,6 +20,14 @@ interface OutlineRecoverySuppression {
 }
 
 let inMemoryOutlineRecoverySuppression: OutlineRecoverySuppression | null = null;
+
+function getCurrentRoutePath(): string {
+  if (typeof window === 'undefined') return '/';
+  if (window.location.hash.startsWith('#/')) {
+    return window.location.hash.slice(1);
+  }
+  return `${window.location.pathname}${window.location.search}${window.location.hash}`;
+}
 
 function markOutlineRecoverySuppression(path: string) {
   if (!/\/outline(?:[?#]|$)/.test(path)) return;
@@ -43,10 +51,22 @@ export function consumeOutlineRecoverySuppression(path: string): boolean {
       suppression = JSON.parse(raw) as OutlineRecoverySuppression;
     }
   } catch {
-    // Fall through to the in-memory marker.
+    try {
+      sessionStorage.removeItem(OUTLINE_RECOVERY_SUPPRESSION_KEY);
+    } catch {
+      // The in-memory marker can still be used.
+    }
   }
 
-  if (!suppression || typeof suppression.createdAt !== 'number') return false;
+  if (!suppression || typeof suppression.path !== 'string' || typeof suppression.createdAt !== 'number') {
+    inMemoryOutlineRecoverySuppression = null;
+    try {
+      sessionStorage.removeItem(OUTLINE_RECOVERY_SUPPRESSION_KEY);
+    } catch {
+      // Nothing else to clean up.
+    }
+    return false;
+  }
 
   const expired = Date.now() - suppression.createdAt > RECOVERY_SUPPRESSION_TTL_MS;
   if (!expired && suppression.path !== path) return false;
@@ -62,12 +82,11 @@ export function consumeOutlineRecoverySuppression(path: string): boolean {
 
 export function useApiSettingsRecovery() {
   const navigate = useNavigate();
-  const location = useLocation();
   const { i18n } = useTranslation();
   const isZh = i18n.language?.startsWith('zh') ?? true;
 
   const openApiSettings = useCallback((fromOverride?: string) => {
-    const currentPath = `${location.pathname}${location.search}${location.hash}`;
+    const currentPath = getCurrentRoutePath();
     const from = fromOverride?.startsWith('/') && !fromOverride.startsWith('//')
       ? fromOverride
       : currentPath;
@@ -78,7 +97,7 @@ export function useApiSettingsRecovery() {
       recovery: API_ERROR_RECOVERY,
     };
     navigate('/settings', { state });
-  }, [location.hash, location.pathname, location.search, navigate]);
+  }, [navigate]);
 
   const withApiSettingsRecovery = useCallback((
     error: unknown,

@@ -219,6 +219,11 @@ test.describe('API error settings recovery', () => {
         outline_content: { title: '当前查看的另一个项目', points: ['不要绑定到这里'] },
       }],
     }
+    let taskFailureReturned = false
+    let signalTaskSyncStarted!: () => void
+    const taskSyncStarted = new Promise<void>((resolve) => { signalTaskSyncStarted = resolve })
+    let releaseTaskSync!: () => void
+    const taskSyncRelease = new Promise<void>((resolve) => { releaseTaskSync = resolve })
 
     await page.addInitScript(() => {
       sessionStorage.setItem('banana-settings', JSON.stringify({
@@ -232,6 +237,10 @@ test.describe('API error settings recovery', () => {
         const url = new URL(request.url())
 
         if (url.pathname === `/api/projects/${projectId}` && request.method() === 'GET') {
+          if (taskFailureReturned) {
+            signalTaskSyncStarted()
+            await taskSyncRelease
+          }
           return route.fulfill({
             status: 200,
             contentType: 'application/json',
@@ -256,6 +265,7 @@ test.describe('API error settings recovery', () => {
         }
 
         if (url.pathname === `/api/projects/${projectId}/tasks/${taskId}`) {
+          taskFailureReturned = true
           return route.fulfill({
             status: 200,
             contentType: 'application/json',
@@ -296,6 +306,7 @@ test.describe('API error settings recovery', () => {
 
     await page.goto(`/project/${projectId}/detail`)
     await page.getByRole('button', { name: '批量生成描述' }).click()
+    await taskSyncStarted
 
     await page.evaluate((url) => {
       const currentState = window.history.state || {}
@@ -311,9 +322,129 @@ test.describe('API error settings recovery', () => {
       window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }))
     }, `/project/${otherProjectId}/detail`)
     await expect(page).toHaveURL(new RegExp(`/project/${otherProjectId}/detail$`))
+    await expect.poll(
+      () => page.evaluate(() => localStorage.getItem('currentProjectId'))
+    ).toBe(otherProjectId)
+
+    releaseTaskSync()
 
     const settingsAction = page.getByRole('button', { name: '检查 API 设置' })
     await expect(settingsAction).toBeVisible({ timeout: 5000 })
+    expect(await page.evaluate(() => localStorage.getItem('currentProjectId'))).toBe(otherProjectId)
+    await settingsAction.click()
+    await expect(page).toHaveURL(/\/settings$/)
+    await page.getByRole('button', { name: '返回编辑器' }).click()
+    await expect(page).toHaveURL(new RegExp(`/project/${projectId}/detail$`))
+  })
+
+  test('mock: recovery action reads the route at click time after the toast is shown', async ({ page }) => {
+    const projectId = 'mock-stale-toast-source'
+    const otherProjectId = 'mock-stale-toast-current'
+    const taskId = 'mock-stale-toast-task'
+    const makeProject = (id: string, title: string) => ({
+      id,
+      project_id: id,
+      creation_type: 'idea',
+      status: 'OUTLINE_GENERATED',
+      pages: [{
+        id: `${id}-page`,
+        page_id: `${id}-page`,
+        order_index: 0,
+        outline_content: { title, points: ['要点'] },
+        status: 'DRAFT',
+      }],
+    })
+    const projects = {
+      [projectId]: makeProject(projectId, '错误来源项目'),
+      [otherProjectId]: makeProject(otherProjectId, 'Toast 后切换的项目'),
+    }
+
+    await page.addInitScript(() => {
+      sessionStorage.setItem('banana-settings', JSON.stringify({
+        description_generation_mode: 'parallel',
+      }))
+    })
+    await page.route(
+      (url) => url.pathname.startsWith('/api/'),
+      async (route) => {
+        const request = route.request()
+        const url = new URL(request.url())
+
+        for (const [id, project] of Object.entries(projects)) {
+          if (url.pathname === `/api/projects/${id}` && request.method() === 'GET') {
+            return route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify({ success: true, data: project }),
+            })
+          }
+        }
+
+        if (url.pathname === `/api/projects/${projectId}/generate/descriptions` && request.method() === 'POST') {
+          return route.fulfill({
+            status: 202,
+            contentType: 'application/json',
+            body: JSON.stringify({ success: true, data: { task_id: taskId } }),
+          })
+        }
+
+        if (url.pathname === `/api/projects/${projectId}/tasks/${taskId}`) {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              success: true,
+              data: {
+                task_id: taskId,
+                status: 'FAILED',
+                progress: { total: 1, completed: 0, failed: 1 },
+                error_message: 'API key is invalid',
+              },
+            }),
+          })
+        }
+
+        if (url.pathname === '/api/settings' && request.method() === 'GET') {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              success: true,
+              data: {
+                ai_provider_format: 'gemini',
+                description_generation_mode: 'parallel',
+                description_extra_fields: [],
+              },
+            }),
+          })
+        }
+
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: [] }),
+        })
+      }
+    )
+
+    await page.goto(`/project/${projectId}/detail`)
+    await page.getByRole('button', { name: '批量生成描述' }).click()
+    const settingsAction = page.getByRole('button', { name: '检查 API 设置' })
+    await expect(settingsAction).toBeVisible({ timeout: 5000 })
+
+    await page.evaluate((url) => {
+      const currentState = window.history.state || {}
+      window.history.pushState(
+        { ...currentState, idx: (currentState.idx ?? 0) + 1, key: 'stale-toast-other-project' },
+        '',
+        url
+      )
+      window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }))
+    }, `/project/${otherProjectId}/detail`)
+    await expect.poll(
+      () => page.evaluate(() => localStorage.getItem('currentProjectId'))
+    ).toBe(otherProjectId)
+
     await settingsAction.click()
     await expect(page).toHaveURL(/\/settings$/)
     await page.getByRole('button', { name: '返回编辑器' }).click()

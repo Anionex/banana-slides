@@ -15,7 +15,7 @@ import { isDesktop } from '@/utils';
 import { useApiSettingsRecovery } from '@/hooks/useApiSettingsRecovery';
 
 function GlobalErrorToasts() {
-  const { error, errorRecoveryPath, setError } = useProjectStore();
+  const { error, errorRecovery, setError } = useProjectStore();
   const { show, ToastContainer } = useToast();
   const location = useLocation();
   const { withApiSettingsRecovery } = useApiSettingsRecovery();
@@ -25,13 +25,14 @@ function GlobalErrorToasts() {
 
     const isEditorRoute = /^\/project\/[^/]+\/(outline|detail)$/.test(location.pathname);
     const toast = { message: error, type: 'error' as const };
+    const recoveryPath = errorRecovery?.message === error ? errorRecovery.path : undefined;
     show(
-      errorRecoveryPath || isEditorRoute
-        ? withApiSettingsRecovery(error, toast, errorRecoveryPath || undefined)
+      recoveryPath || isEditorRoute
+        ? withApiSettingsRecovery(error, toast, recoveryPath)
         : toast
     );
     setError(null);
-  }, [error, errorRecoveryPath, location.pathname, setError, show, withApiSettingsRecovery]);
+  }, [error, errorRecovery, location.pathname, setError, show, withApiSettingsRecovery]);
 
   return <ToastContainer />;
 }
