@@ -57,16 +57,16 @@
 
 <table>
 <tr>
-<td width="220" align="center" valign="middle"><a href="https://aihubmix.com/?aff=17EC"><img src="./assets/logo_aihubmix.png" alt="AIHubMix" height="48"></a></td>
+<td width="220" align="center" valign="middle"><a href="https://aihubmix.com/?aff=17EC"><img src="./assets/logo_aihubmix.png" alt="AIHubMix" width="189"></a></td>
 <td valign="middle">感谢 <a href="https://aihubmix.com/?aff=17EC">AIHubMix</a> 赞助本项目！AIHubMix 是稳定、高并发的 AI 大模型 API 聚合平台，一个 API Key 即可接入 Claude、GPT、Gemini、DeepSeek 等主流模型，兼容多种协议，并提供<b>免费模型选择</b>。注册时，海外用户请使用 <a href="https://aihubmix.com/?aff=17EC">AIHubMix 入口</a>，中国大陆用户请使用 <a href="https://inferera.com/?aff=17EC">Inferera 入口</a>。</td>
 </tr>
 <tr>
-<td width="220" align="center" valign="middle"><a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides"><img src="./assets/huoshan.png" alt="火山引擎" height="48"></a></td>
-<td valign="middle">感谢 <a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">火山引擎</a> 赞助了本项目！相比海外主流官方 API 价格更低、性价比更高，生成效果接近；国内直连，无需特殊网络环境。订阅后还能用于日常使用和其他兼容工具，不局限于 Banana Slides。<br><a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">查看优惠并订阅 →</a></td>
+<td width="220" align="center" valign="middle"><a href="https://go.apimart.ai/gh-banana-slides"><img src="./assets/logo_apimart.png" alt="APIMart" width="189"></a></td>
+<td valign="middle">感谢 <a href="https://go.apimart.ai/gh-banana-slides">APIMart</a> 赞助了本项目！APIMart 是专注 AI 图片/视频生成的低价 API 平台，GPT-Image-2 低至 $0.006/张，1 美元可出图 160+ 张。图片、视频一套异步 API 通吃，提交任务拿 ID、回调取结果，跑批万张不超时、换模型不改代码。按量付费、无月费，通过此<a href="https://go.apimart.ai/gh-banana-slides">注册链接</a>注册即可开用。</td>
 </tr>
 <tr>
-<td width="220" align="center" valign="middle"><a href="https://go.apimart.ai/gh-banana-slides"><img src="./assets/logo_apimart.png" alt="APIMart" height="48"></a></td>
-<td valign="middle">感谢 <a href="https://go.apimart.ai/gh-banana-slides">APIMart</a> 赞助了本项目！APIMart 是专注 AI 图片/视频生成的低价 API 平台，GPT-Image-2 低至 $0.006/张，1 美元可出图 160+ 张。图片、视频一套异步 API 通吃，提交任务拿 ID、回调取结果，跑批万张不超时、换模型不改代码。按量付费、无月费，通过此<a href="https://go.apimart.ai/gh-banana-slides">注册链接</a>注册即可开用。</td>
+<td width="220" align="center" valign="middle"><a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides"><img src="./assets/huoshan.png" alt="火山引擎" width="189"></a></td>
+<td valign="middle">感谢 <a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">火山引擎</a> 赞助了本项目！相比海外主流官方 API 价格更低、性价比更高，生成效果接近；国内直连，无需特殊网络环境。订阅后还能用于日常使用和其他兼容工具，不局限于 Banana Slides。<br><a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">查看优惠并订阅 →</a></td>
 </tr>
 </table>
 
