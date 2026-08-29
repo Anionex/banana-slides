@@ -2596,7 +2596,6 @@ export const SettingsPage: React.FC = () => {
   const navigationState = location.state as {
     from?: unknown;
     recovery?: unknown;
-    sourceState?: unknown;
   } | null;
   const recoveryFrom = navigationState?.recovery === API_ERROR_RECOVERY
     && typeof navigationState.from === 'string'
@@ -2611,16 +2610,11 @@ export const SettingsPage: React.FC = () => {
 
   const returnFromRecovery = () => {
     if (!recoveryFrom) return;
-
-    const sourceState = navigationState?.sourceState
-      && typeof navigationState.sourceState === 'object'
-      && !Array.isArray(navigationState.sourceState)
-      ? navigationState.sourceState as Record<string, unknown>
-      : {};
-    navigate(recoveryFrom, {
-      replace: true,
-      state: { ...sourceState, apiSettingsRecovered: true },
-    });
+    if (hasInAppBackHistory) {
+      navigate(-1);
+      return;
+    }
+    navigate(recoveryFrom, { replace: true });
   };
 
   const handleBack = () => {

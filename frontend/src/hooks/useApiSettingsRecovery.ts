@@ -11,35 +11,45 @@ const RECOVERY_SUPPRESSION_TTL_MS = 30 * 60 * 1000;
 export interface ApiSettingsRecoveryState {
   from: string;
   recovery: typeof API_ERROR_RECOVERY;
-  sourceState?: Record<string, unknown>;
 }
+
+interface OutlineRecoverySuppression {
+  path: string;
+  createdAt: number;
+}
+
+let inMemoryOutlineRecoverySuppression: OutlineRecoverySuppression | null = null;
 
 function markOutlineRecoverySuppression(path: string) {
   if (!/\/outline(?:[?#]|$)/.test(path)) return;
 
+  const suppression = { path, createdAt: Date.now() };
+  inMemoryOutlineRecoverySuppression = suppression;
+
   try {
-    sessionStorage.setItem(OUTLINE_RECOVERY_SUPPRESSION_KEY, JSON.stringify({
-      path,
-      createdAt: Date.now(),
-    }));
+    sessionStorage.setItem(OUTLINE_RECOVERY_SUPPRESSION_KEY, JSON.stringify(suppression));
   } catch {
-    // Route state still suppresses retries for the explicit Settings actions.
+    // The in-memory marker still covers SPA navigation when storage is unavailable.
   }
 }
 
 export function consumeOutlineRecoverySuppression(path: string): boolean {
+  let suppression = inMemoryOutlineRecoverySuppression;
+  inMemoryOutlineRecoverySuppression = null;
+
   try {
     const raw = sessionStorage.getItem(OUTLINE_RECOVERY_SUPPRESSION_KEY);
-    if (!raw) return false;
-
     sessionStorage.removeItem(OUTLINE_RECOVERY_SUPPRESSION_KEY);
-    const parsed = JSON.parse(raw) as { path?: unknown; createdAt?: unknown };
-    return parsed.path === path
-      && typeof parsed.createdAt === 'number'
-      && Date.now() - parsed.createdAt <= RECOVERY_SUPPRESSION_TTL_MS;
+    if (raw) {
+      suppression = JSON.parse(raw) as OutlineRecoverySuppression;
+    }
   } catch {
-    return false;
+    // Fall through to the in-memory marker.
   }
+
+  return suppression?.path === path
+    && typeof suppression.createdAt === 'number'
+    && Date.now() - suppression.createdAt <= RECOVERY_SUPPRESSION_TTL_MS;
 }
 
 export function useApiSettingsRecovery() {
@@ -51,18 +61,12 @@ export function useApiSettingsRecovery() {
   const openApiSettings = useCallback(() => {
     const from = `${location.pathname}${location.search}${location.hash}`;
     markOutlineRecoverySuppression(from);
-    const sourceState = location.state
-      && typeof location.state === 'object'
-      && !Array.isArray(location.state)
-      ? location.state as Record<string, unknown>
-      : undefined;
     const state: ApiSettingsRecoveryState = {
       from,
       recovery: API_ERROR_RECOVERY,
-      ...(sourceState ? { sourceState } : {}),
     };
     navigate('/settings', { state });
-  }, [location.hash, location.pathname, location.search, location.state, navigate]);
+  }, [location.hash, location.pathname, location.search, navigate]);
 
   const withApiSettingsRecovery = useCallback((error: unknown, options: ToastOptions): ToastOptions => {
     if (!isApiSettingsError(error) && !isApiSettingsError(options.message)) return options;

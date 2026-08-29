@@ -117,7 +117,7 @@ test.describe('API error settings recovery', () => {
     await expect(page.getByText('编辑大纲', { exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: '检查 API 设置' })).not.toBeVisible()
 
-    await page.locator('header').getByRole('button', { name: '返回' }).click()
+    await page.goBack()
     await expect(page).toHaveURL(/\/history$/)
 
     await page.goto(`/project/${projectId}/outline`)

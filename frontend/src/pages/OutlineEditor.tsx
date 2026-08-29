@@ -165,7 +165,6 @@ export const OutlineEditor: React.FC = () => {
   const t = useT(outlineI18n);
   const { projectId } = useParams<{ projectId: string }>();
   const fromHistory = (location.state as any)?.from === 'history';
-  const apiSettingsRecovered = (location.state as { apiSettingsRecovered?: boolean } | null)?.apiSettingsRecovered === true;
   const {
     currentProject,
     syncProject,
@@ -431,8 +430,7 @@ export const OutlineEditor: React.FC = () => {
   useEffect(() => {
     if (!currentProject?.id) return;
     const currentPath = `${location.pathname}${location.search}${location.hash}`;
-    const hasRecoverySuppression = consumeOutlineRecoverySuppression(currentPath);
-    const suppressAfterRecovery = apiSettingsRecovered || hasRecoverySuppression;
+    const suppressAfterRecovery = consumeOutlineRecoverySuppression(currentPath);
     if (currentProject.pages.length > 0 || isOutlineStreaming) return;
     if (!['idea', 'outline', 'descriptions'].includes(currentProject.creation_type || 'idea')) return;
     if (autoGenerateStartedRef.current === currentProject.id) return;
@@ -456,7 +454,7 @@ export const OutlineEditor: React.FC = () => {
         show(withApiSettingsRecovery(error, { message, type: 'error' }));
       }
     })();
-  }, [apiSettingsRecovered, currentProject?.id, currentProject?.pages.length, currentProject?.creation_type, generateOutlineStream, isOutlineStreaming, location.hash, location.pathname, location.search, show, t, withApiSettingsRecovery]);
+  }, [currentProject?.id, currentProject?.pages.length, currentProject?.creation_type, generateOutlineStream, isOutlineStreaming, location.hash, location.pathname, location.search, show, t, withApiSettingsRecovery]);
 
   const handleAiRefineOutline = useCallback(async (requirement: string, previousRequirements: string[]) => {
     if (!currentProject || !projectId) return;
