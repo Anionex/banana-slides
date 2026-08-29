@@ -271,7 +271,7 @@ cp .env.example .env
 > **项目中大模型接口以AIHubMix平台格式为标准，推荐使用 [AIHubMix(点击此处可直接访问)](https://api.inferera.com/?aff=17EC) 获取API密钥，减小迁移成本**<br>
 > **友情提示：谷歌nano banana pro模型接口费用较高，请注意调用成本**
 ```env
-# AI Provider格式配置 (gemini / openai / apimart / volcengine / vertex)
+# AI Provider格式配置 (gemini / openai / volcengine / vertex)
 AI_PROVIDER_FORMAT=gemini
 
 # Gemini 格式配置（当 AI_PROVIDER_FORMAT=gemini 时使用）
@@ -283,14 +283,6 @@ GOOGLE_API_BASE=https://generativelanguage.googleapis.com
 OPENAI_API_KEY=your-api-key-here
 OPENAI_API_BASE=https://api.openai.com/v1
 # 代理示例: https://api.inferera.com/v1
-
-# APIMart 配置（当 AI_PROVIDER_FORMAT=apimart 时使用）
-APIMART_API_KEY=your-apimart-api-key-here
-APIMART_API_BASE=https://api.apimart.ai/v1
-# 当 AI_PROVIDER_FORMAT=apimart 时，取消以下三行注释：
-# TEXT_MODEL=gpt-5
-# IMAGE_CAPTION_MODEL=gpt-4o
-# IMAGE_MODEL=gpt-image-2
 
 # 火山方舟 Agent Plans 配置（当 AI_PROVIDER_FORMAT=volcengine 时使用）
 # 注意: Agent Plan 需使用专属 API Key 与模型名 (doubao-seed-2.1-turbo / doubao-seedream-5.0-lite)

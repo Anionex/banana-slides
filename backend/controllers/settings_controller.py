@@ -24,7 +24,7 @@ from services.task_manager import task_manager
 from services.update_check_service import check_for_update
 
 logger = logging.getLogger(__name__)
-ALLOWED_PROVIDER_FORMATS = {"openai", "gemini", "apimart", "volcengine", "lazyllm", "codex"} | LAZYLLM_VENDORS
+ALLOWED_PROVIDER_FORMATS = {"openai", "gemini", "volcengine", "lazyllm", "codex"} | LAZYLLM_VENDORS
 
 settings_bp = Blueprint(
     "settings", __name__, url_prefix="/api/settings"
@@ -34,7 +34,6 @@ settings_bp = Blueprint(
 PROVIDER_API_CONFIG_KEYS = {
     "gemini": ("GOOGLE_API_KEY", "GOOGLE_API_BASE"),
     "openai": ("OPENAI_API_KEY", "OPENAI_API_BASE"),
-    "apimart": ("APIMART_API_KEY", "APIMART_API_BASE"),
     "volcengine": ("VOLCENGINE_API_KEY", "VOLCENGINE_API_BASE"),
 }
 
@@ -49,11 +48,9 @@ def _provider_api_env_defaults():
     return {
         "GOOGLE_API_KEY": Config.GOOGLE_API_KEY,
         "OPENAI_API_KEY": Config.OPENAI_API_KEY,
-        "APIMART_API_KEY": Config.APIMART_API_KEY,
         "VOLCENGINE_API_KEY": Config.VOLCENGINE_API_KEY,
         "GOOGLE_API_BASE": Config.GOOGLE_API_BASE,
         "OPENAI_API_BASE": Config.OPENAI_API_BASE,
-        "APIMART_API_BASE": Config.APIMART_API_BASE,
         "VOLCENGINE_API_BASE": Config.VOLCENGINE_API_BASE,
     }
 
@@ -85,46 +82,31 @@ def temporary_settings_override(settings_override: dict):
         provider_keys = _provider_api_config_keys(active_format)
 
         # 应用覆盖设置
-        if "api_key" in settings_override and provider_keys:
+        if settings_override.get("api_key") and provider_keys:
             key_config, _ = provider_keys
             original_values[key_config] = current_app.config.get(key_config)
-            if settings_override["api_key"]:
-                current_app.config[key_config] = settings_override["api_key"]
-            else:
-                current_app.config.pop(key_config, None)
+            current_app.config[key_config] = settings_override["api_key"]
 
-        if "api_base_url" in settings_override and provider_keys:
+        if settings_override.get("api_base_url") and provider_keys:
             _, base_config = provider_keys
             original_values[base_config] = current_app.config.get(base_config)
-            if settings_override["api_base_url"]:
-                current_app.config[base_config] = settings_override["api_base_url"]
-            else:
-                current_app.config.pop(base_config, None)
+            current_app.config[base_config] = settings_override["api_base_url"]
 
         if settings_override.get("ai_provider_format"):
             original_values["AI_PROVIDER_FORMAT"] = current_app.config.get("AI_PROVIDER_FORMAT")
             current_app.config["AI_PROVIDER_FORMAT"] = settings_override["ai_provider_format"]
 
-        if "text_model" in settings_override:
+        if settings_override.get("text_model"):
             original_values["TEXT_MODEL"] = current_app.config.get("TEXT_MODEL")
-            if settings_override["text_model"]:
-                current_app.config["TEXT_MODEL"] = settings_override["text_model"]
-            else:
-                current_app.config.pop("TEXT_MODEL", None)
+            current_app.config["TEXT_MODEL"] = settings_override["text_model"]
 
-        if "image_model" in settings_override:
+        if settings_override.get("image_model"):
             original_values["IMAGE_MODEL"] = current_app.config.get("IMAGE_MODEL")
-            if settings_override["image_model"]:
-                current_app.config["IMAGE_MODEL"] = settings_override["image_model"]
-            else:
-                current_app.config.pop("IMAGE_MODEL", None)
+            current_app.config["IMAGE_MODEL"] = settings_override["image_model"]
 
-        if "image_caption_model" in settings_override:
+        if settings_override.get("image_caption_model"):
             original_values["IMAGE_CAPTION_MODEL"] = current_app.config.get("IMAGE_CAPTION_MODEL")
-            if settings_override["image_caption_model"]:
-                current_app.config["IMAGE_CAPTION_MODEL"] = settings_override["image_caption_model"]
-            else:
-                current_app.config.pop("IMAGE_CAPTION_MODEL", None)
+            current_app.config["IMAGE_CAPTION_MODEL"] = settings_override["image_caption_model"]
 
         # Per-model source overrides (empty string = clear, to fall back to global config)
         for source_field, config_key in [
@@ -145,20 +127,14 @@ def temporary_settings_override(settings_override: dict):
             prefix = model_type.upper()
             key_field = f'{model_type}_api_key'
             base_field = f'{model_type}_api_base_url'
-            if key_field in settings_override:
+            if settings_override.get(key_field):
                 config_key = f'{prefix}_API_KEY'
                 original_values[config_key] = current_app.config.get(config_key)
-                if settings_override[key_field]:
-                    current_app.config[config_key] = settings_override[key_field]
-                else:
-                    current_app.config.pop(config_key, None)
-            if base_field in settings_override:
+                current_app.config[config_key] = settings_override[key_field]
+            if settings_override.get(base_field):
                 config_key = f'{prefix}_API_BASE'
                 original_values[config_key] = current_app.config.get(config_key)
-                if settings_override[base_field]:
-                    current_app.config[config_key] = settings_override[base_field]
-                else:
-                    current_app.config.pop(config_key, None)
+                current_app.config[config_key] = settings_override[base_field]
 
         if settings_override.get("mineru_api_base"):
             original_values["MINERU_API_BASE"] = current_app.config.get("MINERU_API_BASE")
@@ -259,9 +235,6 @@ def update_settings():
             return bad_request("Request body is required")
 
         settings = Settings.get_settings()
-        previous_provider_format = settings.ai_provider_format
-        previous_api_key = settings.api_key
-        previous_api_base_url = settings.api_base_url
 
         # Update AI provider format configuration
         if "ai_provider_format" in data:
@@ -432,38 +405,6 @@ def update_settings():
                 settings.lazyllm_api_keys = json.dumps(existing) if existing else None
             elif keys_data is None:
                 settings.lazyllm_api_keys = None
-
-        # Preserve inherited credentials for explicit model sources that stay on
-        # the previous provider while the global selection crosses APIMart.
-        if (
-            previous_provider_format != settings.ai_provider_format
-            and (
-                previous_provider_format == "apimart"
-                or settings.ai_provider_format == "apimart"
-            )
-        ):
-            for model_type in ("text", "image", "image_caption"):
-                source_field = f"{model_type}_model_source"
-                key_field = f"{model_type}_api_key"
-                base_field = f"{model_type}_api_base_url"
-                if getattr(settings, source_field, None) != previous_provider_format:
-                    continue
-                if (
-                    previous_api_key
-                    and key_field not in data
-                    and not getattr(settings, key_field, None)
-                ):
-                    setattr(settings, key_field, previous_api_key)
-                base_explicitly_cleared = (
-                    base_field in data
-                    and not (data[base_field] or "").strip()
-                )
-                if (
-                    previous_api_base_url
-                    and not getattr(settings, base_field, None)
-                    and not base_explicitly_cleared
-                ):
-                    setattr(settings, base_field, previous_api_base_url)
 
         settings.updated_at = datetime.now(timezone.utc)
         db.session.commit()

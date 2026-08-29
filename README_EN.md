@@ -272,7 +272,7 @@ cp .env.example .env
 > **Friendly tip: The Google Nano Banana Pro model API is relatively expensive, please be mindful of the invocation costs.**
 ```env
 
-# AI Provider Format Configuration (gemini / openai / apimart / volcengine / vertex)
+# AI Provider Format Configuration (gemini / openai / volcengine / vertex)
 
 AI_PROVIDER_FORMAT=gemini
 
@@ -289,14 +289,6 @@ OPENAI_API_KEY=your-api-key-here
 OPENAI_API_BASE=https://api.openai.com/v1
 
 # Proxy Example: https://api.inferera.com/v1
-
-# APIMart Configuration (Used when AI_PROVIDER_FORMAT=apimart)
-APIMART_API_KEY=your-apimart-api-key-here
-APIMART_API_BASE=https://api.apimart.ai/v1
-# When AI_PROVIDER_FORMAT=apimart, uncomment the following three lines:
-# TEXT_MODEL=gpt-5
-# IMAGE_CAPTION_MODEL=gpt-4o
-# IMAGE_MODEL=gpt-image-2
 
 # Volcengine Ark Agent Plans Configuration (Used when AI_PROVIDER_FORMAT=volcengine)
 

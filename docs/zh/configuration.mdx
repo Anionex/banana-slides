@@ -11,7 +11,6 @@ description: "环境变量与服务商设置"
 |------|------|
 | `gemini` | Google Gemini API（默认） |
 | `openai` | OpenAI 兼容 API |
-| `apimart` | APIMart 文本、图片理解与异步图片生成 API |
 | `volcengine` | 火山方舟 AgentPlans（OpenAI 兼容） |
 | `vertex` | Google Cloud Vertex AI |
 | `lazyllm` | 多厂商国产模型路由 |
@@ -35,21 +34,6 @@ AI_PROVIDER_FORMAT=openai
 OPENAI_API_KEY=your-api-key
 OPENAI_API_BASE=https://api.openai.com/v1
 ```
-
-## APIMart
-
-在设置页选择 **APIMart** 后，会自动填写 API 端点以及推荐的文本、图片理解和图片生成模型。也可以通过 `.env` 配置：
-
-```env
-AI_PROVIDER_FORMAT=apimart
-APIMART_API_KEY=your-apimart-api-key
-APIMART_API_BASE=https://api.apimart.ai/v1
-TEXT_MODEL=gpt-5
-IMAGE_CAPTION_MODEL=gpt-4o
-IMAGE_MODEL=gpt-image-2
-```
-
-图片生成任务由 Banana Slides 自动提交并轮询，用户不需要手动处理任务 ID。
 
 ## 火山 AgentPlans
 

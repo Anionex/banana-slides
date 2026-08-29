@@ -120,11 +120,8 @@ class Settings(db.Model):
 
     def to_dict(self):
         """Convert to dictionary, merging .env defaults for None fields."""
-        from config import Config
-
         d = Settings._get_config_defaults()
         effective_provider = self._val('ai_provider_format', d)
-        normalized_provider = (effective_provider or '').lower()
         provider_defaults = Settings._get_api_defaults_for_provider(effective_provider)
         api_base_url = self.api_base_url if self.api_base_url is not None else provider_defaults['api_base_url']
         api_key = self.api_key if self.api_key is not None else provider_defaults['api_key']
@@ -134,19 +131,11 @@ class Settings(db.Model):
         text_model_source = self._val('text_model_source', d)
         image_model_source = self._val('image_model_source', d)
         image_caption_model_source = self._val('image_caption_model_source', d)
-
-        def model_api_defaults(source, prefix):
-            defaults = Settings._get_api_defaults_for_provider(source, prefix)
-            if normalized_provider == 'apimart' and (source or '').lower() == normalized_provider:
-                if not getattr(Config, f'{prefix}_API_BASE', None):
-                    defaults['api_base_url'] = api_base_url
-                if not getattr(Config, f'{prefix}_API_KEY', None):
-                    defaults['api_key'] = api_key
-            return defaults
-
-        text_api_defaults = model_api_defaults(text_model_source, 'TEXT')
-        image_api_defaults = model_api_defaults(image_model_source, 'IMAGE')
-        image_caption_api_defaults = model_api_defaults(image_caption_model_source, 'IMAGE_CAPTION')
+        text_api_defaults = Settings._get_api_defaults_for_provider(text_model_source, 'TEXT')
+        image_api_defaults = Settings._get_api_defaults_for_provider(image_model_source, 'IMAGE')
+        image_caption_api_defaults = Settings._get_api_defaults_for_provider(
+            image_caption_model_source, 'IMAGE_CAPTION'
+        )
         text_api_key = self.text_api_key if self.text_api_key is not None else text_api_defaults['api_key']
         image_api_key = self.image_api_key if self.image_api_key is not None else image_api_defaults['api_key']
         image_caption_api_key = (
@@ -235,11 +224,6 @@ class Settings(db.Model):
             return {
                 'api_base_url': specific_base or Config.OPENAI_API_BASE or None,
                 'api_key': specific_key or Config.OPENAI_API_KEY or None,
-            }
-        if provider == 'apimart':
-            return {
-                'api_base_url': specific_base or Config.APIMART_API_BASE or None,
-                'api_key': specific_key or Config.APIMART_API_KEY or None,
             }
         if provider == 'volcengine':
             return {

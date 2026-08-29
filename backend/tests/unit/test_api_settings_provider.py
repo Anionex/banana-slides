@@ -21,15 +21,6 @@ def _build_settings(**overrides):
         'api_key': None,
         'api_base_url': None,
         'text_model': None,
-        'text_model_source': None,
-        'image_model_source': None,
-        'image_caption_model_source': None,
-        'text_api_key': None,
-        'text_api_base_url': None,
-        'image_api_key': None,
-        'image_api_base_url': None,
-        'image_caption_api_key': None,
-        'image_caption_api_base_url': None,
     }
     defaults.update(overrides)
 
@@ -126,134 +117,6 @@ def test_update_settings_accepts_volcengine_provider():
     data = response.get_json()
     assert data['success'] is True
     assert data['data']['ai_provider_format'] == 'volcengine'
-
-
-def test_update_settings_accepts_apimart_provider():
-    """`apimart` should persist as a first-class provider format."""
-    app = Flask(__name__)
-
-    settings = _build_settings()
-    with app.app_context():
-        with app.test_request_context('/api/settings/', method='PUT', json={'ai_provider_format': 'apimart'}):
-            with patch('controllers.settings_controller.Settings.get_settings', return_value=settings):
-                with patch('controllers.settings_controller.db.session.commit'):
-                    with patch('controllers.settings_controller._sync_settings_to_config'):
-                        response, status_code = update_settings()
-
-    assert status_code == 200
-    data = response.get_json()
-    assert data['success'] is True
-    assert data['data']['ai_provider_format'] == 'apimart'
-
-
-def test_update_settings_clears_shared_api_key_with_null():
-    """Provider switches can explicitly clear the shared stored credential."""
-    app = Flask(__name__)
-
-    settings = _build_settings()
-    settings.api_key = 'old-provider-key'
-    with app.app_context():
-        with app.test_request_context('/api/settings/', method='PUT', json={'api_key': None}):
-            with patch('controllers.settings_controller.Settings.get_settings', return_value=settings):
-                with patch('controllers.settings_controller.db.session.commit'):
-                    with patch('controllers.settings_controller._sync_settings_to_config'):
-                        response, status_code = update_settings()
-
-    assert status_code == 200
-    assert response.get_json()['success'] is True
-    assert settings.api_key is None
-
-
-def test_update_settings_preserves_key_for_explicit_apimart_model_sources():
-    """APIMart model overrides retain the old global key after a global switch."""
-    app = Flask(__name__)
-
-    settings = _build_settings(
-        ai_provider_format='apimart',
-        api_key='apimart-key',
-        api_base_url='https://apimart-proxy.example/v1',
-        text_model_source='apimart',
-        image_model_source='apimart',
-        image_caption_model_source='apimart',
-        image_api_key='dedicated-image-key',
-        image_api_base_url='https://dedicated-image.example/v1',
-    )
-    payload = {'ai_provider_format': 'gemini', 'api_key': None}
-    with app.app_context():
-        with app.test_request_context('/api/settings/', method='PUT', json=payload):
-            with patch('controllers.settings_controller.Settings.get_settings', return_value=settings):
-                with patch('controllers.settings_controller.db.session.commit'):
-                    with patch('controllers.settings_controller._sync_settings_to_config'):
-                        response, status_code = update_settings()
-
-    assert status_code == 200
-    assert response.get_json()['success'] is True
-    assert settings.api_key is None
-    assert settings.text_api_key == 'apimart-key'
-    assert settings.text_api_base_url == 'https://apimart-proxy.example/v1'
-    assert settings.image_api_key == 'dedicated-image-key'
-    assert settings.image_api_base_url == 'https://dedicated-image.example/v1'
-    assert settings.image_caption_api_key == 'apimart-key'
-    assert settings.image_caption_api_base_url == 'https://apimart-proxy.example/v1'
-
-
-def test_update_settings_preserves_previous_key_when_entering_apimart():
-    """Retained explicit model sources keep the previous provider's global key."""
-    app = Flask(__name__)
-
-    settings = _build_settings(
-        ai_provider_format='gemini',
-        api_key='gemini-key',
-        api_base_url='https://gemini-proxy.example/v1beta',
-        text_model_source='gemini',
-        image_model_source='openai',
-        image_caption_model_source='gemini',
-    )
-    payload = {'ai_provider_format': 'apimart', 'api_key': 'new-apimart-key'}
-    with app.app_context():
-        with app.test_request_context('/api/settings/', method='PUT', json=payload):
-            with patch('controllers.settings_controller.Settings.get_settings', return_value=settings):
-                with patch('controllers.settings_controller.db.session.commit'):
-                    with patch('controllers.settings_controller._sync_settings_to_config'):
-                        response, status_code = update_settings()
-
-    assert status_code == 200
-    assert response.get_json()['success'] is True
-    assert settings.api_key == 'new-apimart-key'
-    assert settings.text_api_key == 'gemini-key'
-    assert settings.text_api_base_url == 'https://gemini-proxy.example/v1beta'
-    assert settings.image_api_key is None
-    assert settings.image_api_base_url is None
-    assert settings.image_caption_api_key == 'gemini-key'
-    assert settings.image_caption_api_base_url == 'https://gemini-proxy.example/v1beta'
-
-
-def test_update_settings_honors_explicit_per_model_base_clear():
-    """Clearing a dedicated model Base URL must not restore the old global URL."""
-    app = Flask(__name__)
-
-    settings = _build_settings(
-        ai_provider_format='gemini',
-        api_key='gemini-key',
-        api_base_url='https://gemini-proxy.example/v1beta',
-        text_model_source='gemini',
-    )
-    payload = {
-        'ai_provider_format': 'apimart',
-        'api_key': 'new-apimart-key',
-        'text_api_base_url': '',
-    }
-    with app.app_context():
-        with app.test_request_context('/api/settings/', method='PUT', json=payload):
-            with patch('controllers.settings_controller.Settings.get_settings', return_value=settings):
-                with patch('controllers.settings_controller.db.session.commit'):
-                    with patch('controllers.settings_controller._sync_settings_to_config'):
-                        response, status_code = update_settings()
-
-    assert status_code == 200
-    assert response.get_json()['success'] is True
-    assert settings.text_api_key == 'gemini-key'
-    assert settings.text_api_base_url is None
 
 
 def test_volcengine_text_provider_uses_modelark_openai_compatible_base():
@@ -514,37 +377,6 @@ def test_settings_to_dict_uses_volcengine_defaults_for_selected_provider(monkeyp
     assert data['image_caption_api_base_url'] is None
 
 
-@pytest.mark.parametrize(
-    ('provider_format', 'model_source'),
-    [('apimart', 'apimart'), ('APIMART', 'apimart')],
-)
-def test_settings_to_dict_uses_effective_apimart_global_credentials_for_matching_source(
-    monkeypatch,
-    provider_format,
-    model_source,
-):
-    """Matching APIMart model sources should display the saved global proxy."""
-    from config import Config
-    from models.settings import Settings
-
-    monkeypatch.setattr(Config, 'APIMART_API_BASE', 'https://api.apimart.ai/v1')
-    monkeypatch.setattr(Config, 'APIMART_API_KEY', 'env-apimart-key')
-    monkeypatch.setattr(Config, 'TEXT_API_BASE', '')
-    monkeypatch.setattr(Config, 'TEXT_API_KEY', '')
-
-    settings = Settings(
-        ai_provider_format=provider_format,
-        api_base_url='https://apimart-proxy.example/v1',
-        api_key='saved-apimart-key',
-        text_model_source=model_source,
-    )
-    data = settings.to_dict()
-
-    assert data['api_base_url'] == 'https://apimart-proxy.example/v1'
-    assert data['text_api_base_url'] == 'https://apimart-proxy.example/v1'
-    assert data['text_api_key_length'] == len('saved-apimart-key')
-
-
 def test_settings_to_dict_volcengine_defaults_do_not_use_openai_key(monkeypatch):
     """Settings should not present an OpenAI key as a Volcengine key."""
     from config import Config
@@ -678,48 +510,6 @@ def test_temporary_settings_override_scopes_global_api_override_to_active_provid
 
         assert app.config['VOLCENGINE_API_BASE'] == 'https://volc-env.example/api/v3'
         assert app.config['VOLCENGINE_API_KEY'] == 'volc-env-key'
-
-
-def test_temporary_settings_override_applies_explicit_credential_clears():
-    """Unsaved provider switches must not reuse saved global or per-model credentials."""
-    app = Flask(__name__)
-    app.config.update(
-        AI_PROVIDER_FORMAT='gemini',
-        APIMART_API_BASE='https://saved-apimart.example/v1',
-        APIMART_API_KEY='saved-apimart-key',
-        TEXT_API_BASE='https://saved-text.example/v1',
-        TEXT_API_KEY='saved-text-key',
-        TEXT_MODEL='gpt-5',
-        IMAGE_MODEL='gpt-image-2',
-        IMAGE_CAPTION_MODEL='gpt-4o',
-    )
-
-    with app.app_context():
-        with temporary_settings_override({
-            'ai_provider_format': 'apimart',
-            'api_base_url': '',
-            'api_key': None,
-            'text_api_base_url': '',
-            'text_api_key': None,
-            'text_model': '',
-            'image_model': '',
-            'image_caption_model': '',
-        }):
-            assert 'APIMART_API_BASE' not in app.config
-            assert 'APIMART_API_KEY' not in app.config
-            assert 'TEXT_API_BASE' not in app.config
-            assert 'TEXT_API_KEY' not in app.config
-            assert 'TEXT_MODEL' not in app.config
-            assert 'IMAGE_MODEL' not in app.config
-            assert 'IMAGE_CAPTION_MODEL' not in app.config
-
-        assert app.config['APIMART_API_BASE'] == 'https://saved-apimart.example/v1'
-        assert app.config['APIMART_API_KEY'] == 'saved-apimart-key'
-        assert app.config['TEXT_API_BASE'] == 'https://saved-text.example/v1'
-        assert app.config['TEXT_API_KEY'] == 'saved-text-key'
-        assert app.config['TEXT_MODEL'] == 'gpt-5'
-        assert app.config['IMAGE_MODEL'] == 'gpt-image-2'
-        assert app.config['IMAGE_CAPTION_MODEL'] == 'gpt-4o'
 
 
 def test_verify_uses_configured_text_model():

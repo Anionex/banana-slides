@@ -11,7 +11,6 @@ Set `AI_PROVIDER_FORMAT` in `.env` to choose your provider:
 |--------|-------------|
 | `gemini` | Google Gemini API (default) |
 | `openai` | OpenAI-compatible API |
-| `apimart` | APIMart text, vision, and asynchronous image-generation APIs |
 | `volcengine` | Volcengine ModelArk AgentPlans (OpenAI-compatible) |
 | `vertex` | Google Cloud Vertex AI |
 | `lazyllm` | Multi-vendor Chinese model routing |
@@ -35,21 +34,6 @@ AI_PROVIDER_FORMAT=openai
 OPENAI_API_KEY=your-api-key
 OPENAI_API_BASE=https://api.openai.com/v1
 ```
-
-## APIMart
-
-Selecting **APIMart** in Settings fills the API endpoint and the recommended text, vision, and image-generation models. You can also configure it through `.env`:
-
-```env
-AI_PROVIDER_FORMAT=apimart
-APIMART_API_KEY=your-apimart-api-key
-APIMART_API_BASE=https://api.apimart.ai/v1
-TEXT_MODEL=gpt-5
-IMAGE_CAPTION_MODEL=gpt-4o
-IMAGE_MODEL=gpt-image-2
-```
-
-Banana Slides submits and polls image-generation tasks automatically, so users do not need to handle task IDs.
 
 ## Volcengine AgentPlans
 

@@ -113,23 +113,6 @@ def _generate_image_caption(filepath: str) -> str:
                     pass
             return ''.join(collected).strip()
 
-        elif effective_format == 'apimart':
-            from services.ai_providers import get_caption_provider
-
-            provider = get_caption_provider(caption_model)
-            if image.mode in ('RGBA', 'LA', 'P'):
-                background = Image.new('RGB', image.size, (255, 255, 255))
-                background.paste(image, mask=image.split()[-1] if image.mode in ('RGBA', 'LA') else None)
-                image = background
-            with tempfile.TemporaryDirectory() as temp_dir:
-                caption_path = Path(temp_dir) / 'caption.jpg'
-                image.save(caption_path, format='JPEG', quality=95)
-                return provider.generate_with_image(
-                    prompt,
-                    str(caption_path),
-                    thinking_budget=0,
-                ).strip()
-
         elif effective_format == 'openai':
             from openai import OpenAI
             api_key = current_app.config.get('OPENAI_API_KEY', '')
