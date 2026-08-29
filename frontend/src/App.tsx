@@ -25,11 +25,12 @@ function GlobalErrorToasts() {
 
     const isEditorRoute = /^\/project\/[^/]+\/(outline|detail)$/.test(location.pathname);
     const toast = { message: error, type: 'error' as const };
-    const recoveryPath = errorRecovery?.message === error ? errorRecovery.path : undefined;
-    const recoveryState = errorRecovery?.message === error ? errorRecovery.state : undefined;
+    const hasRecoveryContext = errorRecovery?.message === error;
+    const recoveryPath = hasRecoveryContext ? errorRecovery.path : undefined;
+    const recoveryState = hasRecoveryContext ? errorRecovery.state : undefined;
     show(
       recoveryPath || isEditorRoute
-        ? withApiSettingsRecovery(error, toast, recoveryPath, recoveryState)
+        ? withApiSettingsRecovery(error, toast, recoveryPath, recoveryState, hasRecoveryContext)
         : toast
     );
     setError(null);

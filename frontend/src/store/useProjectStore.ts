@@ -1082,13 +1082,14 @@ export const useProjectStore = create<ProjectState>((set, get) => {
                 const message = normalizeErrorMessage(
                   task.error_message || task.error || t('store.generateDescFailed')
                 );
+                const synced = await syncTaskProjectIfCurrent();
+                if (!synced) restoreOptimisticPageStatuses();
                 set({
                   taskProgress: null,
                   activeTaskId: null,
                   error: message,
                   errorRecovery: { message, path: recoveryPath, state: recoveryState },
                 });
-                await syncTaskProjectIfCurrent();
               } else if (task.status === 'PENDING' || task.status === 'PROCESSING') {
                 setTimeout(pollAndSync, 2000);
               }
@@ -1099,13 +1100,14 @@ export const useProjectStore = create<ProjectState>((set, get) => {
             if (pollErrors >= 10) {
               console.error('[生成描述] 轮询错误次数过多，停止轮询');
               const message = normalizeErrorMessage(error.message || t('store.generateDescTimeout'));
+              const synced = await syncTaskProjectIfCurrent();
+              if (!synced) restoreOptimisticPageStatuses();
               set({
                 taskProgress: null,
                 activeTaskId: null,
                 error: message,
                 errorRecovery: { message, path: recoveryPath, state: recoveryState },
               });
-              await syncTaskProjectIfCurrent();
               return;
             }
             await syncTaskProjectIfCurrent();

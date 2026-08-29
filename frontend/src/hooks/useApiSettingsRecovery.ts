@@ -91,7 +91,11 @@ export function useApiSettingsRecovery() {
   const { i18n } = useTranslation();
   const isZh = i18n.language?.startsWith('zh') ?? true;
 
-  const openApiSettings = useCallback((fromOverride?: string, fromStateOverride?: unknown) => {
+  const openApiSettings = useCallback((
+    fromOverride?: string,
+    fromStateOverride?: unknown,
+    useFromStateOverride = false,
+  ) => {
     const currentPath = getCurrentRoutePath();
     const from = fromOverride?.startsWith('/') && !fromOverride.startsWith('//')
       ? fromOverride
@@ -99,7 +103,7 @@ export function useApiSettingsRecovery() {
     markOutlineRecoverySuppression(from);
     const state: ApiSettingsRecoveryState = {
       from,
-      fromState: fromStateOverride !== undefined ? fromStateOverride : getCurrentRouteState(),
+      fromState: useFromStateOverride ? fromStateOverride : getCurrentRouteState(),
       openedFrom: currentPath,
       recovery: API_ERROR_RECOVERY,
     };
@@ -111,6 +115,7 @@ export function useApiSettingsRecovery() {
     options: ToastOptions,
     recoveryFrom?: string,
     recoveryState?: unknown,
+    hasRecoveryState = false,
   ): ToastOptions => {
     if (!isApiSettingsError(error) && !isApiSettingsError(options.message)) return options;
 
@@ -118,7 +123,7 @@ export function useApiSettingsRecovery() {
       ...options,
       duration: options.duration ?? 10000,
       actionLabel: isZh ? '检查 API 设置' : 'Check API Settings',
-      onAction: () => openApiSettings(recoveryFrom, recoveryState),
+      onAction: () => openApiSettings(recoveryFrom, recoveryState, hasRecoveryState),
     };
   }, [isZh, openApiSettings]);
 
