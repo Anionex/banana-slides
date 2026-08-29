@@ -55,6 +55,16 @@ describe('normalizeErrorMessage', () => {
     expect(normalizeErrorMessage(raw)).toContain(expected);
   });
 
+  test('localizes the safe generic generation failure', () => {
+    expect(normalizeErrorMessage('Generation failed due to an internal error')).toBe(
+      '生成过程中发生内部错误，请稍后重试。'
+    );
+    localStorage.setItem('i18nextLng', 'en');
+    expect(normalizeErrorMessage('Generation failed due to an internal error')).toBe(
+      'Generation failed due to an internal error. Please try again later.'
+    );
+  });
+
   test('maps MinerU credential failures in the renovation workflow to a concrete recovery step', () => {
     const message = normalizeRenovationErrorMessage(
       'Failed to get upload URL: MinerU API returned 401 Unauthorized: token expired'

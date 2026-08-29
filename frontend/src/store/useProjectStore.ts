@@ -106,6 +106,7 @@ interface ProjectState {
   activeTaskId: string | null;
   taskProgress: { total: number; completed: number } | null;
   error: string | null;
+  errorRecoveryPath: string | null;
   // 每个页面的生成任务ID映射 (pageId -> taskId)
   pageGeneratingTasks: Record<string, string>;
   // 警告消息
@@ -271,6 +272,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
   activeTaskId: null,
   taskProgress: null,
   error: null,
+  errorRecoveryPath: null,
   pageGeneratingTasks: {},
   warningMessage: null,
   isOutlineStreaming: false,
@@ -281,7 +283,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
   // Setters
   setCurrentProject: (project) => set({ currentProject: project }),
   setGlobalLoading: (loading) => set({ isGlobalLoading: loading }),
-  setError: (error) => set({ error }),
+  setError: (error) => set({ error, ...(error === null ? { errorRecoveryPath: null } : {}) }),
 
   // 初始化项目
   initializeProject: async (type, content, templateImage, templateStyle, referenceFileIds, aspectRatio) => {
@@ -918,7 +920,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       }
     } else {
       // 并行模式（原有逻辑）
-      set({ error: null });
+      set({ error: null, errorRecoveryPath: null });
 
       const updatedPages = currentProject.pages.map((page) =>
         page.id ? { ...page, status: 'GENERATING_DESCRIPTION' as const } : page
@@ -939,6 +941,12 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         }
 
         let pollErrors = 0;
+        const recoveryPath = `/project/${projectId}/detail`;
+        const syncTaskProjectIfCurrent = async () => {
+          if (get().currentProject?.id === projectId) {
+            await get().syncProject(projectId);
+          }
+        };
         const pollAndSync = async () => {
           try {
             const taskResponse = await api.getTaskStatus(projectId, taskId);
@@ -949,18 +957,19 @@ export const useProjectStore = create<ProjectState>((set, get) => {
                 set({ taskProgress: task.progress });
               }
 
-              await get().syncProject();
+              await syncTaskProjectIfCurrent();
 
               if (task.status === 'COMPLETED') {
                 set({ taskProgress: null, activeTaskId: null });
-                await get().syncProject();
+                await syncTaskProjectIfCurrent();
               } else if (task.status === 'FAILED') {
                 set({
                   taskProgress: null,
                   activeTaskId: null,
-                  error: normalizeErrorMessage(task.error_message || task.error || t('store.generateDescFailed'))
+                  error: normalizeErrorMessage(task.error_message || task.error || t('store.generateDescFailed')),
+                  errorRecoveryPath: recoveryPath,
                 });
-                await get().syncProject();
+                await syncTaskProjectIfCurrent();
               } else if (task.status === 'PENDING' || task.status === 'PROCESSING') {
                 setTimeout(pollAndSync, 2000);
               }
@@ -973,12 +982,13 @@ export const useProjectStore = create<ProjectState>((set, get) => {
               set({
                 taskProgress: null,
                 activeTaskId: null,
-                error: normalizeErrorMessage(error.message || t('store.generateDescTimeout'))
+                error: normalizeErrorMessage(error.message || t('store.generateDescTimeout')),
+                errorRecoveryPath: recoveryPath,
               });
-              await get().syncProject();
+              await syncTaskProjectIfCurrent();
               return;
             }
-            await get().syncProject();
+            await syncTaskProjectIfCurrent();
             setTimeout(pollAndSync, 2000);
           }
         };

@@ -17,7 +17,7 @@ from conftest import assert_success_response, assert_error_response
     ('429 rate limit exceeded', 'API rate limit exceeded'),
     ('404 model not found for API version', 'Configured AI model is unavailable'),
     ('Connection refused by custom endpoint', 'AI service connection failed; check API base URL'),
-    ('unexpected parser failure', '生成过程中发生内部错误'),
+        ('unexpected parser failure', 'Generation failed due to an internal error'),
 ])
 def test_safe_generation_error_message(raw_error, expected):
     from utils.ai_errors import safe_generation_error_message

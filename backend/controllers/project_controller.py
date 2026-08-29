@@ -22,6 +22,7 @@ from services.ai_service_manager import get_ai_service
 from services.task_manager import (
     task_manager,
     generate_descriptions_task,
+    recover_description_task_failure,
     generate_images_task,
     process_ppt_renovation_task,
     get_image_prompt_field_names,
@@ -800,6 +801,7 @@ def generate_descriptions(project_id):
         "language": "zh"  # output language: zh, en, ja, auto
     }
     """
+    task_id = None
     try:
         project = Project.query.get(project_id)
         
@@ -827,7 +829,14 @@ def generate_descriptions(project_id):
         language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
         detail_level = data.get('detail_level', 'default')
         
-        # Create task
+        # Resolve all request-bound inputs before persisting the async task.
+        ai_service = get_ai_service()
+        reference_files_content = _get_project_reference_files_content(project_id)
+        project_context = ProjectContext(project, reference_files_content)
+        app = current_app._get_current_object()
+
+        # Persist the generating state before submission so a fast worker cannot
+        # be overwritten back to GENERATING_DESCRIPTIONS by this request thread.
         task = Task(
             project_id=project_id,
             task_type='GENERATE_DESCRIPTIONS',
@@ -838,19 +847,10 @@ def generate_descriptions(project_id):
             'completed': 0,
             'failed': 0
         })
-        
+        project.status = 'GENERATING_DESCRIPTIONS'
         db.session.add(task)
         db.session.commit()
-        
-        # Get singleton AI service instance
-        ai_service = get_ai_service()
-        
-        # Get reference files content and create project context
-        reference_files_content = _get_project_reference_files_content(project_id)
-        project_context = ProjectContext(project, reference_files_content)
-        
-        # Get app instance for background task
-        app = current_app._get_current_object()
+        task_id = task.id
         
         # Submit background task
         task_manager.submit_task(
@@ -866,10 +866,6 @@ def generate_descriptions(project_id):
             detail_level
         )
         
-        # Update project status
-        project.status = 'GENERATING_DESCRIPTIONS'
-        db.session.commit()
-        
         return success_response({
             'task_id': task.id,
             'status': 'GENERATING_DESCRIPTIONS',
@@ -878,6 +874,8 @@ def generate_descriptions(project_id):
     
     except Exception as e:
         db.session.rollback()
+        if task_id:
+            recover_description_task_failure(task_id, project_id, e)
         logger.error(f"generate_descriptions failed: {str(e)}", exc_info=True)
         return error_response('SERVER_ERROR', str(e), 500)
 

@@ -1,6 +1,17 @@
 """Safe user-facing classification for AI provider failures."""
 
 
+_SAFE_ERROR_PRIORITY = {
+    'API key is invalid': 0,
+    'API quota or balance is insufficient': 1,
+    'API permission denied': 2,
+    'API rate limit exceeded': 3,
+    'Configured AI model is unavailable': 4,
+    'AI service connection failed; check API base URL': 5,
+    'Generation failed due to an internal error': 6,
+}
+
+
 def safe_generation_error_message(error: Exception) -> str:
     """Return an actionable provider error without exposing provider details."""
     message = str(error).lower()
@@ -36,4 +47,12 @@ def safe_generation_error_message(error: Exception) -> str:
     )):
         return 'AI service connection failed; check API base URL'
 
-    return '生成过程中发生内部错误'
+    return 'Generation failed due to an internal error'
+
+
+def prioritized_generation_error_message(errors) -> str:
+    """Choose the most actionable safe message from a batch of failures."""
+    messages = [safe_generation_error_message(RuntimeError(error)) for error in errors if error]
+    if not messages:
+        return 'Generation failed due to an internal error'
+    return min(messages, key=lambda message: _SAFE_ERROR_PRIORITY.get(message, 99))

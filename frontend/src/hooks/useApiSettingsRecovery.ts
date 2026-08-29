@@ -10,6 +10,7 @@ const RECOVERY_SUPPRESSION_TTL_MS = 30 * 60 * 1000;
 
 export interface ApiSettingsRecoveryState {
   from: string;
+  openedFrom: string;
   recovery: typeof API_ERROR_RECOVERY;
 }
 
@@ -35,11 +36,9 @@ function markOutlineRecoverySuppression(path: string) {
 
 export function consumeOutlineRecoverySuppression(path: string): boolean {
   let suppression = inMemoryOutlineRecoverySuppression;
-  inMemoryOutlineRecoverySuppression = null;
 
   try {
     const raw = sessionStorage.getItem(OUTLINE_RECOVERY_SUPPRESSION_KEY);
-    sessionStorage.removeItem(OUTLINE_RECOVERY_SUPPRESSION_KEY);
     if (raw) {
       suppression = JSON.parse(raw) as OutlineRecoverySuppression;
     }
@@ -47,9 +46,18 @@ export function consumeOutlineRecoverySuppression(path: string): boolean {
     // Fall through to the in-memory marker.
   }
 
-  return suppression?.path === path
-    && typeof suppression.createdAt === 'number'
-    && Date.now() - suppression.createdAt <= RECOVERY_SUPPRESSION_TTL_MS;
+  if (!suppression || typeof suppression.createdAt !== 'number') return false;
+
+  const expired = Date.now() - suppression.createdAt > RECOVERY_SUPPRESSION_TTL_MS;
+  if (!expired && suppression.path !== path) return false;
+
+  inMemoryOutlineRecoverySuppression = null;
+  try {
+    sessionStorage.removeItem(OUTLINE_RECOVERY_SUPPRESSION_KEY);
+  } catch {
+    // The in-memory marker is already cleared.
+  }
+  return !expired;
 }
 
 export function useApiSettingsRecovery() {
@@ -58,24 +66,32 @@ export function useApiSettingsRecovery() {
   const { i18n } = useTranslation();
   const isZh = i18n.language?.startsWith('zh') ?? true;
 
-  const openApiSettings = useCallback(() => {
-    const from = `${location.pathname}${location.search}${location.hash}`;
+  const openApiSettings = useCallback((fromOverride?: string) => {
+    const currentPath = `${location.pathname}${location.search}${location.hash}`;
+    const from = fromOverride?.startsWith('/') && !fromOverride.startsWith('//')
+      ? fromOverride
+      : currentPath;
     markOutlineRecoverySuppression(from);
     const state: ApiSettingsRecoveryState = {
       from,
+      openedFrom: currentPath,
       recovery: API_ERROR_RECOVERY,
     };
     navigate('/settings', { state });
   }, [location.hash, location.pathname, location.search, navigate]);
 
-  const withApiSettingsRecovery = useCallback((error: unknown, options: ToastOptions): ToastOptions => {
+  const withApiSettingsRecovery = useCallback((
+    error: unknown,
+    options: ToastOptions,
+    recoveryFrom?: string,
+  ): ToastOptions => {
     if (!isApiSettingsError(error) && !isApiSettingsError(options.message)) return options;
 
     return {
       ...options,
       duration: options.duration ?? 10000,
       actionLabel: isZh ? '检查 API 设置' : 'Check API Settings',
-      onAction: openApiSettings,
+      onAction: () => openApiSettings(recoveryFrom),
     };
   }, [isZh, openApiSettings]);
 

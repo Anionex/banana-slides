@@ -19,12 +19,54 @@ from sqlalchemy.exc import OperationalError
 from PIL import Image, ImageDraw, ImageFilter
 from models import db, Task, Page, Material, PageImageVersion, Settings, ProjectTemplateAsset, Project
 from utils import get_filtered_pages
-from utils.ai_errors import safe_generation_error_message
+from utils.ai_errors import prioritized_generation_error_message, safe_generation_error_message
 from utils.image_utils import check_image_resolution
 
 logger = logging.getLogger(__name__)
 
 IMAGE_QUALITY_CONTROL_MAX_ATTEMPTS = 3
+
+
+def recover_description_task_failure(task_id: str, project_id: str, error: Exception) -> None:
+    """Best-effort cleanup for failures outside per-page description workers."""
+    try:
+        db.session.rollback()
+    except Exception:
+        logger.exception("Failed to roll back description task session")
+
+    try:
+        pages = Page.query.filter_by(project_id=project_id).all()
+        for page in pages:
+            if page.status == 'GENERATING_DESCRIPTION':
+                page.status = 'DESCRIPTION_GENERATED' if page.description_content else 'DRAFT'
+
+        completed = sum(1 for page in pages if page.description_content)
+        task = db.session.get(Task, task_id)
+        if task:
+            task.status = 'FAILED'
+            task.error_message = safe_generation_error_message(error)
+            task.completed_at = datetime.utcnow()
+            task.set_progress({
+                'total': len(pages),
+                'completed': completed,
+                'failed': max(0, len(pages) - completed),
+            })
+
+        project = db.session.get(Project, project_id)
+        if project:
+            project.status = 'DESCRIPTIONS_GENERATED' if completed else 'OUTLINE_GENERATED'
+
+        db.session.commit()
+    except Exception:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        logger.exception(
+            "Failed to recover description task %s for project %s",
+            task_id,
+            project_id,
+        )
 
 
 class ImageQualityControlError(ValueError):
@@ -610,7 +652,7 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
             # Generate descriptions in parallel
             completed = 0
             failed = 0
-            first_error = None
+            generation_errors = []
             
             def generate_single_desc(page_id, page_outline, page_index):
                 """
@@ -668,8 +710,7 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                         if error:
                             page.status = 'FAILED'
                             failed += 1
-                            if first_error is None:
-                                first_error = error
+                            generation_errors.append(error)
                         else:
                             page.set_description_content(desc_content)
                             page.status = 'DESCRIPTION_GENERATED'
@@ -689,8 +730,8 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
             if task:
                 task.status = 'FAILED' if failed else 'COMPLETED'
                 task.error_message = (
-                    safe_generation_error_message(RuntimeError(first_error))
-                    if first_error else None
+                    prioritized_generation_error_message(generation_errors)
+                    if generation_errors else None
                 )
                 task.completed_at = datetime.utcnow()
                 db.session.commit()
@@ -711,13 +752,7 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
         
         except Exception as e:
             logger.error(f"Description task {task_id} failed: {e}", exc_info=True)
-            # Mark task as failed
-            task = Task.query.get(task_id)
-            if task:
-                task.status = 'FAILED'
-                task.error_message = safe_generation_error_message(e)
-                task.completed_at = datetime.utcnow()
-                db.session.commit()
+            recover_description_task_failure(task_id, project_id, e)
 
 
 def generate_images_task(task_id: str, project_id: str, ai_service, file_service,

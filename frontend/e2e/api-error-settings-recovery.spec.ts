@@ -190,8 +190,9 @@ test.describe('API error settings recovery', () => {
     await expect(page.getByRole('button', { name: '检查 API 设置' })).toHaveCount(0)
   })
 
-  test('mock: parallel description task failure offers API settings recovery', async ({ page }) => {
+  test('mock: background parallel failure returns to the task project after switching projects', async ({ page }) => {
     const projectId = 'mock-parallel-description-error'
+    const otherProjectId = 'mock-parallel-current-project'
     const pageId = 'mock-parallel-page'
     const taskId = 'mock-parallel-task'
     const project = {
@@ -205,6 +206,17 @@ test.describe('API error settings recovery', () => {
         order_index: 0,
         outline_content: { title: '并行描述页', points: ['要点'] },
         status: 'DRAFT',
+      }],
+    }
+    const otherProject = {
+      ...project,
+      id: otherProjectId,
+      project_id: otherProjectId,
+      pages: [{
+        ...project.pages[0],
+        id: 'mock-parallel-current-page',
+        page_id: 'mock-parallel-current-page',
+        outline_content: { title: '当前查看的另一个项目', points: ['不要绑定到这里'] },
       }],
     }
 
@@ -224,6 +236,14 @@ test.describe('API error settings recovery', () => {
             status: 200,
             contentType: 'application/json',
             body: JSON.stringify({ success: true, data: project }),
+          })
+        }
+
+        if (url.pathname === `/api/projects/${otherProjectId}` && request.method() === 'GET') {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ success: true, data: otherProject }),
           })
         }
 
@@ -277,10 +297,27 @@ test.describe('API error settings recovery', () => {
     await page.goto(`/project/${projectId}/detail`)
     await page.getByRole('button', { name: '批量生成描述' }).click()
 
+    await page.evaluate((url) => {
+      const currentState = window.history.state || {}
+      window.history.pushState(
+        {
+          ...currentState,
+          idx: (currentState.idx ?? 0) + 1,
+          key: 'parallel-error-other-project',
+        },
+        '',
+        url
+      )
+      window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }))
+    }, `/project/${otherProjectId}/detail`)
+    await expect(page).toHaveURL(new RegExp(`/project/${otherProjectId}/detail$`))
+
     const settingsAction = page.getByRole('button', { name: '检查 API 设置' })
     await expect(settingsAction).toBeVisible({ timeout: 5000 })
     await settingsAction.click()
     await expect(page).toHaveURL(/\/settings$/)
+    await page.getByRole('button', { name: '返回编辑器' }).click()
+    await expect(page).toHaveURL(new RegExp(`/project/${projectId}/detail$`))
   })
 
   test('integration: description quota error saves real settings and returns to the same project', async ({ page }) => {

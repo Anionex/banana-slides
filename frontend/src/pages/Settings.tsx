@@ -2595,6 +2595,7 @@ export const SettingsPage: React.FC = () => {
   const [showTop, setShowTop] = useState(false);
   const navigationState = location.state as {
     from?: unknown;
+    openedFrom?: unknown;
     recovery?: unknown;
   } | null;
   const recoveryFrom = navigationState?.recovery === API_ERROR_RECOVERY
@@ -2603,6 +2604,12 @@ export const SettingsPage: React.FC = () => {
     && !navigationState.from.startsWith('//')
     ? navigationState.from
     : null;
+  const recoveryOpenedFrom = navigationState?.recovery === API_ERROR_RECOVERY
+    && typeof navigationState.openedFrom === 'string'
+    && navigationState.openedFrom.startsWith('/')
+    && !navigationState.openedFrom.startsWith('//')
+    ? navigationState.openedFrom
+    : null;
   const hasInAppBackHistory = typeof window !== 'undefined' && typeof window.history.state?.idx === 'number'
     ? window.history.state.idx > 0
     : false;
@@ -2610,7 +2617,7 @@ export const SettingsPage: React.FC = () => {
 
   const returnFromRecovery = () => {
     if (!recoveryFrom) return;
-    if (hasInAppBackHistory) {
+    if (hasInAppBackHistory && recoveryOpenedFrom === recoveryFrom) {
       navigate(-1);
       return;
     }

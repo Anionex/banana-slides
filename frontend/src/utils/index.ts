@@ -171,6 +171,8 @@ export function normalizeErrorMessage(
     return isZh ? '当前 AI 模型不可用，请检查 API 设置中的模型名称。' : 'The configured AI model is unavailable. Check the model name in API settings.';
   } else if (message.includes('ai service connection failed; check api base url')) {
     return isZh ? '无法连接 AI 服务，请检查 API 地址或稍后重试。' : 'Could not connect to the AI service. Check the API base URL or retry later.';
+  } else if (message.includes('generation failed due to an internal error')) {
+    return isZh ? '生成过程中发生内部错误，请稍后重试。' : 'Generation failed due to an internal error. Please try again later.';
   } else if (message.includes('access code required') || message.includes('invalid access code')) {
     return isZh ? '访问口令已失效，请刷新页面后重新验证。' : 'The access code is no longer valid. Refresh the page and verify it again.';
   } else if (message.includes('no template image found')) {
