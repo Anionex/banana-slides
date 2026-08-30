@@ -22,7 +22,7 @@
   <a href="https://github.com/Anionex/banana-slides/stargazers"><img src="https://img.shields.io/github/stars/Anionex/banana-slides?style=flat-square&color=FFD700" alt="GitHub Stars"></a>
   <a href="https://github.com/Anionex/banana-slides/network"><img src="https://img.shields.io/github/forks/Anionex/banana-slides?style=flat-square&color=FFD700" alt="GitHub Forks"></a>
   <a href="https://github.com/Anionex/banana-slides/watchers"><img src="https://img.shields.io/github/watchers/Anionex/banana-slides?style=flat-square&color=FFD700" alt="GitHub Watchers"></a>
-  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.5"><img src="https://img.shields.io/badge/version-v0.9.0--rc.5-44cc11?style=flat-square" alt="Version"></a>
+  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.6"><img src="https://img.shields.io/badge/version-v0.9.0--rc.6-44cc11?style=flat-square" alt="Version"></a>
   <a href="https://github.com/Anionex/banana-slides/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Anionex/banana-slides?color=0055aa&style=flat-square" alt="License"></a>
   <br>
   <img src="https://img.shields.io/badge/Docker-Build-4A90D9?logo=docker&logoColor=white&style=flat-square" alt="Docker Build">
@@ -38,7 +38,7 @@
   &nbsp;|&nbsp;
   <a href="https://docs.bananaslides.online/"><b>📖 Documentation</b></a>
   &nbsp;|&nbsp;
-  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.5"><b>💻 Desktop RC5</b></a>
+  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.6"><b>💻 Desktop RC6</b></a>
   &nbsp;|&nbsp;
  <a href="https://github.com/Anionex/banana-slides#-%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95"><b>Deployment Guide</b></a>
 </p>
@@ -74,6 +74,7 @@
 
 ## 🔥 Latest Updates
 
+- **[2026-08-30]**: 0.9.0 Release Candidate 6 released with configurable desktop startup update checks, update cards containing release summaries and full changelog links, download progress, retry support, and restart-to-install flows. It also fixes APIMart OpenAI-compatible asynchronous image tasks, non-streaming requests, and 1K/2K/4K resolution forwarding. [View download and installation instructions](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.6)
 - **[2026-08-29]**: 0.9.0 Release Candidate 5 released, featuring a new immersive online slide player and APIMart OpenAI-compatible Provider presets. Desktop version update checks now correctly follow the RC channel. Improved MinerU credential error prompts for PPT transformation, fixed SSRF risks for remote images in reference documents, and set image editing to default to marquee selection mode. [View download and installation instructions](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.5)
 - **[2026-08-20]**: 0.9.0 Release Candidate 4 released, focusing on fixing unavailable LazyLLM online providers (such as qwen) and missing SOCKS proxy dependencies in the desktop packaged version. Restored the "Previous" button on the preview page to return to the description editing page, fixed export task popup occlusion, and improved desktop attribute drawer interaction. [One-click download and install](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.4)
 - **[2026-08-20]**: Restored the "Previous" button on the preview page, allowing one-click return from slide preview to the description editing page for further modifications.
