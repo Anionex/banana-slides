@@ -277,6 +277,13 @@ OPENAI_API_BASE=https://api.openai.com/v1
 
 # Proxy Example: https://api.inferera.com/v1
 
+# SenseNova U1 image models (keep the legacy provider; use the OpenAI-compatible path)
+# Recommended: keep Gemini for text and route only image generation through SenseNova
+# IMAGE_MODEL_SOURCE=openai
+# IMAGE_API_KEY=your-sensenova-api-key
+# IMAGE_API_BASE=https://token.sensenova.cn/v1
+# IMAGE_MODEL=sensenova-u1.5-lite
+
 # Volcengine Ark Agent Plans Configuration (Used when AI_PROVIDER_FORMAT=volcengine)
 
 # Note: Agent Plan requires a dedicated API Key and model names (doubao-seed-2.1-turbo / doubao-seedream-5.0-lite)
@@ -310,7 +317,8 @@ DEEPSEEK_API_KEY=your-deepseek-api-key        # DeepSeek
 QWEN_API_KEY=your-qwen-api-key                # Alibaba Cloud / Qwen
 GLM_API_KEY=your-glm-api-key                  # Zhipu GLM
 SILICONFLOW_API_KEY=your-siliconflow-api-key  # SiliconFlow
-SENSENOVA_API_KEY=your-sensenova-api-key      # SenseNova (SenseTime)
+SENSENOVA_API_KEY=your-sensenova-api-key      # SenseNova (SenseTime) — legacy LazyLLM key;
+# prefer the IMAGE_MODEL_SOURCE=openai configuration above for U1 image models
 MINIMAX_API_KEY=your-minimax-api-key          # MiniMax
 KIMI_API_KEY=your-kimi-api-key                # Moonshot AI / Kimi
 PPIO_API_KEY=your-ppio-api-key                # PPIO Cloud
