@@ -743,11 +743,16 @@ function toUpdateResultView(info: UpdateCheckInfo): UpdateResultView {
 
 function toDesktopUpdateResultView(info: DesktopUpdateCheckResult): UpdateResultView {
   if (
-    (info.status === 'update_available' || info.status === 'downloading' || info.status === 'update_downloaded')
+    (
+      info.status === 'update_available'
+      || info.status === 'downloading'
+      || info.status === 'update_downloaded'
+      || info.status === 'error'
+    )
     && info.update
   ) {
     return {
-      status: info.status,
+      status: info.status === 'error' ? 'update_available' : info.status,
       updateAvailable: true,
       version: info.update.version,
       downloadUrl: info.update.url,

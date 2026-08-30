@@ -129,7 +129,7 @@ test('keeps manual update actions available while automatic updates are disabled
 
   const downloaded = await manager.downloadUpdate();
   assert.equal(downloaded.status, 'update_downloaded');
-  assert.equal(manager.shouldInstallOnQuit(), false);
+  assert.equal(manager.shouldInstallOnQuit(), true);
   assert.equal(manager.quitAndInstall(), true);
   assert.equal(updater.quitAndInstallCalls, 1);
 });

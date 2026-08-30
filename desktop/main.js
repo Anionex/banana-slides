@@ -288,22 +288,26 @@ async function installDownloadedUpdate() {
   return { success: started };
 }
 
+async function showDownloadedUpdateDialog(checkResult) {
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: 'info',
+    title: '更新已就绪',
+    message: `新版本 v${checkResult.update.version} 已下载完成`,
+    detail: '重启 Banana Slides 即可完成更新。',
+    buttons: ['重启并更新', '稍后重启'],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (result.response === 0) {
+    await installDownloadedUpdate();
+  }
+}
+
 async function showManualUpdateDialog() {
   try {
     const checkResult = await desktopAutoUpdater.checkForUpdates();
     if (checkResult.status === 'update_downloaded') {
-      const result = await dialog.showMessageBox(mainWindow, {
-        type: 'info',
-        title: '更新已就绪',
-        message: `新版本 v${checkResult.update.version} 已下载完成`,
-        detail: '重启 Banana Slides 即可完成更新。',
-        buttons: ['重启并更新', '稍后'],
-        defaultId: 0,
-        cancelId: 1,
-      });
-      if (result.response === 0) {
-        await installDownloadedUpdate();
-      }
+      await showDownloadedUpdateDialog(checkResult);
       return;
     }
 
@@ -321,7 +325,10 @@ async function showManualUpdateDialog() {
       });
       if (result.response === 0) {
         if (checkResult.canAutoUpdate) {
-          await desktopAutoUpdater.downloadUpdate();
+          const downloadedState = await desktopAutoUpdater.downloadUpdate();
+          if (downloadedState.status === 'update_downloaded') {
+            await showDownloadedUpdateDialog(downloadedState);
+          }
         } else {
           await shell.openExternal(checkResult.update.url);
         }

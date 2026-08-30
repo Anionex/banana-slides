@@ -200,6 +200,39 @@ describe('SettingsAbout desktop update checks', () => {
     expect(openExternal).not.toHaveBeenCalled();
   });
 
+  it('keeps the update action available after a download failure', async () => {
+    const updateState = {
+      status: 'update_available',
+      currentVersion: '0.9.0-rc.3',
+      latestVersion: '0.9.0-rc.4',
+      canAutoUpdate: true,
+      checkSource: 'manual',
+      update: {
+        version: '0.9.0-rc.4',
+        notes: 'Release candidate fixes',
+        url: 'https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.4',
+      },
+    };
+    let updateListener: ((state: typeof updateState & { error?: string }) => void) | undefined;
+    onUpdateStatus.mockImplementation((listener) => {
+      updateListener = listener;
+      return () => undefined;
+    });
+    checkForUpdates.mockResolvedValueOnce(updateState);
+    downloadUpdate.mockImplementationOnce(async () => {
+      updateListener?.({ ...updateState, status: 'error', error: 'network unavailable' });
+      throw new Error('network unavailable');
+    });
+
+    render(<SettingsAbout t={t} />);
+    await userEvent.click(screen.getByRole('button', { name: /检查更新/ }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: '立即更新' }));
+
+    expect(within(dialog).getByText('检查更新失败: network unavailable')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: '立即更新' })).toBeInTheDocument();
+  });
+
   it('shows network failures instead of claiming the app is current', async () => {
     checkForUpdates.mockRejectedValueOnce(new Error('GitHub API request timed out'));
 

@@ -514,7 +514,7 @@ class DesktopAutoUpdateManager {
   }
 
   shouldInstallOnQuit() {
-    return this.canAutoUpdate && this.settings.automaticUpdatesEnabled && this.isUpdateDownloaded();
+    return this.canAutoUpdate && this.isUpdateDownloaded();
   }
 
   quitAndInstall() {
