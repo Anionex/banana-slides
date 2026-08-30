@@ -1,12 +1,30 @@
 import { useEffect, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { Download, RefreshCw, X } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { DESKTOP_TITLEBAR_HEIGHT, DESKTOP_UPDATE_BANNER_HEIGHT, isDesktop } from '@/utils';
-import type { DesktopUpdateInfo, DesktopUpdateCheckResult } from '@/types/desktopUpdate';
+import type { DesktopUpdateCheckResult, DesktopUpdateElectronApi } from '@/types/desktopUpdate';
 
 const updateI18n = {
-  zh: { newVersion: '新版本', available: '可用', download: '前往下载' },
-  en: { newVersion: 'New version', available: 'available', download: 'Download' },
+  zh: {
+    newVersion: '新版本',
+    available: '可用',
+    download: '下载更新',
+    downloading: '正在下载',
+    ready: '更新已就绪',
+    restart: '重启并更新',
+    fallbackDownload: '前往下载',
+    failed: '更新失败，请重试',
+  },
+  en: {
+    newVersion: 'New version',
+    available: 'available',
+    download: 'Download update',
+    downloading: 'Downloading',
+    ready: 'Update ready',
+    restart: 'Restart to update',
+    fallbackDownload: 'Open download page',
+    failed: 'Update failed. Try again.',
+  },
 };
 
 interface UpdateCheckerProps {
@@ -14,11 +32,17 @@ interface UpdateCheckerProps {
 }
 
 export function UpdateChecker({ onVisibilityChange }: UpdateCheckerProps) {
-  const [update, setUpdate] = useState<DesktopUpdateInfo | null>(null);
+  const [updateState, setUpdateState] = useState<DesktopUpdateCheckResult | null>(null);
   const [dismissed, setDismissed] = useState(false);
+  const [actionPending, setActionPending] = useState(false);
+  const [actionError, setActionError] = useState('');
   const onVisibilityChangeRef = useRef(onVisibilityChange);
   const t = useT(updateI18n);
-  const isVisible = isDesktop && !!update && !dismissed;
+  const update = updateState?.update;
+  const isActionable = updateState?.status === 'update_available'
+    || updateState?.status === 'downloading'
+    || updateState?.status === 'update_downloaded';
+  const isVisible = isDesktop && !!update && isActionable && !dismissed;
 
   useEffect(() => {
     onVisibilityChangeRef.current = onVisibilityChange;
@@ -26,24 +50,78 @@ export function UpdateChecker({ onVisibilityChange }: UpdateCheckerProps) {
 
   useEffect(() => {
     if (!isDesktop) return;
+    const electronApi = (window as typeof window & { electronAPI?: DesktopUpdateElectronApi }).electronAPI;
+    if (!electronApi) return;
+    let disposed = false;
+    const applyState = (state: DesktopUpdateCheckResult) => {
+      if (!disposed) setUpdateState(state);
+    };
+    const unsubscribe = electronApi.onUpdateStatus?.(applyState);
 
-    const timer = setTimeout(async () => {
-      try {
-        const result = await (window as any).electronAPI.checkForUpdates() as DesktopUpdateCheckResult;
-        if (result.update) setUpdate(result.update);
-      } catch {
-        // silently ignore update check failures
-      }
-    }, 5000);
+    if (electronApi.getUpdateState) {
+      electronApi.getUpdateState().then(applyState).catch(() => undefined);
+    } else {
+      const timer = window.setTimeout(() => {
+        electronApi.checkForUpdates().then(applyState).catch(() => undefined);
+      }, 5000);
+      return () => {
+        disposed = true;
+        window.clearTimeout(timer);
+        unsubscribe?.();
+      };
+    }
 
-    return () => clearTimeout(timer);
+    return () => {
+      disposed = true;
+      unsubscribe?.();
+    };
   }, []);
+
+  useEffect(() => {
+    setDismissed(false);
+  }, [updateState?.status, update?.version]);
 
   useEffect(() => {
     onVisibilityChangeRef.current?.(isVisible);
   }, [isVisible]);
 
   if (!isVisible || !update || dismissed) return null;
+
+  const electronApi = (window as typeof window & { electronAPI?: DesktopUpdateElectronApi }).electronAPI;
+  const isDownloading = updateState?.status === 'downloading';
+  const isDownloaded = updateState?.status === 'update_downloaded';
+  const progress = Math.max(0, Math.min(100, updateState?.progress?.percent || 0));
+  const label = isDownloaded
+    ? `${t('ready')}: v${update.version}`
+    : isDownloading
+      ? `${t('downloading')} v${update.version} · ${Math.round(progress)}%`
+      : `${t('newVersion')} v${update.version} ${t('available')}`;
+
+  const handlePrimaryAction = async () => {
+    if (!electronApi || actionPending || isDownloading) return;
+    setActionPending(true);
+    setActionError('');
+    try {
+      if (isDownloaded && electronApi.installUpdate) {
+        const result = await electronApi.installUpdate();
+        if (!result.success) throw new Error(result.error || 'UPDATE_INSTALL_FAILED');
+      } else if (updateState?.canAutoUpdate && electronApi.downloadUpdate) {
+        setUpdateState(await electronApi.downloadUpdate());
+      } else {
+        await electronApi.openExternal(update.url);
+      }
+    } catch {
+      setActionError(t('failed'));
+    } finally {
+      setActionPending(false);
+    }
+  };
+
+  const actionLabel = isDownloaded
+    ? t('restart')
+    : updateState?.canAutoUpdate
+      ? t('download')
+      : t('fallbackDownload');
 
   return (
     <div
@@ -57,17 +135,23 @@ export function UpdateChecker({ onVisibilityChange }: UpdateCheckerProps) {
     >
       <div className="flex items-center gap-3 text-sm text-amber-900">
         <span className="font-medium">
-          {t('newVersion')} v{update.version} {t('available')}
+          {label}
         </span>
-        <button
-          onClick={() => (window as any).electronAPI.openExternal(update.url)}
-          className="px-3 py-1 rounded-full text-xs font-medium bg-amber-600 text-white hover:bg-amber-700 transition-colors"
-          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-        >
-          {t('download')}
-        </button>
+        {actionError && <span className="text-xs font-medium text-red-700">{actionError}</span>}
+        {!isDownloading && (
+          <button
+            onClick={handlePrimaryAction}
+            disabled={actionPending}
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-amber-600 text-white hover:bg-amber-700 disabled:cursor-wait disabled:opacity-70 transition-colors"
+            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+          >
+            {actionPending ? <RefreshCw size={12} className="animate-spin" /> : <Download size={12} />}
+            {actionLabel}
+          </button>
+        )}
         <button
           onClick={() => setDismissed(true)}
+          aria-label="Dismiss update notification"
           className="p-1 rounded-full hover:bg-amber-200/50 transition-colors"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >

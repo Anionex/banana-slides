@@ -7,7 +7,11 @@ import { appVersion } from '@/utils/appVersion';
 import { isDesktop } from '@/utils';
 import { startOpenAIOAuthMonitor } from '@/utils/openaiOAuthMonitor';
 import { DataStorageSettings } from '@/components/settings/DataStorageSettings';
-import type { DesktopUpdateCheckResult } from '@/types/desktopUpdate';
+import type {
+  DesktopAutoUpdateSettings,
+  DesktopUpdateCheckResult,
+  DesktopUpdateElectronApi,
+} from '@/types/desktopUpdate';
 
 // 组件内翻译
 const settingsI18n = {
@@ -31,14 +35,23 @@ const settingsI18n = {
       about: {
         version: "当前版本",
         source: "GitHub 项目",
+        automaticUpdates: "自动更新",
+        automaticUpdatesDesc: "启动后自动检查并下载新版本，退出应用时完成安装。",
+        automaticUpdateChecks: "自动检查更新",
+        automaticUpdateChecksDesc: "自动提醒新版本；当前安装包不支持应用内安装，需要手动下载。",
+        automaticUpdatesSaveFailed: "自动更新设置保存失败",
         checkUpdate: "检查更新",
         checking: "检查中...",
         upToDate: "您当前已是最新版本",
         updateAvailable: "有版本更新：{{version}}",
+        updateDownloading: "正在下载版本 {{version}}（{{progress}}%）",
+        updateReady: "版本 {{version}} 已下载，重启后完成更新",
         unknown: "无法判断当前是否为最新版本",
         failed: "检查更新失败",
         resultTitle: "检查更新结果",
-        download: "前往下载",
+        download: "下载更新",
+        fallbackDownload: "前往下载",
+        restart: "重启并更新",
         close: "关闭",
       },
       openaiOAuth: {
@@ -264,14 +277,23 @@ const settingsI18n = {
       about: {
         version: "Current Version",
         source: "GitHub Project",
+        automaticUpdates: "Automatic updates",
+        automaticUpdatesDesc: "Check for and download new versions after launch, then install when the app exits.",
+        automaticUpdateChecks: "Automatic update checks",
+        automaticUpdateChecksDesc: "Notify you about new versions automatically. This build still requires a manual download.",
+        automaticUpdatesSaveFailed: "Failed to save the automatic update setting",
         checkUpdate: "Check for Updates",
         checking: "Checking...",
         upToDate: "You're currently on the latest version",
         updateAvailable: "Version update available: {{version}}",
+        updateDownloading: "Downloading version {{version}} ({{progress}}%)",
+        updateReady: "Version {{version}} is ready and will finish updating after restart",
         unknown: "Unable to determine whether this is the latest version",
         failed: "Failed to check for updates",
         resultTitle: "Update Check Result",
-        download: "Download",
+        download: "Download update",
+        fallbackDownload: "Open download page",
+        restart: "Restart to update",
         close: "Close",
       },
       openaiOAuth: {
@@ -688,10 +710,12 @@ const GlobalVendorKeyInput: React.FC<{
 type SettingsTranslator = ReturnType<typeof useT>;
 
 interface UpdateResultView {
-  status: 'up_to_date' | 'update_available' | 'unknown';
+  status: 'up_to_date' | 'update_available' | 'downloading' | 'update_downloaded' | 'unknown';
   updateAvailable: boolean;
   version: string;
   downloadUrl?: string;
+  canAutoUpdate?: boolean;
+  progress?: number;
 }
 
 function getLatestVersion(info: UpdateCheckInfo): string {
@@ -711,12 +735,25 @@ function toUpdateResultView(info: UpdateCheckInfo): UpdateResultView {
 }
 
 function toDesktopUpdateResultView(info: DesktopUpdateCheckResult): UpdateResultView {
-  if (info.status === 'update_available' && info.update) {
+  if (
+    (info.status === 'update_available' || info.status === 'downloading' || info.status === 'update_downloaded')
+    && info.update
+  ) {
     return {
-      status: 'update_available',
+      status: info.status,
       updateAvailable: true,
       version: info.update.version,
       downloadUrl: info.update.url,
+      canAutoUpdate: info.canAutoUpdate,
+      progress: info.progress?.percent,
+    };
+  }
+
+  if (info.status !== 'up_to_date') {
+    return {
+      status: 'unknown',
+      updateAvailable: false,
+      version: info.latestVersion,
     };
   }
 
@@ -730,21 +767,86 @@ function toDesktopUpdateResultView(info: DesktopUpdateCheckResult): UpdateResult
 function formatUpdateMessage(t: SettingsTranslator, info: UpdateResultView): string {
   if (info.status === 'up_to_date') return t('settings.about.upToDate');
   if (info.status === 'update_available') return t('settings.about.updateAvailable', { version: info.version });
+  if (info.status === 'downloading') {
+    return t('settings.about.updateDownloading', {
+      version: info.version,
+      progress: String(Math.round(info.progress || 0)),
+    });
+  }
+  if (info.status === 'update_downloaded') return t('settings.about.updateReady', { version: info.version });
   return t('settings.about.unknown');
 }
 
 export const SettingsAbout: React.FC<{ t: SettingsTranslator }> = ({ t }) => {
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateActionPending, setUpdateActionPending] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<UpdateResultView | null>(null);
   const [updateError, setUpdateError] = useState('');
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
+  const [automaticUpdatesEnabled, setAutomaticUpdatesEnabled] = useState(true);
+  const [automaticUpdatesSupported, setAutomaticUpdatesSupported] = useState(true);
+  const [automaticUpdatesLoading, setAutomaticUpdatesLoading] = useState(isDesktop);
+  const [automaticUpdatesSaving, setAutomaticUpdatesSaving] = useState(false);
+  const [automaticUpdatesError, setAutomaticUpdatesError] = useState('');
+
+  const desktopUpdateApi = isDesktop
+    ? (window as typeof window & { electronAPI?: DesktopUpdateElectronApi }).electronAPI
+    : undefined;
+
+  useEffect(() => {
+    if (!desktopUpdateApi) return;
+    let disposed = false;
+    const applySettings = (settings: DesktopAutoUpdateSettings) => {
+      if (!disposed) {
+        setAutomaticUpdatesEnabled(settings.automaticUpdatesEnabled);
+        setAutomaticUpdatesSupported(settings.canAutoUpdate !== false);
+      }
+    };
+    const applyUpdateState = (state: DesktopUpdateCheckResult) => {
+      if (!disposed && state.update) setUpdateInfo(toDesktopUpdateResultView(state));
+    };
+    const unsubscribe = desktopUpdateApi.onUpdateStatus?.(applyUpdateState);
+
+    if (desktopUpdateApi.getAutoUpdateSettings) {
+      desktopUpdateApi.getAutoUpdateSettings()
+        .then(applySettings)
+        .catch((error) => {
+          if (!disposed) setAutomaticUpdatesError(error?.message || t('settings.about.automaticUpdatesSaveFailed'));
+        })
+        .finally(() => {
+          if (!disposed) setAutomaticUpdatesLoading(false);
+        });
+    } else {
+      setAutomaticUpdatesLoading(false);
+    }
+
+    return () => {
+      disposed = true;
+      unsubscribe?.();
+    };
+  }, [desktopUpdateApi, t]);
+
+  const handleAutomaticUpdatesChange = async () => {
+    if (!desktopUpdateApi?.setAutomaticUpdatesEnabled || automaticUpdatesSaving) return;
+    const nextEnabled = !automaticUpdatesEnabled;
+    setAutomaticUpdatesSaving(true);
+    setAutomaticUpdatesError('');
+    try {
+      const settings = await desktopUpdateApi.setAutomaticUpdatesEnabled(nextEnabled);
+      setAutomaticUpdatesEnabled(settings.automaticUpdatesEnabled);
+    } catch (error: any) {
+      setAutomaticUpdatesError(error?.message || t('settings.about.automaticUpdatesSaveFailed'));
+    } finally {
+      setAutomaticUpdatesSaving(false);
+    }
+  };
 
   const handleCheckUpdate = async () => {
     setCheckingUpdate(true);
     setUpdateError('');
     try {
       if (isDesktop) {
-        const response = await (window as any).electronAPI.checkForUpdates() as DesktopUpdateCheckResult;
+        const response = await desktopUpdateApi!.checkForUpdates();
         setUpdateInfo(toDesktopUpdateResultView(response));
       } else {
         const response = await api.checkForUpdates();
@@ -760,6 +862,27 @@ export const SettingsAbout: React.FC<{ t: SettingsTranslator }> = ({ t }) => {
     }
   };
 
+  const handleDesktopUpdateAction = async () => {
+    if (!desktopUpdateApi || !updateInfo || updateActionPending) return;
+    setUpdateActionPending(true);
+    setUpdateError('');
+    try {
+      if (updateInfo.status === 'update_downloaded' && desktopUpdateApi.installUpdate) {
+        const result = await desktopUpdateApi.installUpdate();
+        if (!result.success) throw new Error(result.error || 'UPDATE_INSTALL_FAILED');
+      } else if (updateInfo.canAutoUpdate && desktopUpdateApi.downloadUpdate) {
+        const response = await desktopUpdateApi.downloadUpdate();
+        setUpdateInfo(toDesktopUpdateResultView(response));
+      } else if (updateInfo.downloadUrl) {
+        await desktopUpdateApi.openExternal(updateInfo.downloadUrl);
+      }
+    } catch (error: any) {
+      setUpdateError(error?.message || t('settings.about.failed'));
+    } finally {
+      setUpdateActionPending(false);
+    }
+  };
+
   const showSuccessCheck = updateInfo?.status === 'up_to_date';
 
   return (
@@ -769,6 +892,46 @@ export const SettingsAbout: React.FC<{ t: SettingsTranslator }> = ({ t }) => {
           <Info size={20} />
           <span className="ml-2">{t('settings.sections.about')}</span>
         </h2>
+        {isDesktop && (
+          <div className="mb-4 flex items-center justify-between gap-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-border-primary dark:bg-background-secondary">
+            <div className="min-w-0">
+              <div className="font-medium text-gray-900 dark:text-foreground-primary">
+                {automaticUpdatesSupported
+                  ? t('settings.about.automaticUpdates')
+                  : t('settings.about.automaticUpdateChecks')}
+              </div>
+              <p className="mt-0.5 text-sm text-gray-500 dark:text-foreground-tertiary">
+                {automaticUpdatesSupported
+                  ? t('settings.about.automaticUpdatesDesc')
+                  : t('settings.about.automaticUpdateChecksDesc')}
+              </p>
+              {automaticUpdatesError && (
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                  {t('settings.about.automaticUpdatesSaveFailed')}: {automaticUpdatesError}
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={automaticUpdatesEnabled}
+              aria-label={automaticUpdatesSupported
+                ? t('settings.about.automaticUpdates')
+                : t('settings.about.automaticUpdateChecks')}
+              disabled={automaticUpdatesLoading || automaticUpdatesSaving || !desktopUpdateApi?.setAutomaticUpdatesEnabled}
+              onClick={handleAutomaticUpdatesChange}
+              className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-banana-500 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-50 ${
+                automaticUpdatesEnabled ? 'bg-banana-500' : 'bg-gray-300 dark:bg-gray-600'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 translate-y-0.5 rounded-full bg-white shadow transition-transform ${
+                  automaticUpdatesEnabled ? 'translate-x-[22px]' : 'translate-x-0.5'
+                }`}
+              />
+            </button>
+          </div>
+        )}
         <div className="flex flex-col gap-3 text-sm text-gray-600 dark:text-foreground-tertiary sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1">
             <div title={appVersion.detail} aria-label={`${t('settings.about.version')} ${appVersion.detail}`}>
@@ -841,12 +1004,17 @@ export const SettingsAbout: React.FC<{ t: SettingsTranslator }> = ({ t }) => {
             </p>
           )}
           <div className="flex justify-end gap-2">
-            {updateInfo?.downloadUrl && (
+            {isDesktop && updateInfo?.updateAvailable && updateInfo.status !== 'downloading' && (
               <Button
                 size="sm"
-                onClick={() => (window as any).electronAPI.openExternal(updateInfo.downloadUrl)}
+                onClick={handleDesktopUpdateAction}
+                loading={updateActionPending}
               >
-                {t('settings.about.download')}
+                {updateInfo.status === 'update_downloaded'
+                  ? t('settings.about.restart')
+                  : updateInfo.canAutoUpdate
+                    ? t('settings.about.download')
+                    : t('settings.about.fallbackDownload')}
               </Button>
             )}
             <Button variant="secondary" size="sm" onClick={() => setUpdateDialogOpen(false)}>
