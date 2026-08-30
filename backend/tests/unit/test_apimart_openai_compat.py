@@ -296,6 +296,45 @@ def test_apimart_async_image_generate_with_references_polls_until_completed():
     client.images.with_raw_response.edit.assert_not_called()
 
 
+@pytest.mark.parametrize(
+    ("model", "expected_size"),
+    [("dall-e-2", "1024x1024"), ("dall-e-3", "1792x1024")],
+)
+def test_apimart_dalle_keeps_concrete_model_size(model, expected_size):
+    client = MagicMock()
+    client.images.with_raw_response.generate.return_value = _raw_response(
+        {"data": [{"url": _png_data_url(Image.new("RGB", (8, 8), color="green"))}]}
+    )
+    provider = _image_provider(client, model=model)
+
+    result = provider.generate_image(
+        "a cat",
+        aspect_ratio="16:9",
+        resolution="2K",
+    )
+
+    assert isinstance(result, Image.Image)
+    request = client.images.with_raw_response.generate.call_args.kwargs
+    assert request["size"] == expected_size
+    assert "extra_body" not in request
+    assert "resolution" not in request
+
+
+def test_apimart_image_limit_rejected_before_request():
+    client = MagicMock()
+    provider = _image_provider(client)
+
+    with pytest.raises(ValueError, match="supports at most 16 reference images, got 17"):
+        provider.generate_image(
+            "edit it",
+            ref_images=[Image.new("RGB", (8, 8), color="white") for _ in range(17)],
+        )
+
+    client.images.with_raw_response.generate.assert_not_called()
+    client.images.with_raw_response.edit.assert_not_called()
+    client.chat.completions.create.assert_not_called()
+
+
 def test_apimart_async_image_failure_raises_provider_error():
     client = MagicMock()
     client.images.with_raw_response.generate.return_value = _raw_response(

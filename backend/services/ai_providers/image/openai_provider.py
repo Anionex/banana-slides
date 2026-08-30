@@ -325,6 +325,16 @@ class OpenAIImageProvider(ImageProvider):
             for ref_image in ref_images
         ]
 
+    def _validate_apimart_reference_images(
+        self,
+        ref_images: Optional[List[Image.Image]],
+    ) -> None:
+        if ref_images and len(ref_images) > _MAX_GPT_IMAGE_INPUTS:
+            raise ValueError(
+                f"{self.model} supports at most {_MAX_GPT_IMAGE_INPUTS} "
+                f"reference images, got {len(ref_images)}"
+            )
+
     def _decode_image_response(self, item) -> Image.Image:
         """Extract PIL Image from an images API response item (b64_json, url, or raw string)."""
         if isinstance(item, str):
@@ -513,11 +523,7 @@ class OpenAIImageProvider(ImageProvider):
     ) -> Image.Image:
         extra_body: dict = {"resolution": resolution.lower()}
         if ref_images:
-            if len(ref_images) > _MAX_GPT_IMAGE_INPUTS:
-                raise ValueError(
-                    f"{self.model} supports at most {_MAX_GPT_IMAGE_INPUTS} "
-                    f"reference images, got {len(ref_images)}"
-                )
+            self._validate_apimart_reference_images(ref_images)
             extra_body["image_urls"] = self._apimart_image_urls(ref_images)
 
         kwargs = dict(
@@ -549,7 +555,7 @@ class OpenAIImageProvider(ImageProvider):
         resolution: str = '2K',
     ) -> Optional[Image.Image]:
         """Use the native OpenAI images API (gpt-image-* / dall-e-*)."""
-        if self._is_apimart():
+        if self._is_apimart() and self.model.lower() in _GPT_IMAGE_MODELS:
             return self._generate_with_apimart_images_api(
                 prompt,
                 ref_images,
@@ -677,6 +683,7 @@ class OpenAIImageProvider(ImageProvider):
         Returns:
             Generated PIL Image object, or None if failed
         """
+        self._validate_apimart_reference_images(ref_images)
         try:
             # Route based on image_api_protocol setting
             # Doubao Seedream keeps the chat-completions path when reference images are
