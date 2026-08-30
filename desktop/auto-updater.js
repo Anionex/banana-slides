@@ -217,6 +217,8 @@ class DesktopAutoUpdateManager {
     this.canAutoUpdate = canAutoUpdate;
     this.listeners = new Set();
     this.checkPromise = null;
+    this.activeCheck = null;
+    this.automaticCheckGeneration = 0;
     this.downloadPromise = null;
     this.downloadCancellationToken = null;
     this.downloadWasAutomatic = false;
@@ -260,9 +262,11 @@ class DesktopAutoUpdateManager {
 
   _bindUpdaterEvents() {
     this.updater.on('checking-for-update', () => {
+      if (this._shouldIgnoreUpdaterCheckEvent()) return;
       this._setState({ status: 'checking', error: null, progress: null });
     });
     this.updater.on('update-available', (info) => {
+      if (this._shouldIgnoreUpdaterCheckEvent()) return;
       const update = updateInfoToPublicUpdate(info);
       this._setState({
         status: 'update_available',
@@ -273,6 +277,7 @@ class DesktopAutoUpdateManager {
       });
     });
     this.updater.on('update-not-available', (info) => {
+      if (this._shouldIgnoreUpdaterCheckEvent()) return;
       const latestVersion = normalizeReleaseVersion(info?.version) || this.app.getVersion();
       this._setState({
         status: 'up_to_date',
@@ -308,6 +313,7 @@ class DesktopAutoUpdateManager {
     });
     this.updater.on('error', (error) => {
       if (error?.name === 'CancellationError') return;
+      if (this._shouldIgnoreUpdaterCheckEvent()) return;
       this._setState({
         status: 'error',
         error: error?.message || String(error),
@@ -345,12 +351,24 @@ class DesktopAutoUpdateManager {
     return { ...this.settings, canAutoUpdate: this.canAutoUpdate };
   }
 
+  _isCheckCurrent(check) {
+    return !check.automatic || (
+      this.settings.automaticUpdatesEnabled
+      && check.generation === this.automaticCheckGeneration
+    );
+  }
+
+  _shouldIgnoreUpdaterCheckEvent() {
+    return Boolean(this.activeCheck && !this._isCheckCurrent(this.activeCheck));
+  }
+
   async setAutomaticUpdatesEnabled(enabled) {
     this.settings = await this.writeSettings(this.app.getPath('userData'), {
       automaticUpdatesEnabled: enabled === true,
     });
 
     if (!this.settings.automaticUpdatesEnabled) {
+      this.automaticCheckGeneration += 1;
       this._clearTimers();
       if (this.downloadWasAutomatic && this.downloadCancellationToken) {
         this.downloadCancellationToken.cancel();
@@ -407,15 +425,34 @@ class DesktopAutoUpdateManager {
   async checkForUpdates({ automatic = false } = {}) {
     if (!this.initialized) await this.initialize();
     if (automatic && !this.settings.automaticUpdatesEnabled) return this.getState();
-    if (this.checkPromise) return this.checkPromise;
+    if (this.checkPromise) {
+      if (this.activeCheck && !this._isCheckCurrent(this.activeCheck)) {
+        return this.checkPromise
+          .catch(() => undefined)
+          .then(() => this.checkForUpdates({ automatic }));
+      }
+      return this.checkPromise;
+    }
 
-    this.checkPromise = this._checkForUpdates({ automatic }).finally(() => {
-      this.checkPromise = null;
+    const check = {
+      automatic,
+      generation: this.automaticCheckGeneration,
+    };
+    this.activeCheck = check;
+    const checkPromise = this._checkForUpdates(check).finally(() => {
+      if (this.activeCheck === check) {
+        this.activeCheck = null;
+      }
+      if (this.checkPromise === checkPromise) {
+        this.checkPromise = null;
+      }
     });
-    return this.checkPromise;
+    this.checkPromise = checkPromise;
+    return checkPromise;
   }
 
-  async _checkForUpdates({ automatic }) {
+  async _checkForUpdates(check) {
+    const { automatic } = check;
     const checkSource = automatic ? 'automatic' : 'manual';
     const downloadedUpdate = this.state.status === 'update_downloaded' && this.state.update
       ? {
@@ -425,6 +462,7 @@ class DesktopAutoUpdateManager {
       : null;
     if (!this.app.isPackaged || !this.canAutoUpdate) {
       const fallbackState = await checkGitHubReleaseFallback({ app: this.app, logger: this.logger });
+      if (!this._isCheckCurrent(check)) return this.getState();
       this._setState({
         ...fallbackState,
         automaticUpdatesEnabled: this.settings.automaticUpdatesEnabled,
@@ -435,6 +473,7 @@ class DesktopAutoUpdateManager {
 
     this._setState({ status: 'checking', error: null, progress: null, checkSource });
     const result = await this.updater.checkForUpdates();
+    if (!this._isCheckCurrent(check)) return this.getState();
     const update = updateInfoToPublicUpdate(result?.updateInfo);
     const currentVersion = normalizeReleaseVersion(this.app.getVersion());
     const updateIsNewer = update && shouldNotifyUpdate({

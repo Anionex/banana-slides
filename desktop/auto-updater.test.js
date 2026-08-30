@@ -115,6 +115,74 @@ test('does not automatically check or install when automatic updates are disable
   assert.equal(manager.shouldInstallOnQuit(), false);
 });
 
+test('ignores an in-flight automatic check after automatic updates are disabled', async () => {
+  const { manager, updater } = createManager({
+    updateInfo: { version: '1.1.0', releaseNotes: 'Late automatic result' },
+  });
+  let finishCheck;
+  updater.checkForUpdates = async () => {
+    updater.checkCalls += 1;
+    updater.emit('checking-for-update');
+    await new Promise((resolve) => {
+      finishCheck = resolve;
+    });
+    updater.emit('update-available', updater.updateInfo);
+    return {
+      updateInfo: updater.updateInfo,
+      isUpdateAvailable: true,
+    };
+  };
+  await manager.initialize();
+
+  const checking = manager.checkForUpdates({ automatic: true });
+  await new Promise((resolve) => setImmediate(resolve));
+  await manager.setAutomaticUpdatesEnabled(false);
+  finishCheck();
+  const state = await checking;
+
+  assert.equal(updater.checkCalls, 1);
+  assert.equal(state.status, 'disabled');
+  assert.equal(state.automaticUpdatesEnabled, false);
+  assert.equal(state.update, null);
+  assert.equal(manager.getState().status, 'disabled');
+});
+
+test('runs a fresh check after re-enabling during an invalidated automatic check', async () => {
+  const { manager, updater } = createManager({
+    updateInfo: { version: '1.1.0', releaseNotes: 'Fresh automatic result' },
+  });
+  let finishFirstCheck;
+  updater.checkForUpdates = async () => {
+    updater.checkCalls += 1;
+    updater.emit('checking-for-update');
+    if (updater.checkCalls === 1) {
+      await new Promise((resolve) => {
+        finishFirstCheck = resolve;
+      });
+    }
+    updater.emit('update-available', updater.updateInfo);
+    return {
+      updateInfo: updater.updateInfo,
+      isUpdateAvailable: true,
+    };
+  };
+  await manager.initialize();
+
+  const staleCheck = manager.checkForUpdates({ automatic: true });
+  await new Promise((resolve) => setImmediate(resolve));
+  await manager.setAutomaticUpdatesEnabled(false);
+  await manager.setAutomaticUpdatesEnabled(true);
+  const freshCheck = manager.checkForUpdates({ automatic: true });
+  finishFirstCheck();
+  await staleCheck;
+  const state = await freshCheck;
+
+  assert.equal(updater.checkCalls, 2);
+  assert.equal(state.status, 'update_available');
+  assert.equal(state.automaticUpdatesEnabled, true);
+  assert.equal(state.update.version, '1.1.0');
+});
+
 test('keeps manual update actions available while automatic updates are disabled', async () => {
   const { manager, updater } = createManager({
     enabled: false,
