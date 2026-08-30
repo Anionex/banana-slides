@@ -81,9 +81,11 @@ function detectAutoUpdateSupport({
   app,
   platform = process.platform,
   execPath = process.execPath,
+  env = process.env,
   spawnSyncFn = spawnSync,
 }) {
   if (!app.isPackaged) return false;
+  if (platform === 'linux') return Boolean(env.APPIMAGE);
   if (platform !== 'darwin') return true;
 
   const appBundlePath = path.resolve(execPath, '..', '..', '..');
@@ -422,7 +424,12 @@ class DesktopAutoUpdateManager {
     this._setState({ status: 'checking', error: null, progress: null });
     const result = await this.updater.checkForUpdates();
     const update = updateInfoToPublicUpdate(result?.updateInfo);
-    if (!update || update.version === normalizeReleaseVersion(this.app.getVersion())) {
+    const currentVersion = normalizeReleaseVersion(this.app.getVersion());
+    const updateIsNewer = update && shouldNotifyUpdate({
+      currentVersion,
+      latestVersion: update.version,
+    });
+    if (!update || result?.isUpdateAvailable === false || !updateIsNewer) {
       this._setState({
         status: 'up_to_date',
         latestVersion: update?.version || this.app.getVersion(),

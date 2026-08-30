@@ -15,9 +15,10 @@ class FakeCancellationToken {
 }
 
 class FakeUpdater extends EventEmitter {
-  constructor(updateInfo = null) {
+  constructor(updateInfo = null, isUpdateAvailable = Boolean(updateInfo)) {
     super();
     this.updateInfo = updateInfo;
+    this.isUpdateAvailable = isUpdateAvailable;
     this.checkCalls = 0;
     this.downloadCalls = 0;
     this.quitAndInstallCalls = 0;
@@ -31,7 +32,10 @@ class FakeUpdater extends EventEmitter {
     } else {
       this.emit('update-not-available', { version: '1.0.0' });
     }
-    return { updateInfo: this.updateInfo };
+    return {
+      updateInfo: this.updateInfo,
+      isUpdateAvailable: this.isUpdateAvailable,
+    };
   }
 
   async downloadUpdate() {
@@ -51,8 +55,8 @@ class FakeUpdater extends EventEmitter {
   }
 }
 
-function createManager({ enabled = true, updateInfo = null } = {}) {
-  const updater = new FakeUpdater(updateInfo);
+function createManager({ enabled = true, updateInfo = null, isUpdateAvailable = Boolean(updateInfo) } = {}) {
+  const updater = new FakeUpdater(updateInfo, isUpdateAvailable);
   const persisted = [];
   const manager = new DesktopAutoUpdateManager({
     app: {
@@ -131,6 +135,20 @@ test('keeps manual update actions available while automatic updates are disabled
   assert.equal(updater.quitAndInstallCalls, 1);
 });
 
+test('does not offer a release when electron-updater marks it unavailable', async () => {
+  const { manager, updater } = createManager({
+    updateInfo: { version: '1.1.0', releaseNotes: 'Staged rollout' },
+    isUpdateAvailable: false,
+  });
+  await manager.initialize();
+
+  const checked = await manager.checkForUpdates();
+
+  assert.equal(checked.status, 'up_to_date');
+  assert.equal(checked.update, null);
+  assert.equal(updater.downloadCalls, 0);
+});
+
 test('persists the toggle and immediately schedules checks when re-enabled', async () => {
   const { manager, persisted } = createManager({ enabled: false });
   const scheduledDelays = [];
@@ -177,14 +195,27 @@ test('enables in-place macOS updates when the app has a stable signature', () =>
   assert.equal(supported, true);
 });
 
-test('supports automatic updates on packaged Windows and Linux builds', () => {
-  for (const platform of ['win32', 'linux']) {
-    assert.equal(detectAutoUpdateSupport({
-      app: { isPackaged: true },
-      platform,
-      spawnSyncFn: () => { throw new Error('codesign should not be called'); },
-    }), true);
-  }
+test('supports automatic updates on packaged Windows and AppImage builds', () => {
+  assert.equal(detectAutoUpdateSupport({
+    app: { isPackaged: true },
+    platform: 'win32',
+    spawnSyncFn: () => { throw new Error('codesign should not be called'); },
+  }), true);
+  assert.equal(detectAutoUpdateSupport({
+    app: { isPackaged: true },
+    platform: 'linux',
+    env: { APPIMAGE: '/opt/BananaSlides.AppImage' },
+    spawnSyncFn: () => { throw new Error('codesign should not be called'); },
+  }), true);
+});
+
+test('uses release notifications instead of in-place updates for Debian packages', () => {
+  assert.equal(detectAutoUpdateSupport({
+    app: { isPackaged: true },
+    platform: 'linux',
+    env: {},
+    spawnSyncFn: () => { throw new Error('codesign should not be called'); },
+  }), false);
 });
 
 test('uses safe defaults when update preferences cannot be read', async () => {
