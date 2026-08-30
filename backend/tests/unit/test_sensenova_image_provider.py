@@ -244,3 +244,24 @@ def test_sensenova_reference_data_url_compresses_large_image():
             max_bytes=max_bytes,
         )
     assert data_url == 'data:image/png;base64,b2s='
+
+
+def test_sensenova_reference_compression_keeps_equal_steps():
+    provider = _provider(model='sensenova-u1.5-lite')
+    max_bytes = 1_000_000
+    sizes = []
+
+    def fake_png_bytes(image):
+        sizes.append(image.size)
+        if len(sizes) <= 2:
+            return b'x' * (max_bytes + 1)
+        return b'ok'
+
+    with patch.object(provider, '_sensenova_png_bytes', side_effect=fake_png_bytes):
+        data_url = provider._sensenova_reference_data_url(
+            Image.new('RGB', (512, 512), color='red'),
+            max_bytes=max_bytes,
+        )
+
+    assert data_url == 'data:image/png;base64,b2s='
+    assert sizes == [(512, 512), (384, 384), (288, 288)]

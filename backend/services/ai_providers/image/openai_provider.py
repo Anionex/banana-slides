@@ -425,7 +425,6 @@ class OpenAIImageProvider(ImageProvider):
             if len(data_url) <= max_bytes:
                 return data_url
             width, height = next_size
-            scale *= 0.75
 
         raise ValueError(
             'SenseNova reference image is too large after compression; '
