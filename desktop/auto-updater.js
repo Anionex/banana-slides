@@ -522,6 +522,12 @@ class DesktopAutoUpdateManager {
     if (!this.app.isPackaged || !this.canAutoUpdate) return this.getState();
     if (automatic && !this.settings.automaticUpdatesEnabled) return this.getState();
     if (this.state.status === 'update_downloaded') return this.getState();
+    if (
+      !this.state.update
+      || (this.state.status !== 'update_available' && this.state.status !== 'error')
+    ) {
+      return this.getState();
+    }
     if (this.downloadPromise) return this.downloadPromise;
 
     this.downloadWasAutomatic = automatic;

@@ -816,7 +816,7 @@ export const SettingsAbout: React.FC<{ t: SettingsTranslator }> = ({ t }) => {
       }
     };
     const applyUpdateState = (state: DesktopUpdateCheckResult) => {
-      if (!disposed && state.update) setUpdateInfo(toDesktopUpdateResultView(state));
+      if (!disposed) setUpdateInfo(toDesktopUpdateResultView(state));
     };
     const unsubscribe = desktopUpdateApi.onUpdateStatus?.(applyUpdateState);
 

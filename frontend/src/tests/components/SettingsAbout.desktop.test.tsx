@@ -233,6 +233,47 @@ describe('SettingsAbout desktop update checks', () => {
     expect(within(dialog).getByRole('button', { name: '立即更新' })).toBeInTheDocument();
   });
 
+  it('clears a stale update action when the desktop updater reports no update', async () => {
+    const updateState = {
+      status: 'update_available',
+      currentVersion: '0.9.0-rc.3',
+      latestVersion: '0.9.0-rc.4',
+      canAutoUpdate: true,
+      checkSource: 'manual',
+      update: {
+        version: '0.9.0-rc.4',
+        notes: 'Release candidate fixes',
+        url: 'https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.4',
+      },
+    };
+    let updateListener: ((state: any) => void) | undefined;
+    onUpdateStatus.mockImplementation((listener) => {
+      updateListener = listener;
+      return () => undefined;
+    });
+    checkForUpdates.mockResolvedValueOnce(updateState);
+
+    render(<SettingsAbout t={t} />);
+    await userEvent.click(screen.getByRole('button', { name: /检查更新/ }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('button', { name: '立即更新' })).toBeInTheDocument();
+
+    act(() => {
+      updateListener?.({
+        status: 'up_to_date',
+        currentVersion: '0.9.0-rc.3',
+        latestVersion: '0.9.0-rc.3',
+        canAutoUpdate: true,
+        checkSource: 'manual',
+        update: null,
+      });
+    });
+
+    expect(within(dialog).getByText('您当前已是最新版本')).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: '立即更新' })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: '查看完整更新日志' })).not.toBeInTheDocument();
+  });
+
   it('shows network failures instead of claiming the app is current', async () => {
     checkForUpdates.mockRejectedValueOnce(new Error('GitHub API request timed out'));
 

@@ -318,6 +318,24 @@ test('does not offer a release when electron-updater marks it unavailable', asyn
   assert.equal(updater.downloadCalls, 0);
 });
 
+test('does not download a stale update after a later check clears it', async () => {
+  const { manager, updater } = createManager({
+    updateInfo: { version: '1.1.0', releaseNotes: 'Withdrawn update' },
+  });
+  await manager.initialize();
+  await manager.checkForUpdates();
+  updater.updateInfo = null;
+  updater.isUpdateAvailable = false;
+
+  const checkedAgain = await manager.checkForUpdates();
+  const downloadState = await manager.downloadUpdate();
+
+  assert.equal(checkedAgain.status, 'up_to_date');
+  assert.equal(checkedAgain.update, null);
+  assert.equal(downloadState.status, 'up_to_date');
+  assert.equal(updater.downloadCalls, 0);
+});
+
 test('persists the toggle and immediately schedules checks when re-enabled', async () => {
   const { manager, persisted } = createManager({ enabled: false });
   const scheduledDelays = [];
