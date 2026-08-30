@@ -35,6 +35,29 @@ OPENAI_API_KEY=your-api-key
 OPENAI_API_BASE=https://api.openai.com/v1
 ```
 
+## APIMart（OpenAI 兼容）
+
+APIMart 使用 OpenAI 兼容接口，但图像生成采用异步任务。Banana Slides 会对文本/图片理解请求显式发送 `stream=false`，并自动轮询 APIMart 图像任务。
+
+```env
+AI_PROVIDER_FORMAT=openai
+OPENAI_API_KEY=你的-apimart-api-key
+OPENAI_API_BASE=https://api.apimart.ai/v1
+TEXT_MODEL=gpt-5.6-sol
+IMAGE_MODEL=gpt-image-2
+IMAGE_CAPTION_MODEL=gpt-5.6-luna
+IMAGE_MODEL_SOURCE=openai
+IMAGE_CAPTION_MODEL_SOURCE=openai
+IMAGE_API_BASE=https://api.apimart.ai/v1
+IMAGE_CAPTION_API_BASE=https://api.apimart.ai/v1
+```
+
+注意事项：
+
+- 必须使用 APIMart 控制台真实存在的模型 ID。`gemini-3-pro-image` 不是 APIMart 的模型 ID，可使用 `gpt-image-2` 或 `gemini-3-pro-image-preview`（以控制台列表为准）。
+- 如果 `IMAGE_MODEL_SOURCE` 为空，图像专属 `IMAGE_API_BASE` 不会生效，图像请求会使用全局 `OPENAI_API_BASE`；只想让图像模型走 APIMart 时请设置 `IMAGE_MODEL_SOURCE=openai`。
+- 图像生成通常需要 1～2 分钟，应用会自动轮询异步任务直到完成或超时。
+
 ## 火山 AgentPlans
 
 火山方舟 Agent Plan 模型订阅套餐可通过 OpenAI 兼容接口接入。选择设置页里的“火山 AgentPlans”，或在 `.env` 中配置：

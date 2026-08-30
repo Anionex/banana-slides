@@ -14,6 +14,7 @@ import base64
 import math
 import re
 import requests
+import time
 from io import BytesIO
 from typing import Optional, List
 from openai import OpenAI
@@ -22,6 +23,10 @@ from .base import ImageProvider
 from config import get_config
 
 logger = logging.getLogger(__name__)
+
+APIMART_TASK_POLL_INTERVAL = 5.0
+APIMART_TASK_TIMEOUT = 300.0
+APIMART_TASK_REQUEST_TIMEOUT = 30.0
 
 
 # Models that use the native OpenAI images API (images.generate / images.edit)
@@ -190,6 +195,7 @@ class OpenAIImageProvider(ImageProvider):
             timeout=get_config().OPENAI_TIMEOUT,  # set timeout from config
             max_retries=get_config().OPENAI_MAX_RETRIES  # set max retries from config
         )
+        self.api_key = api_key
         self.api_base = api_base or ""
         self.model = model
         self.image_api_protocol = image_api_protocol or 'auto'
@@ -378,6 +384,121 @@ class OpenAIImageProvider(ImageProvider):
 
         raise ValueError(f"Unexpected images API response type: {type(result)}")
 
+    @staticmethod
+    def _raw_response_payload(raw_response) -> dict:
+        json_method = getattr(raw_response, "json", None)
+        if callable(json_method):
+            return json_method()
+        http_response = getattr(raw_response, "http_response", None)
+        if http_response is not None and callable(getattr(http_response, "json", None)):
+            return http_response.json()
+        raise RuntimeError("Unsupported OpenAI raw response type")
+
+    @staticmethod
+    def _image_task_id(payload) -> Optional[str]:
+        """Return a submitted task id for async image APIs, otherwise None."""
+        if not isinstance(payload, dict):
+            return None
+        data = payload.get("data", payload)
+        if isinstance(data, list):
+            data = data[0] if data else None
+        if not isinstance(data, dict):
+            return None
+        task_id = data.get("task_id")
+        return task_id if isinstance(task_id, str) and task_id else None
+
+    @staticmethod
+    def _image_status(payload) -> str:
+        if not isinstance(payload, dict):
+            return ""
+        data = payload.get("data", payload)
+        if isinstance(data, list):
+            data = data[0] if data else None
+        if not isinstance(data, dict):
+            return ""
+        return str(data.get("status", "")).lower()
+
+    @staticmethod
+    def _apimart_error_message(payload) -> str:
+        if not isinstance(payload, dict):
+            return ""
+        data = payload.get("data", payload)
+        if isinstance(data, list):
+            data = data[0] if data else None
+        if not isinstance(data, dict):
+            return ""
+        return str(data.get("message") or data.get("error") or payload.get("message") or "").strip()
+
+    @staticmethod
+    def _apimart_result_image(item) -> str:
+        if isinstance(item, str):
+            return item
+        if isinstance(item, list) and item:
+            return OpenAIImageProvider._apimart_result_image(item[0])
+        if not isinstance(item, dict):
+            raise ValueError("Unexpected apimart task image item")
+        url = item.get("url") or item.get("image_url")
+        if isinstance(url, list):
+            url = url[0] if url else None
+        if not isinstance(url, str) or not url:
+            raise ValueError("apimart task result image has no URL")
+        return url
+
+    def _decode_apimart_task_result(self, payload) -> Image.Image:
+        if not isinstance(payload, dict):
+            raise ValueError("Invalid apimart task payload")
+        data = payload.get("data", payload)
+        if not isinstance(data, dict):
+            raise ValueError("Invalid apimart task data")
+        result = data.get("result", data)
+        if not isinstance(result, dict):
+            raise ValueError("Invalid apimart task result")
+        images = result.get("images")
+        if not isinstance(images, list) or not images:
+            raise ValueError("apimart task result contains no images")
+        return self._decode_image_response(self._apimart_result_image(images[0]))
+
+    def _poll_image_task(self, task_id: str) -> Image.Image:
+        endpoint = f"{self.api_base.rstrip('/')}/tasks/{task_id}"
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        deadline = time.monotonic() + APIMART_TASK_TIMEOUT
+
+        while True:
+            response = requests.get(
+                endpoint,
+                headers=headers,
+                timeout=APIMART_TASK_REQUEST_TIMEOUT,
+            )
+            response.raise_for_status()
+            try:
+                payload = response.json()
+            except ValueError as exc:
+                raise RuntimeError("apimart image task returned invalid JSON") from exc
+
+            if isinstance(payload, dict):
+                code = payload.get("code")
+                try:
+                    code_int = int(code)
+                except (TypeError, ValueError):
+                    code_int = None
+                if code_int not in (None, 200):
+                    detail = self._apimart_error_message(payload) or payload.get("message") or str(payload)
+                    raise RuntimeError(f"apimart image task failed with code {code}: {detail}")
+
+            status = self._image_status(payload)
+            if status in {"completed", "success", "succeeded"}:
+                return self._decode_apimart_task_result(payload)
+            if status in {"failed", "error", "cancelled", "canceled", "timeout"}:
+                detail = self._apimart_error_message(payload) or "unknown error"
+                raise RuntimeError(f"apimart image task failed for {task_id}: {detail}")
+            if status and status not in {"submitted", "queued", "pending", "processing", "running", "in_progress"}:
+                raise RuntimeError(f"apimart image task returned unsupported status for {task_id}: {status}")
+            if time.monotonic() >= deadline:
+                raise TimeoutError(f"apimart image task timed out after {APIMART_TASK_TIMEOUT:.0f}s")
+
+            logger.debug("apimart image task %s still running (status=%s)", task_id, status or "unknown")
+            time.sleep(APIMART_TASK_POLL_INTERVAL)
+
     def _generate_with_images_api(
         self,
         prompt: str,
@@ -456,7 +577,7 @@ class OpenAIImageProvider(ImageProvider):
                 kwargs['quality'] = quality
             if response_format:
                 kwargs['response_format'] = response_format
-            result = self.client.images.edit(**kwargs)
+            raw_response = self.client.images.with_raw_response.edit(**kwargs)
         else:
             if ref_images:
                 logger.warning("dall-e-3 does not support images.edit; ignoring ref_images")
@@ -466,9 +587,14 @@ class OpenAIImageProvider(ImageProvider):
                 kwargs['quality'] = quality
             if response_format:
                 kwargs['response_format'] = response_format
-            result = self.client.images.generate(**kwargs)
+            raw_response = self.client.images.with_raw_response.generate(**kwargs)
 
-        return self._extract_from_images_result(result)
+        payload = self._raw_response_payload(raw_response)
+        task_id = self._image_task_id(payload)
+        if task_id:
+            return self._poll_image_task(task_id)
+
+        return self._extract_from_images_result(payload)
 
     def generate_image(
         self,
@@ -559,7 +685,8 @@ class OpenAIImageProvider(ImageProvider):
                     {"role": "user", "content": content},
                 ],
                 modalities=["text", "image"],
-                extra_body=extra_body
+                extra_body=extra_body,
+                stream=False,
             )
             
             logger.debug("OpenAI API call completed")
