@@ -55,12 +55,25 @@ class FakeUpdater extends EventEmitter {
   }
 }
 
-function createManager({ enabled = true, updateInfo = null, isUpdateAvailable = Boolean(updateInfo) } = {}) {
+function createManager({
+  enabled = true,
+  updateInfo = null,
+  isUpdateAvailable = Boolean(updateInfo),
+  currentVersion = '1.0.0',
+  checkReleaseFallback = async () => ({
+    status: 'up_to_date',
+    currentVersion,
+    latestVersion: currentVersion,
+    update: null,
+    progress: null,
+    canAutoUpdate: false,
+  }),
+} = {}) {
   const updater = new FakeUpdater(updateInfo, isUpdateAvailable);
   const persisted = [];
   const manager = new DesktopAutoUpdateManager({
     app: {
-      getVersion: () => '1.0.0',
+      getVersion: () => currentVersion,
       getPath: () => '/tmp/banana-auto-update-tests',
       isPackaged: true,
     },
@@ -72,6 +85,7 @@ function createManager({ enabled = true, updateInfo = null, isUpdateAvailable = 
       persisted.push(settings);
       return settings;
     },
+    checkReleaseFallback,
     setTimeoutFn: () => ({ type: 'timeout' }),
     clearTimeoutFn: () => {},
     setIntervalFn: () => ({ type: 'interval' }),
@@ -183,6 +197,37 @@ test('runs a fresh check after re-enabling during an invalidated automatic check
   assert.equal(state.update.version, '1.1.0');
 });
 
+test('coalesces a manual request into an in-flight automatic check without an automatic prompt', async () => {
+  const { manager, updater } = createManager({
+    updateInfo: { version: '1.1.0', releaseNotes: 'One visible prompt' },
+  });
+  let finishCheck;
+  updater.checkForUpdates = async () => {
+    updater.checkCalls += 1;
+    updater.emit('checking-for-update');
+    await new Promise((resolve) => {
+      finishCheck = resolve;
+    });
+    updater.emit('update-available', updater.updateInfo);
+    return {
+      updateInfo: updater.updateInfo,
+      isUpdateAvailable: true,
+    };
+  };
+  await manager.initialize();
+
+  const automaticCheck = manager.checkForUpdates({ automatic: true });
+  await new Promise((resolve) => setImmediate(resolve));
+  const manualCheck = manager.checkForUpdates();
+  finishCheck();
+  const [automaticState, manualState] = await Promise.all([automaticCheck, manualCheck]);
+
+  assert.equal(updater.checkCalls, 1);
+  assert.equal(automaticState.checkSource, 'manual');
+  assert.equal(manualState.checkSource, 'manual');
+  assert.equal(manualState.status, 'update_available');
+});
+
 test('keeps manual update actions available while automatic updates are disabled', async () => {
   const { manager, updater } = createManager({
     enabled: false,
@@ -209,13 +254,54 @@ test('preserves a downloaded update when a later check finds the same version', 
   await manager.initialize();
   await manager.checkForUpdates();
   await manager.downloadUpdate();
+  const checksBeforeRetry = updater.checkCalls;
+  updater.checkForUpdates = async () => {
+    throw new Error('offline');
+  };
 
   const checkedAgain = await manager.checkForUpdates({ automatic: true });
 
   assert.equal(checkedAgain.status, 'update_downloaded');
   assert.equal(checkedAgain.update.version, '1.1.0');
+  assert.equal(updater.checkCalls, checksBeforeRetry);
   assert.equal(updater.downloadCalls, 1);
   assert.equal(manager.shouldInstallOnQuit(), true);
+});
+
+test('uses the timestamp-aware release fallback when electron-updater sees the same version', async () => {
+  let fallbackCalls = 0;
+  const { manager, updater } = createManager({
+    updateInfo: {
+      version: '1.0.0',
+      releaseNotes: 'Rebuilt release',
+      releaseDate: '2026-08-30T00:00:00Z',
+    },
+    isUpdateAvailable: false,
+    checkReleaseFallback: async () => {
+      fallbackCalls += 1;
+      return {
+        status: 'update_available',
+        currentVersion: '1.0.0',
+        latestVersion: '1.0.0',
+        update: {
+          version: '1.0.0',
+          notes: 'Rebuilt release',
+          url: 'https://github.com/Anionex/banana-slides/releases/tag/v1.0.0',
+        },
+        progress: null,
+        canAutoUpdate: false,
+      };
+    },
+  });
+  await manager.initialize();
+
+  const state = await manager.checkForUpdates();
+
+  assert.equal(updater.checkCalls, 1);
+  assert.equal(fallbackCalls, 1);
+  assert.equal(state.status, 'update_available');
+  assert.equal(state.canAutoUpdate, false);
+  assert.equal(state.update.version, '1.0.0');
 });
 
 test('does not offer a release when electron-updater marks it unavailable', async () => {

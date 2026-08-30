@@ -198,6 +198,7 @@ class DesktopAutoUpdateManager {
     logger = console,
     readSettings = readUpdateSettings,
     writeSettings = writeUpdateSettings,
+    checkReleaseFallback = checkGitHubReleaseFallback,
     setTimeoutFn = setTimeout,
     clearTimeoutFn = clearTimeout,
     setIntervalFn = setInterval,
@@ -210,6 +211,7 @@ class DesktopAutoUpdateManager {
     this.logger = logger;
     this.readSettings = readSettings;
     this.writeSettings = writeSettings;
+    this.checkReleaseFallback = checkReleaseFallback;
     this.setTimeoutFn = setTimeoutFn;
     this.clearTimeoutFn = clearTimeoutFn;
     this.setIntervalFn = setIntervalFn;
@@ -424,8 +426,15 @@ class DesktopAutoUpdateManager {
 
   async checkForUpdates({ automatic = false } = {}) {
     if (!this.initialized) await this.initialize();
+    if (this.state.status === 'downloading' || this.state.status === 'update_downloaded') {
+      return this.getState();
+    }
     if (automatic && !this.settings.automaticUpdatesEnabled) return this.getState();
     if (this.checkPromise) {
+      if (!automatic && this.activeCheck?.automatic) {
+        this.activeCheck.automatic = false;
+        this._setState({ checkSource: 'manual' });
+      }
       if (this.activeCheck && !this._isCheckCurrent(this.activeCheck)) {
         return this.checkPromise
           .catch(() => undefined)
@@ -452,30 +461,37 @@ class DesktopAutoUpdateManager {
   }
 
   async _checkForUpdates(check) {
-    const { automatic } = check;
-    const checkSource = automatic ? 'automatic' : 'manual';
-    const downloadedUpdate = this.state.status === 'update_downloaded' && this.state.update
-      ? {
-          update: { ...this.state.update },
-          progress: this.state.progress ? { ...this.state.progress } : null,
-        }
-      : null;
     if (!this.app.isPackaged || !this.canAutoUpdate) {
-      const fallbackState = await checkGitHubReleaseFallback({ app: this.app, logger: this.logger });
+      const fallbackState = await this.checkReleaseFallback({ app: this.app, logger: this.logger });
       if (!this._isCheckCurrent(check)) return this.getState();
       this._setState({
         ...fallbackState,
         automaticUpdatesEnabled: this.settings.automaticUpdatesEnabled,
-        checkSource,
+        checkSource: check.automatic ? 'automatic' : 'manual',
       });
       return this.getState();
     }
 
-    this._setState({ status: 'checking', error: null, progress: null, checkSource });
+    this._setState({
+      status: 'checking',
+      error: null,
+      progress: null,
+      checkSource: check.automatic ? 'automatic' : 'manual',
+    });
     const result = await this.updater.checkForUpdates();
     if (!this._isCheckCurrent(check)) return this.getState();
     const update = updateInfoToPublicUpdate(result?.updateInfo);
     const currentVersion = normalizeReleaseVersion(this.app.getVersion());
+    if (update?.version === currentVersion && result?.isUpdateAvailable === false) {
+      const fallbackState = await this.checkReleaseFallback({ app: this.app, logger: this.logger });
+      if (!this._isCheckCurrent(check)) return this.getState();
+      this._setState({
+        ...fallbackState,
+        automaticUpdatesEnabled: this.settings.automaticUpdatesEnabled,
+        checkSource: check.automatic ? 'automatic' : 'manual',
+      });
+      return this.getState();
+    }
     const updateIsNewer = update && shouldNotifyUpdate({
       currentVersion,
       latestVersion: update.version,
@@ -491,23 +507,13 @@ class DesktopAutoUpdateManager {
       return this.getState();
     }
 
-    if (downloadedUpdate?.update.version === update.version) {
-      this._setState({
-        status: 'update_downloaded',
-        latestVersion: update.version,
-        update,
-        progress: downloadedUpdate.progress,
-        error: null,
-      });
-      return this.getState();
-    }
-
     this._setState({
       status: 'update_available',
       latestVersion: update.version,
       update,
       progress: null,
       error: null,
+      canAutoUpdate: this.canAutoUpdate,
     });
     return this.getState();
   }
