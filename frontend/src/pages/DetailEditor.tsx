@@ -133,9 +133,16 @@ const detailI18n = {
 import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal, ReferenceFileList, MaterialSelector, ImportMarkdownModal } from '@/components/shared';
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
-import { refineDescriptions, getTaskStatus, addPages, updateProject, getSettings, updateSettings } from '@/api/endpoints';
+import { refineDescriptions, getTaskStatus, addPages, updateProject } from '@/api/endpoints';
 import { normalizeRenovationErrorMessage } from '@/utils';
 import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtils';
+import { useApiSettingsRecovery } from '@/hooks/useApiSettingsRecovery';
+import {
+  beginSettingsCacheRequest,
+  resolveLatestSettingsResponse,
+  writeSettingsCache,
+} from '@/utils/settingsCache';
+import { getSettingsAfterPendingUpdates, updateSettingsSerially } from '@/utils/settingsUpdates';
 
 // 详细程度图标 — 暂时屏蔽，效果不够理想
 // const DETAIL_LEVEL_LINES: Record<string, number[]> = {
@@ -226,8 +233,11 @@ export const DetailEditor: React.FC = () => {
     generatePageDescription,
     regenerateRenovationPage,
     switchTemplateMode,
+    descriptionGeneratingProjectIds,
+    descriptionGeneratingPageKeys,
   } = useProjectStore();
   const { show, ToastContainer } = useToast();
+  const { withApiSettingsRecovery } = useApiSettingsRecovery();
   const { confirm, ConfirmDialog } = useConfirm();
   const [isAiRefining, setIsAiRefining] = React.useState(false);
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
@@ -237,6 +247,11 @@ export const DetailEditor: React.FC = () => {
   const [generationMode, setGenerationMode] = useState<'streaming' | 'parallel'>('streaming');
   const [extraFieldNames, setExtraFieldNames] = useState<string[]>(DEFAULT_EXTRA_FIELDS);
   const [imagePromptFields, setImagePromptFields] = useState<string[]>(DEFAULT_IMAGE_PROMPT_FIELDS);
+  const isBatchGenerating = Boolean(
+    currentProject?.id && descriptionGeneratingProjectIds.includes(currentProject.id)
+  ) || (currentProject?.pages.some(
+    (page) => page.status === 'GENERATING_DESCRIPTION'
+  ) ?? false);
   // 可选字段池（localStorage 持久化，包含所有已知字段名）
   const [availableFields, setAvailableFields] = useState<string[]>(() => {
     try {
@@ -256,48 +271,68 @@ export const DetailEditor: React.FC = () => {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const fileMenuRef = useRef<HTMLDivElement>(null);
   const settingsSaveTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const pendingSettingsUpdatesRef = useRef<Record<string, unknown>>({});
 
   // Load settings from DB on mount
   useEffect(() => {
+    let cancelled = false;
+    const settingsRequestId = beginSettingsCacheRequest();
     (async () => {
       try {
-        const res = await getSettings();
+        const res = await getSettingsAfterPendingUpdates();
         const s = res.data;
-        if (!s) return;
+        if (!s || cancelled) return;
+        const loadedSettings = resolveLatestSettingsResponse(s, settingsRequestId);
         setDetailLevel('default');
         // detail level from sessionStorage (backwards compat, then from DB if we add it later)
         const storedLevel = sessionStorage.getItem('banana-detail-level');
         if (storedLevel) setDetailLevel(storedLevel);
-        setGenerationMode(s.description_generation_mode || 'streaming');
-        const activeFields = s.description_extra_fields || DEFAULT_EXTRA_FIELDS;
+        setGenerationMode(loadedSettings.description_generation_mode || 'streaming');
+        const activeFields = loadedSettings.description_extra_fields || DEFAULT_EXTRA_FIELDS;
         setExtraFieldNames(activeFields);
-        if (s.image_prompt_extra_fields) setImagePromptFields(s.image_prompt_extra_fields);
+        if (loadedSettings.image_prompt_extra_fields) {
+          setImagePromptFields(loadedSettings.image_prompt_extra_fields);
+        }
         // 合并活跃字段到可选池
         setAvailableFields(prev => {
           const merged = [...new Set([...prev, ...activeFields])];
           localStorage.setItem('banana-available-extra-fields', JSON.stringify(merged));
           return merged;
         });
-        // Cache settings in sessionStorage for store to read
-        sessionStorage.setItem('banana-settings', JSON.stringify(s));
       } catch { /* ignore */ }
     })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const flushPendingSettingsUpdates = useCallback(() => {
+    if (settingsSaveTimerRef.current) {
+      clearTimeout(settingsSaveTimerRef.current);
+      settingsSaveTimerRef.current = undefined;
+    }
+    const updates = pendingSettingsUpdatesRef.current;
+    if (Object.keys(updates).length === 0) return;
+    pendingSettingsUpdatesRef.current = {};
+
+    void updateSettingsSerially(updates as any)
+      .then((res) => {
+        if (res.data) writeSettingsCache(res.data);
+      })
+      .catch((error) => {
+        console.error('Failed to save settings:', error);
+      });
   }, []);
 
   // Debounced save settings to DB
   const saveSettingsDebounced = useCallback((updates: Record<string, unknown>) => {
+    pendingSettingsUpdatesRef.current = {
+      ...pendingSettingsUpdatesRef.current,
+      ...updates,
+    };
     if (settingsSaveTimerRef.current) clearTimeout(settingsSaveTimerRef.current);
-    settingsSaveTimerRef.current = setTimeout(async () => {
-      try {
-        const res = await updateSettings(updates as any);
-        if (res.data) {
-          sessionStorage.setItem('banana-settings', JSON.stringify(res.data));
-        }
-      } catch (e) {
-        console.error('Failed to save settings:', e);
-      }
-    }, 800);
-  }, []);
+    settingsSaveTimerRef.current = setTimeout(flushPendingSettingsUpdates, 800);
+  }, [flushPendingSettingsUpdates]);
+
+  useEffect(() => () => flushPendingSettingsUpdates(), [flushPendingSettingsUpdates]);
 
   // 额外字段拖拽排序
   const fieldSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -417,18 +452,8 @@ export const DetailEditor: React.FC = () => {
 
   // 加载项目数据
   useEffect(() => {
-    if (projectId && (!currentProject || currentProject.id !== projectId)) {
-      // 直接使用 projectId 同步项目数据
-      syncProject(projectId);
-    } else if (projectId && currentProject && currentProject.id === projectId) {
-      // 如果项目已存在，也同步一次以确保数据是最新的（特别是从描述生成后）
-      // 但只在首次加载时同步，避免频繁请求
-      const shouldSync = !currentProject.pages.some(p => p.description_content);
-      if (shouldSync) {
-        syncProject(projectId);
-      }
-    }
-  }, [projectId, currentProject?.id]); // 只在 projectId 或项目ID变化时更新
+    if (projectId) syncProject(projectId);
+  }, [projectId]);
 
   // 同步描述生成要求
   useEffect(() => {
@@ -488,6 +513,8 @@ export const DetailEditor: React.FC = () => {
 
   const handleRegeneratePage = async (pageId: string) => {
     if (!currentProject) return;
+    const recoveryPath = `/project/${currentProject.id}/detail`;
+    const recoveryState = location.state;
 
     const page = currentProject.pages.find((p) => p.id === pageId);
     if (!page) return;
@@ -504,10 +531,10 @@ export const DetailEditor: React.FC = () => {
         }
         show({ message: t('detail.messages.generateSuccess'), type: 'success' });
       } catch (error: any) {
-        show({
+        show(withApiSettingsRecovery(error, {
           message: `${t('detail.messages.generateFailed')}: ${error.message || t('common.unknownError')}`,
           type: 'error'
-        });
+        }, recoveryPath, recoveryState, true));
       }
     };
 
@@ -561,10 +588,16 @@ export const DetailEditor: React.FC = () => {
       const errorMessage = error?.response?.data?.error?.message 
         || error?.message 
         || t('detail.messages.refineFailed');
-      show({ message: errorMessage, type: 'error' });
+      show(withApiSettingsRecovery(
+        error,
+        { message: errorMessage, type: 'error' },
+        `/project/${projectId}/detail`,
+        location.state,
+        true
+      ));
       throw error; // 抛出错误让组件知道失败了
     }
-  }, [currentProject, projectId, syncProject, show, t]);
+  }, [currentProject, location.state, projectId, syncProject, show, t, withApiSettingsRecovery]);
 
   // 导出页面描述为 Markdown 文件
   const handleExportDescriptions = useCallback(() => {
@@ -763,6 +796,7 @@ export const DetailEditor: React.FC = () => {
               variant="primary"
               icon={<Sparkles size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={handleGenerateAll}
+              loading={isBatchGenerating}
               className="flex-1 sm:flex-initial text-sm md:text-base"
             >
               {t('detail.batchGenerate')}
@@ -1034,11 +1068,14 @@ export const DetailEditor: React.FC = () => {
               ) : (
                 currentProject.pages.map((page, index) => {
                 const pageId = page.id || page.page_id;
+                const isPageGenerating = descriptionGeneratingPageKeys.includes(
+                  `${currentProject.id}:${pageId}`
+                );
                 // Renovation processing: treat pages without description as generating
                 const hasDescription = page.description_content && (
                   (typeof page.description_content === 'object' && 'text' in page.description_content && page.description_content.text?.trim())
                 );
-                const effectivePage = (isRenovationProcessing && !hasDescription)
+                const effectivePage = ((isRenovationProcessing && !hasDescription) || isPageGenerating)
                   ? { ...page, status: 'GENERATING_DESCRIPTION' as const }
                   : page;
                 return (

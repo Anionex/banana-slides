@@ -19,11 +19,119 @@ from sqlalchemy.exc import OperationalError
 from PIL import Image, ImageDraw, ImageFilter
 from models import db, Task, Page, Material, PageImageVersion, Settings, ProjectTemplateAsset, Project
 from utils import get_filtered_pages
+from utils.ai_errors import prioritized_generation_error_message, safe_generation_error_message
 from utils.image_utils import check_image_resolution
 
 logger = logging.getLogger(__name__)
 
 IMAGE_QUALITY_CONTROL_MAX_ATTEMPTS = 3
+
+_description_generation_lock = threading.Lock()
+_active_description_projects = set()
+_active_description_pages = set()
+
+
+def try_acquire_description_project(project_id: str) -> bool:
+    """Reserve all description generation capacity for one project."""
+    with _description_generation_lock:
+        if project_id in _active_description_projects:
+            return False
+        if any(active_project_id == project_id for active_project_id, _ in _active_description_pages):
+            return False
+        _active_description_projects.add(project_id)
+        return True
+
+
+def release_description_project(project_id: str) -> None:
+    with _description_generation_lock:
+        _active_description_projects.discard(project_id)
+
+
+def try_acquire_description_page(project_id: str, page_id: str) -> bool:
+    """Reserve one page unless a project-wide or same-page generation is active."""
+    key = (project_id, page_id)
+    with _description_generation_lock:
+        if project_id in _active_description_projects or key in _active_description_pages:
+            return False
+        _active_description_pages.add(key)
+        return True
+
+
+def release_description_page(project_id: str, page_id: str) -> None:
+    with _description_generation_lock:
+        _active_description_pages.discard((project_id, page_id))
+
+
+def is_description_project_active(project_id: str) -> bool:
+    with _description_generation_lock:
+        return project_id in _active_description_projects
+
+
+def is_description_page_active(project_id: str, page_id: str) -> bool:
+    with _description_generation_lock:
+        return (project_id, page_id) in _active_description_pages
+
+
+def recover_description_task_failure(task_id: str, project_id: str, error: Exception) -> None:
+    """Best-effort cleanup for failures outside per-page description workers."""
+    try:
+        db.session.rollback()
+    except Exception:
+        logger.exception("Failed to roll back description task session")
+
+    try:
+        task = db.session.get(Task, task_id)
+        pages = Page.query.filter_by(project_id=project_id).all()
+        if task:
+            progress = task.get_progress() or {}
+            completed = max(0, min(len(pages), int(progress.get('completed', 0) or 0)))
+            failed = max(int(progress.get('failed', 0) or 0), len(pages) - completed)
+            task.status = 'FAILED'
+            task.error_message = safe_generation_error_message(error)
+            task.completed_at = datetime.utcnow()
+            task.set_progress({
+                'total': len(pages),
+                'completed': completed,
+                'failed': failed,
+            })
+
+        newer_active_task = False
+        if task and task.created_at:
+            newer_active_task = Task.query.filter(
+                Task.project_id == project_id,
+                Task.task_type == 'GENERATE_DESCRIPTIONS',
+                Task.status.in_(['PENDING', 'PROCESSING']),
+                Task.id != task_id,
+                Task.created_at > task.created_at,
+            ).first() is not None
+
+        # A stale worker may finish after a newer task has taken ownership.
+        # In that case only fail the stale Task; never roll back shared page state.
+        if newer_active_task:
+            db.session.commit()
+            return
+
+        for page in pages:
+            if page.status == 'GENERATING_DESCRIPTION':
+                page.status = 'DESCRIPTION_GENERATED' if page.description_content else 'DRAFT'
+
+        has_descriptions = any(page.description_content for page in pages)
+
+        project = db.session.get(Project, project_id)
+        if project:
+            project.status = 'DESCRIPTIONS_GENERATED' if has_descriptions else 'OUTLINE_GENERATED'
+
+        db.session.commit()
+    except Exception:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        logger.exception(
+            "Failed to recover description task %s for project %s",
+            task_id,
+            project_id,
+        )
 
 
 class ImageQualityControlError(ValueError):
@@ -569,141 +677,116 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
         language: Output language (zh, en, ja, auto)
         detail_level: Description detail level (concise/default/detailed)
     """
-    if app is None:
-        raise ValueError("Flask app instance must be provided")
-    
-    # 在整个任务中保持应用上下文
-    with app.app_context():
-        try:
-            # 重要：在后台线程开始时就获取task和设置状态
-            task = Task.query.get(task_id)
-            if not task:
-                logger.error(f"Task {task_id} not found")
-                return
-            
-            task.status = 'PROCESSING'
-            db.session.commit()
-            logger.info(f"Task {task_id} status updated to PROCESSING")
-            
-            # Flatten outline to get pages
-            pages_data = ai_service.flatten_outline(outline)
-            
-            # Get all pages for this project
-            pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
-            
-            if len(pages) != len(pages_data):
-                raise ValueError("Page count mismatch")
-            
-            # Mark all pages as GENERATING_DESCRIPTION before starting
-            for page in pages:
-                page.status = 'GENERATING_DESCRIPTION'
+    try:
+        if app is None:
+            raise ValueError("Flask app instance must be provided")
 
-            # Initialize progress
-            task.set_progress({
-                "total": len(pages),
-                "completed": 0,
-                "failed": 0
-            })
-            db.session.commit()
+        with app.app_context():
+            try:
+                task = Task.query.get(task_id)
+                if not task:
+                    logger.error(f"Task {task_id} not found")
+                    return
 
-            # Generate descriptions in parallel
-            completed = 0
-            failed = 0
-            
-            def generate_single_desc(page_id, page_outline, page_index):
-                """
-                Generate description for a single page
-                注意：只传递 page_id（字符串），不传递 ORM 对象，避免跨线程会话问题
-                """
-                # 关键修复：在子线程中也需要应用上下文
-                with app.app_context():
-                    try:
-                        # Get singleton AI service instance
-                        from services.ai_service_manager import get_ai_service
-                        ai_service = get_ai_service()
-                        
-                        with text_resource_limiter.slot(
-                            f"description project={project_id} page={page_id}"
-                        ):
-                            desc_result = ai_service.generate_page_description(
-                                project_context, outline, page_outline, page_index,
-                                language=language,
-                                detail_level=detail_level
+                task.status = 'PROCESSING'
+                db.session.commit()
+                logger.info(f"Task {task_id} status updated to PROCESSING")
+
+                pages_data = ai_service.flatten_outline(outline)
+                pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+                if len(pages) != len(pages_data):
+                    raise ValueError("Page count mismatch")
+
+                for page in pages:
+                    page.status = 'GENERATING_DESCRIPTION'
+                task.set_progress({"total": len(pages), "completed": 0, "failed": 0})
+                db.session.commit()
+
+                completed = 0
+                failed = 0
+                generation_errors = []
+
+                def generate_single_desc(page_id, page_outline, page_index):
+                    with app.app_context():
+                        try:
+                            from services.ai_service_manager import get_ai_service
+                            worker_ai_service = get_ai_service()
+                            with text_resource_limiter.slot(
+                                f"description project={project_id} page={page_id}"
+                            ):
+                                desc_result = worker_ai_service.generate_page_description(
+                                    project_context, outline, page_outline, page_index,
+                                    language=language,
+                                    detail_level=detail_level,
+                                )
+                            desc_content = {
+                                "text": desc_result['text'],
+                                "generated_at": datetime.utcnow().isoformat(),
+                            }
+                            if desc_result.get('extra_fields'):
+                                desc_content['extra_fields'] = desc_result['extra_fields']
+                            return (page_id, desc_content, None)
+                        except Exception as error:
+                            import traceback
+                            logger.error(
+                                "Failed to generate description for page %s: %s",
+                                page_id,
+                                traceback.format_exc(),
                             )
+                            return (page_id, None, str(error))
 
-                        # generate_page_description returns dict with text + optional extra_fields
-                        desc_content = {
-                            "text": desc_result['text'],
-                            "generated_at": datetime.utcnow().isoformat()
-                        }
-                        if desc_result.get('extra_fields'):
-                            desc_content['extra_fields'] = desc_result['extra_fields']
-                        
-                        return (page_id, desc_content, None)
-                    except Exception as e:
-                        import traceback
-                        error_detail = traceback.format_exc()
-                        logger.error(f"Failed to generate description for page {page_id}: {error_detail}")
-                        return (page_id, None, str(e))
-            
-            # Use ThreadPoolExecutor for parallel generation
-            # 关键：提前提取 page.id，不要传递 ORM 对象到子线程
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                futures = [
-                    executor.submit(generate_single_desc, page.id, page_data, i)
-                    for i, (page, page_data) in enumerate(zip(pages, pages_data), 1)
-                ]
-                
-                # Process results as they complete
-                for future in as_completed(futures):
-                    page_id, desc_content, error = future.result()
-                    
-                    db.session.expire_all()
-                    
-                    # Update page in database
-                    page = Page.query.get(page_id)
-                    if page:
-                        if error:
-                            page.status = 'FAILED'
-                            failed += 1
-                        else:
-                            page.set_description_content(desc_content)
-                            page.status = 'DESCRIPTION_GENERATED'
-                            completed += 1
-                        
-                        db.session.commit()
-                    
-                    # Update task progress
-                    task = Task.query.get(task_id)
-                    if task:
-                        task.update_progress(completed=completed, failed=failed)
-                        db.session.commit()
-                        logger.info(f"Description Progress: {completed}/{len(pages)} pages completed")
-            
-            # Mark task as completed
-            task = Task.query.get(task_id)
-            if task:
-                task.status = 'COMPLETED'
-                task.completed_at = datetime.utcnow()
-                db.session.commit()
-                logger.info(f"Task {task_id} COMPLETED - {completed} pages generated, {failed} failed")
-            
-            # Update project status
-            from models import Project
-            project = Project.query.get(project_id)
-            if project and failed == 0:
-                project.status = 'DESCRIPTIONS_GENERATED'
-                db.session.commit()
-                logger.info(f"Project {project_id} status updated to DESCRIPTIONS_GENERATED")
-        
-        except Exception as e:
-            # Mark task as failed
-            task = Task.query.get(task_id)
-            if task:
-                task.status = 'FAILED'
-                task.error_message = str(e)
-                task.completed_at = datetime.utcnow()
-                db.session.commit()
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    futures = [
+                        executor.submit(generate_single_desc, page.id, page_data, index)
+                        for index, (page, page_data) in enumerate(zip(pages, pages_data), 1)
+                    ]
+                    for future in as_completed(futures):
+                        page_id, desc_content, error = future.result()
+                        db.session.expire_all()
+                        page = Page.query.get(page_id)
+                        if page:
+                            if error:
+                                page.status = 'FAILED'
+                                failed += 1
+                                generation_errors.append(error)
+                            else:
+                                page.set_description_content(desc_content)
+                                page.status = 'DESCRIPTION_GENERATED'
+                                completed += 1
+                            db.session.commit()
+
+                        task = Task.query.get(task_id)
+                        if task:
+                            task.update_progress(completed=completed, failed=failed)
+                            db.session.commit()
+                            logger.info(f"Description Progress: {completed}/{len(pages)} pages completed")
+
+                task = Task.query.get(task_id)
+                if task:
+                    task.status = 'FAILED' if failed else 'COMPLETED'
+                    task.error_message = (
+                        prioritized_generation_error_message(generation_errors)
+                        if generation_errors else None
+                    )
+                    task.completed_at = datetime.utcnow()
+                    db.session.commit()
+                    logger.info(
+                        f"Task {task_id} {task.status} - "
+                        f"{completed} pages generated, {failed} failed"
+                    )
+
+                project = Project.query.get(project_id)
+                if project:
+                    persisted_pages = Page.query.filter_by(project_id=project_id).all()
+                    has_descriptions = any(page.description_content for page in persisted_pages)
+                    project.status = 'DESCRIPTIONS_GENERATED' if has_descriptions else 'OUTLINE_GENERATED'
+                    db.session.commit()
+                    logger.info(f"Project {project_id} status updated to {project.status}")
+            except Exception as error:
+                logger.error(f"Description task {task_id} failed: {error}", exc_info=True)
+                recover_description_task_failure(task_id, project_id, error)
+    finally:
+        release_description_project(project_id)
 
 
 def generate_images_task(task_id: str, project_id: str, ai_service, file_service,

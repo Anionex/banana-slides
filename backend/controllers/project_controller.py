@@ -22,6 +22,11 @@ from services.ai_service_manager import get_ai_service
 from services.task_manager import (
     task_manager,
     generate_descriptions_task,
+    recover_description_task_failure,
+    try_acquire_description_project,
+    release_description_project,
+    is_description_project_active,
+    is_description_page_active,
     generate_images_task,
     process_ppt_renovation_task,
     get_image_prompt_field_names,
@@ -30,6 +35,7 @@ from utils import (
     success_response, error_response, not_found, bad_request,
     parse_page_ids_from_body, get_filtered_pages
 )
+from utils.ai_errors import safe_generation_error_message
 
 logger = logging.getLogger(__name__)
 
@@ -324,6 +330,37 @@ def get_project(project_id):
         
         if not project:
             return not_found('Project')
+
+        project_generation_active = is_description_project_active(project_id)
+        repaired_stale_state = False
+        for page in project.pages:
+            if (
+                page.status == 'GENERATING_DESCRIPTION'
+                and not project_generation_active
+                and not is_description_page_active(project_id, page.id)
+            ):
+                page.status = 'DESCRIPTION_GENERATED' if page.description_content else 'DRAFT'
+                repaired_stale_state = True
+
+        if not project_generation_active and project.status == 'GENERATING_DESCRIPTIONS':
+            project.status = (
+                'DESCRIPTIONS_GENERATED'
+                if any(page.description_content for page in project.pages)
+                else 'OUTLINE_GENERATED'
+            )
+            repaired_stale_state = True
+
+        if repaired_stale_state:
+            stale_tasks = Task.query.filter(
+                Task.project_id == project_id,
+                Task.task_type == 'GENERATE_DESCRIPTIONS',
+                Task.status.in_(['PENDING', 'PROCESSING']),
+            ).all()
+            for task in stale_tasks:
+                task.status = 'FAILED'
+                task.error_message = 'Generation was interrupted; please retry'
+                task.completed_at = datetime.utcnow()
+            db.session.commit()
         
         return success_response(project.to_dict(include_pages=True))
     
@@ -653,7 +690,7 @@ def generate_outline_stream(project_id):
                 except Exception as rollback_exc:
                     logger.warning(f"Session rollback failed: {rollback_exc}", exc_info=True)
                 logger.error(f"generate_outline_stream failed: {str(e)}", exc_info=True)
-                yield _sse_event('error', {'message': '生成过程中发生内部错误'})
+                yield _sse_event('error', {'message': safe_generation_error_message(e)})
 
     return Response(
         stream_with_context(sse_generate()),
@@ -799,6 +836,9 @@ def generate_descriptions(project_id):
         "language": "zh"  # output language: zh, en, ja, auto
     }
     """
+    task_id = None
+    guard_acquired = False
+    task_submitted = False
     try:
         project = Project.query.get(project_id)
         
@@ -816,6 +856,14 @@ def generate_descriptions(project_id):
         
         if not pages:
             return bad_request("No pages found for project")
+
+        if not try_acquire_description_project(project_id):
+            return error_response(
+                'GENERATION_IN_PROGRESS',
+                'Description generation is already in progress for this project',
+                409,
+            )
+        guard_acquired = True
         
         # Reconstruct outline from pages with part structure
         outline = _reconstruct_outline_from_pages(pages)
@@ -826,7 +874,14 @@ def generate_descriptions(project_id):
         language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
         detail_level = data.get('detail_level', 'default')
         
-        # Create task
+        # Resolve all request-bound inputs before persisting the async task.
+        ai_service = get_ai_service()
+        reference_files_content = _get_project_reference_files_content(project_id)
+        project_context = ProjectContext(project, reference_files_content)
+        app = current_app._get_current_object()
+
+        # Persist the generating state before submission so a fast worker cannot
+        # be overwritten back to GENERATING_DESCRIPTIONS by this request thread.
         task = Task(
             project_id=project_id,
             task_type='GENERATE_DESCRIPTIONS',
@@ -837,19 +892,10 @@ def generate_descriptions(project_id):
             'completed': 0,
             'failed': 0
         })
-        
+        project.status = 'GENERATING_DESCRIPTIONS'
         db.session.add(task)
         db.session.commit()
-        
-        # Get singleton AI service instance
-        ai_service = get_ai_service()
-        
-        # Get reference files content and create project context
-        reference_files_content = _get_project_reference_files_content(project_id)
-        project_context = ProjectContext(project, reference_files_content)
-        
-        # Get app instance for background task
-        app = current_app._get_current_object()
+        task_id = task.id
         
         # Submit background task
         task_manager.submit_task(
@@ -864,10 +910,7 @@ def generate_descriptions(project_id):
             language,
             detail_level
         )
-        
-        # Update project status
-        project.status = 'GENERATING_DESCRIPTIONS'
-        db.session.commit()
+        task_submitted = True
         
         return success_response({
             'task_id': task.id,
@@ -877,8 +920,19 @@ def generate_descriptions(project_id):
     
     except Exception as e:
         db.session.rollback()
+        if task_id:
+            recover_description_task_failure(task_id, project_id, e)
         logger.error(f"generate_descriptions failed: {str(e)}", exc_info=True)
-        return error_response('SERVER_ERROR', str(e), 500)
+        safe_message = safe_generation_error_message(e)
+        is_ai_configuration_error = safe_message != 'Generation failed due to an internal error'
+        return error_response(
+            'AI_SERVICE_ERROR' if is_ai_configuration_error else 'SERVER_ERROR',
+            safe_message,
+            503 if is_ai_configuration_error else 500,
+        )
+    finally:
+        if guard_acquired and not task_submitted:
+            release_description_project(project_id)
 
 
 @project_bp.route('/<project_id>/generate/descriptions/stream', methods=['POST'])
@@ -905,6 +959,13 @@ def generate_descriptions_stream(project_id):
     detail_level = data.get('detail_level', 'default')
 
     app = current_app._get_current_object()
+
+    if not try_acquire_description_project(project_id):
+        return error_response(
+            'GENERATION_IN_PROGRESS',
+            'Description generation is already in progress for this project',
+            409,
+        )
 
     def sse_generate():
         with app.app_context():
@@ -1010,7 +1071,9 @@ def generate_descriptions_stream(project_id):
                 except Exception as recover_exc:
                     logger.warning(f"Failed to recover page statuses: {recover_exc}", exc_info=True)
 
-                yield _sse_event('error', {'message': '生成过程中发生内部错误'})
+                yield _sse_event('error', {'message': safe_generation_error_message(e)})
+            finally:
+                release_description_project(project_id)
 
     return Response(
         stream_with_context(sse_generate()),

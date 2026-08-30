@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Settings } from '@/pages/Settings';
 import type { Settings as SettingsType } from '@/types';
+import * as settingsCache from '@/utils/settingsCache';
 
 const getSettings = vi.fn();
 const updateSettings = vi.fn();
@@ -77,6 +78,7 @@ const baseSettings: SettingsType = {
 
 describe('Settings quality control', () => {
   beforeEach(() => {
+    sessionStorage.clear();
     getSettings.mockReset();
     updateSettings.mockReset();
     resetSettings.mockReset();
@@ -105,5 +107,60 @@ describe('Settings quality control', () => {
         expect.objectContaining({ enable_image_quality_control: true })
       );
     });
+  });
+
+  it('uses the successful save response when OAuth did not change during the request', async () => {
+    const onSaveSuccess = vi.fn();
+    getSettings.mockResolvedValue({
+      data: {
+        ...baseSettings,
+        openai_oauth_connected: true,
+        openai_oauth_account_id: 'oauth-account',
+      },
+    });
+    updateSettings.mockResolvedValue({
+      data: {
+        ...baseSettings,
+        text_model: 'saved-model',
+        openai_oauth_connected: false,
+        openai_oauth_account_id: null,
+      },
+    });
+    const cacheSpy = vi.spyOn(settingsCache, 'writeSettingsCache');
+
+    render(
+      <MemoryRouter>
+        <Settings onSaveSuccess={onSaveSuccess} saveLabel="保存并返回" />
+      </MemoryRouter>
+    );
+
+    await screen.findByText(/启用质量控制模式|Enable Quality Control/);
+    await userEvent.click(screen.getByRole('button', { name: '保存并返回' }));
+
+    await waitFor(() => {
+      expect(updateSettings).toHaveBeenCalled();
+      expect(onSaveSuccess).toHaveBeenCalledTimes(1);
+      expect(cacheSpy).toHaveBeenCalledWith(expect.objectContaining({
+        text_model: 'saved-model',
+        openai_oauth_connected: false,
+        openai_oauth_account_id: null,
+      }));
+    });
+    cacheSpy.mockRestore();
+  });
+
+  it('loads the newer cached settings when its GET response is superseded', async () => {
+    const newerSettings = { ...baseSettings, text_model: 'newer-cached-model' };
+    sessionStorage.setItem('banana-settings', JSON.stringify(newerSettings));
+    const cacheSpy = vi.spyOn(settingsCache, 'writeSettingsCache').mockReturnValue(false);
+
+    render(
+      <MemoryRouter>
+        <Settings />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByDisplayValue('newer-cached-model')).toBeInTheDocument();
+    cacheSpy.mockRestore();
   });
 });

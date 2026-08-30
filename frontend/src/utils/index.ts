@@ -144,8 +144,44 @@ export function normalizeErrorMessage(
     || message.includes('openai oauth')
   );
 
+  if (isCodexContext && message.includes('not connected')) {
+    return isZh
+      ? 'Codex 登录已过期或未连接，请前往设置重新登录 OpenAI 账号后再试。'
+      : 'Your Codex login has expired or is disconnected. Please reconnect your OpenAI account in Settings and try again.';
+  }
+
   // Handle specific error messages
-  if (message.includes('no template image found')) {
+  if (
+    message.includes('api key is invalid')
+    || message.includes('api key not valid')
+    || message.includes('invalid api key')
+    || message.includes('api_key_invalid')
+    || message.includes('invalid_api_key')
+  ) {
+    return isZh ? 'API 密钥无效，请检查 API 设置。' : 'The API key is invalid. Please check API settings.';
+  } else if (
+    message.includes('api quota or balance is insufficient')
+    || message.includes('insufficient balance')
+    || message.includes('balance is insufficient')
+    || message.includes('insufficient_quota')
+    || message.includes('quota exceeded')
+    || message.includes('quota exhausted')
+    || message.includes('usage limit')
+  ) {
+    return isZh ? 'API 余额或配额不足，请检查 API 设置。' : 'The API balance or quota is insufficient. Please check API settings.';
+  } else if (message.includes('api permission denied')) {
+    return isZh ? 'API 权限不足，请检查 API 设置。' : 'API permission was denied. Please check API settings.';
+  } else if (message.includes('api rate limit exceeded')) {
+    return isZh ? 'API 请求过于频繁，请稍后重试或检查 API 设置。' : 'The API rate limit was exceeded. Retry later or check API settings.';
+  } else if (message.includes('configured ai model is unavailable')) {
+    return isZh ? '当前 AI 模型不可用，请检查 API 设置中的模型名称。' : 'The configured AI model is unavailable. Check the model name in API settings.';
+  } else if (message.includes('ai service connection failed; check api base url')) {
+    return isZh ? '无法连接 AI 服务，请检查 API 地址或稍后重试。' : 'Could not connect to the AI service. Check the API base URL or retry later.';
+  } else if (message.includes('generation failed due to an internal error')) {
+    return isZh ? '生成过程中发生内部错误，请稍后重试。' : 'Generation failed due to an internal error. Please try again later.';
+  } else if (message.includes('access code required') || message.includes('invalid access code')) {
+    return isZh ? '访问口令已失效，请刷新页面后重新验证。' : 'The access code is no longer valid. Refresh the page and verify it again.';
+  } else if (message.includes('no template image found')) {
     return isZh
       ? '当前项目还没有模板，请先点击页面工具栏的"更换模板"按钮，选择或上传一张模板图片后再生成。'
       : 'No template found. Please select or upload a template image first.';
@@ -178,7 +214,7 @@ export function normalizeErrorMessage(
     }
     return isZh ? '认证失败，请检查 API 密钥配置。' : 'Authentication failed. Please check API key settings.';
   } else if (message.includes('403') || message.includes('forbidden')) {
-    return isZh ? '访问被拒绝，请检查 API 权限配置。' : 'Access denied. Please check API permissions.';
+    return isZh ? '访问被拒绝，请刷新页面后重新验证访问口令。' : 'Access denied. Refresh the page and verify the access code.';
   } else if (message.includes('aspect_ratio') || message.includes('aspect ratio')) {
     return isZh
       ? '当前画面比例不被该模型支持，请在项目设置中尝试其他画面比例后重试。'
@@ -251,6 +287,94 @@ export function normalizeRenovationErrorMessage(errorMessage: string | null | un
   }
 
   return normalized;
+}
+
+function collectErrorText(error: unknown): string {
+  if (typeof error === 'string') return error;
+  if (typeof error === 'number') return String(error);
+  if (!error || typeof error !== 'object') return '';
+
+  const candidate = error as {
+    status?: unknown;
+    statusCode?: unknown;
+    message?: unknown;
+    friendlyMessage?: unknown;
+    response?: {
+      status?: unknown;
+      data?: {
+        message?: unknown;
+        error?: { message?: unknown } | unknown;
+      };
+    };
+  };
+
+  const responseError = candidate.response?.data?.error;
+  return [
+    candidate.status,
+    candidate.statusCode,
+    candidate.response?.status,
+    candidate.friendlyMessage,
+    candidate.message,
+    candidate.response?.data?.message,
+    typeof responseError === 'object' && responseError
+      ? (responseError as { message?: unknown }).message
+      : responseError,
+  ]
+    .filter((value) => value !== null && value !== undefined && value !== '')
+    .map(String)
+    .join(' ');
+}
+
+/** Whether an error is likely recoverable by changing API credentials or provider settings. */
+export function isApiSettingsError(error: unknown): boolean {
+  const message = collectErrorText(error).toLowerCase();
+  if (!message) return false;
+
+  if (message.includes('access code required') || message.includes('invalid access code')) {
+    return false;
+  }
+
+  // A bare 403 can be the application's access-code guard rather than the AI provider.
+  const statusMatch = message.match(/(?:http\s*)?\b(401|429)\b/);
+  if (statusMatch) return true;
+
+  return [
+    'api key',
+    'apikey',
+    'api_key',
+    'unauthorized',
+    'forbidden',
+    'permission denied',
+    'permission was denied',
+    'authentication failed',
+    'invalid credential',
+    'invalid key',
+    'not connected',
+    '登录已过期',
+    '重新登录 openai',
+    'quota',
+    'usage limit',
+    'rate limit',
+    'too many requests',
+    'insufficient balance',
+    'balance is insufficient',
+    'insufficient credit',
+    'credits exhausted',
+    'billing',
+    '认证失败',
+    '密钥配置',
+    '密钥无效',
+    '未配置密钥',
+    '权限不足',
+    'api 地址',
+    'api base url',
+    'model is unavailable',
+    '模型不可用',
+    '余额不足',
+    '配额不足',
+    '配额耗尽',
+    '请求过于频繁',
+  ].some((keyword) => message.includes(keyword));
 }
 
 export const isDesktop = typeof window !== 'undefined' && 'electronAPI' in window;

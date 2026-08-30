@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { API_ERROR_RECOVERY } from '@/hooks/useApiSettingsRecovery';
 import { useTranslation } from 'react-i18next';
-import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain, ArrowUp, HelpCircle, Link2, ChevronDown, Volume2, Info, RefreshCw, CheckCircle, Lightbulb, Sparkles } from 'lucide-react';
+import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain, ArrowUp, HelpCircle, Link2, ChevronDown, Volume2, Info, RefreshCw, CheckCircle, Lightbulb, Sparkles, AlertCircle } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { appVersion } from '@/utils/appVersion';
 import { isDesktop } from '@/utils';
@@ -12,7 +13,7 @@ import type { DesktopUpdateCheckResult } from '@/types/desktopUpdate';
 // 组件内翻译
 const settingsI18n = {
   zh: {
-    nav: { backToHome: '返回首页' },
+    nav: { backToHome: '返回首页', backToEditor: '返回编辑器' },
     settings: {
       title: "系统设置",
       subtitle: "配置应用的各项参数",
@@ -233,7 +234,11 @@ const settingsI18n = {
           parsePreview: "解析预览：{{preview}}"
         }
       },
-      actions: { save: "保存设置", saving: "保存中...", resetToDefault: "重置为默认配置" },
+      actions: { save: "保存设置", saveAndReturn: "保存并返回", saving: "保存中...", resetToDefault: "重置为默认配置" },
+      recovery: {
+        title: "修复 API 配置后返回继续创作",
+        description: "当前操作因 API 密钥、权限、余额或限流问题失败。保存配置后将自动返回原编辑页面，你可以在那里重新发起生成。",
+      },
       messages: {
         loadFailed: "加载设置失败", saveSuccess: "设置保存成功", saveFailed: "保存设置失败",
         resetConfirm: "将把大模型、图像生成和并发等所有配置恢复为环境默认值，已保存的自定义设置将丢失，确定继续吗？",
@@ -245,7 +250,7 @@ const settingsI18n = {
     }
   },
   en: {
-    nav: { backToHome: 'Back to Home' },
+    nav: { backToHome: 'Back to Home', backToEditor: 'Back to Editor' },
     settings: {
       title: "Settings",
       subtitle: "Configure application parameters",
@@ -466,7 +471,11 @@ const settingsI18n = {
           parsePreview: "Parse preview: {{preview}}"
         }
       },
-      actions: { save: "Save Settings", saving: "Saving...", resetToDefault: "Reset to Default" },
+      actions: { save: "Save Settings", saveAndReturn: "Save and Return", saving: "Saving...", resetToDefault: "Reset to Default" },
+      recovery: {
+        title: "Fix the API configuration and return to editing",
+        description: "The previous action failed because of an API key, permission, balance, or rate-limit problem. After saving, you will return to the editor and can retry generation there.",
+      },
       messages: {
         loadFailed: "Failed to load settings", saveSuccess: "Settings saved successfully", saveFailed: "Failed to save settings",
         resetConfirm: "This will reset all configurations (LLM, image generation, concurrency, etc.) to environment defaults. Custom settings will be lost. Continue?",
@@ -483,6 +492,18 @@ import * as api from '@/api/endpoints';
 import type { OutputLanguage, UpdateCheckInfo } from '@/api/endpoints';
 import { OUTPUT_LANGUAGE_OPTIONS } from '@/api/endpoints';
 import type { Settings as SettingsType } from '@/types';
+import {
+  beginSettingsCacheRequest,
+  mergeSettingsWithOpenAIOAuthStatus,
+  readSettingsCache,
+  writeSettingsCache,
+} from '@/utils/settingsCache';
+import type { OpenAIOAuthCacheStatus } from '@/utils/settingsCache';
+import {
+  getSettingsAfterPendingUpdates,
+  resetSettingsSerially,
+  updateSettingsSerially,
+} from '@/utils/settingsUpdates';
 
 // 配置项类型定义
 type FieldType = 'text' | 'password' | 'number' | 'select' | 'buttons' | 'switch';
@@ -900,7 +921,12 @@ const formDataFromSettings = (data: SettingsType): typeof initialFormData => {
 };
 
 // Settings 组件 - 纯嵌入模式（可复用）
-export const Settings: React.FC = () => {
+interface SettingsProps {
+  onSaveSuccess?: () => void;
+  saveLabel?: string;
+}
+
+export const Settings: React.FC<SettingsProps> = ({ onSaveSuccess, saveLabel }) => {
   const t = useT(settingsI18n);
   const { i18n } = useTranslation();
   const isZh = i18n.language?.startsWith('zh') ?? true;
@@ -935,6 +961,7 @@ export const Settings: React.FC = () => {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const oauthMonitorStopRef = useRef<(() => void) | null>(null);
   const oauthAttemptRef = useRef(0);
+  const oauthStatusRef = useRef<OpenAIOAuthCacheStatus | null>(null);
   const allProviderSources = getAllProviderSources(isZh);
   const globalProviderSources = [
     allProviderSources[0],
@@ -974,15 +1001,16 @@ export const Settings: React.FC = () => {
 
   useEffect(() => {
     if (settings) {
-      try {
-        sessionStorage.setItem('banana-settings', JSON.stringify(settings));
-      } catch (error) {
-        console.warn('Failed to persist settings in sessionStorage:', error);
-      }
+      writeSettingsCache(settings);
     }
   }, [settings]);
 
   const applyOAuthStatus = useCallback((connected: boolean, accountId: string | null) => {
+    oauthStatusRef.current = {
+      connected,
+      accountId,
+      revision: (oauthStatusRef.current?.revision ?? 0) + 1,
+    };
     setSettings(prev => {
       if (!prev) return prev;
       return {
@@ -1051,11 +1079,7 @@ export const Settings: React.FC = () => {
     try {
       const resp = await api.disconnectOpenAIOAuth();
       if (resp.success) {
-        setSettings(prev => prev ? {
-          ...prev,
-          openai_oauth_connected: false,
-          openai_oauth_account_id: null,
-        } : prev);
+        applyOAuthStatus(false, null);
         show({ message: t('settings.openaiOAuth.disconnectSuccess'), type: 'success' });
       }
     } catch {
@@ -1248,12 +1272,20 @@ export const Settings: React.FC = () => {
   }, []);
 
   const loadSettings = async () => {
+    const settingsRequestId = beginSettingsCacheRequest();
     setIsLoading(true);
     try {
-      const response = await api.getSettings();
+      const response = await getSettingsAfterPendingUpdates();
       if (response.data) {
-        setSettings(response.data);
-        setFormData(formDataFromSettings(response.data));
+        const cacheAccepted = writeSettingsCache(response.data, settingsRequestId);
+        const loadedSettings = cacheAccepted ? response.data : readSettingsCache() || response.data;
+        oauthStatusRef.current = {
+          connected: Boolean(loadedSettings.openai_oauth_connected),
+          accountId: loadedSettings.openai_oauth_account_id || null,
+          revision: oauthStatusRef.current?.revision ?? 0,
+        };
+        setSettings(loadedSettings);
+        setFormData(formDataFromSettings(loadedSettings));
       }
     } catch (error: any) {
       console.error('加载设置失败:', error);
@@ -1267,14 +1299,7 @@ export const Settings: React.FC = () => {
   };
 
   const markOpenAIOAuthDisconnected = () => {
-    setSettings(prev => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        openai_oauth_connected: false,
-        openai_oauth_account_id: null,
-      };
-    });
+    applyOAuthStatus(false, null);
   };
 
   const handleSave = async () => {
@@ -1307,11 +1332,21 @@ export const Settings: React.FC = () => {
         payload.lazyllm_api_keys = nonEmptyKeys;
       }
 
-      const response = await api.updateSettings(payload);
+      const oauthRevisionAtSaveStart = oauthStatusRef.current?.revision ?? 0;
+      const response = await updateSettingsSerially(payload);
       if (response.data) {
-        setSettings(response.data);
-        show({ message: t('settings.messages.saveSuccess'), type: 'success' });
-        show({ message: t('settings.messages.testServiceTip'), type: 'info' });
+        const savedSettings = mergeSettingsWithOpenAIOAuthStatus(
+          response.data,
+          oauthStatusRef.current,
+          oauthRevisionAtSaveStart
+        );
+        oauthStatusRef.current = {
+          connected: Boolean(savedSettings.openai_oauth_connected),
+          accountId: savedSettings.openai_oauth_account_id || null,
+          revision: oauthStatusRef.current?.revision ?? oauthRevisionAtSaveStart,
+        };
+        writeSettingsCache(savedSettings);
+        setSettings(savedSettings);
         // Clear all sensitive fields after save
         setFormData(prev => ({
           ...prev,
@@ -1319,6 +1354,12 @@ export const Settings: React.FC = () => {
           lazyllm_api_keys: {},
           text_api_key: '', image_api_key: '', image_caption_api_key: '',
         }));
+        if (onSaveSuccess) {
+          onSaveSuccess();
+        } else {
+          show({ message: t('settings.messages.saveSuccess'), type: 'success' });
+          show({ message: t('settings.messages.testServiceTip'), type: 'info' });
+        }
       }
     } catch (error: any) {
       console.error('保存设置失败:', error);
@@ -1337,8 +1378,14 @@ export const Settings: React.FC = () => {
       async () => {
         setIsSaving(true);
         try {
-          const response = await api.resetSettings();
+          const response = await resetSettingsSerially();
           if (response.data) {
+            writeSettingsCache(response.data);
+            oauthStatusRef.current = {
+              connected: Boolean(response.data.openai_oauth_connected),
+              accountId: response.data.openai_oauth_account_id || null,
+              revision: (oauthStatusRef.current?.revision ?? 0) + 1,
+            };
             setSettings(response.data);
             setFormData(formDataFromSettings(response.data));
             show({ message: t('settings.messages.resetSuccess'), type: 'success' });
@@ -2557,7 +2604,7 @@ export const Settings: React.FC = () => {
             onClick={handleSave}
             loading={isSaving}
           >
-            {isSaving ? t('settings.actions.saving') : t('settings.actions.save')}
+            {isSaving ? t('settings.actions.saving') : saveLabel || t('settings.actions.save')}
           </Button>
         </div>
 
@@ -2575,17 +2622,55 @@ export const SettingsPage: React.FC = () => {
   const location = useLocation();
   const t = useT(settingsI18n);
   const [showTop, setShowTop] = useState(false);
+  const navigationState = location.state as {
+    from?: unknown;
+    fromState?: unknown;
+    openedFrom?: unknown;
+    recovery?: unknown;
+  } | null;
+  const recoveryFrom = navigationState?.recovery === API_ERROR_RECOVERY
+    && typeof navigationState.from === 'string'
+    && navigationState.from.startsWith('/')
+    && !navigationState.from.startsWith('//')
+    ? navigationState.from
+    : null;
+  const recoveryOpenedFrom = navigationState?.recovery === API_ERROR_RECOVERY
+    && typeof navigationState.openedFrom === 'string'
+    && navigationState.openedFrom.startsWith('/')
+    && !navigationState.openedFrom.startsWith('//')
+    ? navigationState.openedFrom
+    : null;
+  const recoveryFromState = navigationState?.recovery === API_ERROR_RECOVERY
+    ? navigationState.fromState
+    : undefined;
   const hasInAppBackHistory = typeof window !== 'undefined' && typeof window.history.state?.idx === 'number'
     ? window.history.state.idx > 0
     : false;
   const canNavigateBack = hasInAppBackHistory || Boolean((location.state as { from?: string } | null)?.from);
 
+  const returnFromRecovery = () => {
+    if (!recoveryFrom) return;
+    if (hasInAppBackHistory && recoveryOpenedFrom === recoveryFrom) {
+      navigate(-1);
+      return;
+    }
+    navigate(recoveryFrom, { replace: true, state: recoveryFromState });
+  };
+
   const handleBack = () => {
+    if (recoveryFrom) {
+      returnFromRecovery();
+      return;
+    }
     if (canNavigateBack) {
       navigate(-1);
       return;
     }
     navigate('/');
+  };
+
+  const handleRecoverySaveSuccess = () => {
+    returnFromRecovery();
   };
 
   useEffect(() => {
@@ -2608,7 +2693,7 @@ export const SettingsPage: React.FC = () => {
                   onClick={handleBack}
                   className="mr-4"
                 >
-                  {t('nav.backToHome')}
+                  {recoveryFrom ? t('nav.backToEditor') : t('nav.backToHome')}
                 </Button>
                 <div>
                   <h1 className="text-2xl font-bold text-gray-900 dark:text-foreground-primary">{t('settings.title')}</h1>
@@ -2619,7 +2704,22 @@ export const SettingsPage: React.FC = () => {
               </div>
             </div>
 
-            <Settings />
+            {recoveryFrom && (
+              <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-950 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-100">
+                <AlertCircle size={20} className="mt-0.5 shrink-0" />
+                <div>
+                  <h2 className="font-semibold">{t('settings.recovery.title')}</h2>
+                  <p className="mt-1 text-sm leading-relaxed text-amber-800 dark:text-amber-200">
+                    {t('settings.recovery.description')}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <Settings
+              onSaveSuccess={recoveryFrom ? handleRecoverySaveSuccess : undefined}
+              saveLabel={recoveryFrom ? t('settings.actions.saveAndReturn') : undefined}
+            />
           </div>
         </Card>
       </div>

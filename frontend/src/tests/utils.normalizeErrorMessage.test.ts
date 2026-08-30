@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from 'vitest';
-import { normalizeErrorMessage, normalizeRenovationErrorMessage } from '@/utils';
+import { isApiSettingsError, normalizeErrorMessage, normalizeRenovationErrorMessage } from '@/utils';
 
 describe('normalizeErrorMessage', () => {
   beforeEach(() => {
@@ -41,6 +41,34 @@ describe('normalizeErrorMessage', () => {
     const message = normalizeErrorMessage("HTTPSConnectionPool(host='api.openai.com', port=443): Max retries exceeded");
     expect(message).not.toContain('Codex');
     expect(message).toContain('网络连接中断');
+  });
+
+  test.each([
+    ['API key is invalid', 'API 密钥无效'],
+    ['API quota or balance is insufficient', '余额或配额不足'],
+    ['API permission denied', 'API 权限不足'],
+    ['API rate limit exceeded', '请求过于频繁'],
+    ['Configured AI model is unavailable', 'AI 模型不可用'],
+    ['AI service connection failed; check API base URL', '检查 API 地址'],
+    ['Access code required', '刷新页面后重新验证'],
+  ])('localizes provider recovery errors: %s', (raw, expected) => {
+    expect(normalizeErrorMessage(raw)).toContain(expected);
+  });
+
+  test('localizes the safe generic generation failure', () => {
+    expect(normalizeErrorMessage('Generation failed due to an internal error')).toBe(
+      '生成过程中发生内部错误，请稍后重试。'
+    );
+    localStorage.setItem('i18nextLng', 'en');
+    expect(normalizeErrorMessage('Generation failed due to an internal error')).toBe(
+      'Generation failed due to an internal error. Please try again later.'
+    );
+  });
+
+  test('localizes disconnected Codex OAuth as a settings recovery error', () => {
+    const raw = 'OpenAI OAuth is not connected. Please connect in Settings.';
+    expect(normalizeErrorMessage(raw)).toContain('重新登录 OpenAI');
+    expect(isApiSettingsError(normalizeErrorMessage(raw))).toBe(true);
   });
 
   test('maps MinerU credential failures in the renovation workflow to a concrete recovery step', () => {
@@ -90,5 +118,40 @@ describe('normalizeErrorMessage', () => {
     );
     expect(message).toContain('Access denied');
     expect(message).not.toContain('访问被拒绝');
+  });
+});
+
+describe('isApiSettingsError', () => {
+  test('does not reclassify a normalized application access-code 403 as provider recovery', () => {
+    expect(isApiSettingsError(normalizeErrorMessage('HTTP 403'))).toBe(false);
+
+    localStorage.setItem('i18nextLng', 'en');
+    expect(isApiSettingsError(normalizeErrorMessage('HTTP 403'))).toBe(false);
+  });
+
+  test.each([
+    'HTTP 401',
+    '403 Forbidden',
+    '429 Too Many Requests',
+    'usage limit has been exhausted',
+    'balance is insufficient',
+    'API permission was denied. Please check API settings.',
+    '认证失败，请检查 API 密钥配置',
+    { response: { status: 401, data: { error: { message: 'invalid credential' } } } },
+  ])('recognizes settings-recoverable API failures: %j', (error) => {
+    expect(isApiSettingsError(error)).toBe(true);
+  });
+
+  test.each([
+    '500 Internal Server Error',
+    '503 Service Unavailable',
+    'HTTP 403',
+    { response: { status: 403, data: { error: 'Access code required' } } },
+    { response: { status: 403, data: { error: 'Invalid access code' } } },
+    'Network error',
+    'Gateway timeout',
+    new Error('File parsing failed'),
+  ])('does not redirect unrelated failures to settings: %j', (error) => {
+    expect(isApiSettingsError(error)).toBe(false);
   });
 });

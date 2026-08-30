@@ -9,6 +9,7 @@ import {
 import { devLog } from '@/utils/logger';
 import { triggerDownload } from '@/api/client';
 import { getT } from '@/utils/i18nHelper';
+import { readSettingsCache } from '@/utils/settingsCache';
 
 const storeI18n = {
   zh: {
@@ -76,6 +77,44 @@ const storeI18n = {
     }
   }
 };
+
+function getRouteProjectId(): string | null {
+  if (typeof window === 'undefined') return null;
+  const routePath = window.location.hash.startsWith('#/')
+    ? window.location.hash.slice(1)
+    : window.location.pathname;
+  return routePath.match(/^\/project\/([^/]+)/)?.[1] || null;
+}
+
+function getCurrentRouteState(): unknown {
+  if (typeof window === 'undefined') return undefined;
+  return window.history.state?.usr;
+}
+
+function getDescriptionPageKey(projectId: string, pageId: string): string {
+  return `${projectId}:${pageId}`;
+}
+
+const projectStateRevisions = new Map<string, number>();
+const projectSyncRequestIds = new Map<string, number>();
+
+function bumpProjectStateRevision(projectId: string): void {
+  projectStateRevisions.set(projectId, (projectStateRevisions.get(projectId) ?? 0) + 1);
+}
+
+function beginProjectSync(projectId: string): { requestId: number; stateRevision: number } {
+  const requestId = (projectSyncRequestIds.get(projectId) ?? 0) + 1;
+  projectSyncRequestIds.set(projectId, requestId);
+  return {
+    requestId,
+    stateRevision: projectStateRevisions.get(projectId) ?? 0,
+  };
+}
+
+function isCurrentProjectSync(projectId: string, requestId: number, stateRevision: number): boolean {
+  return projectSyncRequestIds.get(projectId) === requestId
+    && (projectStateRevisions.get(projectId) ?? 0) === stateRevision;
+}
 const t = getT(storeI18n);
 
 // 清理旧原型遗留的 per-project localStorage key（交接文档 §3：旧 demo 数据不迁移）。
@@ -106,6 +145,7 @@ interface ProjectState {
   activeTaskId: string | null;
   taskProgress: { total: number; completed: number } | null;
   error: string | null;
+  errorRecovery: { message: string; path: string; state?: unknown } | null;
   // 每个页面的生成任务ID映射 (pageId -> taskId)
   pageGeneratingTasks: Record<string, string>;
   // 警告消息
@@ -116,6 +156,10 @@ interface ProjectState {
   outlineStreamingProjectIds: string[];
   // 流式描述生成中
   isDescriptionStreaming: boolean;
+  // 按项目记录描述生成锁，避免服务器旧快照覆盖页面状态后重复提交付费请求。
+  descriptionGeneratingProjectIds: string[];
+  // 同步单页请求的独立锁；页面 GET 快照不能提前解除该锁。
+  descriptionGeneratingPageKeys: string[];
   // 项目模板库（per-page template）
   templateAssets: TemplateAsset[];
 
@@ -126,7 +170,7 @@ interface ProjectState {
   
   // 项目操作
   initializeProject: (type: 'idea' | 'outline' | 'description' | 'blank', content: string, templateImage?: File, templateStyle?: string, referenceFileIds?: string[], aspectRatio?: string) => Promise<void>;
-  syncProject: (projectId?: string) => Promise<void>;
+  syncProject: (projectId?: string) => Promise<boolean>;
   
   // 页面操作
   updatePageLocal: (pageId: string, data: any) => void;
@@ -271,17 +315,20 @@ export const useProjectStore = create<ProjectState>((set, get) => {
   activeTaskId: null,
   taskProgress: null,
   error: null,
+  errorRecovery: null,
   pageGeneratingTasks: {},
   warningMessage: null,
   isOutlineStreaming: false,
   outlineStreamingProjectIds: [],
   isDescriptionStreaming: false,
+  descriptionGeneratingProjectIds: [],
+  descriptionGeneratingPageKeys: [],
   templateAssets: [],
 
   // Setters
   setCurrentProject: (project) => set({ currentProject: project }),
   setGlobalLoading: (loading) => set({ isGlobalLoading: loading }),
-  setError: (error) => set({ error }),
+  setError: (error) => set({ error, ...(error === null ? { errorRecovery: null } : {}) }),
 
   // 初始化项目
   initializeProject: async (type, content, templateImage, templateStyle, referenceFileIds, aspectRatio) => {
@@ -374,12 +421,29 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     if (!targetProjectId) {
       console.warn('syncProject: 没有可用的项目ID');
-      return;
+      return false;
     }
+
+    const { requestId, stateRevision } = beginProjectSync(targetProjectId);
 
     try {
       const response = await api.getProject(targetProjectId);
+      if (!isCurrentProjectSync(targetProjectId, requestId, stateRevision)) {
+        devLog('[syncProject] 忽略被较新请求或本地状态变更取代的响应:', {
+          targetProjectId,
+          requestId,
+        });
+        return false;
+      }
       if (response.data) {
+        const routeProjectId = getRouteProjectId();
+        if (routeProjectId && routeProjectId !== targetProjectId) {
+          devLog('[syncProject] 忽略已离开项目的过期响应:', {
+            targetProjectId,
+            routeProjectId,
+          });
+          return false;
+        }
         const project = normalizeProject(response.data);
         devLog('[syncProject] 同步项目数据:', {
           projectId: project.id,
@@ -389,8 +453,26 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         set({ currentProject: project });
         // 确保 localStorage 中保存了项目ID
         localStorage.setItem('currentProjectId', project.id!);
+        return true;
       }
+      return false;
     } catch (error: any) {
+      if (!isCurrentProjectSync(targetProjectId, requestId, stateRevision)) {
+        devLog('[syncProject] 忽略被较新请求或本地状态变更取代的错误响应:', {
+          targetProjectId,
+          requestId,
+        });
+        return false;
+      }
+      const routeProjectId = getRouteProjectId();
+      if (routeProjectId && routeProjectId !== targetProjectId) {
+        devLog('[syncProject] 忽略已离开项目的过期错误响应:', {
+          targetProjectId,
+          routeProjectId,
+        });
+        return false;
+      }
+
       // 提取更详细的错误信息
       let errorMessage = t('store.syncFailed');
       let shouldClearStorage = false;
@@ -429,6 +511,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       } else {
         set({ error: normalizeErrorMessage(errorMessage) });
       }
+      return false;
     }
   },
 
@@ -681,6 +764,21 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     if (get().outlineStreamingProjectIds.includes(projectId)) return;
 
+    const recoveryPath = `/project/${projectId}/outline`;
+    const recoveryState = getCurrentRouteState();
+    bumpProjectStateRevision(projectId);
+    const originalPages = currentProject.pages;
+    const restoreOriginalPages = () => {
+      set((state) => {
+        if (state.currentProject?.id !== projectId) return state;
+        const pagesAreTransient = state.currentProject.pages.length === 0
+          || state.currentProject.pages.every((page) => page.id?.startsWith('streaming-'));
+        return pagesAreTransient
+          ? { currentProject: { ...state.currentProject, pages: originalPages } }
+          : state;
+      });
+    };
+
     const finishStream = () => {
       set((state) => {
         const outlineStreamingProjectIds = state.outlineStreamingProjectIds.filter((id) => id !== projectId);
@@ -696,6 +794,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       outlineStreamingProjectIds: [...state.outlineStreamingProjectIds, projectId],
       isOutlineStreaming: true,
       error: null,
+      errorRecovery: null,
     }));
 
     // Clear existing pages for fresh streaming display
@@ -749,9 +848,11 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         onDone: (data) => { doneData = data; },
         onError: (message) => {
           console.error('[流式大纲] 错误:', message);
-          if (isViewingTargetProject()) {
-            set({ error: normalizeErrorMessage(message) });
-          }
+          const normalizedMessage = normalizeErrorMessage(message);
+          set({
+            error: normalizedMessage,
+            errorRecovery: { message: normalizedMessage, path: recoveryPath, state: recoveryState },
+          });
           streamDone = true;
         },
       }, undefined /* language */, lockPageCount);
@@ -769,16 +870,30 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         devLog('[流式大纲] 完成:', doneData.total, '个页面');
         return { complete: doneData.complete ?? false, active: isViewingTargetProject() };
       } else {
+        restoreOriginalPages();
         return { complete: false, active: isViewingTargetProject() };
       }
     } catch (error: any) {
       console.error('[流式大纲] 错误:', error);
       streamDone = true;
+      await renderPromise;
+      if (doneData) {
+        const { currentProject: proj } = get();
+        if (proj?.id === projectId) {
+          set({ currentProject: normalizeProject({ ...proj, pages: doneData.pages }) });
+        }
+        return { complete: doneData.complete ?? false, active: isViewingTargetProject() };
+      }
+      restoreOriginalPages();
+      const message = normalizeErrorMessage(error.message || t('store.generateOutlineFailed'));
+      set({
+        error: message,
+        errorRecovery: { message, path: recoveryPath, state: recoveryState },
+      });
       if (!isViewingTargetProject()) {
-        // 已切换离开发起生成的项目：过期失败不再抛出，避免在后来打开的项目中弹提示
+        // 已离开发起项目：由全局 Toast 提供绑定到来源项目的恢复入口。
         return { complete: false, active: false };
       }
-      set({ error: normalizeErrorMessage(error.message || t('store.generateOutlineFailed')) });
       throw error;
     } finally {
       finishStream();
@@ -815,24 +930,71 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     const { currentProject } = get();
     if (!currentProject || !currentProject.id) return;
 
+    const projectId = currentProject.id;
     const pages = currentProject.pages.filter((p) => p.id);
     if (pages.length === 0) return;
+    if (
+      get().descriptionGeneratingProjectIds.includes(projectId)
+      || pages.some((page) => page.status === 'GENERATING_DESCRIPTION')
+    ) {
+      devLog('[生成描述] 当前项目已有描述生成任务，跳过重复请求');
+      return;
+    }
+
+    bumpProjectStateRevision(projectId);
+    set((state) => ({
+      descriptionGeneratingProjectIds: state.descriptionGeneratingProjectIds.includes(projectId)
+        ? state.descriptionGeneratingProjectIds
+        : [...state.descriptionGeneratingProjectIds, projectId],
+    }));
+    const finishDescriptionGeneration = () => {
+      set((state) => ({
+        descriptionGeneratingProjectIds: state.descriptionGeneratingProjectIds.filter(
+          (id) => id !== projectId
+        ),
+      }));
+    };
 
     // 检查描述生成模式，优先从 sessionStorage 缓存读取以避免额外 API 调用
     let mode: string = 'streaming';
-    try {
-      const cached = sessionStorage.getItem('banana-settings');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (parsed?.description_generation_mode) {
-          mode = parsed.description_generation_mode;
-        }
-      }
-    } catch { /* ignore */ }
+    const cachedSettings = readSettingsCache();
+    if (cachedSettings?.description_generation_mode) {
+      mode = cachedSettings.description_generation_mode;
+    }
 
     if (mode === 'streaming') {
       // 流式模式
-      set({ isDescriptionStreaming: true, error: null });
+      const recoveryPath = `/project/${projectId}/detail`;
+      const recoveryState = getCurrentRouteState();
+      const originalPageStatuses = new Map(
+        currentProject.pages
+          .filter((page) => page.id)
+          .map((page) => [page.id!, page.status] as const)
+      );
+      const syncStreamProjectIfCurrent = async (): Promise<boolean> => {
+        if (getRouteProjectId() === projectId) {
+          return get().syncProject(projectId);
+        }
+        return false;
+      };
+      const restoreOptimisticPageStatuses = () => {
+        const latestProject = get().currentProject;
+        if (!latestProject || latestProject.id !== projectId) return;
+
+        let changed = false;
+        const restoredPages = latestProject.pages.map((page) => {
+          if (!page.id || page.status !== 'GENERATING_DESCRIPTION') return page;
+          const originalStatus = originalPageStatuses.get(page.id);
+          if (!originalStatus || originalStatus === page.status) return page;
+          changed = true;
+          return { ...page, status: originalStatus };
+        });
+        if (changed) {
+          set({ currentProject: { ...latestProject, pages: restoredPages } });
+        }
+      };
+
+      set({ isDescriptionStreaming: true, error: null, errorRecovery: null });
 
       const updatedPages = currentProject.pages.map((page) =>
         page.id ? { ...page, status: 'GENERATING_DESCRIPTION' as const } : page
@@ -850,7 +1012,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           if (descQueue.length > 0) {
             const desc = descQueue.shift()!;
             const { currentProject: proj } = get();
-            if (proj) {
+            if (proj?.id === projectId) {
               const updatedPages = proj.pages.map((page) => {
                 if (page.id === desc.page_id) {
                   return {
@@ -877,12 +1039,16 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       });
 
       try {
-        await api.generateDescriptionsStream(currentProject.id, {
+        await api.generateDescriptionsStream(projectId, {
           onDescription: (data) => { descQueue.push(data); },
           onDone: (data) => { doneData = data; },
           onError: (message) => {
             console.error('[流式描述] 错误:', message);
-            set({ error: normalizeErrorMessage(message) });
+            const normalizedMessage = normalizeErrorMessage(message);
+            set({
+              error: normalizedMessage,
+              errorRecovery: { message: normalizedMessage, path: recoveryPath, state: recoveryState },
+            });
             streamDone = true;
           },
         }, undefined, detailLevel);
@@ -892,7 +1058,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
         if (doneData) {
           const { currentProject: proj } = get();
-          if (proj) {
+          if (proj?.id === projectId) {
             const normalized = normalizeProject({ ...proj, pages: doneData.pages });
             set({
               currentProject: normalized,
@@ -903,22 +1069,58 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           devLog('[流式描述] 完成:', doneData.total, '个页面');
         } else {
           // 无 doneData（SSE error 或连接中断）→ 从后端恢复真实状态
-          await get().syncProject();
+          const synced = await syncStreamProjectIfCurrent();
+          if (!synced) restoreOptimisticPageStatuses();
           set({ isDescriptionStreaming: false });
         }
       } catch (error: any) {
         console.error('[流式描述] 错误:', error);
         streamDone = true;
-        await get().syncProject();
+        const synced = await syncStreamProjectIfCurrent();
+        if (!synced) restoreOptimisticPageStatuses();
+        const message = normalizeErrorMessage(error.message || t('store.generateDescFailed'));
         set({
-          error: normalizeErrorMessage(error.message || t('store.generateDescFailed')),
+          error: message,
+          errorRecovery: { message, path: recoveryPath, state: recoveryState },
           isDescriptionStreaming: false,
         });
         throw error;
+      } finally {
+        finishDescriptionGeneration();
       }
     } else {
       // 并行模式（原有逻辑）
-      set({ error: null });
+      const recoveryPath = `/project/${projectId}/detail`;
+      const recoveryState = getCurrentRouteState();
+      const originalPageStatuses = new Map(
+        currentProject.pages
+          .filter((page) => page.id)
+          .map((page) => [page.id!, page.status] as const)
+      );
+      const syncTaskProjectIfCurrent = async (): Promise<boolean> => {
+        if (getRouteProjectId() === projectId) {
+          return get().syncProject(projectId);
+        }
+        return false;
+      };
+      const restoreOptimisticPageStatuses = () => {
+        const latestProject = get().currentProject;
+        if (!latestProject || latestProject.id !== projectId) return;
+
+        let changed = false;
+        const restoredPages = latestProject.pages.map((page) => {
+          if (!page.id || page.status !== 'GENERATING_DESCRIPTION') return page;
+          const originalStatus = originalPageStatuses.get(page.id);
+          if (!originalStatus || originalStatus === page.status) return page;
+          changed = true;
+          return { ...page, status: originalStatus };
+        });
+        if (changed) {
+          set({ currentProject: { ...latestProject, pages: restoredPages } });
+        }
+      };
+
+      set({ error: null, errorRecovery: null });
 
       const updatedPages = currentProject.pages.map((page) =>
         page.id ? { ...page, status: 'GENERATING_DESCRIPTION' as const } : page
@@ -926,7 +1128,6 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       set({ currentProject: { ...currentProject, pages: updatedPages } });
 
       try {
-        const projectId = currentProject.id;
         if (!projectId) {
           throw new Error(t('store.projectIdMissing'));
         }
@@ -938,48 +1139,72 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           throw new Error(t('store.noTaskId'));
         }
 
+        set({ activeTaskId: taskId });
+
         let pollErrors = 0;
+        let pollTimeoutReported = false;
+        const syncTerminalProject = async (remainingAttempts: number = 5) => {
+          if (getRouteProjectId() !== projectId || get().currentProject?.id !== projectId) {
+            set({ taskProgress: null, activeTaskId: null });
+            finishDescriptionGeneration();
+            return;
+          }
+
+          const synced = await syncTaskProjectIfCurrent();
+          if (synced || remainingAttempts <= 1) {
+            set({ taskProgress: null, activeTaskId: null });
+            finishDescriptionGeneration();
+          } else {
+            setTimeout(() => void syncTerminalProject(remainingAttempts - 1), 2000);
+          }
+        };
         const pollAndSync = async () => {
           try {
             const taskResponse = await api.getTaskStatus(projectId, taskId);
             const task = taskResponse.data;
+            pollErrors = 0;
 
             if (task) {
               if (task.progress) {
-                set({ taskProgress: task.progress });
+                if (getRouteProjectId() === projectId) {
+                  set({ taskProgress: task.progress });
+                }
               }
-
-              await get().syncProject();
 
               if (task.status === 'COMPLETED') {
-                set({ taskProgress: null, activeTaskId: null });
-                await get().syncProject();
+                await syncTerminalProject();
               } else if (task.status === 'FAILED') {
+                const message = normalizeErrorMessage(
+                  task.error_message || task.error || t('store.generateDescFailed')
+                );
                 set({
                   taskProgress: null,
-                  activeTaskId: null,
-                  error: normalizeErrorMessage(task.error_message || task.error || t('store.generateDescFailed'))
+                  error: message,
+                  errorRecovery: { message, path: recoveryPath, state: recoveryState },
                 });
-                await get().syncProject();
+                await syncTerminalProject();
               } else if (task.status === 'PENDING' || task.status === 'PROCESSING') {
+                await syncTaskProjectIfCurrent();
                 setTimeout(pollAndSync, 2000);
               }
+            } else {
+              setTimeout(pollAndSync, 2000);
             }
           } catch (error: any) {
             console.error('[生成描述] 轮询错误:', error);
             pollErrors++;
-            if (pollErrors >= 10) {
-              console.error('[生成描述] 轮询错误次数过多，停止轮询');
+            if (pollErrors >= 10 && !pollTimeoutReported) {
+              console.error('[生成描述] 轮询错误次数过多，降低频率继续轮询');
+              const message = normalizeErrorMessage(error.message || t('store.generateDescTimeout'));
               set({
                 taskProgress: null,
-                activeTaskId: null,
-                error: normalizeErrorMessage(error.message || t('store.generateDescTimeout'))
+                error: message,
+                errorRecovery: { message, path: recoveryPath, state: recoveryState },
               });
-              await get().syncProject();
-              return;
+              pollTimeoutReported = true;
             }
-            await get().syncProject();
-            setTimeout(pollAndSync, 2000);
+            await syncTaskProjectIfCurrent();
+            setTimeout(pollAndSync, pollErrors >= 10 ? 10000 : 2000);
           }
         };
 
@@ -987,8 +1212,19 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
       } catch (error: any) {
         console.error('[生成描述] 启动任务失败:', error);
-        await get().syncProject();
-        set({ error: normalizeErrorMessage(error.message || t('store.startGenerationFailed')) });
+        const synced = await syncTaskProjectIfCurrent();
+        if (!synced) restoreOptimisticPageStatuses();
+        const message = normalizeErrorMessage(
+          error?.response?.data?.error?.message
+          || error?.response?.data?.message
+          || error.message
+          || t('store.startGenerationFailed')
+        );
+        set({
+          error: message,
+          errorRecovery: { message, path: recoveryPath, state: recoveryState },
+        });
+        finishDescriptionGeneration();
         throw error;
       }
     }
@@ -997,16 +1233,47 @@ export const useProjectStore = create<ProjectState>((set, get) => {
   // 生成单页描述
   generatePageDescription: async (pageId: string, detailLevel?: string) => {
     const { currentProject } = get();
-    if (!currentProject) return;
+    const projectId = currentProject?.id;
+    if (!currentProject || !projectId) return;
 
     // 如果该页面正在生成，不重复提交
+    const pageKey = getDescriptionPageKey(projectId, pageId);
     const targetPage = currentProject.pages.find((p) => p.id === pageId);
-    if (targetPage?.status === 'GENERATING_DESCRIPTION') {
+    if (
+      targetPage?.status === 'GENERATING_DESCRIPTION'
+      || get().descriptionGeneratingPageKeys.includes(pageKey)
+    ) {
       devLog(`[生成描述] 页面 ${pageId} 正在生成中，跳过重复请求`);
       return;
     }
 
-    set({ error: null });
+    const recoveryPath = `/project/${projectId}/detail`;
+    const recoveryState = getCurrentRouteState();
+    const originalStatus = targetPage?.status;
+    const restoreOptimisticStatus = () => {
+      set((state) => {
+        if (state.currentProject?.id !== projectId) return state;
+        const page = state.currentProject.pages.find((candidate) => candidate.id === pageId);
+        if (!page || page.status !== 'GENERATING_DESCRIPTION' || !originalStatus) return state;
+        return {
+          currentProject: {
+            ...state.currentProject,
+            pages: state.currentProject.pages.map((candidate) => (
+              candidate.id === pageId ? { ...candidate, status: originalStatus } : candidate
+            )),
+          },
+        };
+      });
+    };
+
+    bumpProjectStateRevision(projectId);
+    set((state) => ({
+      error: null,
+      errorRecovery: null,
+      descriptionGeneratingPageKeys: state.descriptionGeneratingPageKeys.includes(pageKey)
+        ? state.descriptionGeneratingPageKeys
+        : [...state.descriptionGeneratingPageKeys, pageKey],
+    }));
 
     // 乐观更新：设置页面状态为 GENERATING_DESCRIPTION
     const updatedPages = currentProject.pages.map((page) =>
@@ -1015,12 +1282,12 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     set({ currentProject: { ...currentProject, pages: updatedPages } });
 
     try {
-      const response = await api.generatePageDescription(currentProject.id, pageId, true, undefined, detailLevel);
+      const response = await api.generatePageDescription(projectId, pageId, true, undefined, detailLevel);
 
       if (response.data) {
         const updatedPageData = response.data;
         const { currentProject: latestProject } = get();
-        if (latestProject) {
+        if (latestProject?.id === projectId) {
           const newPages = latestProject.pages.map((page) =>
             page.id === pageId ? { ...page, ...updatedPageData } : page
           );
@@ -1029,26 +1296,74 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         }
       }
     } catch (error: any) {
-      // 恢复页面状态
-      await get().syncProject();
-      set({ error: normalizeErrorMessage(error.message || t('store.generateDescFailed')) });
+      const synced = getRouteProjectId() === projectId
+        ? await get().syncProject(projectId)
+        : false;
+      if (!synced) restoreOptimisticStatus();
+      const message = normalizeErrorMessage(
+        error?.response?.data?.error?.message
+        || error?.response?.data?.message
+        || error.message
+        || t('store.generateDescFailed')
+      );
+      set({
+        error: message,
+        errorRecovery: { message, path: recoveryPath, state: recoveryState },
+      });
       throw error;
+    } finally {
+      set((state) => ({
+        descriptionGeneratingPageKeys: state.descriptionGeneratingPageKeys.filter(
+          (key) => key !== pageKey
+        ),
+      }));
     }
   },
 
   // 重新生成 PPT 翻新项目的单页（重新解析原 PDF 并提取内容）
   regenerateRenovationPage: async (pageId: string, keepLayout: boolean = false) => {
     const { currentProject } = get();
-    if (!currentProject) return;
+    const projectId = currentProject?.id;
+    if (!currentProject || !projectId) return;
 
     // 如果该页面正在生成，不重复提交
+    const pageKey = getDescriptionPageKey(projectId, pageId);
     const targetPage = currentProject.pages.find((p) => p.id === pageId);
-    if (targetPage?.status === 'GENERATING_DESCRIPTION') {
+    if (
+      targetPage?.status === 'GENERATING_DESCRIPTION'
+      || get().descriptionGeneratingPageKeys.includes(pageKey)
+    ) {
       devLog(`[PPT翻新] 页面 ${pageId} 正在生成中，跳过重复请求`);
       return;
     }
 
-    set({ error: null });
+    const recoveryPath = `/project/${projectId}/detail`;
+    const recoveryState = getCurrentRouteState();
+    const originalStatus = targetPage?.status;
+    const restoreOptimisticStatus = () => {
+      set((state) => {
+        if (state.currentProject?.id !== projectId) return state;
+        const page = state.currentProject.pages.find((candidate) => candidate.id === pageId);
+        if (!page || page.status !== 'GENERATING_DESCRIPTION' || !originalStatus) return state;
+        return {
+          currentProject: {
+            ...state.currentProject,
+            pages: state.currentProject.pages.map((candidate) => (
+              candidate.id === pageId ? { ...candidate, status: originalStatus } : candidate
+            )),
+          },
+        };
+      });
+    };
+
+    bumpProjectStateRevision(projectId);
+    set((state) => ({
+      error: null,
+      errorRecovery: null,
+      descriptionGeneratingPageKeys: state.descriptionGeneratingPageKeys.includes(pageKey)
+        ? state.descriptionGeneratingPageKeys
+        : [...state.descriptionGeneratingPageKeys, pageKey],
+    }));
 
     // 乐观更新：设置页面状态为 GENERATING_DESCRIPTION
     const updatedPages = currentProject.pages.map((page) =>
@@ -1057,12 +1372,12 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     set({ currentProject: { ...currentProject, pages: updatedPages } });
 
     try {
-      const response = await api.regenerateRenovationPage(currentProject.id, pageId, keepLayout);
+      const response = await api.regenerateRenovationPage(projectId, pageId, keepLayout);
 
       if (response.data) {
         const updatedPageData = response.data;
         const { currentProject: latestProject } = get();
-        if (latestProject) {
+        if (latestProject?.id === projectId) {
           const newPages = latestProject.pages.map((page) =>
             page.id === pageId ? { ...page, ...updatedPageData } : page
           );
@@ -1071,9 +1386,27 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         }
       }
     } catch (error: any) {
-      await get().syncProject();
-      set({ error: normalizeErrorMessage(error.message || t('store.regenerateFailed')) });
+      const synced = getRouteProjectId() === projectId
+        ? await get().syncProject(projectId)
+        : false;
+      if (!synced) restoreOptimisticStatus();
+      const message = normalizeErrorMessage(
+        error?.response?.data?.error?.message
+        || error?.response?.data?.message
+        || error.message
+        || t('store.regenerateFailed')
+      );
+      set({
+        error: message,
+        errorRecovery: { message, path: recoveryPath, state: recoveryState },
+      });
       throw error;
+    } finally {
+      set((state) => ({
+        descriptionGeneratingPageKeys: state.descriptionGeneratingPageKeys.filter(
+          (key) => key !== pageKey
+        ),
+      }));
     }
   },
 

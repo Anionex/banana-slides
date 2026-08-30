@@ -128,6 +128,7 @@ import { useImagePaste, buildMaterialsMarkdown } from '@/hooks/useImagePaste';
 import type { Material } from '@/types';
 import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtils';
 import type { Page } from '@/types';
+import { consumeOutlineRecoverySuppression, useApiSettingsRecovery } from '@/hooks/useApiSettingsRecovery';
 
 // 可排序的卡片包装器
 const SortableCard: React.FC<{
@@ -204,6 +205,7 @@ export const OutlineEditor: React.FC = () => {
   }, [isOutlineStreaming]);
   const { confirm, ConfirmDialog } = useConfirm();
   const { show, ToastContainer } = useToast();
+  const { withApiSettingsRecovery } = useApiSettingsRecovery();
   const autoGenerateStartedRef = useRef<string | null>(null);
 
   // 左侧可编辑文本区域 — desktop and mobile use separate refs to avoid
@@ -392,6 +394,8 @@ export const OutlineEditor: React.FC = () => {
 
   const handleGenerateOutline = async () => {
     if (!currentProject) return;
+    const recoveryPath = `/project/${currentProject.id}/outline`;
+    const recoveryState = location.state;
 
     const doGenerate = async (lockPageCount?: boolean) => {
       try {
@@ -404,7 +408,13 @@ export const OutlineEditor: React.FC = () => {
       } catch (error: any) {
         console.error('生成大纲失败:', error);
         const message = error.friendlyMessage || error.message || t('outline.messages.generateFailed');
-        show({ message, type: 'error' });
+        show(withApiSettingsRecovery(
+          error,
+          { message, type: 'error' },
+          recoveryPath,
+          recoveryState,
+          true
+        ));
       }
     };
 
@@ -426,9 +436,17 @@ export const OutlineEditor: React.FC = () => {
   };
 
   useEffect(() => {
-    if (!currentProject?.id || currentProject.pages.length > 0 || isOutlineStreaming) return;
+    if (!currentProject?.id) return;
+    const recoveryPath = `/project/${currentProject.id}/outline`;
+    const currentPath = `${location.pathname}${location.search}${location.hash}`;
+    const suppressAfterRecovery = consumeOutlineRecoverySuppression(currentPath);
+    if (currentProject.pages.length > 0 || isOutlineStreaming) return;
     if (!['idea', 'outline', 'descriptions'].includes(currentProject.creation_type || 'idea')) return;
     if (autoGenerateStartedRef.current === currentProject.id) return;
+    if (suppressAfterRecovery) {
+      autoGenerateStartedRef.current = currentProject.id;
+      return;
+    }
 
     autoGenerateStartedRef.current = currentProject.id;
     void (async () => {
@@ -442,10 +460,16 @@ export const OutlineEditor: React.FC = () => {
       } catch (error: any) {
         console.error('自动生成大纲失败:', error);
         const message = error.message || t('outline.messages.generateFailed');
-        show({ message, type: 'error' });
+        show(withApiSettingsRecovery(
+          error,
+          { message, type: 'error' },
+          recoveryPath,
+          location.state,
+          true
+        ));
       }
     })();
-  }, [currentProject?.id, currentProject?.pages.length, currentProject?.creation_type, generateOutlineStream, isOutlineStreaming, show, t]);
+  }, [currentProject?.id, currentProject?.pages.length, currentProject?.creation_type, generateOutlineStream, isOutlineStreaming, location.hash, location.pathname, location.search, location.state, show, t, withApiSettingsRecovery]);
 
   const handleAiRefineOutline = useCallback(async (requirement: string, previousRequirements: string[]) => {
     if (!currentProject || !projectId) return;
@@ -462,10 +486,16 @@ export const OutlineEditor: React.FC = () => {
       const errorMessage = error?.response?.data?.error?.message
         || error?.message
         || t('outline.messages.refineFailed');
-      show({ message: errorMessage, type: 'error' });
+      show(withApiSettingsRecovery(
+        error,
+        { message: errorMessage, type: 'error' },
+        `/project/${projectId}/outline`,
+        location.state,
+        true
+      ));
       throw error;
     }
-  }, [currentProject, projectId, syncProject, show]);
+  }, [currentProject, location.state, projectId, syncProject, show, withApiSettingsRecovery]);
 
   // 导出大纲为 Markdown 文件
   const handleExportOutline = useCallback(() => {

@@ -13,6 +13,8 @@ from services.task_manager import (
     edit_page_image_task,
     get_image_prompt_field_names,
     resolve_page_template,
+    try_acquire_description_page,
+    release_description_page,
 )
 from datetime import datetime
 from pathlib import Path
@@ -24,6 +26,22 @@ import json
 logger = logging.getLogger(__name__)
 
 page_bp = Blueprint('pages', __name__, url_prefix='/api/projects')
+
+
+def _restore_page_description_status(page_id: str, original_status: str) -> None:
+    """Restore a page after a failed synchronous description operation."""
+    db.session.rollback()
+    page = db.session.get(Page, page_id)
+    if not page:
+        return
+    if page.description_content:
+        page.status = 'DESCRIPTION_GENERATED'
+    elif original_status and original_status != 'GENERATING_DESCRIPTION':
+        page.status = original_status
+    else:
+        page.status = 'DRAFT'
+    page.updated_at = datetime.utcnow()
+    db.session.commit()
 
 
 def _build_page_from_payload(project_id, data, order_index):
@@ -332,6 +350,8 @@ def generate_page_description(project_id, page_id):
         "force_regenerate": false
     }
     """
+    guard_acquired = False
+    original_status = None
     try:
         page = Page.query.get(page_id)
         
@@ -355,6 +375,15 @@ def generate_page_description(project_id, page_id):
         outline_content = page.get_outline_content()
         if not outline_content:
             return bad_request("Page must have outline content first")
+
+        if not try_acquire_description_page(project_id, page_id):
+            return error_response(
+                'GENERATION_IN_PROGRESS',
+                'Description generation is already in progress for this page or project',
+                409,
+            )
+        guard_acquired = True
+        original_status = page.status
         
         # Reconstruct full outline
         all_pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
@@ -374,6 +403,12 @@ def generate_page_description(project_id, page_id):
         from controllers.project_controller import _get_project_reference_files_content
         reference_files_content = _get_project_reference_files_content(project_id)
         project_context = ProjectContext(project, reference_files_content)
+
+        # Persist the lock state before the paid provider request starts so a
+        # fresh project sync cannot make the page look available again.
+        page.status = 'GENERATING_DESCRIPTION'
+        page.updated_at = datetime.utcnow()
+        db.session.commit()
         
         # Generate description
         page_data = outline_content.copy()
@@ -406,8 +441,14 @@ def generate_page_description(project_id, page_id):
         return success_response(page.to_dict())
     
     except Exception as e:
-        db.session.rollback()
+        if guard_acquired:
+            _restore_page_description_status(page_id, original_status)
+        else:
+            db.session.rollback()
         return error_response('AI_SERVICE_ERROR', str(e), 503)
+    finally:
+        if guard_acquired:
+            release_description_page(project_id, page_id)
 
 
 @page_bp.route('/<project_id>/pages/<page_id>/generate/image', methods=['POST'])
@@ -843,6 +884,8 @@ def regenerate_renovation_page(project_id, page_id):
     Re-parse the original PDF page and regenerate outline + description for PPT renovation projects.
     This re-runs the renovation pipeline for a single page.
     """
+    guard_acquired = False
+    original_status = None
     try:
         page = Page.query.get(page_id)
 
@@ -868,6 +911,18 @@ def regenerate_renovation_page(project_id, page_id):
 
         if not page_pdf_path.exists():
             return bad_request(f"Split PDF not found for page {page.order_index + 1}")
+
+        if not try_acquire_description_page(project_id, page_id):
+            return error_response(
+                'GENERATION_IN_PROGRESS',
+                'Description generation is already in progress for this page or project',
+                409,
+            )
+        guard_acquired = True
+        original_status = page.status
+        page.status = 'GENERATING_DESCRIPTION'
+        page.updated_at = datetime.utcnow()
+        db.session.commit()
 
         # Initialize services
         ai_service = get_ai_service()
@@ -904,6 +959,7 @@ def regenerate_renovation_page(project_id, page_id):
                 md_text = hf_text + '\n\n' + md_text
 
         if not md_text.strip():
+            _restore_page_description_status(page_id, original_status)
             return error_response('PARSE_ERROR', f"Failed to extract content from page {page.order_index + 1}", 400)
 
         # Step 2: AI extract structured content
@@ -948,9 +1004,15 @@ def regenerate_renovation_page(project_id, page_id):
         return success_response(page.to_dict())
 
     except Exception as e:
-        db.session.rollback()
+        if guard_acquired:
+            _restore_page_description_status(page_id, original_status)
+        else:
+            db.session.rollback()
         logger.error(f"Failed to regenerate renovation page: {e}", exc_info=True)
         return error_response('SERVER_ERROR', str(e), 500)
+    finally:
+        if guard_acquired:
+            release_description_page(project_id, page_id)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
