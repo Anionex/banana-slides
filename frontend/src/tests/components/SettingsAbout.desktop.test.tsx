@@ -27,8 +27,8 @@ const labels: Record<string, string> = {
   'settings.sections.about': '关于',
   'settings.about.version': '当前版本',
   'settings.about.source': 'GitHub 项目',
-  'settings.about.automaticUpdates': '自动更新',
-  'settings.about.automaticUpdatesDesc': '自动检查、下载并安装',
+  'settings.about.automaticUpdates': '自动检查更新',
+  'settings.about.automaticUpdatesDesc': '自动检查，由用户决定是否更新',
   'settings.about.automaticUpdateChecks': '自动检查更新',
   'settings.about.automaticUpdateChecksDesc': '自动提醒，手动下载',
   'settings.about.automaticUpdatesSaveFailed': '自动更新设置保存失败',
@@ -41,9 +41,12 @@ const labels: Record<string, string> = {
   'settings.about.unknown': '无法判断当前是否为最新版本',
   'settings.about.failed': '检查更新失败',
   'settings.about.resultTitle': '检查更新结果',
-  'settings.about.download': '下载更新',
+  'settings.about.download': '立即更新',
   'settings.about.fallbackDownload': '前往下载',
   'settings.about.restart': '重启并更新',
+  'settings.about.summary': '本次更新',
+  'settings.about.changelog': '查看完整更新日志',
+  'settings.about.later': '稍后更新',
   'settings.about.close': '关闭',
 };
 
@@ -104,9 +107,13 @@ describe('SettingsAbout desktop update checks', () => {
 
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText('有版本更新：0.9.0-rc.4')).toBeInTheDocument();
+    expect(within(dialog).getByText('本次更新')).toBeInTheDocument();
+    expect(within(dialog).getByText('Release candidate fixes')).toBeInTheDocument();
     expect(within(dialog).queryByText('无法判断当前是否为最新版本')).not.toBeInTheDocument();
     expect(backendCheckForUpdates).not.toHaveBeenCalled();
 
+    await userEvent.click(within(dialog).getByRole('button', { name: '查看完整更新日志' }));
+    expect(openExternal).toHaveBeenCalledWith(releaseUrl);
     await userEvent.click(within(dialog).getByRole('button', { name: '前往下载' }));
     expect(openExternal).toHaveBeenCalledWith(releaseUrl);
   });
@@ -134,7 +141,7 @@ describe('SettingsAbout desktop update checks', () => {
     setAutomaticUpdatesEnabled.mockResolvedValueOnce({ automaticUpdatesEnabled: false });
     render(<SettingsAbout t={t} />);
 
-    const toggle = await screen.findByRole('switch', { name: '自动更新' });
+    const toggle = await screen.findByRole('switch', { name: '自动检查更新' });
     expect(toggle).toHaveAttribute('aria-checked', 'true');
     await userEvent.click(toggle);
 
@@ -184,7 +191,7 @@ describe('SettingsAbout desktop update checks', () => {
     render(<SettingsAbout t={t} />);
     await userEvent.click(screen.getByRole('button', { name: /检查更新/ }));
     const dialog = await screen.findByRole('dialog');
-    await userEvent.click(within(dialog).getByRole('button', { name: '下载更新' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: '立即更新' }));
 
     expect(downloadUpdate).toHaveBeenCalledOnce();
     expect(within(dialog).getByText('版本 0.9.0-rc.4 已下载，重启后完成更新')).toBeInTheDocument();

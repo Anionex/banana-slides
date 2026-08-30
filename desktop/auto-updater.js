@@ -233,6 +233,7 @@ class DesktopAutoUpdateManager {
       error: null,
       canAutoUpdate: this.canAutoUpdate,
       automaticUpdatesEnabled: true,
+      checkSource: null,
     };
   }
 
@@ -415,13 +416,18 @@ class DesktopAutoUpdateManager {
   }
 
   async _checkForUpdates({ automatic }) {
+    const checkSource = automatic ? 'automatic' : 'manual';
     if (!this.app.isPackaged || !this.canAutoUpdate) {
       const fallbackState = await checkGitHubReleaseFallback({ app: this.app, logger: this.logger });
-      this._setState({ ...fallbackState, automaticUpdatesEnabled: this.settings.automaticUpdatesEnabled });
+      this._setState({
+        ...fallbackState,
+        automaticUpdatesEnabled: this.settings.automaticUpdatesEnabled,
+        checkSource,
+      });
       return this.getState();
     }
 
-    this._setState({ status: 'checking', error: null, progress: null });
+    this._setState({ status: 'checking', error: null, progress: null, checkSource });
     const result = await this.updater.checkForUpdates();
     const update = updateInfoToPublicUpdate(result?.updateInfo);
     const currentVersion = normalizeReleaseVersion(this.app.getVersion());
@@ -447,11 +453,6 @@ class DesktopAutoUpdateManager {
       progress: null,
       error: null,
     });
-    if (automatic && this.settings.automaticUpdatesEnabled) {
-      this.downloadUpdate({ automatic: true }).catch((error) => {
-        this.logger.warn('[auto-updater] Automatic update download failed:', error.message);
-      });
-    }
     return this.getState();
   }
 

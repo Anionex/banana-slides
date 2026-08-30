@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain, ArrowUp, HelpCircle, Link2, ChevronDown, Volume2, Info, RefreshCw, CheckCircle, Lightbulb, Sparkles } from 'lucide-react';
+import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain, ArrowUp, ArrowUpRight, HelpCircle, Link2, ChevronDown, Volume2, Info, RefreshCw, CheckCircle, Lightbulb, Sparkles } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { appVersion } from '@/utils/appVersion';
 import { isDesktop } from '@/utils';
@@ -35,8 +35,8 @@ const settingsI18n = {
       about: {
         version: "当前版本",
         source: "GitHub 项目",
-        automaticUpdates: "自动更新",
-        automaticUpdatesDesc: "启动后自动检查并下载新版本，退出应用时完成安装。",
+        automaticUpdates: "自动检查更新",
+        automaticUpdatesDesc: "启动后自动检查新版本，发现更新时由你决定立即更新或下次再说。",
         automaticUpdateChecks: "自动检查更新",
         automaticUpdateChecksDesc: "自动提醒新版本；当前安装包不支持应用内安装，需要手动下载。",
         automaticUpdatesSaveFailed: "自动更新设置保存失败",
@@ -49,9 +49,12 @@ const settingsI18n = {
         unknown: "无法判断当前是否为最新版本",
         failed: "检查更新失败",
         resultTitle: "检查更新结果",
-        download: "下载更新",
+        download: "立即更新",
         fallbackDownload: "前往下载",
         restart: "重启并更新",
+        summary: "本次更新",
+        changelog: "查看完整更新日志",
+        later: "稍后更新",
         close: "关闭",
       },
       openaiOAuth: {
@@ -277,8 +280,8 @@ const settingsI18n = {
       about: {
         version: "Current Version",
         source: "GitHub Project",
-        automaticUpdates: "Automatic updates",
-        automaticUpdatesDesc: "Check for and download new versions after launch, then install when the app exits.",
+        automaticUpdates: "Automatic update checks",
+        automaticUpdatesDesc: "Check for new versions after launch, then let you choose whether to update now or next time.",
         automaticUpdateChecks: "Automatic update checks",
         automaticUpdateChecksDesc: "Notify you about new versions automatically. This build still requires a manual download.",
         automaticUpdatesSaveFailed: "Failed to save the automatic update setting",
@@ -291,9 +294,12 @@ const settingsI18n = {
         unknown: "Unable to determine whether this is the latest version",
         failed: "Failed to check for updates",
         resultTitle: "Update Check Result",
-        download: "Download update",
+        download: "Update now",
         fallbackDownload: "Open download page",
         restart: "Restart to update",
+        summary: "What's new",
+        changelog: "View full changelog",
+        later: "Update later",
         close: "Close",
       },
       openaiOAuth: {
@@ -500,7 +506,7 @@ const settingsI18n = {
     }
   }
 };
-import { Button, Input, Card, Loading, Modal, useToast, useConfirm } from '@/components/shared';
+import { Button, Input, Card, Loading, Markdown, Modal, useToast, useConfirm } from '@/components/shared';
 import * as api from '@/api/endpoints';
 import type { OutputLanguage, UpdateCheckInfo } from '@/api/endpoints';
 import { OUTPUT_LANGUAGE_OPTIONS } from '@/api/endpoints';
@@ -716,6 +722,7 @@ interface UpdateResultView {
   downloadUrl?: string;
   canAutoUpdate?: boolean;
   progress?: number;
+  notes?: string;
 }
 
 function getLatestVersion(info: UpdateCheckInfo): string {
@@ -746,6 +753,7 @@ function toDesktopUpdateResultView(info: DesktopUpdateCheckResult): UpdateResult
       downloadUrl: info.update.url,
       canAutoUpdate: info.canAutoUpdate,
       progress: info.progress?.percent,
+      notes: info.update.notes,
     };
   }
 
@@ -996,6 +1004,26 @@ export const SettingsAbout: React.FC<{ t: SettingsTranslator }> = ({ t }) => {
                   {formatUpdateMessage(t, updateInfo)}
                 </p>
               </div>
+              {updateInfo.updateAvailable && updateInfo.notes?.trim() && (
+                <section aria-label={t('settings.about.summary')} className="space-y-2">
+                  <h3 className="font-semibold text-gray-900 dark:text-foreground-primary">
+                    {t('settings.about.summary')}
+                  </h3>
+                  <div className="max-h-52 overflow-y-auto rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-border-primary dark:bg-background-secondary">
+                    <Markdown>{updateInfo.notes.trim()}</Markdown>
+                  </div>
+                </section>
+              )}
+              {updateInfo.updateAvailable && updateInfo.downloadUrl && (
+                <button
+                  type="button"
+                  onClick={() => desktopUpdateApi?.openExternal(updateInfo.downloadUrl!)}
+                  className="inline-flex items-center gap-1.5 font-medium text-banana-700 hover:text-banana-800 hover:underline dark:text-banana-300 dark:hover:text-banana-200"
+                >
+                  {t('settings.about.changelog')}
+                  <ArrowUpRight size={15} aria-hidden="true" />
+                </button>
+              )}
             </div>
           )}
           {updateError && (
@@ -1018,7 +1046,7 @@ export const SettingsAbout: React.FC<{ t: SettingsTranslator }> = ({ t }) => {
               </Button>
             )}
             <Button variant="secondary" size="sm" onClick={() => setUpdateDialogOpen(false)}>
-              {t('settings.about.close')}
+              {updateInfo?.updateAvailable ? t('settings.about.later') : t('settings.about.close')}
             </Button>
           </div>
         </div>

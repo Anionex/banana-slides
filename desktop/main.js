@@ -309,14 +309,15 @@ async function showManualUpdateDialog() {
 
     if (checkResult.update) {
       const primaryAction = checkResult.canAutoUpdate ? '下载更新' : '前往下载';
+      const releaseNotes = checkResult.update.notes.trim();
       const result = await dialog.showMessageBox(mainWindow, {
         type: 'info',
         title: '发现新版本',
         message: `新版本 v${checkResult.update.version} 可用`,
-        detail: checkResult.update.notes.substring(0, 300),
-        buttons: [primaryAction, '稍后'],
+        ...(releaseNotes ? { detail: releaseNotes.substring(0, 300) } : {}),
+        buttons: [primaryAction, '查看完整更新日志', '稍后更新'],
         defaultId: 0,
-        cancelId: 1,
+        cancelId: 2,
       });
       if (result.response === 0) {
         if (checkResult.canAutoUpdate) {
@@ -324,6 +325,8 @@ async function showManualUpdateDialog() {
         } else {
           await shell.openExternal(checkResult.update.url);
         }
+      } else if (result.response === 1) {
+        await shell.openExternal(checkResult.update.url);
       }
       return;
     }

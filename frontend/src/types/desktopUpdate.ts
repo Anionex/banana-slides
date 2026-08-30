@@ -30,6 +30,7 @@ export interface DesktopUpdateCheckResult {
   error?: string | null;
   canAutoUpdate?: boolean;
   automaticUpdatesEnabled?: boolean;
+  checkSource?: 'automatic' | 'manual' | null;
 }
 
 export interface DesktopAutoUpdateSettings {

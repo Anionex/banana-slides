@@ -81,25 +81,23 @@ function createManager({ enabled = true, updateInfo = null, isUpdateAvailable = 
   return { manager, persisted, updater };
 }
 
-test('automatically downloads an available update when the preference is enabled', async () => {
+test('automatic checks wait for the user before downloading an available update', async () => {
   const { manager, updater } = createManager({
     updateInfo: {
       version: '1.1.0',
       releaseNotes: 'Automatic update test',
     },
   });
-  const states = [];
-  manager.subscribe((state) => states.push(state));
   await manager.initialize();
 
-  await manager.checkForUpdates({ automatic: true });
-  await new Promise((resolve) => setImmediate(resolve));
+  const state = await manager.checkForUpdates({ automatic: true });
 
   assert.equal(updater.checkCalls, 1);
-  assert.equal(updater.downloadCalls, 1);
-  assert.equal(manager.getState().status, 'update_downloaded');
-  assert.equal(manager.shouldInstallOnQuit(), true);
-  assert.ok(states.some((state) => state.status === 'downloading' && state.progress?.percent === 42.5));
+  assert.equal(updater.downloadCalls, 0);
+  assert.equal(state.status, 'update_available');
+  assert.equal(state.checkSource, 'automatic');
+  assert.equal(state.update.notes, 'Automatic update test');
+  assert.equal(manager.shouldInstallOnQuit(), false);
 });
 
 test('does not automatically check or install when automatic updates are disabled', async () => {
@@ -126,6 +124,7 @@ test('keeps manual update actions available while automatic updates are disabled
 
   const checked = await manager.checkForUpdates();
   assert.equal(checked.status, 'update_available');
+  assert.equal(checked.checkSource, 'manual');
   assert.equal(updater.downloadCalls, 0);
 
   const downloaded = await manager.downloadUpdate();
