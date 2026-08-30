@@ -379,8 +379,9 @@ def get_text_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
 def get_image_provider(model: str = "gemini-3-pro-image-preview") -> ImageProvider:
     """Factory: return the appropriate image-generation provider.
 
-    Note: OpenAI format does NOT support 4K resolution — only 1K is available.
-    Use Gemini or Vertex AI for higher resolution output.
+    Note: Generic OpenAI-compatible image APIs may not support 2K/4K; provider
+    limits are applied. SenseNova U1.5 Lite supports 1K/2K/4K through its
+    native JSON image endpoints.
 
     Note: Anthropic format doesn't natively support image generation yet.
     This is intended for use with third-party Anthropic-compatible endpoints.

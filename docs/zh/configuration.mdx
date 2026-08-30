@@ -35,6 +35,36 @@ OPENAI_API_KEY=your-api-key
 OPENAI_API_BASE=https://api.openai.com/v1
 ```
 
+## 商汤日日新（OpenAI 兼容）
+
+商汤 `SenseNova (商汤)` Provider 会继续保留，默认 Provider 也不会改变。商汤 U1 系列生图模型当前应通过 OpenAI 兼容路径接入：应用识别到 `sensenova-u1*` 模型名后，会自动改用商汤原生 JSON 图片接口（`/images/generations` 和 `/images/edits`），不会走 OpenAI SDK 的 multipart `images.edit` 请求。
+
+如果文本继续使用 Gemini、只让图片走商汤，这是推荐配置：
+
+```env
+AI_PROVIDER_FORMAT=gemini
+IMAGE_MODEL_SOURCE=openai
+IMAGE_API_KEY=your-sensenova-api-key
+IMAGE_API_BASE=https://token.sensenova.cn/v1
+IMAGE_MODEL=sensenova-u1.5-lite
+```
+
+如果想整体使用 OpenAI 兼容格式，也可以把商汤配置放在全局：
+
+```env
+AI_PROVIDER_FORMAT=openai
+OPENAI_API_KEY=your-sensenova-api-key
+OPENAI_API_BASE=https://token.sensenova.cn/v1
+IMAGE_MODEL=sensenova-u1.5-lite
+```
+
+注意事项：
+
+- 商汤图片接口的 Base URL 请使用 `https://token.sensenova.cn/v1`，旧的 `https://api.sensenova.cn/compatible-mode/v1` 不可用。
+- `sensenova-u1.5-lite` 支持文生图和参考图编辑，支持 `1K / 2K / 4K`。
+- `sensenova-u1`、`sensenova-u1-fast`、`sensenova-u1.5-fast` 使用固定尺寸文生图，暂不支持参考图编辑。
+- 请用 `IMAGE_MODEL_SOURCE=openai` 指定图片走 OpenAI 兼容路径，不要用 `IMAGE_MODEL_SOURCE=sensenova`；旧的 LazyLLM 商汤配置不会被删除或破坏。
+
 ## APIMart（OpenAI 兼容）
 
 APIMart 使用 OpenAI 兼容接口，但图像生成采用异步任务。Banana Slides 会对文本/图片理解请求显式发送 `stream=false`，并自动轮询 APIMart 图像任务。

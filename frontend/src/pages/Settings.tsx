@@ -128,7 +128,7 @@ const settingsI18n = {
         elevenLabsApiKeyDesc: "留空则保持当前设置不变，API Key 可在 ElevenLabs 控制台获取",
         applyLink: "，请点击此处申请",
         textModelSource: "文本模型提供商格式", textModelSourceDesc: "选择文本生成使用的提供商格式", textModelSourcePlaceholder: "-- 请选择 --",
-        imageModelSource: "图片模型提供商格式", imageModelSourceDesc: "选择图片生成使用的提供商格式", imageModelSourcePlaceholder: "-- 请选择 --", imageSourceUnavailable: "当前厂商不支持图片生成，请选择其他提供商",
+        imageModelSource: "图片模型提供商格式", imageModelSourceDesc: "选择图片生成使用的提供商格式", imageModelSourcePlaceholder: "-- 请选择 --", imageSourceUnavailable: "当前厂商不支持图片生成，请选择其他提供商", sensenovaImageHint: "商汤 U1 生图请改用 OpenAI 兼容格式，Base URL 填 https://token.sensenova.cn/v1，模型填 sensenova-u1.5-lite",
         imageCaptionModelSource: "图片识别模型提供商格式", imageCaptionModelSourceDesc: "选择图片识别使用的提供商格式", imageCaptionModelSourcePlaceholder: "-- 请选择 --",
         vendorApiKey: "{{vendor}} API Key", vendorApiKeyPlaceholder: "输入 {{vendor}} API Key",
         vendorApiKeyDesc: "留空则保持当前设置不变，输入新值则更新",
@@ -373,7 +373,7 @@ const settingsI18n = {
         elevenLabsApiKeyDesc: "Leave empty to keep current setting. Get your API key from the ElevenLabs dashboard",
         applyLink: ", click here to apply",
         textModelSource: "Text Model Provider Format", textModelSourceDesc: "Select the provider format for text generation", textModelSourcePlaceholder: "-- Select --",
-        imageModelSource: "Image Model Provider Format", imageModelSourceDesc: "Select the provider format for image generation", imageModelSourcePlaceholder: "-- Select --", imageSourceUnavailable: "This vendor has no image-generation capability; pick another provider",
+        imageModelSource: "Image Model Provider Format", imageModelSourceDesc: "Select the provider format for image generation", imageModelSourcePlaceholder: "-- Select --", imageSourceUnavailable: "This vendor has no image-generation capability; pick another provider", sensenovaImageHint: "For SenseNova U1 image generation, use OpenAI-Compatible with base URL https://token.sensenova.cn/v1 and model sensenova-u1.5-lite",
         imageCaptionModelSource: "Image Caption Model Provider Format", imageCaptionModelSourceDesc: "Select the provider format for image captioning", imageCaptionModelSourcePlaceholder: "-- Select --",
         vendorApiKey: "{{vendor}} API Key", vendorApiKeyPlaceholder: "Enter {{vendor}} API Key",
         vendorApiKeyDesc: "Leave empty to keep current setting, enter new value to update",
@@ -2074,6 +2074,11 @@ export const Settings: React.FC = () => {
           <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">
             {t('settings.fields.modelProviderDesc')}
           </p>
+          {item.sourceKey === 'image_model_source' && sourceValue === 'sensenova' && (
+            <p data-testid="sensenova-image-model-hint" className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+              {t('settings.fields.sensenovaImageHint')}
+            </p>
+          )}
         </div>
 
         {/* Gemini/OpenAI/Volcengine 提供商：显示 API Key + Base URL */}
@@ -2316,6 +2321,11 @@ export const Settings: React.FC = () => {
                 })}
               </div>
               <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">{t('settings.fields.aiProviderFormatDesc')}</p>
+              {formData.ai_provider_format === 'sensenova' && (
+                <p data-testid="sensenova-global-image-hint" className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                  {t('settings.fields.sensenovaImageHint')}
+                </p>
+              )}
             </div>
 
             {/* Gemini/OpenAI/Volcengine: API Key + Base URL */}

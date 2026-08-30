@@ -41,6 +41,47 @@ _MAX_GPT_IMAGE_INPUTS = 16
 # 'auto' protocol must route these models to images.generate instead of chat.completions.
 _DOUBAO_SEEDREAM_PREFIX = 'doubao-seedream'
 
+# SenseNova U1 image models use its native JSON images API. The OpenAI SDK
+# sends images.edit as multipart form data, which SenseNova rejects.
+_SENSENOVA_IMAGE_MODEL_PREFIX = 'sensenova-u1'
+_SENSENOVA_IMAGE_REFERENCE_MIN_EDGE = 256
+_SENSENOVA_IMAGE_REFERENCE_MAX_EDGE = 4096
+_SENSENOVA_IMAGE_REFERENCE_MAX_ASPECT = 3.0
+_SENSENOVA_IMAGE_MAX_ASPECT = 3.0
+_SENSENOVA_IMAGE_MIN_EDGE = 512
+_SENSENOVA_IMAGE_MAX_EDGE = 4096
+_SENSENOVA_IMAGE_ALIGNMENT = 32
+_SENSENOVA_IMAGE_REFERENCE_MAX_BYTES = 10 * 1024 * 1024
+
+_SENSENOVA_RESOLUTION_LONG_EDGE = {
+    '1K': 1280,
+    '2K': 2048,
+    '4K': 4096,
+}
+
+_SENSENOVA_FIXED_SIZE_MODEL_NAMES = {
+    'sensenova-u1',
+    'sensenova-u1-fast',
+    'sensenova-u1.5-fast',
+}
+_SENSENOVA_EDIT_MODEL_NAMES = {'sensenova-u1.5-lite'}
+
+# SenseNova U1 Fast only accepts these explicit dimensions. Do not send a
+# computed size for this model: a wrong value is rejected with invalid arguments.
+_SENSENOVA_U1_FAST_SIZE_PRESETS = {
+    '1:1': '2048x2048',
+    '16:9': '2752x1536',
+    '9:16': '1536x2752',
+    '2:3': '1664x2496',
+    '3:2': '2496x1664',
+    '3:4': '1760x2368',
+    '4:3': '2368x1760',
+    '4:5': '1824x2272',
+    '5:4': '2272x1824',
+    '21:9': '3072x1376',
+    '9:21': '1344x3136',
+}
+
 # Volcengine Seedream Image generation API size constraints
 # (https://docs.volcengine.com/docs/82379/1541523, Seedream 5.0-lite / 4.5):
 # Method 2 (explicit WxH) accepts any size whose total pixel count lies in
@@ -258,7 +299,93 @@ class OpenAIImageProvider(ImageProvider):
         return (
             model in _NATIVE_IMAGES_API_MODELS
             or model.startswith(_DOUBAO_SEEDREAM_PREFIX)
+            or self._is_sensenova_image_model()
         )
+
+    def _is_sensenova_image_model(self) -> bool:
+        """Return True for SenseNova U1 image-generation models."""
+        return self.model.lower().startswith(_SENSENOVA_IMAGE_MODEL_PREFIX)
+
+    def _is_sensenova_fixed_size_model(self) -> bool:
+        """Return True for SenseNova U1 models with a fixed size table."""
+        return self.model.lower() in _SENSENOVA_FIXED_SIZE_MODEL_NAMES
+
+    def _is_sensenova_edit_model(self) -> bool:
+        """Return True when the configured model supports reference-image edits."""
+        return self.model.lower() in _SENSENOVA_EDIT_MODEL_NAMES
+
+    @staticmethod
+    def _fit_sensenova_reference_image(image: Image.Image) -> Image.Image:
+        """Fit a reference image to SenseNova's supported dimensions/ratio."""
+        source = image.convert('RGBA')
+        width, height = source.size
+        if width <= 0 or height <= 0:
+            raise ValueError('Reference image must have positive dimensions')
+
+        if max(width, height) > _SENSENOVA_IMAGE_REFERENCE_MAX_EDGE:
+            scale = _SENSENOVA_IMAGE_REFERENCE_MAX_EDGE / max(width, height)
+        elif min(width, height) < _SENSENOVA_IMAGE_REFERENCE_MIN_EDGE:
+            scale = _SENSENOVA_IMAGE_REFERENCE_MIN_EDGE / min(width, height)
+        else:
+            scale = 1.0
+        width = max(_SENSENOVA_IMAGE_REFERENCE_MIN_EDGE, round(width * scale))
+        height = max(_SENSENOVA_IMAGE_REFERENCE_MIN_EDGE, round(height * scale))
+        if max(width, height) > _SENSENOVA_IMAGE_REFERENCE_MAX_EDGE:
+            scale = _SENSENOVA_IMAGE_REFERENCE_MAX_EDGE / max(width, height)
+            width = max(_SENSENOVA_IMAGE_REFERENCE_MIN_EDGE, round(width * scale))
+            height = max(_SENSENOVA_IMAGE_REFERENCE_MIN_EDGE, round(height * scale))
+
+        # SenseNova accepts aspect ratios within 3:1. Preserve the original
+        # content by padding the short edge when it falls outside that range.
+        canvas_width, canvas_height = width, height
+        if width > height * _SENSENOVA_IMAGE_REFERENCE_MAX_ASPECT:
+            canvas_height = math.ceil(width / _SENSENOVA_IMAGE_REFERENCE_MAX_ASPECT)
+        elif height > width * _SENSENOVA_IMAGE_REFERENCE_MAX_ASPECT:
+            canvas_width = math.ceil(height / _SENSENOVA_IMAGE_REFERENCE_MAX_ASPECT)
+        canvas = Image.new('RGBA', (canvas_width, canvas_height), (255, 255, 255, 0))
+        resized = source.resize((width, height), Image.LANCZOS)
+        canvas.paste(resized, ((canvas_width - width) // 2, (canvas_height - height) // 2))
+        return canvas
+
+    def _sensenova_reference_data_url(
+        self,
+        image: Image.Image,
+        max_bytes: int = _SENSENOVA_IMAGE_REFERENCE_MAX_BYTES,
+    ) -> str:
+        """Encode a reference image as a PNG data URL within the API byte limit."""
+        fitted = self._fit_sensenova_reference_image(image)
+        png = self._sensenova_png_bytes(fitted)
+        data_url = f'data:image/png;base64,{base64.b64encode(png).decode()}'
+        if len(data_url) <= max_bytes:
+            return data_url
+
+        # PNG is preferred because it preserves alpha, but a large 4K reference
+        # can still exceed the request limit. Shrink it before sending.
+        width, height = fitted.size
+        scale = 0.75
+        while min(width, height) > _SENSENOVA_IMAGE_REFERENCE_MIN_EDGE:
+            next_size = (
+                max(_SENSENOVA_IMAGE_REFERENCE_MIN_EDGE, round(width * scale)),
+                max(_SENSENOVA_IMAGE_REFERENCE_MIN_EDGE, round(height * scale)),
+            )
+            smaller = fitted.resize(next_size, Image.LANCZOS)
+            png = self._sensenova_png_bytes(smaller)
+            data_url = f'data:image/png;base64,{base64.b64encode(png).decode()}'
+            if len(data_url) <= max_bytes:
+                return data_url
+            width, height = next_size
+            scale *= 0.75
+
+        raise ValueError(
+            'SenseNova reference image is too large after compression; '
+            'use a smaller or less detailed image'
+        )
+
+    @staticmethod
+    def _sensenova_png_bytes(image: Image.Image) -> bytes:
+        buf = BytesIO()
+        image.save(buf, format='PNG', optimize=True, compress_level=9)
+        return buf.getvalue()
 
     def _pil_to_png_bytes(self, image: Image.Image) -> bytes:
         buf = BytesIO()
@@ -272,6 +399,8 @@ class OpenAIImageProvider(ImageProvider):
     def _resolve_size(self, aspect_ratio: str, resolution: str = '2K') -> str:
         """Map aspect_ratio to a size string appropriate for the current model."""
         model = self.model.lower()
+        if self._is_sensenova_image_model():
+            return self._resolve_sensenova_size(aspect_ratio, resolution)
         if model == 'dall-e-3':
             return _DALLE3_SIZE_MAP.get(aspect_ratio, '1024x1024')
         if model == 'dall-e-2':
@@ -279,6 +408,58 @@ class OpenAIImageProvider(ImageProvider):
         if model.startswith(_DOUBAO_SEEDREAM_PREFIX):
             return self._resolve_seedream_size(aspect_ratio, resolution)
         return _compute_gpt_image_size(aspect_ratio, resolution)
+
+    def _resolve_sensenova_size(self, aspect_ratio: str, resolution: str = '2K') -> str:
+        """Map aspect ratio/resolution to a size accepted by SenseNova U1."""
+        if self._is_sensenova_fixed_size_model():
+            return _SENSENOVA_U1_FAST_SIZE_PRESETS.get(
+                aspect_ratio,
+                _SENSENOVA_U1_FAST_SIZE_PRESETS['16:9'],
+            )
+
+        parts = aspect_ratio.split(':')
+        if len(parts) == 2:
+            try:
+                ratio_w, ratio_h = int(parts[0]), int(parts[1])
+            except ValueError:
+                ratio_w, ratio_h = 1, 1
+        else:
+            ratio_w, ratio_h = 1, 1
+        if ratio_w <= 0 or ratio_h <= 0:
+            ratio_w, ratio_h = 1, 1
+
+        long_edge = _SENSENOVA_RESOLUTION_LONG_EDGE.get(
+            resolution.upper(),
+            _SENSENOVA_RESOLUTION_LONG_EDGE['2K'],
+        )
+        if ratio_w >= ratio_h:
+            width = long_edge
+            height = round(width * ratio_h / ratio_w)
+            if width > height * _SENSENOVA_IMAGE_MAX_ASPECT:
+                height = math.ceil(width / _SENSENOVA_IMAGE_MAX_ASPECT)
+        else:
+            height = long_edge
+            width = round(height * ratio_w / ratio_h)
+            if height > width * _SENSENOVA_IMAGE_MAX_ASPECT:
+                width = math.ceil(height / _SENSENOVA_IMAGE_MAX_ASPECT)
+
+        def align(value: int) -> int:
+            value = max(_SENSENOVA_IMAGE_MIN_EDGE, value)
+            value = min(_SENSENOVA_IMAGE_MAX_EDGE, value)
+            return max(_SENSENOVA_IMAGE_MIN_EDGE, round(value / _SENSENOVA_IMAGE_ALIGNMENT) * _SENSENOVA_IMAGE_ALIGNMENT)
+
+        def ceil_align(value: int) -> int:
+            return max(
+                _SENSENOVA_IMAGE_MIN_EDGE,
+                math.ceil(value / _SENSENOVA_IMAGE_ALIGNMENT) * _SENSENOVA_IMAGE_ALIGNMENT,
+            )
+
+        width, height = align(width), align(height)
+        if width > height * _SENSENOVA_IMAGE_MAX_ASPECT:
+            height = ceil_align(width / _SENSENOVA_IMAGE_MAX_ASPECT)
+        elif height > width * _SENSENOVA_IMAGE_MAX_ASPECT:
+            width = ceil_align(height / _SENSENOVA_IMAGE_MAX_ASPECT)
+        return f'{width}x{height}'
 
     def _resolve_seedream_size(self, aspect_ratio: str, resolution: str = '2K') -> str:
         """Map aspect_ratio/resolution to a size accepted by the Seedream images API.
@@ -652,6 +833,82 @@ class OpenAIImageProvider(ImageProvider):
 
         return self._extract_from_images_result(payload)
 
+    def _generate_with_sensenova_images_api(
+        self,
+        prompt: str,
+        ref_images: Optional[List[Image.Image]],
+        aspect_ratio: str,
+        resolution: str = '2K',
+    ) -> Image.Image:
+        """Call SenseNova's native JSON images API."""
+        if ref_images and not self._is_sensenova_edit_model():
+            raise ValueError(
+                f'{self.model} does not support reference-image editing; '
+                'use sensenova-u1.5-lite for image edits'
+            )
+        if ref_images and len(ref_images) > 1:
+            # Keep the whole request under SenseNova's file-size limit rather
+            # than discovering the rejection after uploading several images.
+            per_image_limit = _SENSENOVA_IMAGE_REFERENCE_MAX_BYTES // len(ref_images)
+            image_data_urls = [
+                self._sensenova_reference_data_url(ref_image, per_image_limit)
+                for ref_image in ref_images
+            ]
+        elif ref_images:
+            image_data_urls = [
+                self._sensenova_reference_data_url(ref_image)
+                for ref_image in ref_images
+            ]
+        else:
+            image_data_urls = []
+
+        endpoint = 'images/edits' if ref_images else 'images/generations'
+        payload = {
+            'model': self.model,
+            'prompt': prompt,
+            'n': 1,
+            'watermark': False,
+            'prompt_extend': True,
+            'response_format': 'url',
+            'output_format': 'png',
+        }
+        if ref_images:
+            payload['images'] = [
+                {'image_url': image_data_url}
+                for image_data_url in image_data_urls
+            ]
+        else:
+            size = self._resolve_size(aspect_ratio, resolution)
+            if size and size != 'auto':
+                payload['size'] = size
+
+        url = f"{self.api_base.rstrip('/')}/{endpoint}"
+        response = requests.post(
+            url,
+            headers={
+                'Authorization': f'Bearer {self.api_key}',
+                'Content-Type': 'application/json',
+            },
+            json=payload,
+            timeout=get_config().OPENAI_TIMEOUT,
+        )
+        try:
+            result = response.json()
+        except ValueError as exc:
+            raise RuntimeError(
+                f'SenseNova image API returned invalid JSON (HTTP {response.status_code})'
+            ) from exc
+        if response.status_code >= 400:
+            error = result.get('error', result) if isinstance(result, dict) else result
+            message = error.get('message') if isinstance(error, dict) else error
+            raise RuntimeError(
+                f'SenseNova image API error (HTTP {response.status_code}): {message}'
+            )
+        data = result.get('data') if isinstance(result, dict) else None
+        if not isinstance(data, list) or not data:
+            raise RuntimeError('SenseNova image API returned no image data')
+        return self._decode_image_response(data[0])
+
     def generate_image(
         self,
         prompt: str,
@@ -686,6 +943,16 @@ class OpenAIImageProvider(ImageProvider):
         if self._is_apimart() and self.model.lower() in _GPT_IMAGE_MODELS:
             self._validate_apimart_reference_images(ref_images)
         try:
+            # SenseNova U1 image models expose a JSON API, not the OpenAI SDK's
+            # multipart images.edit request. Route them before the generic paths.
+            if self._is_sensenova_image_model():
+                return self._generate_with_sensenova_images_api(
+                    prompt,
+                    ref_images,
+                    aspect_ratio,
+                    resolution,
+                )
+
             # Route based on image_api_protocol setting
             # Doubao Seedream keeps the chat-completions path when reference images are
             # present: the images.edit endpoint is only for SeedEdit models, while the

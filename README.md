@@ -272,6 +272,13 @@ OPENAI_API_KEY=your-api-key-here
 OPENAI_API_BASE=https://api.openai.com/v1
 # 代理示例: https://api.inferera.com/v1
 
+# 商汤日日新 U1 图片模型（保留旧 Provider，图片走 OpenAI 兼容路径）
+# 推荐：文本继续用 Gemini，只让图片走商汤
+# IMAGE_MODEL_SOURCE=openai
+# IMAGE_API_KEY=your-sensenova-api-key
+# IMAGE_API_BASE=https://token.sensenova.cn/v1
+# IMAGE_MODEL=sensenova-u1.5-lite
+
 # 火山方舟 Agent Plans 配置（当 AI_PROVIDER_FORMAT=volcengine 时使用）
 # 注意: Agent Plan 需使用专属 API Key 与模型名 (doubao-seed-2.1-turbo / doubao-seedream-5.0-lite)
 VOLCENGINE_API_KEY=your-volcengine-api-key-here
@@ -296,6 +303,7 @@ QWEN_API_KEY=your-qwen-api-key                # 阿里云/通义千问
 GLM_API_KEY=your-glm-api-key                  # 智谱 GLM
 SILICONFLOW_API_KEY=your-siliconflow-api-key  # 硅基流动
 SENSENOVA_API_KEY=your-sensenova-api-key      # 商汤日日新
+# U1 生图请优先使用上面的 IMAGE_MODEL_SOURCE=openai 配置；此 Key 用于旧 LazyLLM 路径
 MINIMAX_API_KEY=your-minimax-api-key          # MiniMax
 KIMI_API_KEY=your-kimi-api-key                # 月之暗面 Kimi
 PPIO_API_KEY=your-ppio-api-key                # PPIO 派欧云
