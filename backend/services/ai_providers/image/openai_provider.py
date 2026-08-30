@@ -683,7 +683,8 @@ class OpenAIImageProvider(ImageProvider):
         Returns:
             Generated PIL Image object, or None if failed
         """
-        self._validate_apimart_reference_images(ref_images)
+        if self._is_apimart() and self.model.lower() in _GPT_IMAGE_MODELS:
+            self._validate_apimart_reference_images(ref_images)
         try:
             # Route based on image_api_protocol setting
             # Doubao Seedream keeps the chat-completions path when reference images are

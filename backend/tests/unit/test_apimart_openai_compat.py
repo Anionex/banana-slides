@@ -335,6 +335,31 @@ def test_apimart_image_limit_rejected_before_request():
     client.chat.completions.create.assert_not_called()
 
 
+def test_non_apimart_chat_image_accepts_more_than_sixteen_references():
+    client = MagicMock()
+    client.chat.completions.create.return_value = _chat_response(
+        "", image_url=_png_data_url(Image.new("RGB", (8, 8), color="magenta"))
+    )
+    with patch("services.ai_providers.image.openai_provider.OpenAI"):
+        provider = OpenAIImageProvider(
+            api_key="test",
+            api_base="https://other.example/v1",
+            model="gemini-3-pro-image-preview",
+            image_api_protocol="chat",
+        )
+    provider.client = client
+
+    result = provider.generate_image(
+        "edit it",
+        ref_images=[Image.new("RGB", (8, 8), color="white") for _ in range(17)],
+    )
+
+    assert isinstance(result, Image.Image)
+    client.chat.completions.create.assert_called_once()
+    client.images.with_raw_response.generate.assert_not_called()
+    client.images.with_raw_response.edit.assert_not_called()
+
+
 def test_apimart_async_image_failure_raises_provider_error():
     client = MagicMock()
     client.images.with_raw_response.generate.return_value = _raw_response(
