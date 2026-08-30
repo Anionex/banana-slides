@@ -316,6 +316,15 @@ class OpenAIImageProvider(ImageProvider):
             return None          # Volcengine Seedream does not accept a quality param
         return 'auto'            # gpt-image-* accepts auto / low / medium / high
 
+    def _is_apimart(self) -> bool:
+        return "api.apimart.ai" in (self.api_base or "").lower()
+
+    def _apimart_image_urls(self, ref_images: List[Image.Image]) -> List[str]:
+        return [
+            f"data:image/jpeg;base64,{self._encode_image_to_base64(ref_image)}"
+            for ref_image in ref_images
+        ]
+
     def _decode_image_response(self, item) -> Image.Image:
         """Extract PIL Image from an images API response item (b64_json, url, or raw string)."""
         if isinstance(item, str):
@@ -325,16 +334,12 @@ class OpenAIImageProvider(ImageProvider):
             return Image.open(BytesIO(base64.b64decode(b64)))
         url = getattr(item, 'url', None)
         if url:
-            with requests.get(url, timeout=60, stream=True) as resp:
-                resp.raise_for_status()
-                return Image.open(BytesIO(resp.content))
+            return self._decode_raw_string(url)
         if isinstance(item, dict):
             if item.get('b64_json'):
                 return Image.open(BytesIO(base64.b64decode(item['b64_json'])))
             if item.get('url'):
-                with requests.get(item['url'], timeout=60, stream=True) as resp:
-                    resp.raise_for_status()
-                    return Image.open(BytesIO(resp.content))
+                return self._decode_raw_string(item['url'])
         raise ValueError("images API returned neither b64_json nor url")
 
     def _decode_raw_string(self, raw: str) -> Image.Image:
@@ -499,6 +504,43 @@ class OpenAIImageProvider(ImageProvider):
             logger.debug("apimart image task %s still running (status=%s)", task_id, status or "unknown")
             time.sleep(APIMART_TASK_POLL_INTERVAL)
 
+    def _generate_with_apimart_images_api(
+        self,
+        prompt: str,
+        ref_images: Optional[List[Image.Image]],
+        aspect_ratio: str,
+        resolution: str,
+    ) -> Image.Image:
+        extra_body: dict = {"resolution": resolution.lower()}
+        if ref_images:
+            if len(ref_images) > _MAX_GPT_IMAGE_INPUTS:
+                raise ValueError(
+                    f"{self.model} supports at most {_MAX_GPT_IMAGE_INPUTS} "
+                    f"reference images, got {len(ref_images)}"
+                )
+            extra_body["image_urls"] = self._apimart_image_urls(ref_images)
+
+        kwargs = dict(
+            model=self.model,
+            prompt=prompt,
+            n=1,
+            size=aspect_ratio,
+            extra_body=extra_body,
+        )
+        logger.debug(
+            "Calling APIMart images API for model=%s, size=%s, resolution=%s, refs=%s",
+            self.model,
+            aspect_ratio,
+            resolution,
+            len(ref_images) if ref_images else 0,
+        )
+        raw_response = self.client.images.with_raw_response.generate(**kwargs)
+        payload = self._raw_response_payload(raw_response)
+        task_id = self._image_task_id(payload)
+        if task_id:
+            return self._poll_image_task(task_id)
+        return self._extract_from_images_result(payload)
+
     def _generate_with_images_api(
         self,
         prompt: str,
@@ -507,6 +549,14 @@ class OpenAIImageProvider(ImageProvider):
         resolution: str = '2K',
     ) -> Optional[Image.Image]:
         """Use the native OpenAI images API (gpt-image-* / dall-e-*)."""
+        if self._is_apimart():
+            return self._generate_with_apimart_images_api(
+                prompt,
+                ref_images,
+                aspect_ratio,
+                resolution,
+            )
+
         size = self._resolve_size(aspect_ratio, resolution)
         quality = self._resolve_quality()
         # GPT image models always return b64_json; DALL-E models default to url

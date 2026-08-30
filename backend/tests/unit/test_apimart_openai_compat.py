@@ -195,11 +195,66 @@ def test_apimart_async_image_generate_polls_until_completed():
             result = provider.generate_image("a cat")
 
     assert isinstance(result, Image.Image)
-    assert client.images.with_raw_response.generate.call_args.kwargs["model"] == "gpt-image-2"
+    request = client.images.with_raw_response.generate.call_args.kwargs
+    assert request["model"] == "gpt-image-2"
+    assert request["size"] == "16:9"
+    assert request["extra_body"] == {"resolution": "2k"}
     assert get.call_args.args[0] == "https://api.apimart.ai/v1/tasks/task_123"
     assert get.call_args.kwargs["headers"] == {"Authorization": "Bearer apimart-secret"}
     assert get.call_count == 2
     sleep.assert_called_once_with(5.0)
+
+
+def test_non_apimart_images_request_keeps_concrete_size_without_resolution():
+    client = MagicMock()
+    image_bytes = BytesIO()
+    Image.new("RGB", (8, 8), color="white").save(image_bytes, format="PNG")
+    client.images.with_raw_response.generate.return_value = _raw_response(
+        {"data": [{"b64_json": base64.b64encode(image_bytes.getvalue()).decode()}]}
+    )
+    with patch("services.ai_providers.image.openai_provider.OpenAI"):
+        provider = OpenAIImageProvider(
+            api_key="test",
+            api_base="https://other.example/v1",
+            model="gpt-image-2",
+            image_api_protocol="images",
+        )
+    provider.client = client
+
+    result = provider.generate_image(
+        prompt="a cat",
+        aspect_ratio="16:9",
+        resolution="2K",
+    )
+
+    assert isinstance(result, Image.Image)
+    request = client.images.with_raw_response.generate.call_args.kwargs
+    assert request["size"] == "2048x1152"
+    assert "extra_body" not in request
+
+
+@pytest.mark.parametrize(
+    ("resolution", "expected_tier"),
+    [("1K", "1k"), ("2K", "2k"), ("4K", "4k")],
+)
+def test_apimart_image_request_maps_resolution_tier(resolution, expected_tier):
+    client = MagicMock()
+    client.images.with_raw_response.generate.return_value = _raw_response(
+        {"data": [{"url": _png_data_url(Image.new("RGB", (8, 8), color="purple"))}]}
+    )
+    provider = _image_provider(client)
+
+    result = provider.generate_image(
+        "a cat",
+        aspect_ratio="16:9",
+        resolution=resolution,
+    )
+
+    assert isinstance(result, Image.Image)
+    request = client.images.with_raw_response.generate.call_args.kwargs
+    assert request["size"] == "16:9"
+    assert request["extra_body"] == {"resolution": expected_tier}
+    assert "quality" not in request
 
 
 def test_legacy_openai_raw_response_reads_http_response_json():
@@ -207,9 +262,9 @@ def test_legacy_openai_raw_response_reads_http_response_json():
     assert provider._raw_response_payload(_legacy_raw_response({"data": []})) == {"data": []}
 
 
-def test_apimart_async_image_edit_polls_until_completed():
+def test_apimart_async_image_generate_with_references_polls_until_completed():
     client = MagicMock()
-    client.images.with_raw_response.edit.return_value = _raw_response(
+    client.images.with_raw_response.generate.return_value = _raw_response(
         {"code": 200, "data": [{"status": "submitted", "task_id": "task_edit"}]}
     )
     provider = _image_provider(client)
@@ -228,11 +283,17 @@ def test_apimart_async_image_edit_polls_until_completed():
         result = provider.generate_image(
             "edit it",
             ref_images=[Image.new("RGB", (8, 8), color="white")],
+            aspect_ratio="4:3",
+            resolution="4K",
         )
 
     assert isinstance(result, Image.Image)
-    client.images.with_raw_response.edit.assert_called_once()
-    client.images.with_raw_response.generate.assert_not_called()
+    request = client.images.with_raw_response.generate.call_args.kwargs
+    assert request["size"] == "4:3"
+    assert request["extra_body"]["resolution"] == "4k"
+    assert len(request["extra_body"]["image_urls"]) == 1
+    assert request["extra_body"]["image_urls"][0].startswith("data:image/jpeg;base64,")
+    client.images.with_raw_response.edit.assert_not_called()
 
 
 def test_apimart_async_image_failure_raises_provider_error():
