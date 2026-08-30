@@ -134,6 +134,22 @@ test('keeps manual update actions available while automatic updates are disabled
   assert.equal(updater.quitAndInstallCalls, 1);
 });
 
+test('preserves a downloaded update when a later check finds the same version', async () => {
+  const { manager, updater } = createManager({
+    updateInfo: { version: '1.1.0', releaseNotes: 'Ready to install' },
+  });
+  await manager.initialize();
+  await manager.checkForUpdates();
+  await manager.downloadUpdate();
+
+  const checkedAgain = await manager.checkForUpdates({ automatic: true });
+
+  assert.equal(checkedAgain.status, 'update_downloaded');
+  assert.equal(checkedAgain.update.version, '1.1.0');
+  assert.equal(updater.downloadCalls, 1);
+  assert.equal(manager.shouldInstallOnQuit(), true);
+});
+
 test('does not offer a release when electron-updater marks it unavailable', async () => {
   const { manager, updater } = createManager({
     updateInfo: { version: '1.1.0', releaseNotes: 'Staged rollout' },

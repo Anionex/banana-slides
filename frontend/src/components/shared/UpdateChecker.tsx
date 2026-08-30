@@ -84,7 +84,8 @@ export function UpdateChecker() {
   const isAutomaticPrompt = updateState?.checkSource === 'automatic';
   const isActionable = updateState?.status === 'update_available'
     || updateState?.status === 'downloading'
-    || updateState?.status === 'update_downloaded';
+    || updateState?.status === 'update_downloaded'
+    || updateState?.status === 'error';
   const isOpen = !!update
     && isAutomaticPrompt
     && isActionable

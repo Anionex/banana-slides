@@ -250,6 +250,29 @@ describe('UpdateChecker', () => {
     expect(mockElectronAPI.openExternal).toHaveBeenCalledWith(releaseUrl);
   });
 
+  it('keeps the card open and allows retry after a download error', async () => {
+    let listener: ((state: typeof availableState & { status: string; error?: string }) => void) | undefined;
+    mockElectronAPI.getUpdateState.mockResolvedValue(availableState);
+    mockElectronAPI.onUpdateStatus.mockImplementation((callback) => {
+      listener = callback;
+      return () => undefined;
+    });
+    mockElectronAPI.downloadUpdate.mockImplementation(async () => {
+      listener?.({ ...availableState, status: 'error', error: 'network unavailable' });
+      throw new Error('network unavailable');
+    });
+    const { UpdateChecker } = await import('../components/shared/UpdateChecker');
+    render(<UpdateChecker />);
+    await flushUpdateModal();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Update now' }));
+    await flushUpdateModal();
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('Update failed. Try again.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Update now' })).toBeInTheDocument();
+  });
+
   it('defers the same version for this run and shows a newer version', async () => {
     let listener: ((state: typeof availableState) => void) | undefined;
     mockElectronAPI.getUpdateState.mockResolvedValue(availableState);

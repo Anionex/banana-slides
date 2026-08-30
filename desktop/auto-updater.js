@@ -417,6 +417,12 @@ class DesktopAutoUpdateManager {
 
   async _checkForUpdates({ automatic }) {
     const checkSource = automatic ? 'automatic' : 'manual';
+    const downloadedUpdate = this.state.status === 'update_downloaded' && this.state.update
+      ? {
+          update: { ...this.state.update },
+          progress: this.state.progress ? { ...this.state.progress } : null,
+        }
+      : null;
     if (!this.app.isPackaged || !this.canAutoUpdate) {
       const fallbackState = await checkGitHubReleaseFallback({ app: this.app, logger: this.logger });
       this._setState({
@@ -441,6 +447,17 @@ class DesktopAutoUpdateManager {
         latestVersion: update?.version || this.app.getVersion(),
         update: null,
         progress: null,
+        error: null,
+      });
+      return this.getState();
+    }
+
+    if (downloadedUpdate?.update.version === update.version) {
+      this._setState({
+        status: 'update_downloaded',
+        latestVersion: update.version,
+        update,
+        progress: downloadedUpdate.progress,
         error: null,
       });
       return this.getState();
