@@ -113,6 +113,8 @@ jobs:
         run: cd desktop && npm run build:${{ matrix.platform }} -- --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ matrix.platform == 'mac' && secrets.MACOS_CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.platform == 'mac' && secrets.MACOS_CSC_KEY_PASSWORD || '' }}
 
       - name: Smoke test Windows installer
         if: matrix.platform == 'win'
@@ -188,7 +190,10 @@ jobs:
           if-no-files-found: error
           path: |
             desktop/dist/*.dmg
+            desktop/dist/*.zip
             desktop/dist/*.exe
+            desktop/dist/*.blockmap
+            desktop/dist/*.yml
             desktop/dist/*.AppImage
             desktop/dist/*.deb
 
@@ -199,7 +204,10 @@ jobs:
           tag_name: ${{ inputs.tag_name || github.ref_name }}
           files: |
             desktop/dist/*.dmg
+            desktop/dist/*.zip
             desktop/dist/*.exe
+            desktop/dist/*.blockmap
+            desktop/dist/*.yml
             desktop/dist/*.AppImage
             desktop/dist/*.deb
           draft: true
