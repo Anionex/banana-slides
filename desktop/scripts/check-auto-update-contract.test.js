@@ -25,11 +25,19 @@ test('desktop packaging publishes the artifacts required by electron-updater', (
     path.join(repoRoot, '.github', 'workflows', 'release-desktop.yml'),
     'utf8',
   );
-  for (const artifactPattern of ['desktop/dist/*.zip', 'desktop/dist/*.blockmap', 'desktop/dist/*.yml']) {
+  for (const artifactPattern of ['desktop/dist/*.zip', 'desktop/dist/*.blockmap', 'desktop/dist/latest*.yml']) {
     const escapedPattern = artifactPattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const matches = releaseWorkflow.match(new RegExp(escapedPattern, 'g')) || [];
     assert.equal(matches.length, 2, `${artifactPattern} must be uploaded to workflow artifacts and GitHub Releases`);
   }
-  assert.match(releaseWorkflow, /CSC_LINK:.*secrets\.MACOS_CSC_LINK/);
-  assert.match(releaseWorkflow, /CSC_KEY_PASSWORD:.*secrets\.MACOS_CSC_KEY_PASSWORD/);
+  assert.match(releaseWorkflow, /MACOS_CSC_LINK:.*secrets\.MACOS_CSC_LINK/);
+  assert.match(releaseWorkflow, /MACOS_CSC_KEY_PASSWORD:.*secrets\.MACOS_CSC_KEY_PASSWORD/);
+  assert.match(releaseWorkflow, /if \[ -n "\$MACOS_CSC_LINK" \]; then/);
+  assert.match(releaseWorkflow, /printf 'CSC_LINK=%s\\n'.*>> "\$GITHUB_ENV"/);
+  assert.doesNotMatch(
+    releaseWorkflow,
+    /CSC_LINK:\s*\$\{\{\s*matrix\.platform.*secrets\.MACOS_CSC_LINK/,
+    'an unset signing secret must not become an empty CSC_LINK environment variable',
+  );
+  assert.doesNotMatch(releaseWorkflow, /desktop\/dist\/\*\.yml/);
 });
