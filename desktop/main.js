@@ -1,9 +1,10 @@
 const { app, BrowserWindow, Tray, Menu, ipcMain, shell, dialog, nativeImage, nativeTheme } = require('electron');
+const { autoUpdater: electronAutoUpdater, CancellationToken } = require('electron-updater');
 const path = require('path');
 const log = require('electron-log');
 const fs = require('fs');
 const pythonManager = require('./python-manager');
-const autoUpdater = require('./auto-updater');
+const { DesktopAutoUpdateManager, detectAutoUpdateSupport } = require('./auto-updater');
 const {
   copyLocalExportToPath,
   createUniqueDownloadUrl,
@@ -30,6 +31,7 @@ let backendStopped = false;
 let backendStopRequested = false;
 let activeDataRoot = null;
 let activeDataRootIsDefault = true;
+let desktopAutoUpdater = null;
 const runtimeIconState = {
   dockOverrideApplied: false,
   trayTemplateImage: false,
@@ -261,6 +263,96 @@ function createTray() {
   tray.on('double-click', () => { mainWindow?.show(); mainWindow?.focus(); });
 }
 
+function sendUpdateState(state) {
+  if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return;
+  mainWindow.webContents.send('update-status-changed', state);
+}
+
+async function installDownloadedUpdate() {
+  if (!desktopAutoUpdater?.isUpdateDownloaded()) {
+    return { success: false, error: 'UPDATE_NOT_DOWNLOADED' };
+  }
+
+  isQuitting = true;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.hide();
+  }
+  backendStopRequested = true;
+  try {
+    await pythonManager.stopBackend();
+  } catch (error) {
+    log.error('[main] Failed to stop backend before installing update:', error);
+  }
+  backendStopped = true;
+  const started = desktopAutoUpdater.quitAndInstall();
+  return { success: started };
+}
+
+async function showDownloadedUpdateDialog(checkResult) {
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: 'info',
+    title: '更新已就绪',
+    message: `新版本 v${checkResult.update.version} 已下载完成`,
+    detail: '重启 Banana Slides 即可完成更新。',
+    buttons: ['重启并更新', '稍后重启'],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (result.response === 0) {
+    await installDownloadedUpdate();
+  }
+}
+
+async function showManualUpdateDialog() {
+  try {
+    const checkResult = await desktopAutoUpdater.checkForUpdates();
+    if (checkResult.status === 'update_downloaded') {
+      await showDownloadedUpdateDialog(checkResult);
+      return;
+    }
+
+    if (checkResult.update) {
+      const primaryAction = checkResult.canAutoUpdate ? '下载更新' : '前往下载';
+      const releaseNotes = checkResult.update.notes.trim();
+      const result = await dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: '发现新版本',
+        message: `新版本 v${checkResult.update.version} 可用`,
+        ...(releaseNotes ? { detail: releaseNotes.substring(0, 300) } : {}),
+        buttons: [primaryAction, '查看完整更新日志', '稍后更新'],
+        defaultId: 0,
+        cancelId: 2,
+      });
+      if (result.response === 0) {
+        if (checkResult.canAutoUpdate) {
+          const downloadedState = await desktopAutoUpdater.downloadUpdate();
+          if (downloadedState.status === 'update_downloaded') {
+            await showDownloadedUpdateDialog(downloadedState);
+          }
+        } else {
+          await shell.openExternal(checkResult.update.url);
+        }
+      } else if (result.response === 1) {
+        await shell.openExternal(checkResult.update.url);
+      }
+      return;
+    }
+
+    await dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: '检查更新',
+      message: '当前已是最新版本',
+    });
+  } catch (error) {
+    log.error('[main] Failed to check for updates:', error);
+    await dialog.showMessageBox(mainWindow, {
+      type: 'error',
+      title: '检查更新失败',
+      message: '无法连接更新服务，请检查网络后重试',
+    });
+  }
+}
+
 function createAppMenu() {
   const isMac = process.platform === 'darwin';
   const template = [
@@ -330,36 +422,7 @@ function createAppMenu() {
       submenu: [
         {
           label: '检查更新...',
-          click: async () => {
-            try {
-              const checkResult = await autoUpdater.checkForUpdates();
-              if (checkResult.update) {
-                const result = await dialog.showMessageBox(mainWindow, {
-                  type: 'info',
-                  title: '发现新版本',
-                  message: `新版本 v${checkResult.update.version} 可用`,
-                  detail: checkResult.update.notes.substring(0, 300),
-                  buttons: ['前往下载', '稍后'],
-                });
-                if (result.response === 0) {
-                  shell.openExternal(checkResult.update.url);
-                }
-              } else {
-                dialog.showMessageBox(mainWindow, {
-                  type: 'info',
-                  title: '检查更新',
-                  message: '当前已是最新版本',
-                });
-              }
-            } catch (error) {
-              log.error('[main] Failed to check for updates:', error);
-              dialog.showMessageBox(mainWindow, {
-                type: 'error',
-                title: '检查更新失败',
-                message: '无法连接更新服务，请检查网络后重试',
-              });
-            }
-          },
+          click: showManualUpdateDialog,
         },
         { type: 'separator' },
         {
@@ -383,7 +446,14 @@ function createAppMenu() {
 function setupIPC() {
   ipcMain.handle('get-app-version', () => app.getVersion());
   ipcMain.handle('get-backend-port', () => pythonManager.getPort());
-  ipcMain.handle('check-for-updates', () => autoUpdater.checkForUpdates());
+  ipcMain.handle('check-for-updates', () => desktopAutoUpdater.checkForUpdates());
+  ipcMain.handle('get-update-state', () => desktopAutoUpdater.getState());
+  ipcMain.handle('get-auto-update-settings', () => desktopAutoUpdater.getSettings());
+  ipcMain.handle('set-automatic-updates-enabled', (_, enabled) => (
+    desktopAutoUpdater.setAutomaticUpdatesEnabled(enabled)
+  ));
+  ipcMain.handle('download-update', () => desktopAutoUpdater.downloadUpdate());
+  ipcMain.handle('install-update', () => installDownloadedUpdate());
   ipcMain.handle('open-external', (_, url) => {
     try {
       const parsedUrl = new URL(url);
@@ -574,10 +644,20 @@ async function bootstrap() {
   createSplashWindow();
   createMainWindow();
   createTray();
-  createAppMenu();
-  setupIPC();
 
   try {
+    desktopAutoUpdater = new DesktopAutoUpdateManager({
+      app,
+      updater: electronAutoUpdater,
+      CancellationToken,
+      logger: log,
+      canAutoUpdate: detectAutoUpdateSupport({ app }),
+    });
+    await desktopAutoUpdater.initialize();
+    desktopAutoUpdater.subscribe(sendUpdateState);
+    createAppMenu();
+    setupIPC();
+
     let storageInfo;
     try {
       storageInfo = await initializeDataRoot(app.getPath('userData'));
@@ -602,6 +682,9 @@ async function bootstrap() {
       mainWindow.loadFile(path.join(process.resourcesPath, 'frontend', 'index.html'), {
         query: { backendPort: String(port) },
       });
+    }
+    if (!isSmokeMode()) {
+      desktopAutoUpdater.startAutomaticChecks();
     }
   } catch (err) {
     log.error('[main] Startup failed:', err);
@@ -634,7 +717,11 @@ app.on('before-quit', (event) => {
 
   pythonManager.stopBackend().finally(() => {
     backendStopped = true;
-    app.quit();
+    if (desktopAutoUpdater?.shouldInstallOnQuit()) {
+      desktopAutoUpdater.quitAndInstall();
+    } else {
+      app.quit();
+    }
   });
 });
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Home } from './pages/Home';
 import { Landing } from './pages/Landing';
@@ -16,7 +16,6 @@ import { isDesktop } from '@/utils';
 function App() {
   const { currentProject, syncProject, error, setError } = useProjectStore();
   const { show, ToastContainer } = useToast();
-  const [isUpdateVisible, setIsUpdateVisible] = useState(false);
 
   // 恢复项目状态
   useEffect(() => {
@@ -37,8 +36,8 @@ function App() {
 
   return (
     <>
-      <UpdateChecker onVisibilityChange={setIsUpdateVisible} />
-      <div style={isDesktop ? { paddingTop: `${getDesktopTopInset(isUpdateVisible)}px` } : undefined}>
+      <UpdateChecker />
+      <div style={isDesktop ? { paddingTop: `${getDesktopTopInset()}px` } : undefined}>
         <AccessCodeGuard>
           {(() => {
             const Router = isDesktop ? HashRouter : BrowserRouter;

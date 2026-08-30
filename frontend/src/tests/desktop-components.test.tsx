@@ -11,6 +11,15 @@ const mockElectronAPI = {
     latestVersion: '0.3.0',
     update: null,
   }),
+  getUpdateState: vi.fn().mockResolvedValue({
+    status: 'up_to_date',
+    currentVersion: '0.3.0',
+    latestVersion: '0.3.0',
+    update: null,
+  }),
+  downloadUpdate: vi.fn(),
+  installUpdate: vi.fn(),
+  onUpdateStatus: vi.fn().mockReturnValue(() => undefined),
   getBackendPort: vi.fn().mockReturnValue(15000),
   getAppVersion: vi.fn().mockResolvedValue('0.3.0'),
   openExternal: vi.fn().mockResolvedValue(undefined),
@@ -106,7 +115,38 @@ describe('DesktopTitleBar', () => {
 });
 
 describe('UpdateChecker', () => {
+  const releaseUrl = 'https://github.com/Anionex/banana-slides/releases/tag/v1.0.0';
+  const availableState = {
+    status: 'update_available',
+    currentVersion: '0.9.0',
+    latestVersion: '1.0.0',
+    canAutoUpdate: true,
+    checkSource: 'automatic',
+    update: {
+      version: '1.0.0',
+      notes: '- New features\n- Bug fixes',
+      url: releaseUrl,
+    },
+  };
+
+  const flushUpdateModal = async () => {
+    await act(async () => {
+      await Promise.resolve();
+      vi.runAllTimers();
+    });
+  };
+
   beforeEach(() => {
+    mockElectronAPI.getUpdateState.mockReset().mockResolvedValue({
+      status: 'up_to_date',
+      currentVersion: '0.9.0',
+      latestVersion: '0.9.0',
+      update: null,
+    });
+    mockElectronAPI.downloadUpdate.mockReset();
+    mockElectronAPI.installUpdate.mockReset();
+    mockElectronAPI.openExternal.mockReset();
+    mockElectronAPI.onUpdateStatus.mockReset().mockReturnValue(() => undefined);
     (window as any).electronAPI = mockElectronAPI;
     vi.useFakeTimers();
   });
@@ -126,99 +166,146 @@ describe('UpdateChecker', () => {
   });
 
   it('renders nothing when no update available', async () => {
-    mockElectronAPI.checkForUpdates.mockResolvedValue({
+    mockElectronAPI.getUpdateState.mockResolvedValue({
       status: 'up_to_date',
       currentVersion: '0.9.0',
       latestVersion: '0.9.0',
       update: null,
     });
     const { UpdateChecker } = await import('../components/shared/UpdateChecker');
-    const { container } = render(<UpdateChecker />);
-    await act(async () => { vi.advanceTimersByTime(6000); });
-    expect(container.innerHTML).toBe('');
+    render(<UpdateChecker />);
+    await flushUpdateModal();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('shows update notification when new version available', async () => {
-    mockElectronAPI.checkForUpdates.mockResolvedValue({
-      status: 'update_available',
-      currentVersion: '0.9.0',
-      latestVersion: '1.0.0',
-      update: {
-        version: '1.0.0',
-        notes: 'New features',
-        url: 'https://github.com/Anionex/banana-slides/releases/tag/v1.0.0',
-      },
-    });
+  it('shows an automatic update card with summary and changelog link', async () => {
+    mockElectronAPI.getUpdateState.mockResolvedValue(availableState);
     const { UpdateChecker } = await import('../components/shared/UpdateChecker');
     render(<UpdateChecker />);
-    await act(async () => { vi.advanceTimersByTime(6000); });
+    await flushUpdateModal();
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(screen.getByText(/v1.0.0/)).toBeInTheDocument();
-    expect(screen.getByText('Download')).toBeInTheDocument();
-  });
-
-  it('reports its visibility so the app can increase top padding', async () => {
-    const onVisibilityChange = vi.fn();
-    mockElectronAPI.checkForUpdates.mockResolvedValue({
-      status: 'update_available',
-      currentVersion: '0.9.0',
-      latestVersion: '1.0.0',
-      update: {
-        version: '1.0.0',
-        notes: 'New features',
-        url: 'https://github.com/Anionex/banana-slides/releases/tag/v1.0.0',
-      },
-    });
-    const { UpdateChecker } = await import('../components/shared/UpdateChecker');
-    render(<UpdateChecker onVisibilityChange={onVisibilityChange} />);
-    await act(async () => { vi.advanceTimersByTime(6000); });
-    expect(onVisibilityChange).toHaveBeenCalledWith(true);
-  });
-
-  it('opens external URL when download button clicked', async () => {
-    const releaseUrl = 'https://github.com/Anionex/banana-slides/releases/tag/v1.0.0';
-    mockElectronAPI.checkForUpdates.mockResolvedValue({
-      status: 'update_available',
-      currentVersion: '0.9.0',
-      latestVersion: '1.0.0',
-      update: {
-        version: '1.0.0',
-        notes: 'New features',
-        url: releaseUrl,
-      },
-    });
-    const { UpdateChecker } = await import('../components/shared/UpdateChecker');
-    render(<UpdateChecker />);
-    await act(async () => { vi.advanceTimersByTime(6000); });
-    fireEvent.click(screen.getByText('Download'));
+    expect(screen.getByText("What's new")).toBeInTheDocument();
+    expect(screen.getByText('New features')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'View full changelog' }));
     expect(mockElectronAPI.openExternal).toHaveBeenCalledWith(releaseUrl);
   });
 
-  it('dismisses notification when close button clicked', async () => {
-    mockElectronAPI.checkForUpdates.mockResolvedValue({
-      status: 'update_available',
-      currentVersion: '0.9.0',
-      latestVersion: '1.0.0',
-      update: {
-        version: '1.0.0',
-        notes: 'New features',
-        url: 'https://example.com',
-      },
+  it('does not render an empty update summary', async () => {
+    mockElectronAPI.getUpdateState.mockResolvedValue({
+      ...availableState,
+      update: { ...availableState.update, notes: '   ' },
     });
     const { UpdateChecker } = await import('../components/shared/UpdateChecker');
     render(<UpdateChecker />);
-    await act(async () => { vi.advanceTimersByTime(6000); });
-    expect(screen.getByText(/v1.0.0/)).toBeInTheDocument();
-    const closeButtons = screen.getAllByRole('button');
-    const dismissBtn = closeButtons.find(btn => !btn.textContent?.includes('Download'));
-    fireEvent.click(dismissBtn!);
-    expect(screen.queryByText(/v1.0.0/)).not.toBeInTheDocument();
+    await flushUpdateModal();
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.queryByText("What's new")).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'View full changelog' })).toBeInTheDocument();
+  });
+
+  it('does not duplicate the Settings dialog for manual checks', async () => {
+    mockElectronAPI.getUpdateState.mockResolvedValue({
+      ...availableState,
+      checkSource: 'manual',
+    });
+    const { UpdateChecker } = await import('../components/shared/UpdateChecker');
+    render(<UpdateChecker />);
+    await flushUpdateModal();
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('downloads installable updates without opening a browser', async () => {
+    const downloadedState = {
+      ...availableState,
+      status: 'update_downloaded',
+    };
+    mockElectronAPI.getUpdateState.mockResolvedValue(availableState);
+    mockElectronAPI.downloadUpdate.mockResolvedValue(downloadedState);
+    const { UpdateChecker } = await import('../components/shared/UpdateChecker');
+    render(<UpdateChecker />);
+    await flushUpdateModal();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Update now' }));
+    await flushUpdateModal();
+
+    expect(mockElectronAPI.downloadUpdate).toHaveBeenCalledOnce();
+    expect(mockElectronAPI.openExternal).not.toHaveBeenCalled();
+    expect(screen.getByText('Restart to update')).toBeInTheDocument();
+  });
+
+  it('opens the download page for builds without in-place update support', async () => {
+    mockElectronAPI.getUpdateState.mockResolvedValue({
+      ...availableState,
+      canAutoUpdate: false,
+    });
+    const { UpdateChecker } = await import('../components/shared/UpdateChecker');
+    render(<UpdateChecker />);
+    await flushUpdateModal();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open download page' }));
+    expect(mockElectronAPI.openExternal).toHaveBeenCalledWith(releaseUrl);
+  });
+
+  it('keeps the card open and allows retry after a download error', async () => {
+    let listener: ((state: typeof availableState & { status: string; error?: string }) => void) | undefined;
+    mockElectronAPI.getUpdateState.mockResolvedValue(availableState);
+    mockElectronAPI.onUpdateStatus.mockImplementation((callback) => {
+      listener = callback;
+      return () => undefined;
+    });
+    mockElectronAPI.downloadUpdate.mockImplementation(async () => {
+      listener?.({ ...availableState, status: 'error', error: 'network unavailable' });
+      throw new Error('network unavailable');
+    });
+    const { UpdateChecker } = await import('../components/shared/UpdateChecker');
+    render(<UpdateChecker />);
+    await flushUpdateModal();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Update now' }));
+    await flushUpdateModal();
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('Update failed. Try again.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Update now' })).toBeInTheDocument();
+  });
+
+  it('defers the same version for this run and shows a newer version', async () => {
+    let listener: ((state: typeof availableState) => void) | undefined;
+    mockElectronAPI.getUpdateState.mockResolvedValue(availableState);
+    mockElectronAPI.onUpdateStatus.mockImplementation((callback) => {
+      listener = callback;
+      return () => undefined;
+    });
+    const { UpdateChecker } = await import('../components/shared/UpdateChecker');
+    render(<UpdateChecker />);
+    await flushUpdateModal();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Update later' }));
+    await flushUpdateModal();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    act(() => listener?.(availableState));
+    await flushUpdateModal();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    act(() => listener?.({
+      ...availableState,
+      latestVersion: '1.1.0',
+      update: { ...availableState.update, version: '1.1.0' },
+    }));
+    await flushUpdateModal();
+    expect(screen.getByText(/v1.1.0/)).toBeInTheDocument();
   });
 
   it('silently handles update check failure', async () => {
-    mockElectronAPI.checkForUpdates.mockRejectedValue(new Error('Network error'));
+    mockElectronAPI.getUpdateState.mockRejectedValue(new Error('Network error'));
     const { UpdateChecker } = await import('../components/shared/UpdateChecker');
-    const { container } = render(<UpdateChecker />);
-    await act(async () => { vi.advanceTimersByTime(6000); });
-    expect(container.innerHTML).toBe('');
+    render(<UpdateChecker />);
+    await flushUpdateModal();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });
