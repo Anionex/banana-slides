@@ -101,9 +101,35 @@ def test_sensenova_api_error_keeps_diagnostic_message():
         status_code=400,
     )
 
-    with patch('services.ai_providers.image.openai_provider.requests.post', return_value=response):
+    with patch('services.ai_providers.image.openai_provider.requests.post', return_value=response) as post:
         with pytest.raises(Exception, match='invalid images\\[0\\]\\.image_url'):
             provider.generate_image('a red apple')
+    post.assert_called_once()
+
+
+def test_sensenova_retries_transient_http_error():
+    provider = _provider()
+    failed = _response(
+        {'error': {'message': 'temporarily unavailable', 'code': '5'}},
+        status_code=429,
+    )
+    success = _response({
+        'data': [{'url': _png_data_url(Image.new('RGB', (256, 256), color='green'))}],
+        'output_format': 'png',
+    })
+
+    with patch(
+        'services.ai_providers.image.openai_provider.requests.post',
+        side_effect=[failed, success],
+    ) as post:
+        result = provider.generate_image(
+            'a green apple',
+            aspect_ratio='16:9',
+            resolution='2K',
+        )
+
+    assert isinstance(result, Image.Image)
+    assert post.call_count == 2
 
 
 def _assert_sensenova_size(size: str, resolution: str = '2K'):

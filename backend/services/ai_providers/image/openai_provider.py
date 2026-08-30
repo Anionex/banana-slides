@@ -19,6 +19,7 @@ from io import BytesIO
 from typing import Optional, List
 from openai import OpenAI
 from PIL import Image
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
 from .base import ImageProvider
 from config import get_config
 
@@ -52,6 +53,8 @@ _SENSENOVA_IMAGE_MIN_EDGE = 512
 _SENSENOVA_IMAGE_MAX_EDGE = 4096
 _SENSENOVA_IMAGE_ALIGNMENT = 32
 _SENSENOVA_IMAGE_REFERENCE_MAX_BYTES = 10 * 1024 * 1024
+_SENSENOVA_MAX_ATTEMPTS = max(1, get_config().OPENAI_MAX_RETRIES + 1)
+_SENSENOVA_RETRY_STATUS_CODES = {429, 500, 502, 503, 504}
 
 _SENSENOVA_RESOLUTION_LONG_EDGE = {
     '1K': 1280,
@@ -81,6 +84,33 @@ _SENSENOVA_U1_FAST_SIZE_PRESETS = {
     '21:9': '3072x1376',
     '9:21': '1344x3136',
 }
+
+
+def _is_retryable_sensenova_error(exc: BaseException) -> bool:
+    """Return True for transient SenseNova HTTP/network failures."""
+    if isinstance(exc, requests.exceptions.HTTPError) and exc.response is not None:
+        return exc.response.status_code in _SENSENOVA_RETRY_STATUS_CODES
+    if isinstance(exc, (
+        requests.exceptions.SSLError,
+        requests.exceptions.ConnectionError,
+        requests.exceptions.Timeout,
+        requests.exceptions.ChunkedEncodingError,
+    )):
+        return True
+    return False
+
+
+def _log_sensenova_retry(retry_state):
+    exc = retry_state.outcome.exception() if retry_state.outcome else None
+    status = getattr(getattr(exc, 'response', None), 'status_code', '?')
+    logger.warning(
+        'SenseNova image request failed (%s, HTTP %s), retrying %d/%d: %s',
+        type(exc).__name__ if exc else 'UnknownError',
+        status,
+        retry_state.attempt_number,
+        _SENSENOVA_MAX_ATTEMPTS,
+        exc,
+    )
 
 # Volcengine Seedream Image generation API size constraints
 # (https://docs.volcengine.com/docs/82379/1541523, Seedream 5.0-lite / 4.5):
@@ -386,6 +416,34 @@ class OpenAIImageProvider(ImageProvider):
         buf = BytesIO()
         image.save(buf, format='PNG', optimize=True, compress_level=9)
         return buf.getvalue()
+
+    @retry(
+        stop=stop_after_attempt(_SENSENOVA_MAX_ATTEMPTS),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        retry=retry_if_exception(_is_retryable_sensenova_error),
+        reraise=True,
+        before_sleep=_log_sensenova_retry,
+    )
+    def _post_sensenova_with_retry(
+        self,
+        url: str,
+        headers: dict,
+        payload: dict,
+    ) -> requests.Response:
+        """POST to SenseNova with retries for transient HTTP/network errors."""
+        response = requests.post(
+            url,
+            headers=headers,
+            json=payload,
+            timeout=get_config().OPENAI_TIMEOUT,
+        )
+        if response.status_code >= 400:
+            raise requests.HTTPError(
+                f'SenseNova image API returned HTTP {response.status_code}',
+                response=response,
+            )
+        response.raise_for_status()
+        return response
 
     def _pil_to_png_bytes(self, image: Image.Image) -> bytes:
         buf = BytesIO()
@@ -883,15 +941,27 @@ class OpenAIImageProvider(ImageProvider):
                 payload['size'] = size
 
         url = f"{self.api_base.rstrip('/')}/{endpoint}"
-        response = requests.post(
-            url,
-            headers={
-                'Authorization': f'Bearer {self.api_key}',
-                'Content-Type': 'application/json',
-            },
-            json=payload,
-            timeout=get_config().OPENAI_TIMEOUT,
-        )
+        headers = {
+            'Authorization': f'Bearer {self.api_key}',
+            'Content-Type': 'application/json',
+        }
+        try:
+            response = self._post_sensenova_with_retry(url, headers, payload)
+        except requests.exceptions.HTTPError as exc:
+            response = exc.response
+            if response is None:
+                raise RuntimeError('SenseNova image API request failed') from exc
+            try:
+                result = response.json()
+            except ValueError as json_exc:
+                raise RuntimeError(
+                    f'SenseNova image API returned invalid JSON (HTTP {response.status_code})'
+                ) from json_exc
+            error = result.get('error', result) if isinstance(result, dict) else result
+            message = error.get('message') if isinstance(error, dict) else error
+            raise RuntimeError(
+                f'SenseNova image API error (HTTP {response.status_code}): {message}'
+            ) from exc
         try:
             result = response.json()
         except ValueError as exc:
