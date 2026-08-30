@@ -47,7 +47,9 @@ _DOUBAO_SEEDREAM_PREFIX = 'doubao-seedream'
 _SENSENOVA_IMAGE_MODEL_PREFIX = 'sensenova-u1'
 _SENSENOVA_IMAGE_REFERENCE_MIN_EDGE = 256
 _SENSENOVA_IMAGE_REFERENCE_MAX_EDGE = 4096
-_SENSENOVA_IMAGE_REFERENCE_MAX_ASPECT = 3.0
+# The editing endpoint requires the uploaded reference image itself to be
+# within 2:1, while generated output sizes allow up to 3:1.
+_SENSENOVA_IMAGE_REFERENCE_MAX_ASPECT = 2.0
 _SENSENOVA_IMAGE_MAX_ASPECT = 3.0
 _SENSENOVA_IMAGE_MIN_EDGE = 512
 _SENSENOVA_IMAGE_MAX_EDGE = 4096
@@ -352,29 +354,46 @@ class OpenAIImageProvider(ImageProvider):
         if width <= 0 or height <= 0:
             raise ValueError('Reference image must have positive dimensions')
 
+        # Resize proportionally. For extreme aspect ratios it is impossible to
+        # keep both edges in the min/max range without stretching, so cap the
+        # long edge first and pad the short edge below.
         if max(width, height) > _SENSENOVA_IMAGE_REFERENCE_MAX_EDGE:
             scale = _SENSENOVA_IMAGE_REFERENCE_MAX_EDGE / max(width, height)
         elif min(width, height) < _SENSENOVA_IMAGE_REFERENCE_MIN_EDGE:
             scale = _SENSENOVA_IMAGE_REFERENCE_MIN_EDGE / min(width, height)
         else:
             scale = 1.0
-        width = max(_SENSENOVA_IMAGE_REFERENCE_MIN_EDGE, round(width * scale))
-        height = max(_SENSENOVA_IMAGE_REFERENCE_MIN_EDGE, round(height * scale))
-        if max(width, height) > _SENSENOVA_IMAGE_REFERENCE_MAX_EDGE:
+        if (
+            width * scale > _SENSENOVA_IMAGE_REFERENCE_MAX_EDGE
+            or height * scale > _SENSENOVA_IMAGE_REFERENCE_MAX_EDGE
+        ):
             scale = _SENSENOVA_IMAGE_REFERENCE_MAX_EDGE / max(width, height)
-            width = max(_SENSENOVA_IMAGE_REFERENCE_MIN_EDGE, round(width * scale))
-            height = max(_SENSENOVA_IMAGE_REFERENCE_MIN_EDGE, round(height * scale))
 
-        # SenseNova accepts aspect ratios within 3:1. Preserve the original
+        content_width = max(1, round(width * scale))
+        content_height = max(1, round(height * scale))
+
+        # The edit API accepts reference images within 2:1. Preserve the original
         # content by padding the short edge when it falls outside that range.
-        canvas_width, canvas_height = width, height
-        if width > height * _SENSENOVA_IMAGE_REFERENCE_MAX_ASPECT:
-            canvas_height = math.ceil(width / _SENSENOVA_IMAGE_REFERENCE_MAX_ASPECT)
-        elif height > width * _SENSENOVA_IMAGE_REFERENCE_MAX_ASPECT:
-            canvas_width = math.ceil(height / _SENSENOVA_IMAGE_REFERENCE_MAX_ASPECT)
+        canvas_width, canvas_height = content_width, content_height
+        if content_width > content_height * _SENSENOVA_IMAGE_REFERENCE_MAX_ASPECT:
+            canvas_height = max(
+                _SENSENOVA_IMAGE_REFERENCE_MIN_EDGE,
+                math.ceil(content_width / _SENSENOVA_IMAGE_REFERENCE_MAX_ASPECT),
+            )
+        elif content_height > content_width * _SENSENOVA_IMAGE_REFERENCE_MAX_ASPECT:
+            canvas_width = max(
+                _SENSENOVA_IMAGE_REFERENCE_MIN_EDGE,
+                math.ceil(content_height / _SENSENOVA_IMAGE_REFERENCE_MAX_ASPECT),
+            )
+        else:
+            canvas_width = max(_SENSENOVA_IMAGE_REFERENCE_MIN_EDGE, canvas_width)
+            canvas_height = max(_SENSENOVA_IMAGE_REFERENCE_MIN_EDGE, canvas_height)
         canvas = Image.new('RGBA', (canvas_width, canvas_height), (255, 255, 255, 0))
-        resized = source.resize((width, height), Image.LANCZOS)
-        canvas.paste(resized, ((canvas_width - width) // 2, (canvas_height - height) // 2))
+        resized = source.resize((content_width, content_height), Image.LANCZOS)
+        canvas.paste(
+            resized,
+            ((canvas_width - content_width) // 2, (canvas_height - content_height) // 2),
+        )
         return canvas
 
     def _sensenova_reference_data_url(
@@ -395,9 +414,11 @@ class OpenAIImageProvider(ImageProvider):
         scale = 0.75
         while min(width, height) > _SENSENOVA_IMAGE_REFERENCE_MIN_EDGE:
             next_size = (
-                max(_SENSENOVA_IMAGE_REFERENCE_MIN_EDGE, round(width * scale)),
-                max(_SENSENOVA_IMAGE_REFERENCE_MIN_EDGE, round(height * scale)),
+                round(width * scale),
+                round(height * scale),
             )
+            if min(next_size) < _SENSENOVA_IMAGE_REFERENCE_MIN_EDGE:
+                break
             smaller = fitted.resize(next_size, Image.LANCZOS)
             png = self._sensenova_png_bytes(smaller)
             data_url = f'data:image/png;base64,{base64.b64encode(png).decode()}'
@@ -935,10 +956,9 @@ class OpenAIImageProvider(ImageProvider):
                 {'image_url': image_data_url}
                 for image_data_url in image_data_urls
             ]
-        else:
-            size = self._resolve_size(aspect_ratio, resolution)
-            if size and size != 'auto':
-                payload['size'] = size
+        size = self._resolve_size(aspect_ratio, resolution)
+        if size and size != 'auto':
+            payload['size'] = size
 
         url = f"{self.api_base.rstrip('/')}/{endpoint}"
         headers = {

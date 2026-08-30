@@ -38,8 +38,7 @@ class TestSenseNovaImageRealAPI:
         )
 
         assert isinstance(generated, Image.Image)
-        assert generated.width > 0 and generated.height > 0
-        assert max(generated.size) <= 4096
+        assert generated.size == (2048, 1152)
 
     def test_reference_image_edit(self):
         provider = OpenAIImageProvider(
@@ -57,5 +56,22 @@ class TestSenseNovaImageRealAPI:
         )
 
         assert isinstance(edited, Image.Image)
-        assert edited.width > 0 and edited.height > 0
-        assert max(edited.size) <= 4096
+        assert edited.size == (1280, 1280)
+
+    def test_reference_image_extreme_aspect_edit(self):
+        provider = OpenAIImageProvider(
+            api_key=_API_KEY,
+            api_base='https://token.sensenova.cn/v1',
+            model='sensenova-u1.5-lite',
+            image_api_protocol='auto',
+        )
+
+        edited = provider.generate_image(
+            'keep the horizontal logo readable and make the background blue',
+            ref_images=[Image.new('RGB', (2000, 100), color='red')],
+            aspect_ratio='16:9',
+            resolution='2K',
+        )
+
+        assert isinstance(edited, Image.Image)
+        assert edited.size == (2048, 1152)

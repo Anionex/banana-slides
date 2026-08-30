@@ -90,7 +90,7 @@ def test_sensenova_edit_uses_json_image_urls():
     assert body['prompt_extend'] is True
     assert len(body['images']) == 1
     assert body['images'][0]['image_url'].startswith('data:image/png;base64,')
-    assert 'size' not in body
+    assert body['size'] == '1280x1280'
     provider.client.images.with_raw_response.edit.assert_not_called()
 
 
@@ -208,15 +208,27 @@ def test_sensenova_u1_fast_does_not_support_reference_edits():
         )
 
 
-def test_sensenova_reference_extreme_aspect_is_padded():
+@pytest.mark.parametrize(
+    'source_size, expected_content_ratio',
+    [
+        ((2000, 100), 20.0),
+        ((100, 2000), 0.05),
+    ],
+)
+def test_sensenova_reference_extreme_aspect_is_padded(source_size, expected_content_ratio):
     provider = _provider(model='sensenova-u1.5-lite')
     fitted = provider._fit_sensenova_reference_image(
-        Image.new('RGB', (2000, 100), color='red')
+        Image.new('RGB', source_size, color='red')
     )
     width, height = fitted.size
+    content_bbox = fitted.getbbox()
+    content_width = content_bbox[2] - content_bbox[0]
+    content_height = content_bbox[3] - content_bbox[1]
     assert width <= 4096 and height <= 4096
     assert 256 <= min(width, height)
-    assert round(max(width, height) / min(width, height), 4) <= 3.0001
+    assert round(max(width, height) / min(width, height), 4) <= 2.0001
+    content_ratio = content_width / content_height
+    assert abs(content_ratio / expected_content_ratio - 1) < 0.01
 
 
 def test_sensenova_reference_data_url_compresses_large_image():
