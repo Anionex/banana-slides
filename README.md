@@ -58,7 +58,7 @@
 <table>
 <tr>
 <td width="220" align="center" valign="middle"><a href="https://aihubmix.com/?aff=17EC"><img src="./assets/logo_aihubmix.png" alt="AIHubMix" width="189"></a></td>
-<td valign="middle">感谢 <a href="https://aihubmix.com/?aff=17EC">AIHubMix</a> 赞助本项目！AIHubMix 是稳定、高并发的 AI 大模型 API 聚合平台，一个 API Key 即可接入 Claude、GPT、Gemini、DeepSeek 等主流模型，兼容多种协议，并提供<b>免费模型选择</b>。注册时，海外用户请使用 <a href="https://aihubmix.com/?aff=17EC">AIHubMix 入口</a>，中国大陆用户请使用 <a href="https://inferera.com/?aff=17EC">Inferera 入口</a>。</td>
+<td valign="middle">感谢 <a href="https://aihubmix.com/?aff=17EC">AIHubMix</a> 赞助本项目！AIHubMix 是稳定、高并发的 AI 大模型 API 聚合平台，一个 API Key 即可接入 Claude、GPT、Gemini、DeepSeek 等主流模型，兼容多种协议。注册时，海外用户请使用 <a href="https://aihubmix.com/?aff=17EC">AIHubMix 入口</a>，中国大陆用户请使用 <a href="https://inferera.com/?aff=17EC">Inferera 入口</a>。</td>
 </tr>
 <tr>
 <td width="220" align="center" valign="middle"><a href="https://go.apimart.ai/gh-banana-slides"><img src="./assets/logo_apimart.png" alt="APIMart" width="189"></a></td>
