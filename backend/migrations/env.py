@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 os.environ['BANANA_SKIP_AUTO_MIGRATE'] = '1'
 
 from models import db
+from migrations.url_config import select_database_url
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -26,10 +27,9 @@ target_metadata = db.metadata
 
 def get_url() -> str:
     """Get database URL from Alembic config or environment."""
-    return (
-        config.get_main_option("sqlalchemy.url")
-        or os.getenv("DATABASE_URL")
-        or "sqlite:///instance/database.db"
+    return select_database_url(
+        os.getenv("DATABASE_URL"),
+        config.get_main_option("sqlalchemy.url"),
     )
 
 

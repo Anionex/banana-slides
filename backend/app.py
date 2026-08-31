@@ -59,6 +59,22 @@ def set_sqlite_pragma(dbapi_conn, connection_record):
         cursor.close()
 
 
+def _engine_options_for_database_url(database_url: str) -> dict:
+    options = {'pool_pre_ping': True, 'pool_recycle': 3600}
+    if (database_url or '').lower().startswith('sqlite:'):
+        options['connect_args'] = {
+            'check_same_thread': False,
+            'timeout': 30,
+        }
+    elif (database_url or '').lower().startswith(('mysql:', 'mysql+')):
+        options.update({
+            'pool_size': 10,
+            'max_overflow': 50,
+            'pool_timeout': 30,
+        })
+    return options
+
+
 def create_app():
     """Application factory"""
     app = Flask(__name__)
@@ -100,6 +116,10 @@ def create_app():
     if export_folder_env:
         os.makedirs(export_folder_env, exist_ok=True)
         app.config['EXPORT_FOLDER'] = export_folder_env
+
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = _engine_options_for_database_url(
+        app.config['SQLALCHEMY_DATABASE_URI']
+    )
 
     # CORS configuration (parse from environment)
     raw_cors = os.getenv('CORS_ORIGINS', f'http://localhost:{DEFAULT_FRONTEND_PORT}')
@@ -157,8 +177,9 @@ def create_app():
     app.register_blueprint(material_bp)
     app.register_blueprint(material_global_bp)
     app.register_blueprint(reference_file_bp, url_prefix='/api/reference-files')
-    app.register_blueprint(settings_bp)
-    app.register_blueprint(openai_oauth_bp)
+    if not app.config.get('KCD_DISABLE_SETTINGS_API', False):
+        app.register_blueprint(settings_bp)
+        app.register_blueprint(openai_oauth_bp)
     app.register_blueprint(style_bp)
 
     with app.app_context():
@@ -166,7 +187,7 @@ def create_app():
             db.create_all()
             from desktop_bootstrap import repair_desktop_settings_schema
             repair_desktop_settings_schema(db)
-        elif os.getenv('BANANA_SKIP_AUTO_MIGRATE') == '1':
+        elif os.getenv('BANANA_SKIP_AUTO_MIGRATE') == '1' or os.getenv('BANANA_AUTO_MIGRATE') != '1':
             pass
         else:
             migrations_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'migrations')
@@ -179,17 +200,30 @@ def create_app():
                     alembic_config = AlembicConfig(alembic_ini)
                     alembic_config.set_main_option('sqlalchemy.url', app.config['SQLALCHEMY_DATABASE_URI'])
                     alembic_command.upgrade(alembic_config, 'head')
-                except Exception as e:
-                    logging.getLogger(__name__).warning(f'Alembic upgrade failed, falling back to create_all: {e}')
-                    db.create_all()
-                    from desktop_bootstrap import repair_desktop_settings_schema
-                    repair_desktop_settings_schema(db)
+                except Exception:
+                    logging.getLogger(__name__).exception('Alembic upgrade failed')
+                    raise
             else:
                 db.create_all()
                 from desktop_bootstrap import repair_desktop_settings_schema
                 repair_desktop_settings_schema(db)
         # Load settings from database and sync to app.config
         _load_settings_to_config(app)
+        if app.config.get('KCD_PLATFORM_REQUIRED', False):
+            from services.platform_submission_service import (
+                interrupt_orphaned_tasks,
+                reconcile_terminal_receipts,
+            )
+            interrupted = interrupt_orphaned_tasks()
+            if interrupted:
+                logging.getLogger(__name__).warning(
+                    'Marked %s orphaned engine tasks as retryable after restart', interrupted
+                )
+            reconciled = reconcile_terminal_receipts()
+            if reconciled:
+                logging.getLogger(__name__).info(
+                    'Reconciled %s terminal platform submission receipts', reconciled
+                )
 
     # Access code enforcement on all /api/ routes
     @app.before_request
@@ -207,10 +241,63 @@ def create_app():
             return
         return jsonify({'error': 'Access code required'}), 403
 
-    # Health check endpoint
+    # Liveness deliberately avoids dependencies; readiness verifies the
+    # database because the engine cannot accept durable work without it.
+    @app.route('/livez')
+    def liveness_check():
+        return {'status': 'ok'}
+
+    @app.route('/readyz')
+    def readiness_check():
+        from pathlib import Path
+        from sqlalchemy import text
+        from schema_compatibility import inspect_schema
+        from services.task_manager import (
+            image_resource_limiter,
+            task_manager,
+            text_resource_limiter,
+        )
+        try:
+            db.session.execute(text('SELECT 1'))
+            if app.config.get('KCD_PLATFORM_REQUIRED', False):
+                migrations_dir = Path(__file__).resolve().parent / 'migrations'
+                compatibility = inspect_schema(db.engine, migrations_dir)
+                if not compatibility.compatible:
+                    logging.getLogger(__name__).error(
+                        'Banana schema is incompatible: current=%s expected=%s missing=%s',
+                        compatibility.current_revisions,
+                        compatibility.expected_revisions,
+                        compatibility.missing_columns + compatibility.invalid_columns,
+                    )
+                    return {
+                        'status': 'not_ready',
+                        'error': {'code': 'ENGINE_SCHEMA_MISMATCH'},
+                    }, 503
+            return {
+                'status': 'ready',
+                'capacity': {
+                    'background': task_manager.snapshot(),
+                    'descriptions': text_resource_limiter.snapshot(),
+                    'images': image_resource_limiter.snapshot(),
+                },
+            }
+        except Exception:
+            db.session.rollback()
+            logging.getLogger(__name__).exception('Banana database readiness check failed')
+            return {
+                'status': 'not_ready',
+                'error': {'code': 'ENGINE_DATABASE_UNAVAILABLE'},
+            }, 503
+
     @app.route('/health')
     def health_check():
-        return {'status': 'ok', 'message': 'Banana Slides API is running'}
+        readiness = readiness_check()
+        if isinstance(readiness, tuple):
+            return readiness
+        compatible = dict(readiness)
+        compatible['status'] = 'ok'
+        compatible['message'] = 'Banana Slides backend is running'
+        return compatible
 
     # Access code verification
     @app.route('/api/access-code/check', methods=['GET'])

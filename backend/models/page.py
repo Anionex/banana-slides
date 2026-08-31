@@ -33,6 +33,7 @@ class Page(db.Model):
     template_selection_source = db.Column(db.String(20), nullable=True)  # manual|auto|batch_apply
     template_match_reason = db.Column(db.Text, nullable=True)
     template_match_confidence = db.Column(db.Float, nullable=True)
+    page_plan_json = db.Column(db.Text, nullable=True)
     status = db.Column(db.String(50), nullable=False, default='DRAFT')
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -110,6 +111,7 @@ class Page(db.Model):
             'template_selection_source': self.template_selection_source,
             'template_match_reason': self.template_match_reason,
             'template_match_confidence': self.template_match_confidence,
+            'page_plan': self.get_page_plan(),
             'status': self.status,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
@@ -119,6 +121,17 @@ class Page(db.Model):
             data['image_versions'] = [v.to_dict() for v in self.image_versions.all()]
 
         return data
+
+    def get_page_plan(self):
+        if not self.page_plan_json:
+            return None
+        try:
+            return json.loads(self.page_plan_json)
+        except (TypeError, json.JSONDecodeError):
+            return None
+
+    def set_page_plan(self, value):
+        self.page_plan_json = json.dumps(value, ensure_ascii=False, sort_keys=True) if value else None
     
     def __repr__(self):
         return f'<Page {self.id}: {self.order_index} - {self.status}>'

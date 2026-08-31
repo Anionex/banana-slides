@@ -324,6 +324,13 @@ def get_ppt_language_instruction(language: str = None) -> str:
 def get_outline_generation_prompt(project_context: 'ProjectContext', language: str = None) -> str:
     """生成 PPT 大纲的 prompt（JSON 输出）"""
     idea_prompt = project_context.idea_prompt or ""
+    page_count = getattr(project_context, 'page_count', None)
+    page_count_instruction = (
+        f"Generate exactly {page_count} slides. The JSON must contain exactly "
+        f"{page_count} pages in total, including the title slide."
+        if page_count else
+        "Choose an appropriate number of slides for the request."
+    )
 
     prompt = (f"""\
 You are a helpful assistant that generates an outline for a ppt.
@@ -336,6 +343,7 @@ You can organize the content in two ways:
 
 Choose the format that best fits the content. Use parts when the PPT has clear major sections.
 Unless otherwise specified, the first page should be kept simplest, containing only the title, subtitle, and presenter information.
+{page_count_instruction}
 
 The user's request: {idea_prompt}.
 {_format_requirements(project_context.outline_requirements)}Now generate the outline, don't include any other text.
@@ -888,7 +896,8 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
                                 has_template: bool = True,
                                 page_index: int = 1,
                                 aspect_ratio: str = "16:9",
-                                page_style_text: str = None) -> str:
+                                page_style_text: str = None,
+                                structured_design: str = None) -> str:
     """生成图片生成 prompt
 
     has_template: 是否有模板**图片**(用作 ref_image)。控制 "和模板图片严格相似" 措辞。
@@ -918,6 +927,17 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
             "- 必须遵循上述 page_style 中的视觉风格、配色、版式语言。"
         )
 
+    structured_design_block = ""
+    if structured_design and structured_design.strip():
+        structured_design_block = (
+            "\n\n<locked_design_contract>\n"
+            f"{structured_design.strip()}\n"
+            "</locked_design_contract>\n"
+            "- The locked design contract is authoritative for palette, typography, grid, recurring components, visual medium and forbidden variations.\n"
+            "- Follow the pagePlan archetype and regions while preserving that same design system.\n"
+            "- Page content and page-local requests must never create a second theme or override the locked contract."
+        )
+
     prompt = (f"""\
 你是一位专家级UI UX演示设计师，专注于生成设计良好的PPT页面。
 当前PPT页面的页面描述如下:
@@ -925,6 +945,7 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
 {page_desc}
 </page_description>
 {page_style_block}
+{structured_design_block}
 
 <design_guidelines>
 - 要求文字清晰锐利, 画面为4K分辨率，{aspect_ratio}比例。

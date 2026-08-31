@@ -21,11 +21,23 @@ class Project(db.Model):
     outline_requirements = db.Column(db.Text, nullable=True)  # 大纲生成要求
     description_requirements = db.Column(db.Text, nullable=True)  # 页面描述生成要求
     creation_type = db.Column(db.String(20), nullable=False, default='idea')  # idea|outline|descriptions
+    page_count = db.Column(db.Integer, nullable=True)
     template_image_path = db.Column(db.String(500), nullable=True)
     template_style = db.Column(db.Text, nullable=True)  # 风格描述文本（无模板图模式）
     template_mode = db.Column(
         db.String(10), nullable=False, server_default='single', default='single'
     )  # 'single' | 'multi'，仅 UI 渲染分支，不影响页级字段读写
+    generation_mode = db.Column(
+        db.String(32), nullable=False, server_default='STANDARD_VISUAL',
+        default='STANDARD_VISUAL'
+    )
+    design_preferences_json = db.Column(db.Text, nullable=True)
+    design_spec_json = db.Column(db.Text, nullable=True)
+    design_spec_hash = db.Column(db.String(64), nullable=True)
+    design_spec_version = db.Column(db.Integer, nullable=False, server_default='0', default=0)
+    style_board_path = db.Column(db.String(500), nullable=True)
+    consistency_status = db.Column(db.String(32), nullable=True)
+    consistency_warnings_json = db.Column(db.Text, nullable=True)
     # 导出设置
     export_extractor_method = db.Column(db.String(50), nullable=True, default='hybrid')  # 组件提取方法: mineru, hybrid
     export_inpaint_method = db.Column(db.String(50), nullable=True, default='hybrid')  # 背景图获取方法: generative, baidu, hybrid
@@ -73,9 +85,17 @@ class Project(db.Model):
             'outline_requirements': self.outline_requirements,
             'description_requirements': self.description_requirements,
             'creation_type': self.creation_type,
+            'page_count': self.page_count,
             'template_image_url': f'/files/{self.id}/template/{self.template_image_path.split("/")[-1]}' if self.template_image_path else None,
             'template_style': self.template_style,
             'template_mode': self.template_mode or 'single',
+            'generation_mode': self.generation_mode or 'STANDARD_VISUAL',
+            'design_preferences': self.get_design_preferences(),
+            'visual_bible': self.get_design_spec(),
+            'design_spec_hash': self.design_spec_hash,
+            'design_spec_version': self.design_spec_version or 0,
+            'consistency_status': self.consistency_status,
+            'consistency_warnings': self.get_consistency_warnings(),
             'export_extractor_method': self.export_extractor_method or 'hybrid',
             'export_inpaint_method': self.export_inpaint_method or 'hybrid',
             'export_allow_partial': self.export_allow_partial or False,
@@ -91,6 +111,37 @@ class Project(db.Model):
             data['pages'] = [page.to_dict() for page in self.pages]
         
         return data
+
+    @staticmethod
+    def _read_json(value, fallback):
+        if not value:
+            return fallback
+        try:
+            import json
+            return json.loads(value)
+        except (TypeError, ValueError):
+            return fallback
+
+    def get_design_preferences(self):
+        return self._read_json(self.design_preferences_json, {})
+
+    def set_design_preferences(self, value):
+        import json
+        self.design_preferences_json = json.dumps(value or {}, ensure_ascii=False, sort_keys=True)
+
+    def get_design_spec(self):
+        return self._read_json(self.design_spec_json, None)
+
+    def set_design_spec(self, value):
+        import json
+        self.design_spec_json = json.dumps(value, ensure_ascii=False, sort_keys=True) if value else None
+
+    def get_consistency_warnings(self):
+        return self._read_json(self.consistency_warnings_json, [])
+
+    def set_consistency_warnings(self, value):
+        import json
+        self.consistency_warnings_json = json.dumps(value or [], ensure_ascii=False)
     
     def __repr__(self):
         return f'<Project {self.id}: {self.status}>'

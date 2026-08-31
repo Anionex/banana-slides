@@ -17,6 +17,8 @@ DEFAULT_BACKEND_PORT = 5011
 class Config:
     """Base configuration"""
     SECRET_KEY = os.getenv('SECRET_KEY', 'your-secret-key-change-this')
+    KCD_PLATFORM_REQUIRED = os.getenv('KCD_PLATFORM_REQUIRED', '0').strip().lower() in ('1', 'true', 'yes')
+    KCD_DISABLE_SETTINGS_API = os.getenv('KCD_DISABLE_SETTINGS_API', '0').strip().lower() in ('1', 'true', 'yes')
     
     # 数据库配置
     # Use absolute path to avoid WSL path issues

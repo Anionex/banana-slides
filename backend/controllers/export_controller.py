@@ -21,6 +21,13 @@ from utils import (
 from services import ExportService, FileService
 from services.ai_service_manager import get_ai_service
 from services.prompts import normalize_narration_generation_config
+from services.platform_submission_service import (
+    SubmissionConflict,
+    begin_submission,
+    mark_completed,
+    mark_failed,
+    receipt_view,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -139,7 +146,7 @@ def delete_export(project_id, filename):
         return error_response('SERVER_ERROR', str(e), 500)
 
 
-@export_bp.route('/<project_id>/export/pptx', methods=['GET'])
+@export_bp.route('/<project_id>/export/pptx', methods=['GET', 'POST'])
 def export_pptx(project_id):
     """
     GET /api/projects/{project_id}/export/pptx?filename=...&page_ids=id1,id2,id3 - Export PPTX
@@ -158,11 +165,18 @@ def export_pptx(project_id):
             }
         }
     """
+    receipt = None
     try:
         project = Project.query.get(project_id)
         
         if not project:
             return not_found('Project')
+
+        data = request.get_json(silent=True) or {}
+        receipt, replayed = begin_submission(data, 'EXPORT_PPTX', project_id)
+        if replayed:
+            return success_response(receipt_view(receipt))
+        db.session.commit()
         
         # Get page_ids from query params and fetch filtered pages
         selected_page_ids = parse_page_ids_from_query(request)
@@ -213,6 +227,8 @@ def export_pptx(project_id):
         base_url = request.url_root.rstrip("/")
         download_url_absolute = f"{base_url}{download_path}"
 
+        mark_completed(receipt)
+        db.session.commit()
         return success_response(
             data={
                 "download_url": download_path,
@@ -221,7 +237,15 @@ def export_pptx(project_id):
             message="Export PPTX task created"
         )
     
+    except SubmissionConflict as e:
+        db.session.rollback()
+        return error_response('IDEMPOTENCY_CONFLICT', str(e), 409)
     except Exception as e:
+        db.session.rollback()
+        if receipt is not None and receipt.id is not None:
+            persisted = db.session.get(type(receipt), receipt.id)
+            mark_failed(persisted)
+            db.session.commit()
         return error_response('SERVER_ERROR', str(e), 500)
 
 
