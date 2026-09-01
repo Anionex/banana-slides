@@ -1558,6 +1558,20 @@ export const extractStyleFromImage = async (
   return response.data;
 };
 
+/**
+ * 根据内容生成风格描述（通用，不绑定项目）
+ */
+export const generateStyleFromContent = async (
+  content: string,
+  language: string = 'zh'
+): Promise<ApiResponse<{ style_description: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ style_description: string }>>(
+    '/api/generate-style-from-content',
+    { content, language }
+  );
+  return response.data;
+};
+
 // ===== 每页模板（per-page template）API =====
 
 /**

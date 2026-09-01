@@ -1681,3 +1681,40 @@ def extract_style():
     except Exception as e:
         logger.error(f"extract_style failed: {str(e)}", exc_info=True)
         return error_response('AI_SERVICE_ERROR', str(e), 503)
+
+
+@style_bp.route('/generate-style-from-content', methods=['POST'])
+def generate_style_from_content():
+    """
+    POST /api/generate-style-from-content - Generate style description based on PPT content/topic
+
+    JSON:
+        content: string (required)
+        language: string (optional, default 'zh')
+
+    Returns:
+        {style_description: "..."}
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        content = data.get('content', '')
+        if not isinstance(content, str) or not content.strip():
+            return bad_request("content is required and cannot be empty")
+
+        language = data.get('language', 'zh')
+        if not isinstance(language, str):
+            language = 'zh'
+
+        ai_service = get_ai_service()
+        style_description = ai_service.generate_style_from_content(
+            content=content.strip(),
+            language=language
+        )
+
+        return success_response({
+            'style_description': style_description
+        })
+    except Exception as e:
+        logger.error(f"generate_style_from_content failed: {str(e)}", exc_info=True)
+        return error_response('AI_SERVICE_ERROR', str(e), 503)
+

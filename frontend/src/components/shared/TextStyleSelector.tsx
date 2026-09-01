@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { ImagePlus, Loader2, Save, X, Lightbulb } from 'lucide-react';
+import { ImagePlus, Loader2, Save, X, Lightbulb, Sparkles } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { Textarea } from './Textarea';
 import { PRESET_STYLES } from '@/config/presetStyles';
 import { presetStylesI18n } from '@/config/presetStylesI18n';
 import {
   extractStyleFromImage,
+  generateStyleFromContent,
   listUserStyleTemplates,
   createUserStyleTemplate,
   deleteUserStyleTemplate,
@@ -24,6 +25,11 @@ const i18n = {
     presetStylesLabel: '预设风格：',
     myStylesLabel: '我的风格：',
     styleTip: '提示：点击预设风格快速填充，或自定义描述风格、配色、布局等要求',
+    generateFromContent: '根据内容生成风格',
+    generating: '生成中...',
+    generateSuccess: '风格生成成功',
+    generateFailed: '风格生成失败',
+    noSourceContent: '请先输入 PPT 主题或内容，再根据内容生成风格',
     extractFromImage: '从图片提取风格',
     extracting: '提取中...',
     extractSuccess: '风格提取成功',
@@ -45,6 +51,11 @@ const i18n = {
     presetStylesLabel: 'Preset styles:',
     myStylesLabel: 'My styles:',
     styleTip: 'Tip: Click preset styles to quick fill, or customize',
+    generateFromContent: 'Generate from content',
+    generating: 'Generating...',
+    generateSuccess: 'Style generated successfully',
+    generateFailed: 'Style generation failed',
+    noSourceContent: 'Please enter PPT topic or content first',
     extractFromImage: 'Extract from image',
     extracting: 'Extracting...',
     extractSuccess: 'Style extracted successfully',
@@ -66,12 +77,14 @@ interface TextStyleSelectorProps {
   value: string;
   onChange: (value: string) => void;
   onToast?: (msg: { message: string; type: 'success' | 'error' }) => void;
+  sourceContent?: string;
 }
 
-export const TextStyleSelector: React.FC<TextStyleSelectorProps> = ({ value, onChange, onToast }) => {
+export const TextStyleSelector: React.FC<TextStyleSelectorProps> = ({ value, onChange, onToast, sourceContent }) => {
   const t = useT(i18n);
   const [hoveredPresetId, setHoveredPresetId] = useState<string | null>(null);
   const [isExtractingStyle, setIsExtractingStyle] = useState(false);
+  const [isGeneratingFromContent, setIsGeneratingFromContent] = useState(false);
   const styleImageInputRef = useRef<HTMLInputElement>(null);
 
   const [userStyles, setUserStyles] = useState<UserStyleTemplate[]>([]);
@@ -89,6 +102,26 @@ export const TextStyleSelector: React.FC<TextStyleSelectorProps> = ({ value, onC
   }, []);
 
   useEffect(() => { loadUserStyles(); }, [loadUserStyles]);
+
+  const handleGenerateFromContent = async () => {
+    if (!sourceContent || !sourceContent.trim()) {
+      onToast?.({ message: t('noSourceContent'), type: 'error' });
+      return;
+    }
+
+    setIsGeneratingFromContent(true);
+    try {
+      const result = await generateStyleFromContent(sourceContent.trim());
+      if (result.data?.style_description) {
+        onChange(result.data.style_description);
+        onToast?.({ message: t('generateSuccess'), type: 'success' });
+      }
+    } catch (error: any) {
+      onToast?.({ message: `${t('generateFailed')}: ${error?.message || ''}`, type: 'error' });
+    } finally {
+      setIsGeneratingFromContent(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!value.trim()) {
@@ -274,6 +307,19 @@ export const TextStyleSelector: React.FC<TextStyleSelectorProps> = ({ value, onC
               )}
             </div>
           ))}
+
+          <button
+            type="button"
+            onClick={handleGenerateFromContent}
+            disabled={isGeneratingFromContent}
+            className="px-3 py-1.5 text-xs font-medium rounded-full border-2 border-banana-300 dark:border-banana/40 text-banana-700 dark:text-banana bg-banana-50 dark:bg-banana/10 hover:border-banana-400 dark:hover:border-banana hover:bg-banana-100 dark:hover:bg-banana/20 transition-all duration-200 hover:shadow-sm dark:hover:shadow-none flex items-center gap-1"
+          >
+            {isGeneratingFromContent ? (
+              <><Loader2 size={12} className="animate-spin" />{t('generating')}</>
+            ) : (
+              <><Sparkles size={12} />{t('generateFromContent')}</>
+            )}
+          </button>
 
           <button
             type="button"
