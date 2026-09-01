@@ -3754,9 +3754,14 @@ export const SlidePreview: React.FC = () => {
               onToast={show}
               sourceContent={
                 currentProject?.pages
-                  ?.map((p) => `${p.title || ''}\n${(p.points || []).join('\n')}`)
+                  ?.map((p) => {
+                    const title = p.outline_content?.title || '';
+                    const points = p.outline_content?.points || [];
+                    const descText = p.description_content?.text || '';
+                    return [title, ...points, descText].filter(Boolean).join('\n');
+                  })
                   .filter(Boolean)
-                  .join('\n\n') || currentProject?.raw_user_input || ''
+                  .join('\n\n') || currentProject?.idea_prompt || currentProject?.outline_text || currentProject?.description_text || ''
               }
             />
           ) : (
