@@ -26,6 +26,7 @@ from .prompts import (
     get_ppt_page_content_extraction_prompt,
     get_layout_caption_prompt,
     get_style_extraction_prompt,
+    get_style_from_content_prompt,
     get_outline_generation_prompt_markdown,
     get_outline_parsing_prompt_markdown,
     get_description_to_outline_prompt_markdown,
@@ -1385,6 +1386,14 @@ class AIService:
     def extract_style_description(self, image_path: str) -> str:
         """从图片中提取风格描述"""
         return self._generate_text_from_image(get_style_extraction_prompt(), image_path)
+
+    def generate_style_from_content(self, content: str, language: str = 'zh') -> str:
+        """根据内容/大纲生成 PPT 视觉风格描述"""
+        if not content or not content.strip():
+            raise ValueError("Content cannot be empty for style generation")
+        prompt = get_style_from_content_prompt(content=content, language=language)
+        response_text = self.text_provider.generate_text(prompt, thinking_budget=1000)
+        return response_text.strip()
 
     # =========================================================================
     # Per-page template (PRD §5.3 / §8) — analysis + auto-match

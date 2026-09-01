@@ -3752,6 +3752,17 @@ export const SlidePreview: React.FC = () => {
               value={draftTemplateStyle}
               onChange={setDraftTemplateStyle}
               onToast={show}
+              sourceContent={
+                currentProject?.pages
+                  ?.map((p) => {
+                    const title = p.outline_content?.title || '';
+                    const points = p.outline_content?.points || [];
+                    const descText = p.description_content?.text || '';
+                    return [title, ...points, descText].filter(Boolean).join('\n');
+                  })
+                  .filter(Boolean)
+                  .join('\n\n') || currentProject?.idea_prompt || currentProject?.outline_text || currentProject?.description_text || ''
+              }
             />
           ) : (
             <>
@@ -3826,6 +3837,17 @@ export const SlidePreview: React.FC = () => {
             onClose={() => setIsProjectSettingsOpen(false)}
             extraRequirements={extraRequirements}
             templateStyle={templateStyle}
+            sourceContent={
+              currentProject?.pages
+                ?.map((p) => {
+                  const title = p.outline_content?.title || '';
+                  const points = p.outline_content?.points || [];
+                  const descText = p.description_content?.text || '';
+                  return [title, ...points, descText].filter(Boolean).join('\n');
+                })
+                .filter(Boolean)
+                .join('\n\n') || currentProject?.idea_prompt || currentProject?.outline_text || currentProject?.description_text || ''
+            }
             onExtraRequirementsChange={(value) => {
               isEditingRequirements.current = true;
               setExtraRequirements(value);

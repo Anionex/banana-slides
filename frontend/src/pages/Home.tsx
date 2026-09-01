@@ -1259,6 +1259,7 @@ export const Home: React.FC = () => {
                 value={templateStyle}
                 onChange={setTemplateStyle}
                 onToast={show}
+                sourceContent={content}
               />
             ) : (
               <TemplateSelector

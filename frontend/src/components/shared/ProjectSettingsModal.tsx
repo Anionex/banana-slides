@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, FileText, Settings as SettingsIcon, Download, Sparkles, AlertTriangle, HelpCircle, Lightbulb } from 'lucide-react';
-import { Button, Textarea } from '@/components/shared';
+import { Button, Textarea, TextStyleSelector } from '@/components/shared';
 import { useT } from '@/hooks/useT';
 import { Settings } from '@/pages/Settings';
 import type { ExportExtractorMethod, ExportInpaintMethod } from '@/types';
@@ -93,6 +93,7 @@ interface ProjectSettingsModalProps {
   onSaveTemplateStyle: () => void;
   isSavingRequirements: boolean;
   isSavingTemplateStyle: boolean;
+  sourceContent?: string;
   exportExtractorMethod?: ExportExtractorMethod;
   exportInpaintMethod?: ExportInpaintMethod;
   exportAllowPartial?: boolean;
@@ -123,6 +124,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
   onSaveTemplateStyle,
   isSavingRequirements,
   isSavingTemplateStyle,
+  sourceContent,
   exportExtractorMethod = 'hybrid',
   exportInpaintMethod = 'hybrid',
   exportAllowPartial = false,
@@ -298,12 +300,10 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                       {t('projectSettings.styleDescriptionDesc')}
                     </p>
                   </div>
-                  <Textarea
+                  <TextStyleSelector
                     value={templateStyle}
-                    onChange={(e) => onTemplateStyleChange(e.target.value)}
-                    placeholder={t('projectSettings.styleDescriptionPlaceholder')}
-                    rows={5}
-                    className="text-sm"
+                    onChange={onTemplateStyleChange}
+                    sourceContent={sourceContent}
                   />
                   <div className="flex flex-col sm:flex-row gap-3">
                     <Button
