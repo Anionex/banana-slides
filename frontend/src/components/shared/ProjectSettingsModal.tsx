@@ -124,6 +124,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
   onSaveTemplateStyle,
   isSavingRequirements,
   isSavingTemplateStyle,
+  sourceContent,
   exportExtractorMethod = 'hybrid',
   exportInpaintMethod = 'hybrid',
   exportAllowPartial = false,
