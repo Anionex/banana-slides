@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ImagePlus, Loader2, Save, X, Lightbulb, Sparkles } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { Textarea } from './Textarea';
@@ -82,6 +83,7 @@ interface TextStyleSelectorProps {
 
 export const TextStyleSelector: React.FC<TextStyleSelectorProps> = ({ value, onChange, onToast, sourceContent }) => {
   const t = useT(i18n);
+  const { i18n: i18nInstance } = useTranslation();
   const [hoveredPresetId, setHoveredPresetId] = useState<string | null>(null);
   const [isExtractingStyle, setIsExtractingStyle] = useState(false);
   const [isGeneratingFromContent, setIsGeneratingFromContent] = useState(false);
@@ -111,13 +113,15 @@ export const TextStyleSelector: React.FC<TextStyleSelectorProps> = ({ value, onC
 
     setIsGeneratingFromContent(true);
     try {
-      const result = await generateStyleFromContent(sourceContent.trim());
+      const lang = i18nInstance?.language?.startsWith('zh') ? 'zh' : 'en';
+      const result = await generateStyleFromContent(sourceContent.trim(), lang);
       if (result.data?.style_description) {
         onChange(result.data.style_description);
         onToast?.({ message: t('generateSuccess'), type: 'success' });
       }
     } catch (error: any) {
-      onToast?.({ message: `${t('generateFailed')}: ${error?.message || ''}`, type: 'error' });
+      const errorMsg = error?.response?.data?.message || error?.message || '';
+      onToast?.({ message: `${t('generateFailed')}${errorMsg ? `: ${errorMsg}` : ''}`, type: 'error' });
     } finally {
       setIsGeneratingFromContent(false);
     }

@@ -3752,6 +3752,12 @@ export const SlidePreview: React.FC = () => {
               value={draftTemplateStyle}
               onChange={setDraftTemplateStyle}
               onToast={show}
+              sourceContent={
+                currentProject?.pages
+                  ?.map((p) => `${p.title || ''}\n${(p.points || []).join('\n')}`)
+                  .filter(Boolean)
+                  .join('\n\n') || currentProject?.raw_user_input || ''
+              }
             />
           ) : (
             <>

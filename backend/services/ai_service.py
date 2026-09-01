@@ -1392,7 +1392,7 @@ class AIService:
         if not content or not content.strip():
             raise ValueError("Content cannot be empty for style generation")
         prompt = get_style_from_content_prompt(content=content, language=language)
-        response_text = self.text_provider.generate_text(prompt, temperature=0.7)
+        response_text = self.text_provider.generate_text(prompt, thinking_budget=1000)
         return response_text.strip()
 
     # =========================================================================

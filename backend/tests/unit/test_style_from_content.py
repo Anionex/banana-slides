@@ -38,6 +38,8 @@ def test_ai_service_generate_style_from_content():
     res = ai_service.generate_style_from_content("AI 医疗", language='zh')
     assert "极简医疗科技风" in res
     mock_provider.generate_text.assert_called_once()
+    # Check that it called generate_text without invalid temperature keyword arg
+    assert 'temperature' not in mock_provider.generate_text.call_args.kwargs
 
 
 def test_ai_service_generate_style_from_content_empty():

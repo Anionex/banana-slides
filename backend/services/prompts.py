@@ -1257,6 +1257,8 @@ def get_style_from_content_prompt(content: str, language: str = 'zh') -> str:
     格式与范式参考 4 大经典预设风格（简约商务、现代科技、严谨学术、活泼创意等）。
     """
     is_zh = (language or 'zh').lower().startswith('zh')
+    # 截断过长内容，避免不必要的 token 消耗
+    trimmed_content = content.strip()[:3000]
 
     if is_zh:
         prompt = f"""\
@@ -1264,7 +1266,7 @@ def get_style_from_content_prompt(content: str, language: str = 'zh') -> str:
 请根据用户提供的 PPT 主题、大纲或内容，深度分析其行业领域、受众群体、表达情绪与应用场景，为其量身打造一套最契合的 PPT 视觉风格建模描述。
 
 【输入内容】：
-{content.strip()}
+{trimmed_content}
 
 【风格建模设计规范】：
 你生成的风格描述必须参照以下 4 个核心维度，输出为结构清晰、指令具体、可直接作为 AI 生图/设计 Prompt 的段落文本（请包含以下4个小标题段落，不要输出任何多余的前言、解释或总结）：
@@ -1296,7 +1298,7 @@ def get_style_from_content_prompt(content: str, language: str = 'zh') -> str:
 You are a senior PPT visual design director. Analyze the given presentation topic/outline/content and generate a tailored, professional visual style description for this presentation.
 
 [Input Content]:
-{content.strip()}
+{trimmed_content}
 
 [Style Modeling Requirements]:
 Your generated style description MUST cover these 4 core dimensions:
@@ -1307,7 +1309,7 @@ Your generated style description MUST cover these 4 core dimensions:
 
 Output ONLY the structured style description text without any conversational preamble or markdown code blocks.
 """
-    logger.debug(f"[get_style_from_content_prompt] Final prompt length: {len(prompt)}")
+    logger.debug(f"[get_style_from_content_prompt] Final prompt:\n{prompt}")
     return prompt
 
 

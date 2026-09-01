@@ -57,7 +57,7 @@ describe('TextStyleSelector Component', () => {
     fireEvent.click(generateBtn);
 
     await waitFor(() => {
-      expect(endpoints.generateStyleFromContent).toHaveBeenCalledWith('量子计算与未来人工智能的发展');
+      expect(endpoints.generateStyleFromContent).toHaveBeenCalledWith('量子计算与未来人工智能的发展', expect.any(String));
       expect(handleChange).toHaveBeenCalledWith('视觉描述：科技风格\n配色与材质：#0B0F19');
       expect(handleToast).toHaveBeenCalledWith(
         expect.objectContaining({
