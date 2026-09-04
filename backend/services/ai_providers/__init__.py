@@ -23,6 +23,7 @@ from typing import Any, Dict, Optional
 
 from .text import TextProvider, GenAITextProvider, OpenAITextProvider, AnthropicTextProvider, LazyLLMTextProvider, CodexTextProvider
 from .image import ImageProvider, GenAIImageProvider, OpenAIImageProvider, AnthropicImageProvider, LazyLLMImageProvider, CodexImageProvider
+from .lazyllm_env import TEXT2IMAGE_CAPABLE_LAZYLLM_VENDORS
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ __all__ = [
 ]
 
 # LazyLLM vendor names (used to distinguish from gemini/openai formats)
-LAZYLLM_VENDORS = {'qwen', 'doubao', 'deepseek', 'glm', 'siliconflow', 'sensenova', 'minimax', 'kimi'}
+LAZYLLM_VENDORS = {'qwen', 'doubao', 'deepseek', 'glm', 'siliconflow', 'sensenova', 'minimax', 'kimi', 'ppio', 'aiping'}
 
 
 def _get_openai_oauth_token() -> Optional[str]:
@@ -75,12 +76,16 @@ def get_provider_format() -> str:
         # Not in Flask application context
         pass
 
-    # Fallback to environment variable
-    return os.getenv('AI_PROVIDER_FORMAT', 'gemini').lower()
+    # Fallback to environment variable (treat empty string as unset)
+    return (os.getenv('AI_PROVIDER_FORMAT') or 'gemini').lower()
 
 
 def _resolve_setting(key: str, fallback: Optional[str] = None) -> Optional[str]:
     """Look up a configuration value using the standard priority chain.
+
+    Empty-string values are treated as unset at every level: a blank value
+    (e.g. ``VOLCENGINE_API_BASE=`` left over in .env) must fall through to the
+    next level instead of reaching providers as a broken base URL.
 
     Resolution order:
         1. Flask ``app.config`` (populated from the database Settings page)
@@ -92,7 +97,7 @@ def _resolve_setting(key: str, fallback: Optional[str] = None) -> Optional[str]:
         from flask import current_app
         if current_app and hasattr(current_app, 'config') and key in current_app.config:
             val = current_app.config[key]
-            if val is not None:
+            if val:
                 logger.debug("Setting %s resolved from app.config", key)
                 return str(val)
     except RuntimeError:
@@ -100,7 +105,7 @@ def _resolve_setting(key: str, fallback: Optional[str] = None) -> Optional[str]:
 
     # 2) Try environment
     env_val = os.getenv(key)
-    if env_val is not None:
+    if env_val:
         logger.debug("Setting %s resolved from environment", key)
         return env_val
 
@@ -139,7 +144,7 @@ def _build_provider_config() -> Dict[str, Any]:
             _resolve_setting('VOLCENGINE_API_KEY')
             or _resolve_setting('ARK_API_KEY')
         )
-        cfg['api_base'] = _resolve_setting('VOLCENGINE_API_BASE', 'https://ark.cn-beijing.volces.com/api/v3')
+        cfg['api_base'] = _resolve_setting('VOLCENGINE_API_BASE', 'https://ark.cn-beijing.volces.com/api/plan/v3')
 
         if not cfg['api_key']:
             raise ValueError(
@@ -184,7 +189,11 @@ def _build_provider_config() -> Dict[str, Any]:
         vendor = fmt if fmt in LAZYLLM_VENDORS else None
         cfg['format'] = 'lazyllm'
         cfg['text_source'] = _resolve_setting('TEXT_MODEL_SOURCE') or vendor or 'deepseek'
-        cfg['image_source'] = _resolve_setting('IMAGE_MODEL_SOURCE') or vendor or 'doubao'
+        # Vendors without a text2image supplier (kimi/ppio/deepseek/...) cannot
+        # generate images; fall back to a capable vendor like text does.
+        cfg['image_source'] = _resolve_setting('IMAGE_MODEL_SOURCE') or (
+            vendor if vendor in TEXT2IMAGE_CAPABLE_LAZYLLM_VENDORS else None
+        ) or 'doubao'
         logger.info("Provider config — format: lazyllm, vendor: %s, text_source: %s, image_source: %s",
                      vendor, cfg['text_source'], cfg['image_source'])
 
@@ -280,7 +289,7 @@ def _get_model_type_provider_config(model_type: str) -> Dict[str, Any]:
                    or _resolve_setting('VOLCENGINE_API_KEY')
                    or _resolve_setting('ARK_API_KEY'))
         api_base = (_resolve_setting(f'{prefix}_API_BASE')
-                    or _resolve_setting('VOLCENGINE_API_BASE', 'https://ark.cn-beijing.volces.com/api/v3'))
+                    or _resolve_setting('VOLCENGINE_API_BASE', 'https://ark.cn-beijing.volces.com/api/plan/v3'))
 
         if not api_key:
             raise ValueError(
@@ -387,8 +396,9 @@ def get_text_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
 def get_image_provider(model: str = "gemini-3-pro-image-preview") -> ImageProvider:
     """Factory: return the appropriate image-generation provider.
 
-    Note: OpenAI format does NOT support 4K resolution — only 1K is available.
-    Use Gemini or Vertex AI for higher resolution output.
+    Note: Generic OpenAI-compatible image APIs may not support 2K/4K; provider
+    limits are applied. SenseNova U1.5 Lite supports 1K/2K/4K through its
+    native JSON image endpoints.
 
     Note: Anthropic format doesn't natively support image generation yet.
     This is intended for use with third-party Anthropic-compatible endpoints.

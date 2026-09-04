@@ -20,7 +20,12 @@ def _make_png_bytes() -> bytes:
 
 
 def _inject_lazyllm_mock():
-    """Inject a fake lazyllm into sys.modules so the provider can be imported."""
+    """Inject a fake lazyllm into sys.modules so the provider can be imported.
+
+    Returns ``(lz, formatter, injected_keys)``; callers must restore
+    ``injected_keys`` in teardown so the real lazyllm is not shadowed for
+    later tests in the same session.
+    """
     lz = types.ModuleType('lazyllm')
     lz.namespace = MagicMock(return_value=MagicMock())
 
@@ -28,19 +33,28 @@ def _inject_lazyllm_mock():
     formatter = types.ModuleType('lazyllm.components.formatter')
     formatter.decode_query_with_filepaths = MagicMock(return_value={'files': []})
 
-    sys.modules.setdefault('lazyllm', lz)
-    sys.modules.setdefault('lazyllm.components', components)
-    sys.modules.setdefault('lazyllm.components.formatter', formatter)
-    return lz, formatter
+    injected = []
+    for key, value in (
+        ('lazyllm', lz),
+        ('lazyllm.components', components),
+        ('lazyllm.components.formatter', formatter),
+    ):
+        if sys.modules.setdefault(key, value) is value:
+            injected.append(key)
+    return lz, formatter, injected
 
 
 class TestLazyLLMContentTypeFallback:
 
     def setup_method(self):
-        self._lz, self._formatter = _inject_lazyllm_mock()
+        self._lz, self._formatter, self._injected = _inject_lazyllm_mock()
         # Remove cached provider module so it re-imports with our mock
         for key in ('services.ai_providers.image.lazyllm_provider',
                     'backend.services.ai_providers.image.lazyllm_provider'):
+            sys.modules.pop(key, None)
+
+    def teardown_method(self):
+        for key in self._injected:
             sys.modules.pop(key, None)
 
     def _make_provider(self):
@@ -138,9 +152,13 @@ class TestIsSafeFallbackUrl:
     """Direct tests for the URL allowlist helper."""
 
     def setup_method(self):
-        _inject_lazyllm_mock()
+        _, _, self._injected = _inject_lazyllm_mock()
         for key in ('services.ai_providers.image.lazyllm_provider',
                     'backend.services.ai_providers.image.lazyllm_provider'):
+            sys.modules.pop(key, None)
+
+    def teardown_method(self):
+        for key in self._injected:
             sys.modules.pop(key, None)
 
     def _helper(self):
@@ -208,9 +226,13 @@ class TestLazyLLMReferenceImageConstraints:
     """Reference images should be adjusted before being sent to strict vendors."""
 
     def setup_method(self):
-        _inject_lazyllm_mock()
+        _, _, self._injected = _inject_lazyllm_mock()
         for key in ('services.ai_providers.image.lazyllm_provider',
                     'backend.services.ai_providers.image.lazyllm_provider'):
+            sys.modules.pop(key, None)
+
+    def teardown_method(self):
+        for key in self._injected:
             sys.modules.pop(key, None)
 
     def test_qwen_reference_image_is_upscaled_to_min_dimensions(self):

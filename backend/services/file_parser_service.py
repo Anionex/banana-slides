@@ -415,6 +415,17 @@ class FileParserService:
                     logger.debug(f"Current task status: {task_status}, waiting...")
                     time.sleep(2)  # Wait 2 seconds before next poll
                     
+            except requests.exceptions.HTTPError as e:
+                status_code = getattr(e.response, 'status_code', None)
+                if status_code in (401, 403):
+                    error_msg = (
+                        f"MinerU task status request unauthorized (HTTP {status_code}) "
+                        f"at {result_url}: {e}"
+                    )
+                    logger.error(error_msg)
+                    return None, None, error_msg
+                logger.warning(f"HTTP error while polling result: {str(e)}, retrying...")
+                time.sleep(2)
             except requests.exceptions.RequestException as e:
                 logger.warning(f"Network error while polling result: {str(e)}, retrying...")
                 time.sleep(2)
@@ -596,11 +607,7 @@ class FileParserService:
         Returns:
             Tuple of (enhanced_markdown, failed_image_count)
         """
-        if not self._can_generate_captions():
-            return markdown_content, 0
-        
         # Extract all image URLs from markdown (both with and without alt text)
-        # Support both http/https URLs and relative paths
         image_pattern = r'!\[(.*?)\]\(([^\)]+)\)'
         matches = list(re.finditer(image_pattern, markdown_content))
         
@@ -617,11 +624,18 @@ class FileParserService:
             image_url = match.group(2).strip()
             logger.debug(f"Image found: alt='{alt_text}', url='{image_url}'")
             
-            if not alt_text:  # Only process images with empty alt text
+            if not alt_text and image_url.startswith('/files/mineru/'):
                 images_to_caption.append(match)
         
         if not images_to_caption:
-            logger.info(f"Found {len(matches)} images in markdown, but all have descriptions. Skipping caption generation.")
+            logger.info(
+                "Found %s markdown images, but none are captionable local MinerU files. "
+                "Skipping caption generation.",
+                len(matches),
+            )
+            return markdown_content, 0
+
+        if not self._can_generate_captions():
             return markdown_content, 0
         
         logger.info(f"Found {len(images_to_caption)} images without descriptions out of {len(matches)} total, generating captions...")
@@ -701,22 +715,16 @@ class FileParserService:
     
     def _generate_single_caption(self, image_url: str) -> str:
         """
-        Generate caption for a single image (supports both HTTP URLs and local paths)
+        Generate caption for a single local MinerU image.
         
         Args:
-            image_url: URL or local path of the image
+            image_url: Local /files/mineru/ path of the image
             
         Returns:
             Generated caption
         """
         try:
-            # Load image based on URL type
-            if image_url.startswith('http://') or image_url.startswith('https://'):
-                # Download from HTTP(S) URL
-                response = requests.get(image_url, timeout=30)
-                response.raise_for_status()
-                image = Image.open(io.BytesIO(response.content))
-            elif image_url.startswith('/files/mineru/'):
+            if image_url.startswith('/files/mineru/'):
                 # Local MinerU extracted file with prefix matching support
                 from utils.path_utils import find_mineru_file_with_prefix
                 

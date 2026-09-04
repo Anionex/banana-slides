@@ -35,6 +35,60 @@ OPENAI_API_KEY=your-api-key
 OPENAI_API_BASE=https://api.openai.com/v1
 ```
 
+## SenseNova / SenseTime (OpenAI-Compatible)
+
+The legacy `SenseNova (商汤)` LazyLLM provider remains available, and the default provider is unchanged. SenseNova U1 image models should use the OpenAI-compatible path: Banana Slides recognizes `sensenova-u1*` model names and switches to SenseNova's native JSON endpoints (`/images/generations` and `/images/edits`) instead of the OpenAI SDK's multipart `images.edit` request.
+
+Keep Gemini for text and route only image generation through SenseNova:
+
+```env
+AI_PROVIDER_FORMAT=gemini
+IMAGE_MODEL_SOURCE=openai
+IMAGE_API_KEY=your-sensenova-api-key
+IMAGE_API_BASE=https://token.sensenova.cn/v1
+IMAGE_MODEL=sensenova-u1.5-lite
+```
+
+To use the OpenAI-compatible format for the whole app:
+
+```env
+AI_PROVIDER_FORMAT=openai
+OPENAI_API_KEY=your-sensenova-api-key
+OPENAI_API_BASE=https://token.sensenova.cn/v1
+IMAGE_MODEL=sensenova-u1.5-lite
+```
+
+Notes:
+
+- Use `https://token.sensenova.cn/v1`; the old `https://api.sensenova.cn/compatible-mode/v1` endpoint is unavailable.
+- `sensenova-u1.5-lite` supports text-to-image and reference-image editing with `1K / 2K / 4K`.
+- `sensenova-u1`, `sensenova-u1-fast`, and `sensenova-u1.5-fast` use fixed-size text-to-image presets and do not support reference-image editing in this release.
+- Set `IMAGE_MODEL_SOURCE=openai` for image requests. Existing LazyLLM `sensenova` configurations remain supported and are not deleted.
+
+## APIMart (OpenAI-Compatible)
+
+APIMart uses an OpenAI-compatible endpoint but returns image generation tasks asynchronously. Banana Slides sends `stream=false` for chat calls and polls APIMart image tasks automatically.
+
+```env
+AI_PROVIDER_FORMAT=openai
+OPENAI_API_KEY=your-apimart-api-key
+OPENAI_API_BASE=https://api.apimart.ai/v1
+TEXT_MODEL=gpt-5.6-sol
+IMAGE_MODEL=gpt-image-2
+IMAGE_CAPTION_MODEL=gpt-5.6-luna
+IMAGE_MODEL_SOURCE=openai
+IMAGE_CAPTION_MODEL_SOURCE=openai
+IMAGE_API_BASE=https://api.apimart.ai/v1
+IMAGE_CAPTION_API_BASE=https://api.apimart.ai/v1
+```
+
+Notes:
+
+- Use model IDs listed in the APIMart console. `gemini-3-pro-image` is not an APIMart model ID; use `gpt-image-2` or `gemini-3-pro-image-preview` when available.
+- If `IMAGE_MODEL_SOURCE` is empty, the image-specific `IMAGE_API_BASE` is ignored and image calls use the global `OPENAI_API_BASE`; set `IMAGE_MODEL_SOURCE=openai` when APIMart should be used only for image generation.
+- Image generation can take about one to two minutes; the app polls the async task until completion or timeout.
+- For `gpt-image-2`, Banana converts the project ratio and `1K/2K/4K` tier into APIMart's `size` and `resolution` parameters. If the service test returns `1672x941`, the request is using APIMart's 1K tier; select `2K` or `4K` in project settings.
+
 ## Volcengine AgentPlans
 
 Volcengine ModelArk AgentPlans can be used through an OpenAI-compatible endpoint. Select "Volcengine AgentPlans" in Settings, or configure `.env`:
@@ -42,8 +96,14 @@ Volcengine ModelArk AgentPlans can be used through an OpenAI-compatible endpoint
 ```env
 AI_PROVIDER_FORMAT=volcengine
 VOLCENGINE_API_KEY=your-volcengine-api-key
-VOLCENGINE_API_BASE=https://ark.cn-beijing.volces.com/api/v3
+VOLCENGINE_API_BASE=https://ark.cn-beijing.volces.com/api/plan/v3
 ```
+
+Notes:
+
+- **Agent Plans requires a dedicated API key**: the `ark-...` key created in the Agent Plans console only works against the `api/plan/v3` endpoint; a standard ModelArk key and the `api/v3` endpoint are not interchangeable.
+- **Use Agent Plans model names** (e.g. `doubao-seed-2.1-turbo`, `kimi-k2.6`) and `doubao-seedream-5.0-lite` for image generation; standard ModelArk endpoint IDs (e.g. `doubao-seed-2-1-pro-260628`) do not exist on Agent Plans.
+- Selecting "Volcengine AgentPlans" in Settings prefills the Agent Plans base URL and recommended models; standard ModelArk users should use the "Doubao (豆包)" path with `api/v3`.
 
 The generic API Key field in Settings can still override the API key, while the Base URL is managed automatically.
 
@@ -81,11 +141,16 @@ GLM_API_KEY=your-key          # Zhipu GLM
 SILICONFLOW_API_KEY=your-key  # SiliconFlow
 SENSENOVA_API_KEY=your-key    # SenseNova
 MINIMAX_API_KEY=your-key      # MiniMax
+KIMI_API_KEY=your-key         # Moonshot Kimi
+PPIO_API_KEY=your-key         # PPIO
+AIPING_API_KEY=your-key       # AIPing
 ```
 
 Banana Slides explicitly packages the LazyLLM online provider SDKs for domestic vendors:
 `volcengine-python-sdk[ark]` for Doubao/Volcengine, `dashscope` for Qwen/Wanxiang, and `zhipuai` for GLM/Zhipu.
 LazyLLM source provides `lazyllm install online-advanced`, but the current PyPI wheel may not publish that group as a standard extra; Docker and prebuilt images therefore rely on these explicit dependencies.
+
+Desktop builds (PyInstaller) explicitly collect and register every LazyLLM online vendor (qwen, doubao, deepseek, glm, kimi, minimax, sensenova, siliconflow, ppio, aiping, openai). LazyLLM discovers suppliers dynamically via `pkgutil.iter_modules`, which can fail inside a packaged runtime and cause `Unsupported source: xxx`; Banana Slides imports every supplier module explicitly when a provider is constructed and validates the configured vendor name (bundling the vendor SDKs - dashscope, zhipuai, volcenginesdkarkruntime, PyJWT - as well), so no extra configuration is needed.
 
 ## AIHubMix (Recommended Proxy)
 

@@ -107,6 +107,41 @@ describe('Settings quality control', () => {
     });
   });
 
+  it('shows the SenseNova OpenAI-compatible hint for image generation', async () => {
+    getSettings.mockResolvedValueOnce({
+      data: { ...baseSettings, image_model_source: 'sensenova' },
+    });
+    render(
+      <MemoryRouter>
+        <Settings />
+      </MemoryRouter>
+    );
+
+    const imageSource = await screen.findByTestId('image_model_source-select');
+    expect(imageSource).toHaveValue('sensenova');
+
+    expect(screen.getByTestId('sensenova-image-model-hint')).toHaveTextContent(
+      /token\.sensenova\.cn\/v1/
+    );
+  });
+
+  it('shows the SenseNova hint when selected as the global provider', async () => {
+    render(
+      <MemoryRouter>
+        <Settings />
+      </MemoryRouter>
+    );
+
+    const providerPills = await screen.findByTestId('global-provider-pills');
+    const senseNovaButton = providerPills.querySelector('[data-provider="sensenova"]');
+    expect(senseNovaButton).toBeTruthy();
+    await userEvent.click(senseNovaButton!);
+
+    expect(screen.getByTestId('sensenova-global-image-hint')).toHaveTextContent(
+      /token\.sensenova\.cn\/v1/
+    );
+  });
+
   it('applies Atlas Cloud defaults when selecting the text provider', async () => {
     render(
       <MemoryRouter>
@@ -131,4 +166,5 @@ describe('Settings quality control', () => {
       );
     });
   });
+
 });

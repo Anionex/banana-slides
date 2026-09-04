@@ -107,7 +107,23 @@ jobs:
         uses: actions/cache@v4
         with:
           path: desktop/.cache/ffmpeg
-          key: windows-ffmpeg-btbn-7.1-44f55984ccb9771e0281517d7d16af88096ee1d8dcf5760900ec31a677f7beb7
+          key: windows-ffmpeg-btbn-7.1-907ae59ae94d39561b9e03f6d5b0ec4a2778df1e75c763c9a0ddbae266415860
+
+      - name: Configure optional macOS signing
+        if: matrix.platform == 'mac'
+        shell: bash
+        env:
+          MACOS_CSC_LINK: ${{ secrets.MACOS_CSC_LINK }}
+          MACOS_CSC_KEY_PASSWORD: ${{ secrets.MACOS_CSC_KEY_PASSWORD }}
+        run: |
+          if [ -n "$MACOS_CSC_LINK" ]; then
+            printf 'CSC_LINK=%s\n' "$MACOS_CSC_LINK" >> "$GITHUB_ENV"
+            if [ -n "$MACOS_CSC_KEY_PASSWORD" ]; then
+              printf 'CSC_KEY_PASSWORD=%s\n' "$MACOS_CSC_KEY_PASSWORD" >> "$GITHUB_ENV"
+            fi
+          else
+            echo "macOS signing credentials are not configured; building without a stable signing identity."
+          fi
 
       - name: Build desktop app
         run: cd desktop && npm run build:${{ matrix.platform }} -- --publish never
@@ -188,7 +204,10 @@ jobs:
           if-no-files-found: error
           path: |
             desktop/dist/*.dmg
+            desktop/dist/*.zip
             desktop/dist/*.exe
+            desktop/dist/*.blockmap
+            desktop/dist/latest*.yml
             desktop/dist/*.AppImage
             desktop/dist/*.deb
 
@@ -199,7 +218,10 @@ jobs:
           tag_name: ${{ inputs.tag_name || github.ref_name }}
           files: |
             desktop/dist/*.dmg
+            desktop/dist/*.zip
             desktop/dist/*.exe
+            desktop/dist/*.blockmap
+            desktop/dist/latest*.yml
             desktop/dist/*.AppImage
             desktop/dist/*.deb
           draft: true

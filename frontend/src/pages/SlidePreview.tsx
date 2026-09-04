@@ -97,6 +97,7 @@ const previewI18n = {
       noPages: "还没有页面", noPagesHint: "请先返回编辑页面添加内容", backToEdit: "返回编辑",
       generating: "正在生成中...", queued: "排队等待生成...", notGenerated: "尚未生成图片", generateThisPage: "生成此页",
       prevPage: "上一页", nextPage: "下一页", historyVersions: "历史版本",
+      play: "播放",
       versions: "版本", version: "版本", current: "当前", editPage: "编辑页面",
       regionSelect: "区域选图", endRegionSelect: "结束区域选图",
       inlineEditPromptPlaceholder: "描述想怎么改，或先在图上框选要改的部分…",
@@ -234,6 +235,7 @@ const previewI18n = {
       noPages: "No pages yet", noPagesHint: "Please go back to editor to add content first", backToEdit: "Back to Editor",
       generating: "Generating...", queued: "Queued for generation...", notGenerated: "Image not generated yet", generateThisPage: "Generate This Page",
       prevPage: "Previous", nextPage: "Next", historyVersions: "History Versions",
+      play: "Play",
       versions: "Versions", version: "Version", current: "Current", editPage: "Edit Page",
       regionSelect: "Region Select", endRegionSelect: "End Region Select",
       inlineEditPromptPlaceholder: "Describe the change, or box a region on the image first…",
@@ -285,6 +287,7 @@ const previewI18n = {
 import {
   Home,
   ArrowLeft,
+  StepBack,
   Download,
   RefreshCw,
   ChevronLeft,
@@ -292,6 +295,7 @@ import {
   Sparkles,
   ChevronDown,
   ChevronUp,
+  Play,
   X,
   Upload,
   Image as ImageIcon,
@@ -317,7 +321,8 @@ import { materialUrlToFile } from '@/components/shared/MaterialSelector';
 import { triggerDownload } from '@/api/client';
 import type { Material } from '@/api/endpoints';
 import { SlideCard } from '@/components/preview/SlideCard';
-import { PagePropertiesDrawer, readStoredDrawerWidth } from '@/components/preview/PagePropertiesDrawer';
+import { SlidePlayer } from '@/components/preview/SlidePlayer';
+import { PagePropertiesDrawer, clampWidth, readStoredDrawerWidth } from '@/components/preview/PagePropertiesDrawer';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useExportTasksStore, type ExportTaskType } from '@/store/useExportTasksStore';
 import { getImageUrl } from '@/api/client';
@@ -547,6 +552,42 @@ export const SlidePreview: React.FC = () => {
   }, [restoreActiveTasks]);
 
   const [selectedIndex, setSelectedIndex] = useState(0);
+  // 在线播放（近似全屏 overlay，可切换浏览器原生全屏）
+  const [isPlayerOpen, setIsPlayerOpen] = useState(false);
+  const playTriggerRef = useRef<HTMLElement | null>(null);
+  const handleOpenPlayer = () => {
+    playTriggerRef.current = document.activeElement as HTMLElement | null;
+    setIsPlayerOpen(true);
+  };
+  const handleClosePlayer = () => {
+    setIsPlayerOpen(false);
+    const trigger = playTriggerRef.current;
+    playTriggerRef.current = null;
+    const restoreFocus = (el: HTMLElement | null) => {
+      // 播放期间窗口跨 lg 断点时，触发按钮可能已 display:none，focus 是 no-op；
+      // fallback 到当前可见工具栏的播放按钮
+      const target =
+        el && el.offsetParent !== null
+          ? el
+          : Array.from(document.querySelectorAll<HTMLElement>('[data-play-trigger]')).find(
+              (btn) => btn.offsetParent !== null
+            );
+      target?.focus();
+    };
+    if (document.fullscreenElement) {
+      // 播放器卸载会移除全屏元素，浏览器随后自动退出全屏；等 fullscreenchange
+      // 确认退出完成后再还原焦点，避免在全屏退出前同步 focus 被浏览器覆盖
+      const restore = () => {
+        if (!document.fullscreenElement) {
+          document.removeEventListener('fullscreenchange', restore);
+          restoreFocus(trigger);
+        }
+      };
+      document.addEventListener('fullscreenchange', restore);
+    } else {
+      restoreFocus(trigger);
+    }
+  };
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [useTextStyleMode, setUseTextStyleMode] = useState(false);
@@ -597,11 +638,18 @@ export const SlidePreview: React.FC = () => {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [imageVersions, setImageVersions] = useState<ImageVersion[]>([]);
-  // 页面属性抽屉：默认收起，展开状态与宽度都记忆在本地
-  const [isPropertiesOpen, setIsPropertiesOpen] = useState(
-    () => localStorage.getItem('previewDrawer.open') === 'true'
+  // 页面属性抽屉：桌面端（lg+）首次进入默认展开；窄屏浮层会盖住预览，保持默认收起。
+  // 用户显式收起/展开后，状态记忆在本地，不再被默认值覆盖。
+  const [isPropertiesOpen, setIsPropertiesOpen] = useState(() => {
+    const stored = localStorage.getItem('previewDrawer.open');
+    if (stored !== null) return stored === 'true';
+    // 768-1023px 下左侧缩略图栏（320px）加上抽屉会让预览区几乎不可用，保持默认收起
+    return window.matchMedia('(min-width: 1024px)').matches;
+  });
+  // 初始宽度也要按视口钳制：小窗口下沿用大屏记忆的 640px 会把预览区挤没
+  const [propertiesWidth, setPropertiesWidth] = useState(() =>
+    clampWidth(readStoredDrawerWidth(), window.innerWidth)
   );
-  const [propertiesWidth, setPropertiesWidth] = useState(readStoredDrawerWidth);
   // 就地编辑态（lg+）：幻灯片上移让位给指令区，在大图上直接框选。
   // 窄屏放不下上下分栏，仍走原来的编辑弹窗。
   const [isInlineEditing, setIsInlineEditing] = useState(false);
@@ -618,6 +666,34 @@ export const SlidePreview: React.FC = () => {
   const handlePropertiesWidthChange = useCallback((width: number) => {
     setPropertiesWidth(width);
     localStorage.setItem('previewDrawer.width', String(width));
+  }, []);
+  // 窗口尺寸变化后按新视口重新钳制抽屉宽度，避免从大屏缩小时抽屉仍挤占预览区。
+  // 以 localStorage 里的用户偏好为基准，回到大屏后同一会话内也能恢复原来的宽度；
+  // 这里不写 localStorage，响应式收敛不会覆盖用户偏好。
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const onResize = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        setPropertiesWidth(() => clampWidth(readStoredDrawerWidth(), window.innerWidth));
+      }, 150);
+    };
+    window.addEventListener('resize', onResize);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', onResize);
+    };
+  }, []);
+  // 跨 lg 断点缩放时同步「首次默认展开/收起」的语义：用户从未显式开关过就跟随断点
+  // 自动收起/展开；显式选择过则尊重用户选择，不覆盖 localStorage。
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const onChange = () => {
+      if (localStorage.getItem('previewDrawer.open') !== null) return;
+      setIsPropertiesOpen(mq.matches);
+    };
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
   }, []);
   // 抽屉里改页级模板：选图和模板提示词都走 PATCH，不经过页面字段的防抖队列
   const handleUpdatePageTemplate = useCallback(
@@ -713,6 +789,13 @@ export const SlidePreview: React.FC = () => {
   const [selectionRect, setSelectionRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const { show, ToastContainer } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
+
+  const resetRegionSelection = useCallback((enabled = false) => {
+    setIsRegionSelectionMode(enabled);
+    setSelectionStart(null);
+    setSelectionRect(null);
+    setIsSelectingRegion(false);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -1149,11 +1232,8 @@ export const SlidePreview: React.FC = () => {
       });
     }
 
-    // 打开编辑弹窗时，清空上一次的选区和模式
-    setIsRegionSelectionMode(false);
-    setSelectionStart(null);
-    setSelectionRect(null);
-    setIsSelectingRegion(false);
+    // 每次进入编辑都默认开启区域选图，用户可直接在图片上拖拽框选。
+    resetRegionSelection(true);
 
     // lg+ 走就地编辑，窄屏没有上下分栏的空间，仍用弹窗
     if (window.matchMedia('(min-width: 1024px)').matches) {
@@ -1166,12 +1246,14 @@ export const SlidePreview: React.FC = () => {
 
   const exitInlineEditing = useCallback(() => {
     setIsInlineEditing(false);
-    setIsRegionSelectionMode(false);
     setShowAttachMenu(false);
-    setSelectionStart(null);
-    setSelectionRect(null);
-    setIsSelectingRegion(false);
-  }, []);
+    resetRegionSelection();
+  }, [resetRegionSelection]);
+
+  const closeEditModal = useCallback(() => {
+    setIsEditModalOpen(false);
+    resetRegionSelection();
+  }, [resetRegionSelection]);
 
   // 缩到 lg 以下时就地编辑的上下分栏已经放不下，退回预览态而不是让布局塌掉
   useEffect(() => {
@@ -1288,8 +1370,8 @@ export const SlidePreview: React.FC = () => {
     }));
 
     if (isInlineEditing) exitInlineEditing();
-    else setIsEditModalOpen(false);
-  }, [currentProject, selectedIndex, editPrompt, selectedContextImages, editPageImage, handleSaveOutlineAndDescription, isInlineEditing, exitInlineEditing]);
+    else closeEditModal();
+  }, [currentProject, selectedIndex, editPrompt, selectedContextImages, editPageImage, handleSaveOutlineAndDescription, isInlineEditing, exitInlineEditing, closeEditModal]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -1401,8 +1483,14 @@ export const SlidePreview: React.FC = () => {
     };
   };
 
-  const handleSelectionMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleSelectionPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isRegionSelectionMode || !imageRef.current) return;
+    e.preventDefault();
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Synthetic pointer events used by some browsers/tests may not be capturable.
+    }
     const rect = imageRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -1412,8 +1500,9 @@ export const SlidePreview: React.FC = () => {
     setSelectionRect(null);
   };
 
-  const handleSelectionMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleSelectionPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isRegionSelectionMode || !isSelectingRegion || !selectionStart || !imageRef.current) return;
+    e.preventDefault();
     const rect = imageRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -1429,7 +1518,10 @@ export const SlidePreview: React.FC = () => {
     setSelectionRect({ left, top, width, height });
   };
 
-  const handleSelectionMouseUp = async () => {
+  const handleSelectionPointerUp = async (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
     if (!isRegionSelectionMode || !isSelectingRegion || !selectionRect || !imageRef.current) {
       setIsSelectingRegion(false);
       setSelectionStart(null);
@@ -1502,6 +1594,15 @@ export const SlidePreview: React.FC = () => {
     } finally {
       // 不清理 selectionRect，让选区在界面上持续显示
     }
+  };
+
+  const handleSelectionPointerCancel = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    setIsSelectingRegion(false);
+    setSelectionStart(null);
+    setSelectionRect(null);
   };
 
   // 多选相关函数
@@ -2031,6 +2132,8 @@ export const SlidePreview: React.FC = () => {
               variant="ghost"
               size="sm"
               icon={<ArrowLeft size={16} className="md:w-[18px] md:h-[18px]" />}
+              aria-label={t('common.back')}
+              title={t('common.back')}
               onClick={() => {
                 if (fromHistory) {
                   navigate('/history');
@@ -2134,6 +2237,18 @@ export const SlidePreview: React.FC = () => {
               <span className="hidden xl:inline">{t('nav.materialGenerate')}</span>
             </Button>
             <Button
+              variant="secondary"
+              size="sm"
+              data-testid="preview-previous-step"
+              aria-label={t('common.previous')}
+              title={t('common.previous')}
+              icon={<StepBack size={16} className="md:w-[18px] md:h-[18px]" />}
+              onClick={() => navigate(`/project/${projectId}/detail`)}
+              className="flex-shrink-0"
+            >
+              <span className="hidden sm:inline">{t('common.previous')}</span>
+            </Button>
+            <Button
               variant="ghost"
               size="sm"
               icon={<RefreshCw size={16} className={`md:w-[18px] md:h-[18px] ${isRefreshing ? 'animate-spin' : ''}`} />}
@@ -2169,7 +2284,7 @@ export const SlidePreview: React.FC = () => {
                 )}
               </Button>
               {showExportTasksPanel && (
-                <div className="absolute right-0 mt-2 z-20">
+                <div data-testid="export-tasks-popover" className="absolute right-0 mt-2 z-20">
                   <ExportTasksPanel
                     projectId={projectId}
                     pages={currentProject?.pages || []}
@@ -2879,14 +2994,14 @@ export const SlidePreview: React.FC = () => {
               <div className="flex-1 overflow-y-auto min-h-0 flex items-center justify-center p-4 md:p-8">
                 <div className="max-w-5xl w-full">
                   <div
-                    className={`relative bg-white dark:bg-background-secondary rounded-lg shadow-xl overflow-hidden touch-manipulation transition-shadow ${
+                    className={`relative bg-white dark:bg-background-secondary rounded-lg shadow-xl overflow-hidden transition-shadow ${
                       isInlineEditing ? 'ring-2 ring-banana-400' : ''
-                    } ${isRegionSelectionMode ? 'cursor-crosshair' : ''}`}
+                    } ${isInlineEditing && isRegionSelectionMode ? 'cursor-crosshair touch-none' : 'touch-manipulation'}`}
                     style={{ aspectRatio: aspectRatioStyle }}
-                    onMouseDown={isInlineEditing ? handleSelectionMouseDown : undefined}
-                    onMouseMove={isInlineEditing ? handleSelectionMouseMove : undefined}
-                    onMouseUp={isInlineEditing ? handleSelectionMouseUp : undefined}
-                    onMouseLeave={isInlineEditing ? handleSelectionMouseUp : undefined}
+                    onPointerDown={isInlineEditing ? handleSelectionPointerDown : undefined}
+                    onPointerMove={isInlineEditing ? handleSelectionPointerMove : undefined}
+                    onPointerUp={isInlineEditing ? handleSelectionPointerUp : undefined}
+                    onPointerCancel={isInlineEditing ? handleSelectionPointerCancel : undefined}
                   >
                     {selectedPage?.generated_image_path ? (
                       <img
@@ -2929,9 +3044,10 @@ export const SlidePreview: React.FC = () => {
                       <>
                         <button
                           type="button"
+                          aria-pressed={isRegionSelectionMode}
+                          onPointerDown={(e) => e.stopPropagation()}
                           onClick={() => {
-                            setIsRegionSelectionMode((on) => !on);
-                            if (isRegionSelectionMode) setSelectionRect(null);
+                            resetRegionSelection(!isRegionSelectionMode);
                           }}
                           className={`absolute left-2 top-2 z-10 flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium shadow transition-colors ${
                             isRegionSelectionMode
@@ -2997,6 +3113,16 @@ export const SlidePreview: React.FC = () => {
                     className="rounded-full px-2"
                     title={t('preview.nextPage')}
                     aria-label={t('preview.nextPage')}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={<Play size={18} />}
+                    data-play-trigger
+                    onClick={handleOpenPlayer}
+                    className="rounded-full px-2"
+                    title={t('preview.play')}
+                    aria-label={t('preview.play')}
                   />
                   <div className="mx-1 h-5 w-px bg-gray-200 dark:bg-border-primary" />
                   {imageVersions.length > 1 && (
@@ -3172,6 +3298,18 @@ export const SlidePreview: React.FC = () => {
                     <Button
                       variant="ghost"
                       size="sm"
+                      icon={<Play size={16} className="md:w-[18px] md:h-[18px]" />}
+                      data-play-trigger
+                      onClick={handleOpenPlayer}
+                      className="text-xs md:text-sm"
+                      title={t('preview.play')}
+                      aria-label={t('preview.play')}
+                    >
+                      <span>{t('preview.play')}</span>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       icon={<ChevronRight size={16} className="md:w-[18px] md:h-[18px]" />}
                       onClick={() =>
                         setSelectedIndex(
@@ -3299,35 +3437,38 @@ export const SlidePreview: React.FC = () => {
       {/* 编辑对话框 */}
       <Modal
         isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
+        onClose={closeEditModal}
         title={t('preview.editPage')}
         size="lg"
       >
         <div className="space-y-4">
           {/* 图片（支持矩形区域选择） */}
           <div
-            className="bg-gray-100 dark:bg-background-secondary rounded-lg overflow-hidden relative"
+            className={`bg-gray-100 dark:bg-background-secondary rounded-lg overflow-hidden relative ${
+              isRegionSelectionMode ? 'cursor-crosshair touch-none' : 'touch-manipulation'
+            }`}
             style={{ aspectRatio: aspectRatioStyle }}
-            onMouseDown={handleSelectionMouseDown}
-            onMouseMove={handleSelectionMouseMove}
-            onMouseUp={handleSelectionMouseUp}
-            onMouseLeave={handleSelectionMouseUp}
+            onPointerDown={handleSelectionPointerDown}
+            onPointerMove={handleSelectionPointerMove}
+            onPointerUp={handleSelectionPointerUp}
+            onPointerCancel={handleSelectionPointerCancel}
           >
             {imageUrl && (
               <>
                 {/* 左上角：区域选图模式开关 */}
                 <button
                   type="button"
+                  aria-pressed={isRegionSelectionMode}
                   onClick={(e) => {
                     e.stopPropagation();
-                    // 切换矩形选择模式
-                    setIsRegionSelectionMode((prev) => !prev);
-                    // 切模式时清空当前选区
-                    setSelectionStart(null);
-                    setSelectionRect(null);
-                    setIsSelectingRegion(false);
+                    resetRegionSelection(!isRegionSelectionMode);
                   }}
-                  className="absolute top-2 left-2 z-10 px-2 py-1 rounded bg-white/80 text-[10px] text-gray-700 dark:text-foreground-secondary hover:bg-banana-50 dark:hover:bg-background-hover shadow-sm dark:shadow-background-primary/30 flex items-center gap-1"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className={`absolute top-2 left-2 z-10 px-2 py-1 rounded text-[10px] shadow-sm dark:shadow-background-primary/30 flex items-center gap-1 ${
+                    isRegionSelectionMode
+                      ? 'bg-banana-500 text-black'
+                      : 'bg-white/80 text-gray-700 dark:text-foreground-secondary hover:bg-banana-50 dark:hover:bg-background-hover'
+                  }`}
                 >
                   <Sparkles size={12} />
                   <span>{isRegionSelectionMode ? t('preview.endRegionSelect') : t('preview.regionSelect')}</span>
@@ -3557,13 +3698,13 @@ export const SlidePreview: React.FC = () => {
               variant="secondary" 
               onClick={() => {
                 handleSaveOutlineAndDescription();
-                setIsEditModalOpen(false);
+                closeEditModal();
               }}
             >
               {t('preview.saveOutlineOnly')}
             </Button>
             <div className="flex gap-3">
-              <Button variant="ghost" onClick={() => setIsEditModalOpen(false)}>
+              <Button variant="ghost" onClick={closeEditModal}>
                 {t('common.cancel')}
               </Button>
               <Button
@@ -3611,6 +3752,17 @@ export const SlidePreview: React.FC = () => {
               value={draftTemplateStyle}
               onChange={setDraftTemplateStyle}
               onToast={show}
+              sourceContent={
+                currentProject?.pages
+                  ?.map((p) => {
+                    const title = p.outline_content?.title || '';
+                    const points = p.outline_content?.points || [];
+                    const descText = p.description_content?.text || '';
+                    return [title, ...points, descText].filter(Boolean).join('\n');
+                  })
+                  .filter(Boolean)
+                  .join('\n\n') || currentProject?.idea_prompt || currentProject?.outline_text || currentProject?.description_text || ''
+              }
             />
           ) : (
             <>
@@ -3685,6 +3837,17 @@ export const SlidePreview: React.FC = () => {
             onClose={() => setIsProjectSettingsOpen(false)}
             extraRequirements={extraRequirements}
             templateStyle={templateStyle}
+            sourceContent={
+              currentProject?.pages
+                ?.map((p) => {
+                  const title = p.outline_content?.title || '';
+                  const points = p.outline_content?.points || [];
+                  const descText = p.description_content?.text || '';
+                  return [title, ...points, descText].filter(Boolean).join('\n');
+                })
+                .filter(Boolean)
+                .join('\n\n') || currentProject?.idea_prompt || currentProject?.outline_text || currentProject?.description_text || ''
+            }
             onExtraRequirementsChange={(value) => {
               isEditingRequirements.current = true;
               setExtraRequirements(value);
@@ -3767,6 +3930,17 @@ export const SlidePreview: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      {/* 在线播放：近似全屏 overlay，支持切换浏览器原生全屏 */}
+      <SlidePlayer
+        key={isPlayerOpen ? 'open' : 'closed'}
+        open={isPlayerOpen}
+        initialIndex={selectedIndex}
+        pages={currentProject.pages}
+        aspectRatio={aspectRatio}
+        onClose={handleClosePlayer}
+        onIndexChange={setSelectedIndex}
+      />
 
     </div>
   );

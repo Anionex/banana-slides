@@ -12,9 +12,29 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 from PIL import Image
 
 from services.file_parser_service import FileParserService, _resolve_upload_folder
+
+
+@pytest.mark.parametrize('status_code', [401, 403])
+def test_poll_result_returns_mineru_credential_errors_without_retrying(status_code):
+    service = FileParserService(mineru_token='expired-token')
+    response = MagicMock(status_code=status_code)
+    error = requests.exceptions.HTTPError(f'{status_code} Client Error')
+    error.response = response
+
+    with patch('requests.get', return_value=MagicMock(raise_for_status=MagicMock(side_effect=error))) as get:
+        markdown, extract_id, error_message = service._poll_result('batch-credential-error')
+
+    assert markdown is None
+    assert extract_id is None
+    assert error_message is not None
+    assert f'HTTP {status_code}' in error_message
+    assert 'MinerU task status request unauthorized' in error_message
+    assert 'extract-results/batch/batch-credential-error' in error_message
+    get.assert_called_once()
 
 
 def _create_temp_image() -> str:
@@ -95,6 +115,48 @@ def test_generate_single_caption_vertex_uses_provider_factory():
     finally:
         if os.path.exists(image_path):
             os.remove(image_path)
+
+
+@pytest.mark.parametrize('remote_url', [
+    'http://127.0.0.1/latest/meta-data/',
+    'https://169.254.169.254/latest/meta-data/',
+])
+def test_generate_single_caption_rejects_remote_urls(remote_url):
+    """Uploaded Markdown must not make the backend fetch attacker-controlled URLs."""
+    service = FileParserService(mineru_token='test-token', provider_format='openai')
+    mock_provider = MagicMock()
+    service._caption_provider = mock_provider
+
+    with patch('services.file_parser_service.requests.get') as mock_get:
+        caption = service._generate_single_caption(remote_url)
+
+    assert caption == ''
+    mock_get.assert_not_called()
+    mock_provider.generate_with_image.assert_not_called()
+
+
+def test_enhance_markdown_only_captions_local_mineru_images():
+    """Remote and unsupported image references remain untouched and are never submitted."""
+    service = FileParserService(mineru_token='test-token', provider_format='openai')
+    markdown = '\n'.join([
+        '![](http://127.0.0.1/internal.png)',
+        '![](/files/mineru/extract123/images/chart.png)',
+        '![](data:image/png;base64,AAAA)',
+    ])
+
+    with patch.object(service, '_can_generate_captions', return_value=True):
+        with patch.object(
+            service,
+            '_generate_captions_parallel',
+            return_value=(['本地图表'], 0),
+        ) as mock_generate:
+            enhanced, failed_count = service._enhance_markdown_with_captions(markdown)
+
+    assert failed_count == 0
+    assert '![](http://127.0.0.1/internal.png)' in enhanced
+    assert '![本地图表](/files/mineru/extract123/images/chart.png)' in enhanced
+    assert '![](data:image/png;base64,AAAA)' in enhanced
+    mock_generate.assert_called_once_with(['/files/mineru/extract123/images/chart.png'])
 
 
 def _build_mineru_zip() -> bytes:

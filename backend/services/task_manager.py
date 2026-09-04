@@ -1611,7 +1611,9 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
                         filename = os.path.basename(page_pdf_path)
                         _batch_id, md_text, extract_id, error_msg, _failed = file_parser_service.parse_file(page_pdf_path, filename)
                         if error_msg:
-                            logger.warning(f"Page {idx} parse warning: {error_msg}")
+                            # Do not silently turn a parser failure into a blank, successful page.
+                            # In particular, this preserves MinerU credential failures for the UI.
+                            raise ValueError(f"MinerU parsing failed: {error_msg}")
                         md_text = md_text or ''
 
                         # Supplement with header/footer from layout.json
