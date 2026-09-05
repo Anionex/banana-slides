@@ -227,7 +227,7 @@ const renderSetupPage: PageRenderer = ({ t, lang, navigate, onClose }) => {
           <h4 className="font-semibold text-gray-800 dark:text-foreground-primary">{t('guide.s4')}</h4>
           <p className="text-sm text-gray-600 dark:text-foreground-tertiary">{t('guide.s4d')}</p>
         </div>
-        <a href="https://github.com/Anionex/banana-slides/issues" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-banana-600 hover:text-banana-700 font-medium">
+        <a href="https://github.com/Anionex/banana-slides/issues" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-banana-700 hover:text-banana-800 dark:text-banana dark:hover:text-banana-300 font-medium">
           <ExternalLink size={14} />
           {t('guide.issueLink')}
         </a>
@@ -347,7 +347,7 @@ const renderGalleryPage: PageRenderer = ({ t, showcaseIdx, setShowcaseIdx }) => 
       </div>
 
       <div className="text-center pt-4">
-        <a href="https://github.com/Anionex/banana-slides/issues/2" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-banana-600 hover:text-banana-700 font-medium">
+        <a href="https://github.com/Anionex/banana-slides/issues/2" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-banana-700 hover:text-banana-800 dark:text-banana dark:hover:text-banana-300 font-medium">
           <ExternalLink size={14} />
           {t('guide.galleryMore')}
         </a>

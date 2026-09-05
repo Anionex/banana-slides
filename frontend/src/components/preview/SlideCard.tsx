@@ -58,8 +58,8 @@ export const SlideCard: React.FC<SlideCardProps> = ({
 
   return (
     <div
-      className={`group cursor-pointer transition-all ${
-        isSelected ? 'ring-2 ring-banana-500' : ''
+      className={`group cursor-pointer rounded-xl p-1.5 border transition-colors duration-150 ${
+        isSelected ? 'border-banana bg-banana-50 dark:bg-background-hover' : 'border-transparent hover:bg-background-hover'
       }`}
       onClick={onClick}
     >
@@ -82,6 +82,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({
                   onEdit();
                 }}
                 className="p-2 bg-white dark:bg-background-secondary rounded-lg hover:bg-banana-50 dark:hover:bg-background-hover transition-colors"
+                aria-label={t('common.edit')}
               >
                 <Edit2 size={18} />
               </button>
@@ -95,6 +96,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({
                   );
                 }}
                 className="p-2 bg-white dark:bg-background-secondary rounded-lg hover:bg-red-50 transition-colors"
+                aria-label={t('common.delete')}
               >
                 <Trash2 size={18} className="text-red-600" />
               </button>
@@ -116,10 +118,10 @@ export const SlideCard: React.FC<SlideCardProps> = ({
       </div>
 
       {/* 标题 */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 min-w-0">
         <span
-          className={`text-sm font-medium ${
-            isSelected ? 'text-banana-600' : 'text-gray-700 dark:text-foreground-secondary'
+          className={`text-sm font-medium truncate ${
+            isSelected ? 'text-foreground-primary' : 'text-foreground-secondary'
           }`}
         >
           {index + 1}. {page.outline_content?.title}
@@ -137,4 +139,3 @@ export const SlideCard: React.FC<SlideCardProps> = ({
     </div>
   );
 };
-

@@ -30,8 +30,8 @@
 </p>
 
 <p>
-  <b>A native AI PPT generation application based on nano banana pro 🍌</b><br>
-  <b>From idea to presentation in minutes, no tedious typesetting, conversational revisions—moving towards true "Vibe PPT"</b>
+  <b>Your ideas. Beyond templates.</b><br>
+  Start with an idea, a document, or an old deck. Create presentations with AI, then refine each slide with natural language and region-specific edits.
 </p>
 <p>
   <a href="https://bananaslides.online/"><b>🚀 Online Demo</b></a>
@@ -47,6 +47,14 @@
 </p>
 
 </div>
+
+### Presentation Studio
+
+The home page offers four starting points: "An idea", "An outline", "Slide content", and "An existing deck". Blank projects, reference files, image uploads, and style settings remain available. "Pick up where you left off" shows your 3 most recent projects so you can continue editing directly.
+
+The new interface uses warm white, ink black, and banana yellow, with dark mode support. The editor header shows the project name, slide count, and current creation stage; saving, generation requirements, and previous/next controls work as before. Motion is limited to brief entrance and interaction feedback, and examples no longer rotate automatically. The interface respects the system's reduced-motion preference. On mobile, materials, settings, help, and language controls are grouped under "More tools" in the top-right corner.
+
+See the [Features Overview](docs/features/overview.mdx). This interface update does not change AI service settings, generation counts, or export formats.
 
 ## ❤️ Sponsor
 

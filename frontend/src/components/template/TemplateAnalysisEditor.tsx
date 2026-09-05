@@ -205,7 +205,7 @@ export const TemplateAnalysisEditor: React.FC<TemplateAnalysisEditorProps> = ({
       <button
         type="button"
         onClick={() => addRegion(field)}
-        className="text-xs text-banana-600 hover:text-banana-700"
+        className="text-xs text-banana-700 hover:text-banana-800 dark:text-banana dark:hover:text-banana-300"
       >
         + {t('tae.addRegion')}
       </button>

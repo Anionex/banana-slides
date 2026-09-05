@@ -311,7 +311,8 @@ import {
   Presentation,
   AlertTriangle,
 } from 'lucide-react';
-import logoUrl from '@/assets/logo.png';
+import { Brand } from '@/components/shared/Brand';
+import { WorkspaceContext } from '@/components/shared/WorkspaceContext';
 import { Button, Loading, Modal, Textarea, useToast, useConfirm, MaterialSelector, ProjectSettingsModal, ExportTasksPanel, TextStyleSelector } from '@/components/shared';
 import { SwitchToSingleModeDialog } from '@/components/template/SwitchToSingleModeDialog';
 import { MaterialGeneratorModal } from '@/components/shared/MaterialGeneratorModal';
@@ -2115,7 +2116,7 @@ export const SlidePreview: React.FC = () => {
   ].filter(Boolean).join(' / ');
 
   return (
-    <div className="h-screen bg-gray-50 dark:bg-background-primary flex flex-col overflow-hidden">
+    <div className="studio-workspace h-screen flex flex-col overflow-hidden">
       {/* 顶栏 */}
       <header className="h-14 md:h-16 bg-white dark:bg-background-secondary shadow-sm dark:shadow-background-primary/30 border-b border-gray-200 dark:border-border-primary flex items-center justify-between px-3 md:px-6 flex-shrink-0">
         <div className="flex items-center gap-2 md:gap-4 min-w-0 flex-1">
@@ -2146,8 +2147,7 @@ export const SlidePreview: React.FC = () => {
               <span className="hidden sm:inline">{t('common.back')}</span>
             </Button>
             <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
-              <img src={logoUrl} alt="" className="w-6 h-6 md:w-8 md:h-8 object-contain flex-shrink-0" />
-              <span className="text-base md:text-xl font-bold truncate">{t('home.title')}</span>
+              <Brand compact />
             </div>
             <span className="text-gray-400 hidden md:inline">|</span>
             <span className="text-sm md:text-lg font-semibold truncate hidden sm:inline">{t('preview.title')}</span>
@@ -2379,6 +2379,7 @@ export const SlidePreview: React.FC = () => {
           </div>
         </div>
       </header>
+      <WorkspaceContext project={currentProject} stage="preview" />
 
       {/* PPTX 导出设置弹窗 */}
       {showPptxExportDialog && (
@@ -2482,7 +2483,7 @@ export const SlidePreview: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setVideoShowAdvancedNarration(prev => !prev)}
-                    className="text-sm text-banana-600 hover:text-banana-700"
+                    className="text-sm text-banana-700 hover:text-banana-800 dark:text-banana dark:hover:text-banana-300"
                   >
                     {videoShowAdvancedNarration ? t('preview.videoNarrationCollapse') : t('preview.videoNarrationAdvanced')}
                   </button>
@@ -2966,7 +2967,7 @@ export const SlidePreview: React.FC = () => {
         </aside>
 
         {/* 右侧：大图预览 */}
-        <main className="relative flex-1 flex flex-col bg-gradient-to-br from-banana-50 dark:from-background-primary via-white dark:via-background-primary to-gray-50 dark:to-background-primary min-w-0 overflow-hidden">
+        <main className="studio-canvas relative flex-1 flex flex-col min-w-0 overflow-hidden">
           {currentProject.pages.length === 0 ? (
             <div className="flex-1 flex items-center justify-center overflow-y-auto">
               <div className="text-center">
