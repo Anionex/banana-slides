@@ -128,6 +128,26 @@ class TestImageRetryableErrors:
 
 class TestGenerateImageRetry:
 
+    @pytest.mark.parametrize("image_model", ["gpt-image-2", "gpt-image-1.5"])
+    def test_uses_supported_response_model_and_preserves_image_model(self, image_model):
+        ok = _make_ok_sse_response()
+        provider = CodexImageProvider(api_key="test-token", model=image_model)
+        with patch.object(_codex_img.http_requests, "post", return_value=ok) as mock_post:
+            result = provider.generate_image("a blue square", resolution="2K")
+
+        assert result is not None
+        payload = mock_post.call_args.kwargs["json"]
+        assert payload["model"] == "gpt-5.6-terra"
+        assert payload["tools"] == [{
+            "type": "image_generation",
+            "model": image_model,
+            "size": "2048x1152",
+            "quality": "high",
+        }]
+        assert payload["tool_choice"] == {"type": "image_generation"}
+        assert payload["stream"] is True
+        assert payload["store"] is False
+
     def test_success_on_first_try(self):
         ok = _make_ok_sse_response()
         with patch.object(_codex_img.http_requests, "post", return_value=ok) as mock_post:
