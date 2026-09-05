@@ -91,6 +91,13 @@ jobs:
       - name: Package backend
         run: cd backend && uv run pyinstaller banana-slides.spec --noconfirm
 
+      - name: Cache Windows FFmpeg download
+        if: matrix.os == 'windows-latest'
+        uses: actions/cache@v4
+        with:
+          path: desktop/.cache/ffmpeg
+          key: windows-ffmpeg-btbn-7.1-907ae59ae94d39561b9e03f6d5b0ec4a2778df1e75c763c9a0ddbae266415860
+
       - name: Install Electron dependencies
         run: cd desktop && npm ci
 
@@ -101,13 +108,6 @@ jobs:
           actool_path="$(xcrun --find actool)"
           echo "$(dirname "$actool_path")" >> "$GITHUB_PATH"
           "$actool_path" --version
-
-      - name: Cache Windows FFmpeg download
-        if: matrix.os == 'windows-latest'
-        uses: actions/cache@v4
-        with:
-          path: desktop/.cache/ffmpeg
-          key: windows-ffmpeg-btbn-7.1-907ae59ae94d39561b9e03f6d5b0ec4a2778df1e75c763c9a0ddbae266415860
 
       - name: Configure optional macOS signing
         if: matrix.platform == 'mac'
