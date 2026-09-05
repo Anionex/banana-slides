@@ -7,6 +7,19 @@ const yaml = require('js-yaml');
 const desktopDir = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(desktopDir, '..');
 
+test('Windows FFmpeg cache is restored before npm install invokes prepare', () => {
+  const workflow = yaml.load(fs.readFileSync(
+    path.join(repoRoot, '.github', 'workflows', 'release-desktop.yml'), 'utf8',
+  ));
+  const steps = workflow.jobs.build.steps;
+  const cacheIndex = steps.findIndex((step) => step.name === 'Cache Windows FFmpeg download');
+  const installIndex = steps.findIndex((step) => step.name === 'Install Electron dependencies');
+  assert.ok(cacheIndex >= 0 && installIndex >= 0, 'cache and install steps must exist');
+  assert.ok(cacheIndex < installIndex, 'npm ci runs prepare and needs the verified FFmpeg cache first');
+  assert.equal(steps[cacheIndex].if, "matrix.os == 'windows-latest'");
+  assert.equal(steps[cacheIndex].with.path, 'desktop/.cache/ffmpeg');
+});
+
 test('desktop packaging publishes the artifacts required by electron-updater', () => {
   const builderConfig = yaml.load(fs.readFileSync(path.join(desktopDir, 'electron-builder.yml'), 'utf8'));
   const macTargets = builderConfig.mac.target.map((target) => target.target);
