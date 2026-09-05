@@ -97,7 +97,7 @@ class CodexImageProvider(ImageProvider):
         content.append({"type": "input_text", "text": prompt})
 
         return {
-            "model": "gpt-5.4",
+            "model": "gpt-5.6-terra",
             "instructions": "You are a helpful assistant that generates images.",
             "input": [{"role": "user", "content": content}],
             "tools": [
