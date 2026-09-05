@@ -267,6 +267,23 @@ def _get_model_type_provider_config(model_type: str) -> Dict[str, Any]:
         logger.info("Per-model config — %s: openai, api_base: %s", model_type, api_base)
         return {'format': 'openai', 'api_key': api_key, 'api_base': api_base}
 
+    elif source_lower == 'atlascloud':
+        if model_type != 'text':
+            raise ValueError("Atlas Cloud is currently supported only for text models.")
+
+        api_key = (_resolve_setting(f'{prefix}_API_KEY')
+                   or _resolve_setting('ATLASCLOUD_API_KEY'))
+        api_base = (_resolve_setting(f'{prefix}_API_BASE')
+                    or _resolve_setting('ATLASCLOUD_API_BASE', 'https://api.atlascloud.ai/v1'))
+
+        if not api_key:
+            raise ValueError(
+                "API key is required for text model with Atlas Cloud provider. "
+                "Set TEXT_API_KEY or ATLASCLOUD_API_KEY."
+            )
+        logger.info("Per-model config — text: atlascloud, api_base: %s", api_base)
+        return {'format': 'atlascloud', 'api_key': api_key, 'api_base': api_base}
+
     elif source_lower == 'volcengine':
         api_key = (_resolve_setting(f'{prefix}_API_KEY')
                    or _resolve_setting('VOLCENGINE_API_KEY')
@@ -354,7 +371,7 @@ def get_text_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
     if fmt == 'anthropic':
         logger.info("Text provider: Anthropic, model=%s", model)
         return AnthropicTextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
-    elif fmt in ('openai', 'volcengine'):
+    elif fmt in ('openai', 'volcengine', 'atlascloud'):
         logger.info("Text provider: %s, model=%s", fmt, model)
         return OpenAITextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
     elif fmt == 'vertex':
