@@ -4,10 +4,10 @@
 
 :root {
   /* 主色 - 黄色系 */
-  --banana-yellow: #FFD700;
-  --banana-yellow-light: #FFE44D;
-  --banana-yellow-dark: #FFC700;
-  --banana-yellow-pale: #FFF9E6;
+  --banana-yellow: #F4CE46;
+  --banana-yellow-light: #F8DC77;
+  --banana-yellow-dark: #DBB52D;
+  --banana-yellow-pale: #FAF2D4;
 
   /* 中性色 - 黑白灰 */
   --black: #1A1A1A;
@@ -28,26 +28,31 @@
   --transition-slow: 350ms ease-in-out;
 
   /* 背景色 */
-  --bg-primary: #FFFFFF;
-  --bg-secondary: #F5F5F5;
-  --bg-tertiary: #FAFAFA;
+  --bg-primary: #F7F6F2;
+  --bg-secondary: #FFFFFF;
+  --bg-tertiary: #F0EFEA;
   --bg-elevated: #FFFFFF;
-  --bg-hover: #F5F5F5;
+  --bg-hover: #F0EFEA;
 
   /* 文字色 */
-  --text-primary: #1A1A1A;
-  --text-secondary: #4A4A4A;
-  --text-tertiary: #757575;
+  --text-primary: #262720;
+  --text-secondary: #595B52;
+  --text-tertiary: #74766C;
 
   /* 边框色 */
-  --border-primary: #E5E5E5;
-  --border-secondary: #F0F0F0;
-  --border-hover: #D4D4D4;
+  --border-primary: #E1E2D9;
+  --border-secondary: #ECEDE6;
+  --border-hover: #B9BBAE;
+  --studio-ink: #262720;
+  --studio-ink-on: #FAFAF7;
+  --studio-accent-text: #796014;
+  --studio-canvas: #EBECE5;
+  --studio-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .dark {
   /* 主色 - 黄色系（深色模式下稍微调亮） */
-  --banana-yellow: #F5A623;
+  --banana-yellow: #F4CE46;
   --banana-yellow-light: #FFD700;
   --banana-yellow-dark: #E6930E;
   --banana-yellow-pale: #2A2520;
@@ -60,21 +65,25 @@
   --white: #13131A;
 
   /* 背景色 */
-  --bg-primary: #13131A;
-  --bg-secondary: #1E1E24;
-  --bg-tertiary: #17171E;
-  --bg-elevated: #252530;
-  --bg-hover: #2E2E38;
+  --bg-primary: #191B18;
+  --bg-secondary: #22251F;
+  --bg-tertiary: #1D201B;
+  --bg-elevated: #2B2F27;
+  --bg-hover: #32372D;
 
   /* 文字色 */
-  --text-primary: #FFFFFF;
-  --text-secondary: #B0B0B0;
-  --text-tertiary: #6E6E6E;
+  --text-primary: #F3F3EA;
+  --text-secondary: #C0C4B5;
+  --text-tertiary: #9CA390;
 
   /* 边框色 */
-  --border-primary: #2E2E38;
-  --border-secondary: #252530;
-  --border-hover: #3E3E48;
+  --border-primary: #3A3F33;
+  --border-secondary: #30352A;
+  --border-hover: #646C57;
+  --studio-ink: #F3F3EA;
+  --studio-ink-on: #22251F;
+  --studio-accent-text: #F4CE46;
+  --studio-canvas: #141712;
 }
 
 * {
@@ -84,7 +93,7 @@
 }
 
 body {
-  font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   /* 移动端优化 */
@@ -110,12 +119,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--banana-yellow);
+  background: var(--border-hover);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--banana-yellow-dark);
+  background: var(--text-tertiary);
 }
 
 /* 描述卡片极轻滚动条 */
@@ -182,3 +191,12 @@ body {
   line-height: 1.6;
 }
 
+/* Apply the user's motion preference to portals and legacy controls as well. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

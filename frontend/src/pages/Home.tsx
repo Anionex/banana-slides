@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
-import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Settings, FolderOpen, HelpCircle, Sun, Moon, Globe, Monitor, ChevronDown, Upload, RefreshCw, FilePlus, ArrowRight, X } from 'lucide-react';
+import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Settings, FolderOpen, HelpCircle, Sun, Moon, Globe, Monitor, ChevronDown, Upload, RefreshCw, FilePlus, ArrowRight, X } from 'lucide-react';
 import { Button, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, MaterialSelector, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, HelpModal, Footer, GithubRepoCard, TextStyleSelector } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
@@ -13,7 +13,9 @@ import { useTheme } from '@/hooks/useTheme';
 import { useImagePaste, buildMaterialsMarkdown } from '@/hooks/useImagePaste';
 import type { Material } from '@/types';
 import { useT } from '@/hooks/useT';
-import logoUrl from '@/assets/logo.png';
+import { Brand } from '@/components/shared/Brand';
+import { StudioHero } from '@/components/home/StudioHero';
+import { RecentProjects } from '@/components/home/RecentProjects';
 import { ASPECT_RATIO_OPTIONS } from '@/config/aspectRatio';
 import { isDesktop } from '@/utils';
 
@@ -35,8 +37,10 @@ const homeI18n = {
     },
     home: {
       title: '蕉幻',
-      subtitle: 'Vibe your slides like vibe coding',
-      tagline: '基于 nano banana pro 的原生 AI PPT 生成器',
+      subtitle: '你的想法，不必套版。',
+      tagline: 'AI 演示创作工具',
+      createHeading: '开始一份新演示',
+      createHint: '内容由你，表达随你',
       features: {
         oneClick: '一句话生成 PPT',
         naturalEdit: '自然语言修改',
@@ -44,19 +48,19 @@ const homeI18n = {
         export: '一键导出 PPTX/PDF',
       },
       tabs: {
-        idea: '一句话生成',
-        outline: '从大纲生成',
-        description: '从描述生成',
-        ppt_renovation: 'PPT 翻新',
+        idea: '写个想法',
+        outline: '粘贴大纲',
+        description: '输入逐页内容',
+        ppt_renovation: '翻新旧稿',
       },
       tabDescriptions: {
-        idea: '输入你的想法，AI 将为你生成完整的 PPT',
+        idea: '想讲什么，讲给谁听？写下主题，也可以附上参考资料。',
         outline: '已有大纲？直接粘贴，AI 将自动切分为结构化大纲',
         description: '已有完整描述？AI 将自动解析并直接生成图片，跳过大纲步骤',
         ppt_renovation: '上传已有的 PDF/PPTX 文件，AI 将解析内容并重新生成翻新后的PPT',
       },
       placeholders: {
-        idea: '例如：生成一份关于 AI 发展史的演讲 PPT',
+        idea: '例如：向新同事介绍我们的产品，8 页左右，简洁、有一点趣味。',
         outline: '粘贴你的 PPT 大纲...',
         description: '粘贴你的完整页面描述...',
       },
@@ -118,8 +122,10 @@ const homeI18n = {
     },
     home: {
       title: 'Banana Slides',
-      subtitle: 'Vibe your slides like vibe coding',
-      tagline: 'AI-native PPT generator powered by nano banana pro',
+      subtitle: 'Your ideas. Beyond templates.',
+      tagline: 'AI presentation studio',
+      createHeading: 'Start a new presentation',
+      createHint: 'Your content. Your expression.',
       features: {
         oneClick: 'One-click PPT generation',
         naturalEdit: 'Natural language editing',
@@ -127,19 +133,19 @@ const homeI18n = {
         export: 'Export to PPTX/PDF',
       },
       tabs: {
-        idea: 'From Idea',
-        outline: 'From Outline',
-        description: 'From Description',
-        ppt_renovation: 'PPT Renovation',
+        idea: 'An idea',
+        outline: 'An outline',
+        description: 'Slide content',
+        ppt_renovation: 'An existing deck',
       },
       tabDescriptions: {
-        idea: 'Enter your idea, AI will generate a complete PPT for you',
+        idea: 'What is the story, and who is it for? Add a topic and any reference material.',
         outline: 'Have an outline? Paste it directly, AI will split it into a structured outline',
         description: 'Have detailed descriptions? AI will parse and generate images directly, skipping the outline step',
         ppt_renovation: 'Upload an existing PDF/PPTX file, AI will parse its content and regenerate the renovated PPT',
       },
       placeholders: {
-        idea: 'e.g., Generate a presentation about the history of AI',
+        idea: 'e.g., Introduce our product to new colleagues. About 8 slides, clear and a little playful.',
         outline: 'Paste your PPT outline...',
         description: 'Paste your complete page descriptions...',
       },
@@ -758,39 +764,22 @@ export const Home: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-orange-50/30 to-pink-50/50 dark:from-background-primary dark:via-background-primary dark:to-background-primary relative overflow-hidden">
-      {/* 背景装饰元素 - 仅在亮色模式显示 */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none dark:hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-banana-500/10 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-orange-400/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-yellow-400/5 rounded-full blur-3xl"></div>
-      </div>
+    <div className="studio-page min-h-screen relative">
 
       {/* 导航栏 — web only */}
       {!isDesktop && (
-      <nav className="relative z-50 h-16 md:h-18 bg-white/40 dark:bg-background-primary backdrop-blur-2xl dark:backdrop-blur-none dark:border-b dark:border-border-primary">
+      <nav className="studio-nav relative z-50 min-h-16">
 
-        <div className="max-w-7xl mx-auto px-4 md:px-6 h-full flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center">
-              <img
-                src={logoUrl}
-                alt="蕉幻 Banana Slides Logo"
-                className="h-10 md:h-12 w-auto rounded-lg object-contain"
-              />
-            </div>
-            <span className="text-xl md:text-2xl font-bold bg-gradient-to-r from-banana-600 via-orange-500 to-pink-500 bg-clip-text text-transparent">
-              蕉幻
-            </span>
-          </div>
-          <div className="flex items-center gap-2 md:gap-3">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 flex flex-wrap gap-3 items-center justify-between">
+          <Brand />
+          <div className="hidden sm:flex items-center gap-1 md:gap-2 flex-wrap">
             {/* 桌面端：带文字的素材生成按钮 */}
             <Button
               variant="ghost"
               size="sm"
               icon={<ImagePlus size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={handleOpenMaterialModal}
-              className="hidden sm:inline-flex hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200 font-medium"
+              className="hidden sm:inline-flex hover:bg-background-hover transition-colors duration-150 font-medium"
             >
               <span className="hidden md:inline">{t('nav.materialGenerate')}</span>
             </Button>
@@ -800,7 +789,7 @@ export const Home: React.FC = () => {
               size="sm"
               icon={<ImagePlus size={16} />}
               onClick={handleOpenMaterialModal}
-              className="sm:hidden hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200"
+              className="sm:hidden hover:bg-background-hover transition-colors duration-150"
               title={t('nav.materialGenerate')}
             />
             {/* 桌面端：带文字的素材中心按钮 */}
@@ -809,7 +798,7 @@ export const Home: React.FC = () => {
               size="sm"
               icon={<FolderOpen size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={() => setIsMaterialCenterOpen(true)}
-              className="hidden sm:inline-flex hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200 font-medium"
+              className="hidden sm:inline-flex hover:bg-background-hover transition-colors duration-150 font-medium"
             >
               <span className="hidden md:inline">{t('nav.materialCenter')}</span>
             </Button>
@@ -819,14 +808,14 @@ export const Home: React.FC = () => {
               size="sm"
               icon={<FolderOpen size={16} />}
               onClick={() => setIsMaterialCenterOpen(true)}
-              className="sm:hidden hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200"
+              className="sm:hidden hover:bg-background-hover transition-colors duration-150"
               title={t('nav.materialCenter')}
             />
             <Button
               variant="ghost"
               size="sm"
               onClick={() => navigate('/history')}
-              className="text-xs md:text-sm hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200 font-medium"
+              className="text-xs md:text-sm hover:bg-background-hover transition-colors duration-150 font-medium"
             >
               <span className="hidden sm:inline">{t('nav.history')}</span>
               <span className="sm:hidden">{t('nav.history')}</span>
@@ -836,7 +825,7 @@ export const Home: React.FC = () => {
               size="sm"
               icon={<Settings size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={() => navigate('/settings')}
-              className="text-xs md:text-sm hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200 font-medium"
+              className="text-xs md:text-sm hover:bg-background-hover transition-colors duration-150 font-medium"
             >
               <span className="hidden md:inline">{t('nav.settings')}</span>
             </Button>
@@ -854,7 +843,7 @@ export const Home: React.FC = () => {
               size="sm"
               icon={<HelpCircle size={16} />}
               onClick={() => setIsHelpModalOpen(true)}
-              className="md:hidden hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200"
+              className="md:hidden hover:bg-background-hover transition-colors duration-150"
               title={t('nav.help')}
             />
             {/* 分隔线 */}
@@ -885,21 +874,21 @@ export const Home: React.FC = () => {
                   <div className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-background-secondary border border-gray-200 dark:border-border-primary rounded-lg shadow-lg dark:shadow-none py-1 min-w-[120px]">
                     <button
                       onClick={() => { setTheme('light'); setIsThemeMenuOpen(false); }}
-                      className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-background-hover transition-colors ${theme === 'light' ? 'text-banana' : 'text-gray-700 dark:text-foreground-secondary'}`}
+                      className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-background-hover transition-colors ${theme === 'light' ? 'text-foreground-primary font-semibold' : 'text-gray-700 dark:text-foreground-secondary'}`}
                     >
                       <Sun size={14} />
                       <span>{t('settings.theme.light')}</span>
                     </button>
                     <button
                       onClick={() => { setTheme('dark'); setIsThemeMenuOpen(false); }}
-                      className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-background-hover transition-colors ${theme === 'dark' ? 'text-banana' : 'text-gray-700 dark:text-foreground-secondary'}`}
+                      className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-background-hover transition-colors ${theme === 'dark' ? 'text-foreground-primary font-semibold' : 'text-gray-700 dark:text-foreground-secondary'}`}
                     >
                       <Moon size={14} />
                       <span>{t('settings.theme.dark')}</span>
                     </button>
                     <button
                       onClick={() => { setTheme('system'); setIsThemeMenuOpen(false); }}
-                      className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-background-hover transition-colors ${theme === 'system' ? 'text-banana' : 'text-gray-700 dark:text-foreground-secondary'}`}
+                      className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-background-hover transition-colors ${theme === 'system' ? 'text-foreground-primary font-semibold' : 'text-gray-700 dark:text-foreground-secondary'}`}
                     >
                       <Monitor size={14} />
                       <span>{t('settings.theme.system')}</span>
@@ -914,67 +903,54 @@ export const Home: React.FC = () => {
             <GithubRepoCard />
             {/* 分隔线 */}
           </div>
+          <div className="sm:hidden flex items-center gap-1">
+            <Button variant="ghost" size="sm" aria-label={t('nav.history')} title={t('nav.history')} icon={<FolderOpen size={18} />} onClick={() => navigate('/history')} />
+            <Button variant="ghost" size="sm" aria-label={t('settings.theme.label')} title={t('settings.theme.label')} icon={isDark ? <Moon size={18} /> : <Sun size={18} />} onClick={() => setTheme(isDark ? 'light' : 'dark')} />
+            <details
+              className="studio-mobile-menu"
+              onClick={(event) => {
+                if ((event.target as HTMLElement).closest('button')) event.currentTarget.open = false;
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  event.currentTarget.open = false;
+                  event.currentTarget.querySelector('summary')?.focus();
+                }
+              }}
+            >
+              <summary aria-label={i18n.language?.startsWith('zh') ? '更多工具' : 'More tools'}><ChevronDown size={18} /></summary>
+              <div>
+                <button type="button" onClick={handleOpenMaterialModal}>{t('nav.materialGenerate')}</button>
+                <button type="button" onClick={() => setIsMaterialCenterOpen(true)}>{t('nav.materialCenter')}</button>
+                <button type="button" onClick={() => navigate('/settings')}>{t('nav.settings')}</button>
+                <button type="button" onClick={() => setIsHelpModalOpen(true)}>{t('nav.help')}</button>
+                <button type="button" onClick={() => i18n.changeLanguage(i18n.language?.startsWith('zh') ? 'en' : 'zh')}>{i18n.language?.startsWith('zh') ? 'EN' : '中'}</button>
+                <button type="button" onClick={() => setTheme('system')}>{t('settings.theme.system')}</button>
+              </div>
+            </details>
+          </div>
         </div>
       </nav>
       )}
 
       {/* 主内容 */}
-      <main className="relative max-w-5xl mx-auto px-3 md:px-4 py-8 md:py-12">
-        {/* Hero 标题区 */}
-        <div className="text-center mb-10 md:mb-16 space-y-4 md:space-y-6">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/60 dark:bg-background-secondary backdrop-blur-sm rounded-full shadow-sm dark:shadow-none mb-4">
-            <span className="text-2xl animate-pulse"><Sparkles size={20} className="text-orange-500 dark:text-banana" /></span>
-            <span className="text-sm font-medium text-gray-700 dark:text-foreground-secondary">{t('home.tagline')}</span>
-          </div>
-
-          <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold leading-tight">
-            <span className="bg-gradient-to-r from-yellow-600 via-orange-500 to-pink-500 dark:from-banana-dark dark:via-banana dark:to-banana-light bg-clip-text text-transparent dark:italic" style={{
-              backgroundSize: '200% auto',
-              animation: 'gradient 3s ease infinite',
-            }}>
-              {i18n.language?.startsWith('zh') ? `${t('home.title')} · Banana Slides` : 'Banana Slides'}
-            </span>
-          </h1>
-
-          <p className="text-lg md:text-xl text-gray-600 dark:text-foreground-secondary max-w-2xl mx-auto font-light">
-            {t('home.subtitle')}
-          </p>
-
-          {/* 特性标签 */}
-          <div className="flex flex-wrap items-center justify-center gap-2 md:gap-3 pt-4">
-            {[
-              { icon: <Sparkles size={14} className="text-yellow-600 dark:text-banana" />, label: t('home.features.oneClick') },
-              { icon: <FileEdit size={14} className="text-blue-500 dark:text-blue-400" />, label: t('home.features.naturalEdit') },
-              { icon: <Search size={14} className="text-orange-500 dark:text-orange-400" />, label: t('home.features.regionEdit') },
-
-              { icon: <Paperclip size={14} className="text-green-600 dark:text-green-400" />, label: t('home.features.export') },
-            ].map((feature, idx) => (
-              <span
-                key={idx}
-                className="inline-flex items-center gap-1 px-3 py-1.5 bg-white/70 dark:bg-background-secondary backdrop-blur-sm rounded-full text-xs md:text-sm text-gray-700 dark:text-foreground-secondary border border-gray-200/50 dark:border-border-primary shadow-sm dark:shadow-none hover:shadow-md dark:hover:border-border-hover transition-all hover:scale-105 cursor-default"
-              >
-                {feature.icon}
-                {feature.label}
-              </span>
-            ))}
-          </div>
-        </div>
+      <main className="studio-home-main">
+        <StudioHero />
 
         {/* 创建卡片 */}
-        <Card className="p-4 md:p-10 bg-white/90 dark:bg-background-secondary backdrop-blur-xl dark:backdrop-blur-none shadow-2xl dark:shadow-none border-0 dark:border dark:border-border-primary hover:shadow-3xl dark:hover:shadow-none transition-all duration-300 dark:rounded-2xl">
+        <Card className="studio-composer">
+          <div className="studio-section-heading"><h2>{t('home.createHeading')}</h2><span className="studio-section-caption">{t('home.createHint')}</span></div>
           {/* 选项卡 */}
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mb-6 md:mb-8">
+          <div className="studio-modes" role="group" aria-label={t('home.createHeading')}>
             {(Object.keys(tabConfig) as CreationType[]).map((type) => {
               const config = tabConfig[type];
               return (
                 <button
                   key={type}
+                  type="button"
+                  aria-pressed={activeTab === type}
                   onClick={() => setActiveTab(type)}
-                  className={`flex-1 flex items-center justify-center gap-1.5 md:gap-2 px-3 md:px-6 py-2.5 md:py-3 rounded-lg dark:rounded-xl font-medium transition-all text-sm md:text-base touch-manipulation ${
-                    activeTab === type
-                      ? 'bg-gradient-to-r from-banana-500 to-banana-600 dark:from-banana dark:to-banana text-black shadow-yellow dark:shadow-lg dark:shadow-banana/20'
-                      : 'bg-white dark:bg-background-elevated border border-gray-200 dark:border-border-primary text-gray-700 dark:text-foreground-secondary hover:bg-banana-50 dark:hover:bg-background-hover active:bg-banana-100'
-                  }`}
+                  className="studio-mode"
                 >
                   <span className="scale-90 md:scale-100">{config.icon}</span>
                   <span className="truncate">{config.label}</span>
@@ -987,13 +963,12 @@ export const Home: React.FC = () => {
           <div className="relative">
             <p className="text-sm md:text-base mb-4 md:mb-6 leading-relaxed">
               <span className="inline-flex items-center gap-2 text-gray-600 dark:text-foreground-tertiary">
-                <Lightbulb size={16} className="text-banana-600 dark:text-banana flex-shrink-0" />
-                <span className="font-semibold">
+                <span className="font-normal">
                   {tabConfig[activeTab].description}
                 </span>
                 {tabConfig[activeTab].example && (
                   <span className="relative group/tip inline-flex">
-                    <HelpCircle size={15} className="text-gray-400 dark:text-foreground-tertiary hover:text-banana-600 dark:hover:text-banana cursor-help transition-colors" />
+                    <HelpCircle size={15} className="text-gray-400 dark:text-foreground-tertiary hover:text-foreground-primary cursor-help transition-colors" />
                     <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover/tip:block z-50 w-72 md:w-80 p-3 bg-white dark:bg-background-elevated border border-gray-200 dark:border-border-primary rounded-lg shadow-xl dark:shadow-none text-xs text-gray-700 dark:text-foreground-secondary whitespace-pre-line leading-relaxed">
                       {tabConfig[activeTab].example}
                       <span className="absolute left-1/2 -translate-x-1/2 top-full -mt-px w-2 h-2 bg-white dark:bg-background-elevated border-r border-b border-gray-200 dark:border-border-primary rotate-45" />
@@ -1080,7 +1055,7 @@ export const Home: React.FC = () => {
                         type="checkbox"
                         checked={keepLayout}
                         onChange={(e) => setKeepLayout(e.target.checked)}
-                        className="sr-only peer"
+                        className="absolute inset-0 z-10 w-full h-full opacity-0 cursor-pointer peer"
                       />
                       <div className="w-11 h-6 bg-gray-200 dark:bg-background-hover peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-banana-300 dark:peer-focus:ring-banana/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white dark:after:bg-foreground-secondary after:border-gray-300 dark:after:border-border-hover after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-banana"></div>
                     </div>
@@ -1107,7 +1082,7 @@ export const Home: React.FC = () => {
               onDocumentFiles={handleDocumentFiles}
               onSelectFromLibrary={() => setIsMaterialSelectorOpen(true)}
               rows={activeTab === 'idea' ? 4 : 8}
-              className="text-sm md:text-base border-2 border-gray-200 dark:border-border-primary dark:bg-background-tertiary dark:text-white focus-within:border-banana-400 dark:focus-within:border-banana transition-colors duration-200"
+              className="text-sm md:text-base border border-border-primary bg-background-primary text-foreground-primary focus-within:border-border-hover transition-colors duration-150"
               toolbarLeft={
                 <div className="flex items-center gap-1">
                   <button
@@ -1137,7 +1112,7 @@ export const Home: React.FC = () => {
                             <button
                               key={opt.value}
                               onClick={() => { setAspectRatio(opt.value); setIsAspectRatioOpen(false); }}
-                              className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-background-hover transition-colors ${aspectRatio === opt.value ? 'text-banana font-semibold' : 'text-gray-700 dark:text-foreground-secondary'}`}
+                              className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-background-hover transition-colors ${aspectRatio === opt.value ? 'text-foreground-primary font-semibold' : 'text-gray-700 dark:text-foreground-secondary'}`}
                             >
                               {opt.label}
                             </button>
@@ -1176,7 +1151,7 @@ export const Home: React.FC = () => {
               onClick={handleCreateBlank}
               disabled={isSubmitting || isGlobalLoading}
               title={t('home.actions.startBlankHint')}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs md:text-sm text-gray-500 dark:text-foreground-tertiary hover:text-banana-600 dark:hover:text-banana hover:bg-banana-50 dark:hover:bg-background-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors touch-manipulation"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs md:text-sm text-gray-500 dark:text-foreground-tertiary hover:text-foreground-primary hover:bg-banana-50 dark:hover:bg-background-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors touch-manipulation"
             >
               <FilePlus size={14} className="flex-shrink-0" />
               <span>{t('home.actions.startBlank')}</span>
@@ -1205,11 +1180,11 @@ export const Home: React.FC = () => {
           />
 
           {/* 模板选择 */}
-          <div className="mb-6 md:mb-8 pt-4 border-t border-gray-100 dark:border-border-primary">
-            <div className="flex items-center justify-between mb-3 md:mb-4">
+          <div id="creation-style" className="studio-style-section">
+            <div className="studio-style-heading">
               <div className="flex items-center gap-2">
-                <Palette size={18} className="text-orange-600 dark:text-banana flex-shrink-0" />
-                <h3 className="text-base md:text-lg font-semibold text-gray-900 dark:text-white">
+                <Palette size={16} className="text-foreground-secondary flex-shrink-0" />
+                <h3 className="text-sm font-semibold text-foreground-primary">
                   {t('home.template.title')}
                 </h3>
               </div>
@@ -1232,7 +1207,7 @@ export const Home: React.FC = () => {
                       }
                       // 不再清空风格描述，允许用户保留已输入的内容
                     }}
-                    className="sr-only peer"
+                    className="absolute inset-0 z-10 w-full h-full opacity-0 cursor-pointer peer"
                   />
                   <div className="w-11 h-6 bg-gray-200 dark:bg-background-hover peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-banana-300 dark:peer-focus:ring-banana/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white dark:after:bg-foreground-secondary after:border-gray-300 dark:after:border-border-hover after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-banana"></div>
                 </div>
@@ -1240,7 +1215,7 @@ export const Home: React.FC = () => {
             </div>
             
             {/* 每页独立模板开关 */}
-            <label className="flex items-center gap-2 cursor-pointer group mb-3" title={t('home.template.multiModeHint')}>
+            <label className="flex flex-wrap items-center gap-2 cursor-pointer group mb-3" title={t('home.template.multiModeHint')}>
               <input
                 type="checkbox"
                 checked={multiTemplateMode}
@@ -1273,6 +1248,7 @@ export const Home: React.FC = () => {
           </div>
 
         </Card>
+        <RecentProjects />
       </main>
       <ToastContainer />
       {/* 素材生成模态 - 在主页始终生成全局素材 */}

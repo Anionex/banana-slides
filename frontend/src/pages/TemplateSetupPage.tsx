@@ -15,7 +15,8 @@ import {
   PenLine,
   Wand2,
 } from 'lucide-react';
-import logoUrl from '@/assets/logo.png';
+import { Brand } from '@/components/shared/Brand';
+import { WorkspaceContext } from '@/components/shared/WorkspaceContext';
 import { useT } from '@/hooks/useT';
 import { cn } from '@/utils';
 import { getImageUrl } from '@/api/client';
@@ -383,7 +384,7 @@ export const TemplateSetupPage: React.FC = () => {
   const pickerPage = pages.find((p) => (p.id || p.page_id) === pickerPageId) || null;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-background-primary flex flex-col">
+    <div className="studio-workspace min-h-screen flex flex-col">
       {/* 顶栏 */}
       <header className="bg-white dark:bg-background-secondary shadow-sm border-b border-gray-200 dark:border-border-primary px-3 md:px-6 py-2 md:py-3 flex-shrink-0">
         <div className="flex items-center justify-between gap-2 md:gap-4">
@@ -397,8 +398,7 @@ export const TemplateSetupPage: React.FC = () => {
               <span className="hidden sm:inline">{t('ts.back')}</span>
             </Button>
             <div className="flex items-center gap-1.5 md:gap-2">
-              <img src={logoUrl} alt="" className="w-6 h-6 md:w-8 md:h-8 object-contain flex-shrink-0" />
-              <span className="text-base md:text-xl font-bold">{t('home.title')}</span>
+              <Brand compact />
             </div>
             <span className="text-gray-400 hidden lg:inline">|</span>
             <span className="text-sm md:text-lg font-semibold hidden lg:inline">{t('ts.title')}</span>
@@ -439,6 +439,7 @@ export const TemplateSetupPage: React.FC = () => {
           </div>
         </div>
       </header>
+      <WorkspaceContext project={currentProject} stage="style" />
 
       {autoMatchBlockReason && (
         <div

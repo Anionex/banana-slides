@@ -15,13 +15,16 @@ export default {
           dark: 'var(--banana-yellow-dark)',
           pale: 'var(--banana-yellow-pale)',
           // 保留静态色用于渐变等特殊场景
-          50: '#FFF9E6',
-          100: '#FFE44D',
-          200: '#FFD93D',
-          300: '#FFD21F',
-          400: '#FFCA00',
-          500: '#FFD700',
-          600: '#FFC700',
+          50: '#FAF6E6',
+          100: '#FAEDB4',
+          200: '#F8DC77',
+          300: '#F5D458',
+          400: '#F4CE46',
+          500: '#F4CE46',
+          600: '#DBB52D',
+          700: '#796014',
+          800: '#574611',
+          900: '#382E16',
         },
         // 背景色 - 语义化 token
         'background': {

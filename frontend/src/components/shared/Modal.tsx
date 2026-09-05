@@ -79,9 +79,7 @@ export const Modal: React.FC<ModalProps> = ({
       {/* 遮罩 */}
       <div
         className={cn(
-          'fixed inset-0 z-0 transition-all duration-300',
-          'bg-gradient-to-br from-black/50 via-black/40 to-black/50',
-          'backdrop-blur-md',
+          'fixed inset-0 z-0 transition-opacity duration-200 bg-black/40',
           isAnimating ? 'opacity-100' : 'opacity-0'
         )}
         onClick={onClose}
@@ -101,32 +99,21 @@ export const Modal: React.FC<ModalProps> = ({
             'relative w-full flex flex-col',
             size === 'full' ? 'max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3rem)]' : 'max-h-[85vh]',
             // 背景和边框
-            'bg-white/95 dark:bg-[#1a1a24]/95',
-            'backdrop-blur-xl',
-            'border border-white/20 dark:border-white/10',
+            'bg-background-secondary border border-border-primary',
             // 圆角 + 裁剪滚动条
-            'rounded-3xl overflow-hidden',
+            'rounded-2xl overflow-hidden',
             // 阴影 - 多层次
             'shadow-[0_0_0_1px_rgba(0,0,0,0.03),0_2px_4px_rgba(0,0,0,0.05),0_12px_24px_rgba(0,0,0,0.09)]',
             'dark:shadow-[0_0_0_1px_rgba(255,255,255,0.05),0_2px_4px_rgba(0,0,0,0.2),0_12px_24px_rgba(0,0,0,0.4)]',
             // 动画
-            'transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]',
+            'transition-[opacity,transform] duration-200 ease-out motion-reduce:transform-none',
             isAnimating
               ? 'opacity-100 scale-100 translate-y-0'
-              : 'opacity-0 scale-[0.96] translate-y-3',
+              : 'opacity-0 scale-[0.99] translate-y-1',
             sizes[size]
           )}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* 顶部光晕效果 */}
-          <div className="absolute -top-px left-8 right-8 h-px bg-gradient-to-r from-transparent via-banana-400/50 to-transparent" />
-
-          {/* 内部光晕 */}
-          <div className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none">
-            <div className="absolute -top-32 -left-32 w-64 h-64 bg-banana-400/10 dark:bg-banana-400/5 rounded-full blur-3xl" />
-            <div className="absolute -bottom-32 -right-32 w-64 h-64 bg-banana-300/10 dark:bg-banana-300/5 rounded-full blur-3xl" />
-          </div>
-
           {/* 标题栏 */}
           {title && (
             <div className="relative flex-shrink-0 px-7 pt-7 pb-5">
@@ -191,8 +178,6 @@ export const Modal: React.FC<ModalProps> = ({
             {children}
           </div>
 
-          {/* 底部边框光晕 */}
-          <div className="absolute -bottom-px left-8 right-8 h-px bg-gradient-to-r from-transparent via-white/20 dark:via-white/10 to-transparent" />
         </div>
       </div>
     </div>,

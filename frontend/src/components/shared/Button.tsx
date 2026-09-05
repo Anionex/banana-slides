@@ -18,18 +18,18 @@ export const Button: React.FC<ButtonProps> = ({
   disabled,
   ...props
 }) => {
-  const baseStyles = 'inline-flex items-center justify-center font-semibold rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-banana-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation';
+  const baseStyles = 'studio-button inline-flex items-center justify-center font-medium rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-banana focus-visible:ring-offset-2 focus-visible:ring-offset-background-primary disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation';
 
   const variants = {
-    primary: 'bg-gradient-to-r from-banana-500 to-banana-600 text-black hover:shadow-yellow hover:-translate-y-0.5 active:translate-y-0 shadow-md',
-    secondary: 'bg-white dark:bg-background-secondary border border-banana-500 text-black dark:text-foreground-primary hover:bg-banana-50 dark:hover:bg-background-hover',
-    ghost: 'bg-transparent text-gray-700 dark:text-foreground-secondary hover:bg-gray-100 dark:hover:bg-background-secondary',
+    primary: 'bg-banana text-[#262720] hover:bg-banana-light border border-transparent',
+    secondary: 'bg-background-secondary border border-border-primary text-foreground-primary hover:bg-background-hover hover:border-border-hover',
+    ghost: 'bg-transparent text-foreground-secondary hover:bg-background-hover hover:text-foreground-primary',
   };
   
   const sizes = {
     sm: 'h-8 px-3 text-sm',
-    md: 'h-10 px-6 text-base',
-    lg: 'h-12 px-8 text-lg',
+    md: 'h-10 px-4 text-sm',
+    lg: 'h-12 px-6 text-base',
   };
 
   return (
@@ -41,6 +41,7 @@ export const Button: React.FC<ButtonProps> = ({
         className
       )}
       disabled={disabled || loading}
+      aria-busy={loading || undefined}
       {...props}
     >
       {loading && (
@@ -72,4 +73,3 @@ export const Button: React.FC<ButtonProps> = ({
     </button>
   );
 };
-

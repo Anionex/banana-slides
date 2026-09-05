@@ -227,15 +227,18 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
 
         <div>
           <h4 className="text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">{t('template.presetTemplates')}</h4>
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {presetTemplates.map((template) => (
-              <div
+              <button
                 key={template.id}
+                type="button"
+                aria-label={t(template.nameKey)}
+                aria-pressed={selectedPresetTemplateId === template.id}
                 onClick={() => template.preview && handleSelectPresetTemplate(template.id, template.preview)}
-                className={`aspect-[4/3] rounded-lg border-2 cursor-pointer transition-all bg-gray-100 dark:bg-background-secondary flex items-center justify-center relative ${
+                className={`aspect-video overflow-hidden rounded-lg border cursor-pointer transition-colors duration-150 bg-background-tertiary flex items-center justify-center relative ${
                   selectedPresetTemplateId === template.id
-                    ? 'border-banana-500 ring-2 ring-banana-200'
-                    : 'border-gray-200 dark:border-border-primary hover:border-banana-500'
+                    ? 'border-banana ring-2 ring-banana'
+                    : 'border-border-primary hover:border-border-hover'
                 }`}
               >
                 {template.preview ? (
@@ -243,21 +246,19 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
                     <img
                       src={template.thumb || template.preview}
                       alt={t(template.nameKey)}
-                      className="absolute inset-0 w-full h-full object-cover"
+                      className="absolute inset-0 w-full h-full object-contain"
                     />
                     {selectedPresetTemplateId === template.id && (
-                      <div className="absolute inset-0 bg-banana-500 bg-opacity-20 flex items-center justify-center pointer-events-none">
-                        <span className="text-white font-semibold text-sm">{t('template.templateSelected')}</span>
-                      </div>
+                      <span className="absolute right-1 bottom-1 rounded px-2 py-1 bg-gray-900 text-white text-xs pointer-events-none">{t('template.templateSelected')}</span>
                     )}
                   </>
                 ) : (
                   <span className="text-sm text-gray-500 dark:text-foreground-tertiary">{t(template.nameKey)}</span>
                 )}
-              </div>
+              </button>
             ))}
 
-            <label className="aspect-[4/3] rounded-lg border-2 border-dashed border-gray-300 dark:border-border-primary hover:border-banana-500 cursor-pointer transition-all flex flex-col items-center justify-center gap-2 relative overflow-hidden">
+            <label className="aspect-video rounded-lg border border-dashed border-border-hover hover:bg-background-hover cursor-pointer transition-colors flex flex-col items-center justify-center gap-2 relative overflow-hidden">
               <span className="text-2xl">+</span>
               <span className="text-sm text-gray-500 dark:text-foreground-tertiary">{t('template.uploadTemplate')}</span>
               <input

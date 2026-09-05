@@ -23,7 +23,7 @@ const variantClass: Record<NonNullable<IconButtonProps['variant']>, string> = {
   default:
     'text-gray-500 hover:text-gray-800 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-100 dark:hover:bg-gray-700',
   primary:
-    'text-banana-600 hover:text-banana-700 hover:bg-banana-50 dark:text-banana-400 dark:hover:bg-banana-900/30',
+    'text-banana-600 hover:text-banana-700 hover:bg-banana-50 dark:text-banana-400 dark:hover:text-banana-300 dark:hover:bg-banana-900/30',
   danger:
     'text-gray-400 hover:text-red-600 hover:bg-red-50 dark:text-gray-500 dark:hover:text-red-400 dark:hover:bg-red-900/30',
 };

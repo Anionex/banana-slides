@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Home, Trash2, Sun, Moon, AlertTriangle, Inbox } from 'lucide-react';
-import logoUrl from '@/assets/logo.png';
+import { Brand } from '@/components/shared/Brand';
 import { Button, Loading, Card, Pagination, useToast, useConfirm } from '@/components/shared';
 import { ProjectCard } from '@/components/history/ProjectCard';
 import { useProjectStore } from '@/store/useProjectStore';
@@ -372,13 +372,12 @@ export const History: React.FC = () => {
   }, [handleSaveEdit, handleCancelEdit]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-banana-50 dark:from-background-primary via-white dark:via-background-primary to-gray-50 dark:to-background-primary">
+    <div className="studio-page min-h-screen">
       {/* 导航栏 */}
-      <nav className="h-14 md:h-16 bg-white dark:bg-background-secondary shadow-sm dark:shadow-background-primary/30 border-b border-gray-100 dark:border-border-primary">
+      <nav className="studio-nav h-14 md:h-16">
         <div className="max-w-7xl mx-auto px-3 md:px-4 h-full flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <img src={logoUrl} alt="" className="w-8 h-8 md:w-10 md:h-10 object-contain rounded-lg" />
-            <span className="text-lg md:text-xl font-bold text-gray-900 dark:text-foreground-primary">{t('home.title')}</span>
+            <Brand />
           </div>
           <div className="flex items-center gap-2 md:gap-4">
             <Button
@@ -413,7 +412,7 @@ export const History: React.FC = () => {
       </nav>
 
       {/* 主内容 */}
-      <main className="max-w-6xl mx-auto px-3 md:px-4 py-6 md:py-8">
+      <main className="studio-library-main">
         <div className="mb-6 md:mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-foreground-primary mb-1 md:mb-2">{t('history.title')}</h1>
