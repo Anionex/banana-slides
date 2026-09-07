@@ -1,6 +1,6 @@
 ---
 title: Public Demo
-description: Fixed partner configurations, isolated personal credentials, and PPT link sharing
+description: Fixed API providers, isolated personal credentials, and PPT link sharing
 ---
 
 The public demo uses the same creation interface as the main version, with simplified settings. Use your own API Key to try generation, editing, PPT renovation, and export.
@@ -8,17 +8,17 @@ The public demo uses the same creation interface as the main version, with simpl
 ## Configuration and Usage
 
 1. Open Settings and select Inferera, APIMart, or Volcengine Agent Plan.
-2. Enter and save your API Key for that partner. Keys are saved separately for each partner, so switching configurations never sends one partner's Key to another.
+2. Enter and save your API Key for that API provider. Keys are saved separately for each API provider, so switching configurations never sends one provider's Key to another.
 3. Return to the home page to create a presentation. If a missing Key redirects you to Settings, your text input will be restored when you return.
 4. When you first open each PPT's preview page, save the link shown in the dialog. You can also click “Share / Save Link” to copy it again later.
 
-| Partner | Text / Image Recognition Model | Image Generation Model |
+| API Provider | Text / Image Recognition Model | Image Generation Model |
 | --- | --- | --- |
 | Inferera | gemini-3-flash-preview | gemini-3-pro-image-preview |
 | APIMart | gpt-5.6-sol / gpt-5.6-luna | gpt-image-2 |
 | Volcengine Agent Plan | doubao-seed-2.1-turbo | doubao-seedream-5.0-lite |
 
-Models and API endpoints are fixed and cannot be changed. The Volcengine option only supports **Keys dedicated to an Agent Plan subscription**; regular pay-as-you-go ModelArk Keys are not supported. Service tests use your saved personal configuration and make real calls to the provider's API.
+Models and API endpoints are fixed and cannot be changed. The Volcengine option only supports **Keys dedicated to an Agent Plan subscription**; regular pay-as-you-go ModelArk Keys are not supported. Service tests use your saved personal configuration and make real calls to the provider's API. Tests for text, image recognition, image generation, MinerU, Baidu OCR, and Baidu image inpainting can run concurrently, each showing its own progress, result, and retry option, with a maximum wait of ten minutes. Save configuration changes before starting a new test; tests already running continue to use the configuration they started with.
 
 Before starting generation or renovation from the home page, a lightweight call to your personal text model verifies the Key. If verification fails, you are directed to Settings with your text draft preserved, and no project is created.
 
@@ -32,7 +32,7 @@ For document parsing, OCR, or video voiceovers, enter the corresponding MinerU, 
 - A shared link is the current PPT's preview URL and contains neither a visitor identifier nor an API Key. It opens the existing preview and editing pages, rather than creating a separate read-only copy.
 - **Save this link if you want to return to the PPT. If you lose the link, you will no longer be able to access this PPT.**
 
-The visitor identifier saved in your browser identifies your personal settings. If you clear browser data or switch browsers, you will need to enter your Keys again. Saving a PPT link and saving personal settings are separate actions. Resetting settings clears only the current visitor's configuration and partner Keys; it does not affect other visitors.
+The visitor identifier saved in your browser identifies your personal settings. If you clear browser data or switch browsers, you will need to enter your Keys again. Saving a PPT link and saving personal settings are separate actions. Resetting settings clears only the current visitor's configuration and API provider Keys; it does not affect other visitors.
 
 ## Self-Hosting the Public Version
 
@@ -63,8 +63,12 @@ The database contains personal service credentials. Restrict its file permission
 
 ## Verification
 
-`frontend/e2e/public-demo.spec.ts` covers saving real settings, reloading, switching partners, Key isolation, resetting, history blocking, sharing and copying, first-visit reminders, editing the description body and generation requirements, and handling public-mode loading failures.
+`frontend/e2e/public-demo.spec.ts` covers saving real settings, reloading, switching API providers, Key isolation, resetting, history blocking, sharing and copying, first-visit reminders, editing the description body and generation requirements, and handling public-mode loading failures.
 
-`scripts/verify-public-demo.py --partner apimart --flow` reads a Key from one line of standard input and performs real verification of text, image recognition, generation, and PPTX export. Add `--stream` to verify streaming outlines and descriptions; use `--image` to test the image service separately. For other partners, use `--partner inferera` or `--partner volcengine` with the appropriate type of Key.
+`frontend/e2e/public-settings-behavior.spec.ts` additionally covers saving and reloading all editable settings, switching between providers' Key drafts, running all six tests concurrently, independent failures and retries, timeout recovery, and stopping polling after leaving Settings.
+
+`scripts/verify-public-demo.py --partner apimart --flow` reads a Key from one line of standard input and performs real verification of text, image recognition, generation, and PPTX export. Add `--stream` to verify streaming outlines and descriptions; use `--image` to test the image service separately. For other API providers, use `--partner inferera` or `--partner volcengine` with the appropriate type of Key.
+
+`--browser-tests` calls the real text and image recognition services concurrently in the browser, checks that an independent failure due to missing OCR credentials does not block the other tests, and verifies that other visitors cannot read the results. This mode disables screenshots, video, and network tracing, and clears test credentials when it finishes.
 
 `--tools-project <测试项目ID>` requires a test project with generated images and reads a MinerU Token from the second line of standard input to verify PDF renovation and editable PPTX export. The script uses a temporary visitor and clears the saved test credentials when it finishes. Test projects are retained so you can inspect the results. Run it only in a verification environment; service calls consume provider usage.

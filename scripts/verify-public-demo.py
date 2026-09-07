@@ -20,11 +20,23 @@ def main():
     parser.add_argument('--image', action='store_true')
     parser.add_argument('--flow', action='store_true')
     parser.add_argument('--stream', action='store_true', help='Verify streaming outline and descriptions without image generation')
+    parser.add_argument('--browser-tests', action='store_true', help='Run real concurrent settings tests in a browser, with credential cleanup')
     parser.add_argument('--tools-project', help='Existing test project with an image; read MinerU token on stdin line 2 and verify renovation/editable export')
     args = parser.parse_args()
     key = sys.stdin.readline().strip()
     if not key:
         raise ValueError('Credential required on standard input')
+    if args.browser_tests:
+        import os
+        import subprocess
+        from pathlib import Path
+        env = dict(os.environ, CI='true', BASE_URL=args.base_url.replace(':5487', ':3487'),
+                   PUBLIC_DEMO_LIVE_KEY=key, PUBLIC_DEMO_LIVE_PROVIDER=args.partner)
+        result = subprocess.run(['npx', 'playwright', 'test', 'e2e/public-settings-live.spec.ts', '--reporter=list'],
+                                cwd=Path(__file__).resolve().parents[1] / 'frontend', env=env, timeout=210,
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        print(result.stdout.replace(key, '[REDACTED]'))
+        return result.returncode
     visitor = str(uuid.uuid4())
     mineru_token = sys.stdin.readline().strip() if args.tools_project else ''
     def call(path, data=None, method=None, token=visitor):

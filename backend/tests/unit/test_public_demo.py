@@ -32,6 +32,8 @@ def test_settings_isolation_switch_reset_and_locked_fields(public_app):
     assert client.get('/api/settings', headers=B).json['data']['api_key_length'] == 0
     response = client.get('/api/settings', headers=A)
     assert response.json['data']['api_key_length'] == 8
+    assert response.json['data']['provider_key_lengths'] == {'inferera': 0, 'apimart': 8, 'volcengine': 0}
+    assert client.get('/api/settings', headers=B).json['data']['provider_key_lengths'] == {'inferera': 0, 'apimart': 0, 'volcengine': 0}
     assert b'a-secret' not in response.data and b'server-secret' not in response.data
     assert client.put('/api/settings', headers=A, json={'partner': 'inferera'}).json['data']['api_key_length'] == 0
     assert client.put('/api/settings', headers=A, json={'partner': 'apimart'}).json['data']['api_key_length'] == 8
@@ -90,6 +92,20 @@ def test_invalid_settings_are_atomic(public_app):
     for body in ({'partner': 'unknown'}, {'api_key': ['secret']}, {'max_image_workers': 100}, {'enable_text_reasoning': 'yes'}, {'image_resolution': '16K'}):
         assert client.put('/api/settings', headers=A, json=body).status_code == 400
     assert client.get('/api/settings', headers=A).json['data']['partner'] == 'inferera'
+
+
+def test_public_settings_accept_main_ratios_and_budget_bounds(public_app):
+    client = public_app.test_client()
+    for ratio in ('16:9', '21:9', '4:3', '3:2', '5:4', '1:1', '4:5', '2:3', '3:4', '9:16'):
+        saved = client.put('/api/settings', headers=A, json={'image_aspect_ratio': ratio})
+        assert saved.status_code == 200
+        assert client.get('/api/settings', headers=A).json['data']['image_aspect_ratio'] == ratio
+    for field in ('text_thinking_budget', 'image_thinking_budget'):
+        for valid in (1, 8192):
+            assert client.put('/api/settings', headers=A, json={field: valid}).status_code == 200
+        for invalid in (0, 8193, True, '1024'):
+            assert client.put('/api/settings', headers=A, json={field: invalid}).status_code == 400
+        assert client.get('/api/settings', headers=A).json['data'][field] == 8192
 
 
 def test_service_test_results_and_baidu_credentials_are_private(public_app, monkeypatch):

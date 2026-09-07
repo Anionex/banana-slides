@@ -152,7 +152,8 @@ def as_settings():
 def settings_json():
     from models import Settings
     data = values()
-    data.pop('provider_keys', None)
+    keys = data.pop('provider_keys', {})
+    data['provider_key_lengths'] = {provider: len(keys.get(provider, '') or '') for provider in PROFILES}
     for field in ('api_key', *SECRET_FIELDS):
         data[field + '_length'] = len(data.pop(field, '') or '')
     data.update(description_extra_fields=list(Settings.DEFAULT_EXTRA_FIELDS),
@@ -221,11 +222,11 @@ def update_public_settings(row):
         return bad_request('公开版不允许修改模型、接口地址或描述生成字段配置。')
     config = dict(visitor()['config'])
     if 'partner' in data and (not isinstance(data['partner'], str) or data['partner'] not in PROFILES):
-        return bad_request('请选择有效的合作方')
-    enums = {'image_resolution': ('1K', '2K', '4K'), 'image_aspect_ratio': ('16:9', '4:3', '1:1'),
+        return bad_request('请选择有效的 API 提供商')
+    enums = {'image_resolution': ('1K', '2K', '4K'), 'image_aspect_ratio': ('16:9', '21:9', '4:3', '3:2', '5:4', '1:1', '4:5', '2:3', '3:4', '9:16'),
              'output_language': ('zh', 'en', 'ja', 'auto'), 'description_generation_mode': ('streaming', 'parallel')}
     ranges = {'max_description_workers': (1, 20), 'max_image_workers': (1, 20),
-              'text_thinking_budget': (0, 32768), 'image_thinking_budget': (0, 32768)}
+              'text_thinking_budget': (1, 8192), 'image_thinking_budget': (1, 8192)}
     for key, val in data.items():
         if key in enums and val not in enums[key]:
             return bad_request(f'{key} 值无效')

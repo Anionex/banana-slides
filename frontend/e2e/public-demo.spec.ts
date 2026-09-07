@@ -15,7 +15,7 @@ test.beforeEach(async ({ page }, testInfo) => {
 test('real settings: partners, locked models, persistence, isolation and reset', async ({ page, request }) => {
   await request.post(`${base}/api/settings/reset`, { headers: auth });
   await page.goto('/settings');
-  await page.getByLabel('合作方配置').selectOption('apimart');
+  await page.getByLabel('API 提供商').selectOption('apimart');
   await expect(page.getByLabel('文本模型', { exact: true })).toHaveValue('gpt-5.6-sol');
   await expect(page.getByLabel('文本模型', { exact: true })).toBeDisabled();
   await page.getByLabel('API Key', { exact: true }).fill('public-e2e-placeholder-key');
@@ -25,26 +25,26 @@ test('real settings: partners, locked models, persistence, isolation and reset',
   await page.getByRole('button', { name: '保存设置', exact: true }).click();
   await expect(page.getByText('设置保存成功')).toBeVisible();
   await page.reload();
-  await expect(page.getByLabel('合作方配置')).toHaveValue('apimart');
+  await expect(page.getByLabel('API 提供商')).toHaveValue('apimart');
   await expect(page.getByLabel('文本推理预算', { exact: true })).toHaveValue('2048');
   await expect(page.getByLabel('MinerU Token', { exact: true })).toHaveAttribute('placeholder', '已保存，留空保持不变');
   await expect(page.getByLabel('API Key', { exact: true })).toHaveAttribute('placeholder', '已保存，留空保持不变');
   const other = await request.get(`${base}/api/settings`, { headers: { 'X-User-Token': 'public-e2e-other-000000000000001' } });
   expect((await other.json()).data.api_key_length).toBe(0);
   for (const partner of ['inferera', 'volcengine']) {
-    await page.getByLabel('合作方配置').selectOption(partner);
+    await page.getByLabel('API 提供商').selectOption(partner);
     await page.getByRole('button', { name: '保存设置', exact: true }).click();
     await expect(page.getByText('设置保存成功')).toBeVisible();
     await page.reload();
-    await expect(page.getByLabel('合作方配置')).toHaveValue(partner);
-    await expect(page.getByLabel('API Key', { exact: true })).toHaveAttribute('placeholder', '输入该合作方的 API Key');
+    await expect(page.getByLabel('API 提供商')).toHaveValue(partner);
+    await expect(page.getByLabel('API Key', { exact: true })).toHaveAttribute('placeholder', '输入该 API 提供商的 API Key');
     await expect(page.getByLabel('图像生成模型', { exact: true })).toBeDisabled();
   }
   await page.getByRole('button', { name: '重置设置', exact: true }).click();
   await page.getByRole('button', { name: '确定', exact: true }).click();
   await expect(page.getByText('个人设置已重置')).toBeVisible();
   await page.reload();
-  await expect(page.getByLabel('合作方配置')).toHaveValue('inferera');
+  await expect(page.getByLabel('API 提供商')).toHaveValue('inferera');
   await expect(page.getByLabel('MinerU Token', { exact: true })).toHaveAttribute('placeholder', '输入 MinerU Token');
   await page.screenshot({ path: '../work/qa/public-settings.png', fullPage: true });
 });
@@ -104,7 +104,7 @@ test('real home: missing personal key keeps the draft and explains setup', async
   await page.getByRole('textbox').first().fill('验证缺少密钥时保留首页草稿');
   await page.getByRole('button', { name: '下一步', exact: true }).click();
   await expect(page).toHaveURL(base + '/settings');
-  await expect(page.getByText('请先选择合作方并填写你的 API Key。保存后返回首页继续，刚才的输入已保留。')).toBeVisible();
+  await expect(page.getByText('请先选择 API 提供商并填写你的 API Key。保存后返回首页继续，刚才的输入已保留。')).toBeVisible();
   await page.getByRole('button', { name: '返回首页', exact: true }).click();
   await expect(page.getByRole('textbox').first()).toContainText('验证缺少密钥时保留首页草稿');
 });
@@ -114,7 +114,7 @@ test('mock nonpublic mode keeps main history and full settings', async ({ page }
   await page.goto('/');
   await expect(page.getByRole('button', { name: /历史/ })).toBeVisible();
   await page.goto('/settings');
-  await expect(page.getByLabel('合作方配置')).toHaveCount(0);
+  await expect(page.getByLabel('API 提供商')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: '默认 API 配置', exact: true })).toBeVisible();
 });
 
@@ -152,8 +152,8 @@ test('mock bootstrap: failure is closed and retry restores settings', async ({ p
   });
   await page.goto('/settings');
   await expect(page.getByText('无法读取站点配置，请稍后重试。')).toBeVisible();
-  await expect(page.getByLabel('合作方配置')).toHaveCount(0);
+  await expect(page.getByLabel('API 提供商')).toHaveCount(0);
   unavailable = false;
   await page.getByRole('button', { name: '重试', exact: true }).click();
-  await expect(page.getByLabel('合作方配置')).toBeVisible();
+  await expect(page.getByLabel('API 提供商')).toBeVisible();
 });
