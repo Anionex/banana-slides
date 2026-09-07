@@ -52,6 +52,29 @@ export function PublicSettings() {
   useEffect(() => { void load(); }, []);
   const set = (key: string, value: string | number | boolean) => setData(prev => ({ ...prev, [key]: value }));
   const partner = publicPartners[String(data.partner)];
+  const copyProviderLink = async () => {
+    if (!partner?.signup) return;
+    try {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(partner.signup);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = partner.signup;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        try {
+          textarea.select();
+          if (!document.execCommand('copy')) throw new Error('Copy failed');
+        } finally {
+          textarea.remove();
+        }
+      }
+      show({ message: '链接已复制到剪贴板', type: 'success' });
+    } catch {
+      show({ message: '复制失败，请手动复制链接', type: 'error' });
+    }
+  };
   const keyLengths = saved.provider_key_lengths as Record<string, number> | undefined;
   const hasSavedKey = Number(keyLengths?.[String(data.partner)] ?? (data.partner === saved.partner ? saved.api_key_length : 0)) > 0;
   const dirty = editableFields.some(key => data[key] !== saved[key]) || secretFields.some(([key]) => Boolean(data[key]));
@@ -136,7 +159,17 @@ export function PublicSettings() {
           <label className="block text-sm space-y-2"><span>API Key</span><input type="password" autoComplete="new-password" className={inputClass} value={String(data.api_key || '')} onChange={e => set('api_key', e.target.value)} placeholder={hasSavedKey ? '已保存，留空保持不变' : '输入该 API 提供商的 API Key'} /></label>
           <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 p-3 text-sm space-y-2">
             <p className="font-medium">如何获取 API Key</p>
-            <ol className="list-decimal list-inside space-y-1"><li><a className="text-blue-600 underline" href={partner?.signup} target="_blank" rel="noopener noreferrer">前往 {partner?.name} 注册或登录</a></li><li>按平台说明充值或订阅对应服务</li><li>创建上方所需类型的 API Key，填入并保存</li></ol>
+            <ol className="list-decimal list-inside space-y-1">
+              <li>
+                前往 {partner?.name} 注册或登录：
+                <span className="inline-flex items-center gap-2">
+                  <a className="text-blue-600 hover:text-blue-800 underline font-medium" href={partner?.signup} target="_blank" rel="noopener noreferrer">点击此处访问 {partner?.name} →</a>
+                  <button type="button" onClick={() => void copyProviderLink()} className="text-xs px-2 py-0.5 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded transition-colors">复制链接</button>
+                </span>
+              </li>
+              <li>按平台说明充值或订阅对应服务</li>
+              <li>创建上方所需类型的 API Key，填入并保存</li>
+            </ol>
             <p className="text-xs flex items-center gap-1"><Lock size={12} />你的密钥仅用于你的请求，不会与其他访客共享。</p>
           </div>
         </section>
