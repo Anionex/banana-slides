@@ -1,12 +1,16 @@
 import { test, expect } from '@playwright/test';
 const token = 'public-e2e-visitor-00000000000001';
+const noKeyToken = 'public-e2e-no-key-000000000000000';
+const invalidKeyToken = 'public-e2e-invalid-key-000000000000';
 const base = process.env.BASE_URL || 'http://localhost:3487';
 const auth = { 'X-User-Token': token };
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ page }, testInfo) => {
+  const visitor = testInfo.title.startsWith('real home:') ? noKeyToken
+    : testInfo.title.startsWith('mock creation:') ? invalidKeyToken : token;
   await page.addInitScript(value => {
     localStorage.setItem('banana-slides-user-token', value);
     localStorage.setItem('hasSeenHelpModal', 'true');
-  }, token);
+  }, visitor);
 });
 test('real settings: partners, locked models, persistence, isolation and reset', async ({ page, request }) => {
   await request.post(`${base}/api/settings/reset`, { headers: auth });
@@ -96,7 +100,6 @@ test('real pages: no history, share URL, first preview reminder, fixed fields', 
 });
 
 test('real home: missing personal key keeps the draft and explains setup', async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem('banana-slides-user-token', 'public-e2e-no-key-000000000000000'));
   await page.goto('/');
   await page.getByRole('textbox').first().fill('验证缺少密钥时保留首页草稿');
   await page.getByRole('button', { name: '下一步', exact: true }).click();
@@ -116,8 +119,7 @@ test('mock nonpublic mode keeps main history and full settings', async ({ page }
 });
 
 test('mock creation: invalid saved key is verified before creating a project', async ({ page, request }) => {
-  const visitor = 'public-e2e-invalid-key-000000000000';
-  await page.addInitScript(value => localStorage.setItem('banana-slides-user-token', value), visitor);
+  const visitor = invalidKeyToken;
   await request.put(`${base}/api/settings`, { headers: { 'X-User-Token': visitor }, data: { partner: 'apimart', api_key: 'invalid-placeholder' } });
   let verified = false;
   let created = false;
