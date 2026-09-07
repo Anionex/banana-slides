@@ -1,12 +1,14 @@
 import uuid
 from datetime import datetime
 from . import db
+from .public_visitor import public_asset_owner
 
 
 class UserStyleTemplate(db.Model):
     __tablename__ = 'user_style_templates'
 
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    public_visitor_hash = db.Column(db.String(64), nullable=True, index=True, default=public_asset_owner)
     name = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, nullable=False)
     color = db.Column(db.String(20), nullable=True)

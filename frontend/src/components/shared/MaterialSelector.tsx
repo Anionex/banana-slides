@@ -3,6 +3,7 @@ import { ImageIcon, RefreshCw, Upload, Sparkles, X, Check } from 'lucide-react';
 import { Button, useToast, Modal } from '@/components/shared';
 import { useT } from '@/hooks/useT';
 import { listMaterials, uploadMaterial, listProjects, deleteMaterial, type Material } from '@/api/endpoints';
+import { isPublicDemo } from '@/utils/publicDemo';
 
 // MaterialSelector 组件自包含翻译
 const materialSelectorI18n = {
@@ -89,6 +90,11 @@ export const MaterialSelector: React.FC<MaterialSelectorProps> = ({
   }, [isOpen, filterProjectId, projectsLoaded]);
 
   const loadProjects = async () => {
+    if (isPublicDemo) {
+      setProjects([]);
+      setProjectsLoaded(true);
+      return;
+    }
     try {
       const response = await listProjects(100, 0);
       if (response.data?.projects) {

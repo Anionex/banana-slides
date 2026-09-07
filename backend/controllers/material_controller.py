@@ -4,6 +4,7 @@ Material Controller - handles standalone material image generation
 import json
 from flask import Blueprint, request, current_app, send_file
 from models import db, Project, Material, Task
+from models.public_visitor import public_asset_query
 from utils import success_response, error_response, not_found, bad_request
 from services import FileService
 from services.ai_service_manager import get_ai_service
@@ -169,7 +170,7 @@ def _generate_image_caption(filepath: str) -> str:
 
 def _build_material_query(filter_project_id: str):
     """Build common material query with project validation."""
-    query = Material.query
+    query = public_asset_query(Material)
 
     if filter_project_id == 'all':
         return query, None
@@ -739,7 +740,7 @@ def delete_material(material_id):
     DELETE /api/materials/{material_id} - Delete a material and its file
     """
     try:
-        material = Material.query.get(material_id)
+        material = public_asset_query(Material).filter_by(id=material_id).first()
         if not material:
             return not_found('Material')
 
@@ -796,7 +797,7 @@ def associate_materials_to_project():
 
         # Find materials by URLs and update their project_id
         updated_ids = []
-        materials_to_update = Material.query.filter(
+        materials_to_update = public_asset_query(Material).filter(
             Material.url.in_(material_urls),
             Material.project_id.is_(None)
         ).all()
@@ -829,7 +830,7 @@ def download_materials_zip():
     if len(ids) > MAX_BATCH:
         return bad_request(f"Too many materials requested (max {MAX_BATCH})")
 
-    rows = Material.query.filter(Material.id.in_(ids)).all()
+    rows = public_asset_query(Material).filter(Material.id.in_(ids)).all()
     if not rows:
         return not_found('Materials')
 
@@ -860,7 +861,7 @@ def download_materials_zip():
 @material_global_bp.route('/<material_id>/caption', methods=['GET'])
 def get_material_caption(material_id):
     """Get or generate caption for an existing material"""
-    material = Material.query.get(material_id)
+    material = public_asset_query(Material).filter_by(id=material_id).first()
     if not material:
         return not_found('Material')
 
@@ -888,7 +889,7 @@ def get_material_by_url():
     if not url:
         return bad_request('url parameter is required')
 
-    material = Material.query.filter_by(url=url).first()
+    material = public_asset_query(Material).filter_by(url=url).first()
     if not material:
         return not_found('Material')
 

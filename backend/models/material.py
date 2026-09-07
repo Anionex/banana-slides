@@ -4,6 +4,7 @@ Material model - stores material images
 import uuid
 from datetime import datetime
 from . import db
+from .public_visitor import public_asset_owner
 
 
 class Material(db.Model):
@@ -13,6 +14,7 @@ class Material(db.Model):
     __tablename__ = 'materials'
     
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    public_visitor_hash = db.Column(db.String(64), nullable=True, index=True, default=public_asset_owner)
     project_id = db.Column(db.String(36), db.ForeignKey('projects.id'), nullable=True)  # Can be null, for global materials not belonging to a project
     filename = db.Column(db.String(500), nullable=False)
     relative_path = db.Column(db.String(500), nullable=False)  # Path relative to the upload_folder
@@ -41,4 +43,3 @@ class Material(db.Model):
     
     def __repr__(self):
         return f'<Material {self.id}: {self.filename} (project={self.project_id or "None"})>'
-

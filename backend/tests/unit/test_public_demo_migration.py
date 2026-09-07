@@ -36,7 +36,8 @@ def test_legacy_copy_preserves_project_ids_and_separates_keys(tmp_path):
         assert conn.execute('SELECT count(*) FROM settings').fetchone()[0] == 0
         visitors = [json.loads(row[0]) for row in conn.execute('SELECT config_json FROM public_visitors')]
         assert {v['provider_keys']['inferera'] for v in visitors} == {'first-private-key', 'second-private-key'}
-        assert conn.execute('SELECT version_num FROM alembic_version').fetchone()[0] == 'public_demo_visitors'
+        from alembic.script import ScriptDirectory
+        assert conn.execute('SELECT version_num FROM alembic_version').fetchone()[0] == ScriptDirectory(str(ROOT / 'backend/migrations')).get_current_head()
         columns = {r[1] for r in conn.execute('PRAGMA table_info(settings)')}
         assert {'text_model_source', 'image_api_key', 'description_extra_fields'} <= columns
     with pytest.raises(ValueError, match='new file'):
