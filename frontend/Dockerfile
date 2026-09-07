@@ -34,7 +34,9 @@ RUN if [ -n "$NPM_REGISTRY" ]; then \
 COPY frontend/ ./
 
 # 构建应用
-RUN npm run build
+# Web deployments must resolve entry assets from the origin on nested routes.
+# Keep the default relative-base build for Electron's local file loading.
+RUN npm run build:web
 
 # 生产阶段
 # 如果指定了 DOCKER_REGISTRY，使用镜像源；否则使用官方源
