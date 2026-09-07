@@ -20,6 +20,8 @@ The public demo uses the same creation interface as the main version, with simpl
 
 Models and API endpoints are fixed and cannot be changed. The Volcengine option only supports **Keys dedicated to an Agent Plan subscription**; regular pay-as-you-go ModelArk Keys are not supported. Service tests use your saved personal configuration and make real calls to the provider's API.
 
+Before starting generation or renovation from the home page, a lightweight call to your personal text model verifies the Key. If verification fails, you are directed to Settings with your text draft preserved, and no project is created.
+
 For document parsing, OCR, or video voiceovers, enter the corresponding MinerU, Baidu OCR, or ElevenLabs credentials in your personal settings. The public version does not use fallback server credentials; without personal credentials, the corresponding service cannot complete its calls.
 
 ## Fields, History, and Sharing

@@ -58,6 +58,8 @@ def main():
         other = call('/api/settings', token=str(uuid.uuid4()))
         assert other['api_key_length'] == 0
         evidence['checks']['saved_key_isolation'] = 'passed'
+        assert call('/api/settings/verify', {})['available'], 'Creation key verification failed'
+        evidence['checks']['creation_key_verification'] = 'passed'
         evidence['checks']['text'] = task('text-model')
         evidence['checks']['caption'] = task('caption-model')
         if args.tools_project:

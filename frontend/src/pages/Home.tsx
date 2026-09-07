@@ -8,7 +8,7 @@ import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb,
 import { Button, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, MaterialSelector, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, HelpModal, Footer, GithubRepoCard, TextStyleSelector } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
-import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, createPptRenovationProject } from '@/api/endpoints';
+import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, createPptRenovationProject, verifyApiKey } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
 import { devLog } from '@/utils/logger';
 import { useTheme } from '@/hooks/useTheme';
@@ -234,6 +234,7 @@ export const Home: React.FC = () => {
   const [isAspectRatioOpen, setIsAspectRatioOpen] = useState(false);
   const [renovationFile, setRenovationFile] = useState<File | null>(null);
   const [keepLayout, setKeepLayout] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   const renovationFileInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const themeMenuRef = useRef<HTMLDivElement>(null);
@@ -617,6 +618,26 @@ export const Home: React.FC = () => {
 
     setIsSubmitting(true);
     try {
+      if (isPublicDemo) {
+        const settingsResponse = await apiClient.get('/api/settings');
+        if (!settingsResponse.data.data?.api_key_length) {
+          navigate('/settings', { state: { needsApiKey: true } });
+          return;
+        }
+        setIsVerifying(true);
+        try {
+          const verification = await verifyApiKey();
+          if (!verification.data?.available) {
+            navigate('/settings', { state: { apiVerificationFailed: true } });
+            return;
+          }
+        } catch {
+          navigate('/settings', { state: { apiVerificationFailed: true } });
+          return;
+        } finally {
+          setIsVerifying(false);
+        }
+      }
       // PPT 翻新模式：走独立的上传+异步解析流程
       if (activeTab === 'ppt_renovation' && renovationFile) {
         const styleDesc = templateStyle.trim() ? templateStyle.trim() : undefined;
@@ -648,13 +669,6 @@ export const Home: React.FC = () => {
       }
 
       // 如果有模板ID但没有File，按需加载
-      if (isPublicDemo) {
-        const settingsResponse = await apiClient.get('/api/settings');
-        if (!settingsResponse.data.data?.api_key_length) {
-          navigate('/settings', { state: { needsApiKey: true } });
-          return;
-        }
-      }
       let templateFile = selectedTemplate;
       if (!templateFile && (selectedTemplateId || selectedPresetTemplateId)) {
         const templateId = selectedTemplateId || selectedPresetTemplateId;
@@ -1180,7 +1194,7 @@ export const Home: React.FC = () => {
                 >
                   {referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
                     ? t('home.actions.parsing')
-                    : t('common.next')}
+                    : isVerifying ? t('home.messages.verifying') : t('common.next')}
                 </Button>
               }
             />

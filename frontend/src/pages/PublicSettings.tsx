@@ -82,6 +82,7 @@ export function PublicSettings() {
     </header>
     <main className="max-w-3xl mx-auto p-4 md:p-8 space-y-5">
       {location.state?.needsApiKey && <p role="status" className="rounded-lg bg-blue-50 dark:bg-blue-900/20 p-3 text-sm">请先选择合作方并填写你的 API Key。保存后返回首页继续，刚才的输入已保留。</p>}
+      {location.state?.apiVerificationFailed && <p role="alert" className="rounded-lg bg-amber-50 dark:bg-amber-900/20 p-3 text-sm">API Key 验证失败，请检查所选合作方、密钥及账户用量后重试。刚才的文字输入已保留。</p>}
       {loading ? <p role="status">正在加载个人设置…</p> : error ? <div role="alert">{error}<Button onClick={() => void load()}>重试</Button></div> : <>
         <section className={sectionClass} aria-label="API 配置">
           <h2 className="font-semibold">API 配置</h2>

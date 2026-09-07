@@ -114,6 +114,34 @@ test('mock nonpublic mode keeps main history and full settings', async ({ page }
   await expect(page.getByLabel('合作方配置')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: '默认 API 配置', exact: true })).toBeVisible();
 });
+
+test('mock creation: invalid saved key is verified before creating a project', async ({ page, request }) => {
+  const visitor = 'public-e2e-invalid-key-000000000000';
+  await page.addInitScript(value => localStorage.setItem('banana-slides-user-token', value), visitor);
+  await request.put(`${base}/api/settings`, { headers: { 'X-User-Token': visitor }, data: { partner: 'apimart', api_key: 'invalid-placeholder' } });
+  let verified = false;
+  let created = false;
+  await page.route(url => url.pathname === '/api/settings/verify', async route => {
+    expect(route.request().headers()['x-user-token']).toBe(visitor);
+    verified = true;
+    await route.fulfill({ json: { success: true, data: { available: false } } });
+  });
+  await page.route(url => url.pathname === '/api/projects', async route => {
+    if (route.request().method() === 'POST') created = true;
+    await route.continue();
+  });
+  try {
+    await page.goto('/');
+    await page.getByRole('textbox').first().fill('验证无效密钥不会创建项目');
+    await page.getByRole('button', { name: '下一步', exact: true }).click();
+    await expect(page).toHaveURL(base + '/settings');
+    await expect(page.getByRole('alert')).toContainText('API Key 验证失败');
+    expect(verified).toBeTruthy();
+    expect(created).toBeFalsy();
+  } finally {
+    await request.post(`${base}/api/settings/reset`, { headers: { 'X-User-Token': visitor } });
+  }
+});
 test('mock bootstrap: failure is closed and retry restores settings', async ({ page }) => {
   let unavailable = true;
   await page.route(url => url.pathname === '/api/public-config', async route => {
