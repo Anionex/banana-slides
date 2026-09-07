@@ -11,7 +11,8 @@ const providers = [
 ];
 
 test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ page }, testInfo) => {
+  test.skip(testInfo.config.workers > 1, 'Real system clipboard checks require --workers=1 across the entire run, including other spec files.');
   await page.addInitScript(token => localStorage.setItem('banana-slides-user-token', token), randomUUID());
 });
 
