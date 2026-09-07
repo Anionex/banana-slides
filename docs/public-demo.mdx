@@ -43,7 +43,13 @@ docker compose -f docker-compose.demo.yml build
 docker compose -f docker-compose.demo.yml up -d
 ```
 
-Do not combine it with the standard `docker-compose.yml`. This configuration enables `PUBLIC_DEMO=true`, defaults to host ports 3000 for the frontend and 5000 for the backend, and uses separate container and network names. `FRONTEND_PORT` / `BACKEND_PORT` in `.env` can override the host ports. You still need to prepare `.env` and the uploaded files directory as in a standard deployment. Read the next section before upgrading an existing database.
+Do not combine it with the standard `docker-compose.yml`. This configuration enables `PUBLIC_DEMO=true`, defaults to host ports 3000 for the frontend and 5000 for the backend, and uses separate container and network names. `FRONTEND_PORT` / `BACKEND_PORT` in `.env` can override the host ports. You still need to prepare `.env` and the uploaded files directory as in a standard deployment. Read the migration instructions below before upgrading an existing database.
+
+## Viewing History as the Site Owner
+
+Set `PUBLIC_DEMO_ADMIN_PASSWORD` to a long random password in the server's `.env`, restart the backend, then visit `/admin/history` and enter the password to view the paginated history list. With Docker Compose, run `docker compose -f docker-compose.demo.yml up -d --force-recreate backend` after changing `.env` to apply the configuration. Leaving the password empty disables this entry point.
+
+The entry point does not appear in the public navigation. The regular `/history` page and public history API remain disabled. The page is read-only: clicking a project opens its existing preview in a new tab, with no rename or delete actions. The password is held only in the current page's memory and checked by the backend on every list request. After signing out or refreshing, you must enter it again. It is never written to browser storage or included in the URL. Use HTTPS for publicly accessible deployments.
 
 ## Migrating the Legacy Sponsor Demo
 
@@ -64,6 +70,8 @@ The database contains personal service credentials. Restrict its file permission
 ## Verification
 
 `frontend/e2e/public-demo.spec.ts` covers saving real settings, reloading, switching API providers, Key isolation, resetting, history blocking, sharing and copying, first-visit reminders, editing the description body and generation requirements, and handling public-mode loading failures.
+
+`frontend/e2e/admin-history.spec.ts` covers real password validation, pagination, opening previews, signing out and refreshing, continued blocking of public APIs, and editing and selection behavior on the regular history page. When running the real tests, pass the `PUBLIC_DEMO_ADMIN_PASSWORD` from the verification backend's `.env` through an environment variable. This file disables screenshots, video, and network tracing to avoid recording the password.
 
 `frontend/e2e/public-settings-behavior.spec.ts` additionally covers saving and reloading all editable settings, switching between providers' Key drafts, running all six tests concurrently, independent failures and retries, timeout recovery, and stopping polling after leaving Settings.
 

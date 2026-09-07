@@ -48,7 +48,7 @@
 
 </div>
 
-The public demo provides fixed model configurations for Inferera, APIMart, and Volcengine Agent Plan, with API Keys isolated by visitor. The public version has no history list, so save the preview page link to return later. Extra description fields are fixed, while the description body and generation requirements remain editable. Service tests in Settings can run concurrently and show their results separately. See the [Public Demo Usage and Migration Guide](docs/public-demo.mdx).
+The public demo provides fixed model configurations for Inferera, APIMart, and Volcengine Agent Plan, with API Keys isolated by visitor. The public version has no history list, so save the preview page link to return later. Extra description fields are fixed, while the description body and generation requirements remain editable. Service tests in Settings can run concurrently and show their results separately. Site owners can set `PUBLIC_DEMO_ADMIN_PASSWORD` in `.env` and view history through the password-protected `/admin/history` entry point. See the [Public Demo Usage and Migration Guide](docs/public-demo.mdx).
 
 ## ❤️ Sponsor
 

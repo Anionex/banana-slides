@@ -4,6 +4,7 @@ No request writes Flask's shared config. Worker wrappers carry only plain data,
 never a Flask request context or a SQLAlchemy session.
 """
 import hashlib
+import hmac
 import json
 import re
 from concurrent.futures import ThreadPoolExecutor
@@ -169,6 +170,22 @@ def install(app):
     @app.route('/api/public-config')
     def public_config():
         return success_response({'enabled': enabled(), 'partners': PROFILES if enabled() else {}})
+
+    @app.route('/api/admin/history', methods=['POST'])
+    def admin_history():
+        from controllers.project_controller import list_projects
+        from flask import make_response
+        password = dict.get(app.config, 'PUBLIC_DEMO_ADMIN_PASSWORD', '')
+        if not enabled() or not password:
+            return error_response('NOT_FOUND', '入口未启用。', 404)
+        data = request.get_json(silent=True)
+        supplied = data.get('password') if isinstance(data, dict) else None
+        if not isinstance(supplied, str) or not hmac.compare_digest(supplied.encode(), password.encode()):
+            return error_response('UNAUTHORIZED', '管理员口令错误。', 401)
+        # Read-only, separate from the publicly blocked history endpoint.
+        response = make_response(list_projects())
+        response.headers['Cache-Control'] = 'no-store'
+        return response
 
     @app.before_request
     def public_policy():

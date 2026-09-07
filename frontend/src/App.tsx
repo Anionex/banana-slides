@@ -1,5 +1,6 @@
 import { isPublicDemo } from '@/utils/publicDemo';
 import { PublicSettings } from './pages/PublicSettings';
+import { AdminHistory } from './pages/AdminHistory';
 import { useEffect } from 'react';
 import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Home } from './pages/Home';
@@ -50,6 +51,7 @@ function App() {
                   <Route path="/" element={<Home />} />
                   <Route path="/landing" element={<Landing />} />
                   <Route path="/history" element={isPublicDemo ? <Navigate to="/" replace /> : <History />} />
+                  <Route path="/admin/history" element={isPublicDemo ? <AdminHistory /> : <Navigate to="/" replace />} />
                   <Route path="/settings" element={isPublicDemo ? <PublicSettings /> : <SettingsPage />} />
                   <Route path="/project/:projectId/outline" element={<OutlineEditor />} />
                   <Route path="/project/:projectId/detail" element={<DetailEditor />} />

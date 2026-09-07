@@ -43,7 +43,13 @@ docker compose -f docker-compose.demo.yml build
 docker compose -f docker-compose.demo.yml up -d
 ```
 
-不要与普通 `docker-compose.yml` 合并使用。此配置启用 `PUBLIC_DEMO=true`，默认主机端口为前端 3000、后端 5000，使用独立容器与网络名称；`.env` 的 `FRONTEND_PORT` / `BACKEND_PORT` 可以覆盖主机端口。仍需按普通部署准备 `.env` 和上传文件目录。已有数据库的升级请先阅读下一节。
+不要与普通 `docker-compose.yml` 合并使用。此配置启用 `PUBLIC_DEMO=true`，默认主机端口为前端 3000、后端 5000，使用独立容器与网络名称；`.env` 的 `FRONTEND_PORT` / `BACKEND_PORT` 可以覆盖主机端口。仍需按普通部署准备 `.env` 和上传文件目录。已有数据库的升级请先阅读下方迁移说明。
+
+## 站主查看历史
+
+在服务端 `.env` 设置 `PUBLIC_DEMO_ADMIN_PASSWORD` 为一个长随机口令，重启后端后访问 `/admin/history`，输入口令即可查看历史列表和分页。使用 Docker Compose 时，修改 `.env` 后执行 `docker compose -f docker-compose.demo.yml up -d --force-recreate backend` 使配置生效。留空则关闭入口。
+
+入口不出现在公开导航中，普通 `/history` 和公开历史接口仍关闭。页面只提供查看，点击项目会在新标签页打开现有预览，不提供改名或删除。口令只保留在当前页面内存中，每次读取列表都由后端校验；退出或刷新后需重新输入，不写入浏览器存储，也不放进 URL。对外部署应使用 HTTPS。
 
 ## 旧 sponsor Demo 的迁移
 
@@ -64,6 +70,8 @@ uv run python scripts/migrate-public-demo.py \
 ## 验证
 
 `frontend/e2e/public-demo.spec.ts` 覆盖真实设置保存、重载、API 提供商切换、密钥隔离、重置、历史拦截、分享与复制、首访提醒、正文和生成要求编辑，以及公开模式加载失败的处理。
+
+`frontend/e2e/admin-history.spec.ts` 覆盖真实口令校验、分页、预览打开、退出与刷新、公开接口继续拦截，以及普通历史页的编辑和选择行为。运行真实用例时，通过环境变量传入验收后端 `.env` 中的 `PUBLIC_DEMO_ADMIN_PASSWORD`；此文件关闭截图、视频和网络追踪，避免记录口令。
 
 `frontend/e2e/public-settings-behavior.spec.ts` 进一步覆盖全部可编辑设置的保存与重载、提供商密钥草稿切换、六项测试并发、独立失败与重试、超时恢复，以及离开设置页后停止轮询。
 

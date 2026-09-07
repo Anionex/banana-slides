@@ -134,3 +134,32 @@ def test_nonpublic_settings_keep_normal_routes(public_app):
     assert public_app.test_client().get('/api/public-config').json['data'] == {'enabled': False, 'partners': {}}
     with public_app.app_context():
         assert current_app.config['GOOGLE_API_KEY'] == 'server-secret'
+
+
+def test_admin_history_requires_env_password_and_does_not_unlock_public_routes(public_app):
+    from models import Project
+    client = public_app.test_client()
+    endpoint = '/api/admin/history'
+    assert client.post(endpoint, headers=A, json={'password': 'owner-password'}).status_code == 404
+    public_app.config['PUBLIC_DEMO_ADMIN_PASSWORD'] = 'owner-password-口令'
+    for payload in ({}, {'password': ''}, {'password': 'wrong'}, {'password': None}, {'password': ['invalid']}):
+        assert client.post(endpoint, headers=A, json=payload).status_code == 401
+    with public_app.app_context():
+        db.session.add_all([Project(idea_prompt=f'Admin history {i}') for i in range(3)])
+        db.session.commit()
+    response = client.post(endpoint + '?limit=2&offset=0', headers=A, json={'password': 'owner-password-口令'})
+    assert response.status_code == 200
+    assert response.headers['Cache-Control'] == 'no-store'
+    data = response.json['data']
+    assert data['total'] == 3 and len(data['projects']) == 2
+    second = client.post(endpoint + '?limit=2&offset=2', headers=A, json={'password': 'owner-password-口令'}).json['data']
+    assert len(second['projects']) == 1
+    assert second['projects'][0]['project_id'] not in [p['project_id'] for p in data['projects']]
+    assert b'owner-password' not in response.data and b'server-secret' not in response.data
+    assert client.get('/api/projects', headers=A).status_code == 403
+    assert client.delete('/api/projects/' + data['projects'][0]['project_id'], headers=A).status_code == 403
+    assert client.get('/api/settings', headers=A).json['data']['api_key_length'] == 0
+    public_app.config['PUBLIC_DEMO_ADMIN_PASSWORD'] = 'rotated'
+    assert client.post(endpoint, headers=A, json={'password': 'owner-password-口令'}).status_code == 401
+    public_app.config['PUBLIC_DEMO'] = False
+    assert client.post(endpoint, headers=A, json={'password': 'rotated'}).status_code == 404

@@ -68,6 +68,7 @@ def create_app():
     # Load configuration from Config class
     app.config.from_object(Config)
     app.config['PUBLIC_DEMO'] = os.getenv('PUBLIC_DEMO', '').lower() == 'true'
+    app.config['PUBLIC_DEMO_ADMIN_PASSWORD'] = os.getenv('PUBLIC_DEMO_ADMIN_PASSWORD', '')
 
     # Desktop DATABASE_PATH must win over any DATABASE_URL left in .env.
     db_path_env = os.environ.get('DATABASE_PATH')
