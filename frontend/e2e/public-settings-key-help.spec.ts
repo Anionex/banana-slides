@@ -1,6 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 
+// Real clipboard contents are shared across browser contexts and workers.
+test.describe.configure({ mode: 'serial' });
+
 const providers = [
   { id: 'inferera', name: 'Inferera', url: 'https://inferera.com/?aff=17EC' },
   { id: 'apimart', name: 'APIMart', url: 'https://go.apimart.ai/gh-banana-slides' },
