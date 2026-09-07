@@ -1,3 +1,4 @@
+import { isPublicDemo } from '@/utils/publicDemo';
 import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, FileText, Sparkles, Download, Upload, ChevronDown, Settings2, X, Plus, HelpCircle, ImageIcon, Layers } from 'lucide-react';
@@ -634,7 +635,7 @@ export const DetailEditor: React.FC = () => {
               size="sm"
               icon={<ArrowLeft size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={() => {
-                if (fromHistory) {
+                if (fromHistory && !isPublicDemo) {
                   navigate('/history');
                 } else {
                   navigate(`/project/${projectId}/outline`);
@@ -811,6 +812,7 @@ export const DetailEditor: React.FC = () => {
 
                   {/* 详细程度 — 暂时屏蔽，效果不够理想，始终使用默认值 */}
 
+                  {isPublicDemo ? <div data-testid="public-description-fields"><p className="text-xs text-gray-500 mb-2">公开版的描述生成字段由站点固定</p><div className="flex flex-wrap gap-2">{DEFAULT_EXTRA_FIELDS.map(name => <span className="rounded-full bg-gray-100 dark:bg-background-primary px-3 py-1 text-xs" key={name}>{name}</span>)}</div></div> : <>
                   {/* 额外字段 */}
                   <div>
                     <label className="flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-foreground-tertiary mb-1.5">
@@ -903,6 +905,8 @@ export const DetailEditor: React.FC = () => {
                       </button>
                     </div>
                   </div>
+
+                  </>}
 
                   {/* 生成要求 */}
                   <div className="border-t border-gray-100 dark:border-border-primary pt-3">

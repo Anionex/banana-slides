@@ -1,0 +1,68 @@
+---
+title: Public Demo
+description: Fixed partner configurations, isolated personal credentials, and PPT link sharing
+---
+
+The public demo uses the same creation interface as the main version, with simplified settings. Use your own API Key to try generation, editing, PPT renovation, and export.
+
+## Configuration and Usage
+
+1. Open Settings and select Inferera, APIMart, or Volcengine Agent Plan.
+2. Enter and save your API Key for that partner. Keys are saved separately for each partner, so switching configurations never sends one partner's Key to another.
+3. Return to the home page to create a presentation. If a missing Key redirects you to Settings, your text input will be restored when you return.
+4. When you first open each PPT's preview page, save the link shown in the dialog. You can also click “Share / Save Link” to copy it again later.
+
+| Partner | Text / Image Recognition Model | Image Generation Model |
+| --- | --- | --- |
+| Inferera | gemini-3-flash-preview | gemini-3-pro-image-preview |
+| APIMart | gpt-5.6-sol / gpt-5.6-luna | gpt-image-2 |
+| Volcengine Agent Plan | doubao-seed-2.1-turbo | doubao-seedream-5.0-lite |
+
+Models and API endpoints are fixed and cannot be changed. The Volcengine option only supports **Keys dedicated to an Agent Plan subscription**; regular pay-as-you-go ModelArk Keys are not supported. Service tests use your saved personal configuration and make real calls to the provider's API.
+
+For document parsing, OCR, or video voiceovers, enter the corresponding MinerU, Baidu OCR, or ElevenLabs credentials in your personal settings. The public version does not use fallback server credentials; without personal credentials, the corresponding service cannot complete its calls.
+
+## Fields, History, and Sharing
+
+- The extra description fields are fixed to “Images and Materials,” “Layout and Key Points,” and “Speaker Notes.” They cannot be added, removed, enabled, disabled, or reordered. Only the first two fields are passed to image generation.
+- You can still edit each page's description body, the contents of these fields, and the generation requirements.
+- The public version has no history list and does not support deleting projects. Direct requests to the history list API are also rejected.
+- A shared link is the current PPT's preview URL and contains neither a visitor identifier nor an API Key. It opens the existing preview and editing pages, rather than creating a separate read-only copy.
+- **Save this link if you want to return to the PPT. If you lose the link, you will no longer be able to access this PPT.**
+
+The visitor identifier saved in your browser identifies your personal settings. If you clear browser data or switch browsers, you will need to enter your Keys again. Saving a PPT link and saving personal settings are separate actions. Resetting settings clears only the current visitor's configuration and partner Keys; it does not affect other visitors.
+
+## Self-Hosting the Public Version
+
+Public mode is disabled by default in a standard deployment. The public version uses a separate configuration file:
+
+```bash
+docker compose -f docker-compose.demo.yml build
+docker compose -f docker-compose.demo.yml up -d
+```
+
+Do not combine it with the standard `docker-compose.yml`. This configuration enables `PUBLIC_DEMO=true`, defaults to host ports 3000 for the frontend and 5000 for the backend, and uses separate container and network names. `FRONTEND_PORT` / `BACKEND_PORT` in `.env` can override the host ports. You still need to prepare `.env` and the uploaded files directory as in a standard deployment. Read the next section before upgrading an existing database.
+
+## Migrating the Legacy Sponsor Demo
+
+The `013` / `014` migrations in the legacy sponsor database have different meanings from the main version's migrations with the same names. Do not run the main version's `alembic upgrade head` directly. Use the migration tool to copy the data into a **new file that does not exist yet**:
+
+```bash
+uv run python scripts/migrate-public-demo.py \
+  --source /backup/legacy-demo.db \
+  --destination /staging/current-demo.db
+```
+
+The tool reads the source database without modifying it, creates the complete current schema in a new file, and preserves projects, pages, file paths, and tasks. It converts legacy browser tokens into hashed identifiers, assigns legacy personal Keys to the Inferera configuration, and records the actual database migration version. It refuses to overwrite an existing destination file, checks row counts and SQLite integrity, and outputs JSON results containing no credentials.
+
+Rehearse with a copy before the production cutover. At the final cutover, pause writes to the old site, back up the database and uploads again, and migrate the final data. Place the destination file at `backend/instance/database.db` in the new version, retain the matching uploads, and start the new containers. Verify old PPT links, existing browsers' personal settings, and isolation for new visitors before restoring access. Retain the old container image, database, and uploads backup for rollback; do not give the new database to the old application. Rolling back to the old backup will not include data created after the cutover.
+
+The database contains personal service credentials. Restrict its file permissions, and do not commit it to Git, include it in an image, or share it as a verification attachment.
+
+## Verification
+
+`frontend/e2e/public-demo.spec.ts` covers saving real settings, reloading, switching partners, Key isolation, resetting, history blocking, sharing and copying, first-visit reminders, editing the description body and generation requirements, and handling public-mode loading failures.
+
+`scripts/verify-public-demo.py --partner apimart --flow` reads a Key from one line of standard input and performs real verification of text, image recognition, generation, and PPTX export. Add `--stream` to verify streaming outlines and descriptions; use `--image` to test the image service separately. For other partners, use `--partner inferera` or `--partner volcengine` with the appropriate type of Key.
+
+`--tools-project <测试项目ID>` requires a test project with generated images and reads a MinerU Token from the second line of standard input to verify PDF renovation and editable PPTX export. The script uses a temporary visitor and clears the saved test credentials when it finishes. Test projects are retained so you can inspect the results. Run it only in a verification environment; service calls consume provider usage.

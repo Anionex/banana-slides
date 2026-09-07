@@ -71,6 +71,12 @@ def temporary_settings_override(settings_override: dict):
     Yields:
         None
     """
+    from services.public_demo import enabled
+    if enabled():
+        # Saved public config is already carried into this worker. No global writes.
+        yield
+        return
+
     original_values = {}
 
     try:
@@ -845,7 +851,10 @@ def _get_test_image_path() -> Path:
 
 def _get_baidu_credentials():
     """获取百度 API 凭证"""
-    api_key = current_app.config.get("BAIDU_API_KEY") or Config.BAIDU_API_KEY
+    from services.public_demo import enabled
+    api_key = current_app.config.get("BAIDU_API_KEY")
+    if not api_key and not enabled():
+        api_key = Config.BAIDU_API_KEY
     if not api_key:
         raise ValueError("未配置 BAIDU_API_KEY")
     return api_key
@@ -1255,9 +1264,10 @@ def run_settings_test(test_name: str):
             logger.info(f"Applying test setting overrides: {list(override_settings.keys())}")
             test_settings.update(override_settings)
 
-        # 创建任务记录（使用特殊的 project_id='settings-test'）
+        from services.public_demo import enabled, settings_test_scope
+        # Public test results belong to the visitor who supplied the credential.
         task = Task(
-            project_id='settings-test',  # 特殊标记，表示这是设置测试任务
+            project_id=settings_test_scope() if enabled() else 'settings-test',
             task_type=f'TEST_{test_name.upper().replace("-", "_")}',
             status='PENDING'
         )
@@ -1308,7 +1318,8 @@ def get_test_status(task_id: str):
     """
     try:
         task = Task.query.get(task_id)
-        if not task:
+        from services.public_demo import enabled, settings_test_scope
+        if not task or (enabled() and task.project_id != settings_test_scope()):
             return error_response("TASK_NOT_FOUND", "测试任务不存在", 404)
 
         # 构建响应数据

@@ -48,6 +48,8 @@
 
 </div>
 
+The public demo provides fixed model configurations for Inferera, APIMart, and Volcengine Agent Plan, with API Keys isolated by visitor. The public version has no history list, so save the preview page link to return later. Extra description fields are fixed, while the description body and generation requirements remain editable. See the [Public Demo Usage and Migration Guide](docs/public-demo.mdx).
+
 ## ❤️ Sponsor
 
 > Want to sponsor this project? Please send an email to davidyang042@gmail.com.

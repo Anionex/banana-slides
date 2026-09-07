@@ -1,3 +1,5 @@
+import { isPublicDemo } from '@/utils/publicDemo';
+import { PublicShareNotice } from '@/components/shared/PublicShareNotice';
 // TODO: split components
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
@@ -2135,7 +2137,7 @@ export const SlidePreview: React.FC = () => {
               aria-label={t('common.back')}
               title={t('common.back')}
               onClick={() => {
-                if (fromHistory) {
+                if (fromHistory && !isPublicDemo) {
                   navigate('/history');
                 } else {
                   navigate(`/project/${projectId}/detail`);
@@ -2153,6 +2155,7 @@ export const SlidePreview: React.FC = () => {
             <span className="text-sm md:text-lg font-semibold truncate hidden sm:inline">{t('preview.title')}</span>
         </div>
         <div className="flex items-center gap-1 md:gap-3 flex-shrink-0">
+          {isPublicDemo && projectId && <PublicShareNotice projectId={projectId} />}
             <Button
               variant="ghost"
               size="sm"

@@ -1,3 +1,5 @@
+import { apiClient } from '@/api/client';
+import { isPublicDemo } from '@/utils/publicDemo';
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -200,9 +202,18 @@ export const Home: React.FC = () => {
   const { initializeProject, isGlobalLoading, switchTemplateMode } = useProjectStore();
   const { show, ToastContainer } = useToast();
 
-  const [activeTab, setActiveTab] = useState<CreationType>('idea');
+  const [activeTab, setActiveTab] = useState<CreationType>(() => {
+    if (!isPublicDemo) return 'idea';
+    try {
+      const tab = sessionStorage.getItem('home-draft-tab');
+      return tab === 'outline' || tab === 'description' ? tab : 'idea';
+    } catch { return 'idea'; }
+  });
   const [multiTemplateMode, setMultiTemplateMode] = useState(false);
-  const [content, setContent] = useState('');
+  const [content, setContent] = useState(() => {
+    try { return isPublicDemo ? sessionStorage.getItem('home-draft-content') || '' : ''; }
+    catch { return ''; }
+  });
   const [selectedTemplate, setSelectedTemplate] = useState<File | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [selectedPresetTemplateId, setSelectedPresetTemplateId] = useState<string | null>(null);
@@ -242,7 +253,7 @@ export const Home: React.FC = () => {
   // 检查是否有当前项目 & 加载用户模板
   useEffect(() => {
     const projectId = localStorage.getItem('currentProjectId');
-    setCurrentProjectId(projectId);
+    setCurrentProjectId(isPublicDemo ? null : projectId);
 
     // 加载用户模板列表（用于按需获取File）
     const loadTemplates = async () => {
@@ -637,6 +648,13 @@ export const Home: React.FC = () => {
       }
 
       // 如果有模板ID但没有File，按需加载
+      if (isPublicDemo) {
+        const settingsResponse = await apiClient.get('/api/settings');
+        if (!settingsResponse.data.data?.api_key_length) {
+          navigate('/settings', { state: { needsApiKey: true } });
+          return;
+        }
+      }
       let templateFile = selectedTemplate;
       if (!templateFile && (selectedTemplateId || selectedPresetTemplateId)) {
         const templateId = selectedTemplateId || selectedPresetTemplateId;
@@ -822,7 +840,7 @@ export const Home: React.FC = () => {
               className="sm:hidden hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200"
               title={t('nav.materialCenter')}
             />
-            <Button
+            {!isPublicDemo && (<Button
               variant="ghost"
               size="sm"
               onClick={() => navigate('/history')}
@@ -830,7 +848,7 @@ export const Home: React.FC = () => {
             >
               <span className="hidden sm:inline">{t('nav.history')}</span>
               <span className="sm:hidden">{t('nav.history')}</span>
-            </Button>
+            </Button>)}
             <Button
               variant="ghost"
               size="sm"

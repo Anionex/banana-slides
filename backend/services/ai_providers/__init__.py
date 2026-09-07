@@ -92,6 +92,11 @@ def _resolve_setting(key: str, fallback: Optional[str] = None) -> Optional[str]:
         2. OS environment variable
         3. *fallback* argument (may be ``None``)
     """
+    from services.public_demo import enabled
+    if enabled():
+        from flask import current_app
+        return current_app.config.get(key, fallback)
+
     # 1) Try Flask app.config
     try:
         from flask import current_app

@@ -1,0 +1,68 @@
+---
+title: 公开 Demo
+description: 固定合作方配置、个人密钥隔离与 PPT 链接分享
+---
+
+公开 Demo 使用与主线一致的创作界面，提供简化设置。它适合通过个人 API Key 体验生成、编辑、PPT 翻新和导出。
+
+## 配置与使用
+
+1. 打开设置页，选择 Inferera、APIMart 或火山 Agent Plan。
+2. 填写该合作方的 API Key 并保存。每个合作方的密钥分别保存，切换配置不会把上一家的 Key 发给下一家。
+3. 返回首页创作。若因缺少 Key 跳转到设置，返回后会恢复刚才的文字输入。
+4. 第一次进入每个 PPT 的预览页时，保存提示框中的链接。之后也可点击「分享 / 保存链接」重新复制。
+
+| 合作方 | 文本 / 图片识别模型 | 图像模型 |
+| --- | --- | --- |
+| Inferera | gemini-3-flash-preview | gemini-3-pro-image-preview |
+| APIMart | gpt-5.6-sol / gpt-5.6-luna | gpt-image-2 |
+| 火山 Agent Plan | doubao-seed-2.1-turbo | doubao-seedream-5.0-lite |
+
+模型与接口地址固定，不能自行修改。火山选项仅支持 **Agent Plan 订阅专属 Key**，普通方舟按量 Key 不适用。服务测试使用已保存的个人配置，会实际调用供应商接口。
+
+需要文档解析、OCR 或视频配音时，在个人设置中填写相应的 MinerU、百度 OCR 或 ElevenLabs 凭据。公开版不会使用服务器的备用密钥；缺少个人凭据时，相应服务不能完成调用。
+
+## 字段、历史与分享
+
+- 描述的额外字段固定为「配图与素材」「版式与重点」「演讲者备注」，不能增删、开关或排序。传入生图的字段固定为前两项。
+- 每页描述正文、这些字段的内容及生成要求仍可编辑。
+- 公开版不提供历史列表，也不支持删除项目。直接请求历史列表接口同样会被拒绝。
+- 分享链接就是当前 PPT 的预览地址，不包含访客标识或 API Key。它打开现有预览和编辑页面，并非另外创建的只读副本。
+- **如果想回来查看，请保存该链接后续访问。如果链接丢失，将无法再次访问此 PPT。**
+
+浏览器保存的访客标识用于识别个人设置；清除浏览器数据或换浏览器后需要重新填写 Key。保存 PPT 链接与保存个人设置是两件独立的事。重置设置只清空当前访客的配置与各合作方密钥，不影响其他访客。
+
+## 自行部署公开版
+
+普通部署默认关闭公开模式。公开版使用独立的配置文件：
+
+```bash
+docker compose -f docker-compose.demo.yml build
+docker compose -f docker-compose.demo.yml up -d
+```
+
+不要与普通 `docker-compose.yml` 合并使用。此配置启用 `PUBLIC_DEMO=true`，默认主机端口为前端 3000、后端 5000，使用独立容器与网络名称；`.env` 的 `FRONTEND_PORT` / `BACKEND_PORT` 可以覆盖主机端口。仍需按普通部署准备 `.env` 和上传文件目录。已有数据库的升级请先阅读下一节。
+
+## 旧 sponsor Demo 的迁移
+
+旧 sponsor 数据库中的 `013` / `014` 与主线同名迁移含义不同，不能直接执行主线的 `alembic upgrade head`。使用迁移工具把数据复制到一个**不存在的新文件**：
+
+```bash
+uv run python scripts/migrate-public-demo.py \
+  --source /backup/legacy-demo.db \
+  --destination /staging/current-demo.db
+```
+
+工具只读源数据库，在新文件创建当前完整表结构，保留项目、页面、文件路径及任务；旧浏览器 token 转为哈希标识，旧个人密钥归入 Inferera 配置，并记录实际数据库迁移版本。它拒绝覆盖既有目标文件，校验行数和 SQLite 完整性，输出不包含密钥的 JSON 结果。
+
+正式切换前先在副本演练。最终切换时暂停旧站写入，重新备份数据库与 uploads 并迁移最后一份数据；把目标文件放入新版 `backend/instance/database.db`，沿用配套 uploads，再启动新版容器。验证旧 PPT 链接、旧浏览器个人设置和新访客隔离后恢复访问。保留旧容器镜像、旧数据库与 uploads 备份用于回滚；不要将新数据库交回旧程序。回滚到旧备份不会包含切换后新产生的数据。
+
+数据库含个人服务凭据，应限制文件权限，不要提交到 Git、放进镜像或作为验收附件分享。
+
+## 验证
+
+`frontend/e2e/public-demo.spec.ts` 覆盖真实设置保存、重载、合作方切换、密钥隔离、重置、历史拦截、分享与复制、首访提醒、正文和生成要求编辑，以及公开模式加载失败的处理。
+
+`scripts/verify-public-demo.py --partner apimart --flow` 从标准输入读取一行 Key，真实验证文本、图片识别、生成及 PPTX 导出。加 `--stream` 验证流式大纲与描述；`--image` 单独测试图像服务。其他合作方可使用 `--partner inferera` 或 `--partner volcengine`，并提供对应类型的 Key。
+
+`--tools-project <测试项目ID>` 需要一个已生成图片的测试项目，并从标准输入第二行读取 MinerU Token，验证 PDF 翻新和可编辑 PPTX 导出。脚本使用临时访客，结束时清除保存的测试凭据；测试项目保留以便查看结果。请只在验收环境运行，服务调用会产生供应商用量。

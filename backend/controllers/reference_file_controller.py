@@ -371,7 +371,8 @@ def trigger_file_parse(file_id):
             return error_response('FILE_NOT_FOUND', f'File not found: {file_path}', 404)
         
         # 启动异步解析
-        thread = threading.Thread(
+        from services.public_demo import VisitorThread
+        thread = VisitorThread(
             target=_parse_file_async,
             args=(reference_file.id, str(file_path), reference_file.filename, current_app._get_current_object())
         )

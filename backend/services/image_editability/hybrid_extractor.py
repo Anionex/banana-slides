@@ -10,7 +10,8 @@
 """
 import logging
 from typing import Dict, Any, List, Optional, Tuple
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import as_completed
+from services.public_demo import VisitorThreadPoolExecutor as ThreadPoolExecutor
 from PIL import Image
 
 from .extractors import (
