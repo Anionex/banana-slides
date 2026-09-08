@@ -4,6 +4,7 @@ Template Controller - handles template-related endpoints
 import logging
 from flask import Blueprint, request, current_app
 from models import db, Project, UserTemplate, UserStyleTemplate
+from models.public_visitor import public_asset_query
 from utils import success_response, error_response, not_found, bad_request, allowed_file
 from services import FileService
 from datetime import datetime
@@ -188,7 +189,7 @@ def list_user_templates():
     GET /api/user-templates - Get list of user templates
     """
     try:
-        templates = UserTemplate.query.order_by(UserTemplate.created_at.desc()).all()
+        templates = public_asset_query(UserTemplate).order_by(UserTemplate.created_at.desc()).all()
         
         return success_response({
             'templates': [template.to_dict() for template in templates]
@@ -204,7 +205,7 @@ def delete_user_template(template_id):
     DELETE /api/user-templates/{template_id} - Delete user template
     """
     try:
-        template = UserTemplate.query.get(template_id)
+        template = public_asset_query(UserTemplate).filter_by(id=template_id).first()
         
         if not template:
             return not_found('UserTemplate')
@@ -256,7 +257,7 @@ def create_user_style_template():
 @user_style_template_bp.route('', methods=['GET'])
 def list_user_style_templates():
     try:
-        templates = UserStyleTemplate.query.order_by(UserStyleTemplate.created_at.desc()).all()
+        templates = public_asset_query(UserStyleTemplate).order_by(UserStyleTemplate.created_at.desc()).all()
         return success_response({
             'templates': [t.to_dict() for t in templates]
         })
@@ -267,7 +268,7 @@ def list_user_style_templates():
 @user_style_template_bp.route('/<template_id>', methods=['DELETE'])
 def delete_user_style_template(template_id):
     try:
-        template = UserStyleTemplate.query.get(template_id)
+        template = public_asset_query(UserStyleTemplate).filter_by(id=template_id).first()
         if not template:
             return not_found('UserStyleTemplate')
         db.session.delete(template)

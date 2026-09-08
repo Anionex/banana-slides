@@ -5,6 +5,7 @@ import os
 import logging
 import re
 import uuid
+from models.public_visitor import public_asset_query
 from flask import Blueprint, request, current_app
 from werkzeug.utils import secure_filename
 from pathlib import Path
@@ -50,7 +51,7 @@ def _parse_file_async(file_id: str, file_path: str, filename: str, app):
     """
     with app.app_context():
         try:
-            reference_file = ReferenceFile.query.get(file_id)
+            reference_file = public_asset_query(ReferenceFile).filter_by(id=file_id).first()
             if not reference_file:
                 logger.error(f"Reference file {file_id} not found")
                 return
@@ -121,7 +122,7 @@ def _parse_file_async(file_id: str, file_path: str, filename: str, app):
             logger.error(f"Error in async file parsing: {str(e)}", exc_info=True)
             db.session.rollback()
             try:
-                reference_file = ReferenceFile.query.get(file_id)
+                reference_file = public_asset_query(ReferenceFile).filter_by(id=file_id).first()
                 if reference_file:
                     reference_file.parse_status = 'failed'
                     reference_file.error_message = f"Parsing error: {str(e)}"
@@ -248,7 +249,7 @@ def get_reference_file(file_id):
         Reference file information including parse status
     """
     try:
-        reference_file = ReferenceFile.query.get(file_id)
+        reference_file = public_asset_query(ReferenceFile).filter_by(id=file_id).first()
         if not reference_file:
             return not_found('Reference file')
         
@@ -269,7 +270,7 @@ def delete_reference_file(file_id):
         Success message
     """
     try:
-        reference_file = ReferenceFile.query.get(file_id)
+        reference_file = public_asset_query(ReferenceFile).filter_by(id=file_id).first()
         if not reference_file:
             return not_found('Reference file')
         
@@ -312,17 +313,17 @@ def list_project_reference_files(project_id):
     try:
         # Special case: 'all' means list all files
         if project_id == 'all':
-            reference_files = ReferenceFile.query.all()
+            reference_files = public_asset_query(ReferenceFile).all()
         # Special case: 'global' or 'none' means list global files (not associated with any project)
         elif project_id in ['global', 'none']:
-            reference_files = ReferenceFile.query.filter_by(project_id=None).all()
+            reference_files = public_asset_query(ReferenceFile).filter_by(project_id=None).all()
         else:
             # Verify project exists
             project = Project.query.get(project_id)
             if not project:
                 return not_found('Project')
             
-            reference_files = ReferenceFile.query.filter_by(project_id=project_id).all()
+            reference_files = public_asset_query(ReferenceFile).filter_by(project_id=project_id).all()
         
         # 列表查询时不包含 markdown_content 和失败计数，加快响应速度
         return success_response({
@@ -343,7 +344,7 @@ def trigger_file_parse(file_id):
         Updated reference file information
     """
     try:
-        reference_file = ReferenceFile.query.get(file_id)
+        reference_file = public_asset_query(ReferenceFile).filter_by(id=file_id).first()
         if not reference_file:
             return not_found('Reference file')
         
@@ -405,7 +406,7 @@ def associate_file_to_project(file_id):
         Updated reference file information
     """
     try:
-        reference_file = ReferenceFile.query.get(file_id)
+        reference_file = public_asset_query(ReferenceFile).filter_by(id=file_id).first()
         if not reference_file:
             return not_found('Reference file')
         
@@ -468,7 +469,7 @@ def dissociate_file_from_project(file_id):
         Updated reference file information
     """
     try:
-        reference_file = ReferenceFile.query.get(file_id)
+        reference_file = public_asset_query(ReferenceFile).filter_by(id=file_id).first()
         if not reference_file:
             return not_found('Reference file')
         

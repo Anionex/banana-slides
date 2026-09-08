@@ -4,6 +4,7 @@ User Template model - stores user-uploaded templates
 import uuid
 from datetime import datetime
 from . import db
+from .public_visitor import public_asset_owner
 
 
 class UserTemplate(db.Model):
@@ -13,6 +14,7 @@ class UserTemplate(db.Model):
     __tablename__ = 'user_templates'
 
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    public_visitor_hash = db.Column(db.String(64), nullable=True, index=True, default=public_asset_owner)
     name = db.Column(db.String(200), nullable=True)  # Optional template name
     file_path = db.Column(db.String(500), nullable=False)
     thumb_path = db.Column(db.String(500), nullable=True)  # Thumbnail path for faster loading
@@ -39,4 +41,3 @@ class UserTemplate(db.Model):
 
     def __repr__(self):
         return f'<UserTemplate {self.id}: {self.name or "Unnamed"}>'
-

@@ -7,6 +7,7 @@ import { Modal } from './Modal';
 import { listMaterials, uploadMaterial, listProjects, deleteMaterial, downloadMaterialsZip, type Material } from '@/api/endpoints';
 import type { Project } from '@/types';
 import { getImageUrl } from '@/api/client';
+import { isPublicDemo } from '@/utils/publicDemo';
 
 // ---------------------------------------------------------------------------
 // i18n
@@ -407,6 +408,10 @@ export const MaterialCenterModal: React.FC<MaterialCenterModalProps> = ({ isOpen
   }, [s.filter, show, t]);
 
   const fetchProjects = useCallback(async () => {
+    if (isPublicDemo) {
+      dispatch({ type: 'SET_PROJECTS', list: [] });
+      return;
+    }
     try {
       const res = await listProjects(100, 0);
       if (res.data?.projects) dispatch({ type: 'SET_PROJECTS', list: res.data.projects });

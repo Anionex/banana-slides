@@ -25,6 +25,131 @@ A = {'X-User-Token': 'visitor-a-0000000000000000000000000'}
 B = {'X-User-Token': 'visitor-b-0000000000000000000000000'}
 
 
+def _register_asset_routes(app, tmp_path):
+    from controllers.material_controller import material_bp, material_global_bp
+    from controllers.template_controller import user_template_bp, user_style_template_bp
+    from controllers.reference_file_controller import reference_file_bp
+    app.config.update(UPLOAD_FOLDER=str(tmp_path / 'uploads'), ALLOWED_EXTENSIONS={'png'})
+    for blueprint in (material_bp, material_global_bp, user_template_bp, user_style_template_bp):
+        app.register_blueprint(blueprint)
+    app.register_blueprint(reference_file_bp, url_prefix='/api/reference-files')
+
+
+def _asset_png():
+    from io import BytesIO
+    from PIL import Image
+    stream = BytesIO()
+    Image.new('RGB', (32, 32), 'white').save(stream, format='PNG')
+    stream.seek(0)
+    return stream
+
+
+def test_public_asset_lists_and_deletes_are_visitor_scoped(public_app, tmp_path):
+    _register_asset_routes(public_app, tmp_path)
+    client = public_app.test_client()
+    uploaded = client.post('/api/materials/upload', headers=A, data={'file': (_asset_png(), 'asset.png')})
+    assert uploaded.status_code == 201
+    material = uploaded.json['data']
+    template_response = client.post('/api/user-templates', headers=A, data={'template_image': (_asset_png(), 'template.png')})
+    assert template_response.status_code == 200
+    template = template_response.json['data']
+    style_response = client.post('/api/user-style-templates', headers=A, json={'name': 'private style', 'description': 'private description'})
+    assert style_response.status_code == 200
+    style = style_response.json['data']
+    for route, field, item_id in (
+        ('/api/materials', 'materials', material['id']),
+        ('/api/user-templates', 'templates', template['template_id']),
+        ('/api/user-style-templates', 'templates', style['id']),
+    ):
+        assert len(client.get(route, headers=A).json['data'][field]) == 1
+        assert client.get(route, headers=B).json['data'][field] == []
+        assert client.delete(route + '/' + item_id, headers=B).status_code == 404
+        assert len(client.get(route, headers=A).json['data'][field]) == 1
+    assert client.get('/api/materials?project_id=all', headers=B).json['data']['materials'] == []
+    from models import Project
+    with public_app.app_context():
+        project = Project(creation_type='idea')
+        db.session.add(project)
+        db.session.commit()
+        project_id = project.id
+    association = {'project_id': project_id, 'material_urls': [material['url']]}
+    assert client.post('/api/materials/associate', headers=B, json=association).json['data']['count'] == 0
+    assert client.post('/api/materials/associate', headers=A, json=association).json['data']['count'] == 1
+    assert client.get('/api/projects/' + project_id + '/materials', headers=B).json['data']['materials'] == []
+    assert len(client.get('/api/projects/' + project_id + '/materials', headers=A).json['data']['materials']) == 1
+    assert client.get('/api/materials/' + material['id'] + '/caption', headers=B).status_code == 404
+    assert client.get('/api/materials/by-url', headers=B, query_string={'url': material['url']}).status_code == 404
+    assert client.post('/api/materials/download', headers=B, json={'material_ids': [material['id']]}).status_code == 404
+    assert client.post('/api/materials/download', headers=A, json={'material_ids': [material['id']]}).status_code == 200
+    for route, item_id in (('/api/materials', material['id']), ('/api/user-templates', template['template_id']), ('/api/user-style-templates', style['id'])):
+        assert client.delete(route + '/' + item_id, headers=A).status_code == 200
+
+
+def test_public_legacy_assets_stay_private_and_normal_mode_keeps_them(public_app, tmp_path):
+    from models import Material, UserTemplate, UserStyleTemplate
+    _register_asset_routes(public_app, tmp_path)
+    with public_app.app_context():
+        db.session.add_all([
+            Material(filename='legacy.png', relative_path='materials/legacy.png', url='/files/materials/legacy.png'),
+            UserTemplate(file_path='legacy/template.png'),
+            UserStyleTemplate(name='legacy', description='unattributed'),
+        ])
+        db.session.commit()
+    client = public_app.test_client()
+    for route, field in (('/api/materials', 'materials'), ('/api/user-templates', 'templates'), ('/api/user-style-templates', 'templates')):
+        assert client.get(route, headers=A).json['data'][field] == []
+    public_app.config['PUBLIC_DEMO'] = False
+    for route, field in (('/api/materials', 'materials'), ('/api/user-templates', 'templates'), ('/api/user-style-templates', 'templates')):
+        assert len(client.get(route).json['data'][field]) == 1
+
+
+def test_worker_created_material_inherits_visitor_owner(public_app, tmp_path):
+    from models import Material
+    _register_asset_routes(public_app, tmp_path)
+
+    @public_app.post('/api/worker-asset-test')
+    def create_in_worker():
+        def create():
+            row = Material(filename='worker.png', relative_path='materials/worker.png', url='/files/materials/worker.png')
+            db.session.add(row)
+            db.session.commit()
+            return row.id
+        with VisitorThreadPoolExecutor(max_workers=1) as pool:
+            return {'id': pool.submit(create).result(timeout=10)}
+
+    client = public_app.test_client()
+    assert client.post('/api/worker-asset-test', headers=A).status_code == 200
+    assert len(client.get('/api/materials', headers=A).json['data']['materials']) == 1
+    assert client.get('/api/materials', headers=B).json['data']['materials'] == []
+
+
+def test_reference_file_lists_content_and_mutations_are_private(public_app, tmp_path):
+    from io import BytesIO
+    from models import Project
+    _register_asset_routes(public_app, tmp_path)
+    client = public_app.test_client()
+    response = client.post('/api/reference-files/upload', headers=A, data={'file': (BytesIO(b'# private text'), 'private.md')})
+    assert response.status_code == 200
+    file_id = response.json['data']['file']['id']
+    with public_app.app_context():
+        project = Project(creation_type='idea')
+        db.session.add(project)
+        db.session.commit()
+        project_id = project.id
+    for scope in ('all', 'none', 'global'):
+        assert client.get('/api/reference-files/project/' + scope, headers=B).json['data']['files'] == []
+    base = '/api/reference-files/' + file_id
+    assert client.get(base, headers=B).status_code == 404
+    assert client.delete(base, headers=B).status_code == 404
+    for action in ('parse', 'associate', 'dissociate'):
+        assert client.post(base + '/' + action, headers=B, json={'project_id': project_id}).status_code == 404
+    assert client.get(base, headers=A).status_code == 200
+    assert client.post(base + '/associate', headers=A, json={'project_id': project_id}).status_code == 200
+    assert client.get('/api/reference-files/project/' + project_id, headers=B).json['data']['files'] == []
+    assert client.post(base + '/dissociate', headers=A).status_code == 200
+    assert client.delete(base, headers=A).status_code == 200
+
+
 def test_settings_isolation_switch_reset_and_locked_fields(public_app):
     client = public_app.test_client()
     assert client.get('/api/settings').status_code == 401

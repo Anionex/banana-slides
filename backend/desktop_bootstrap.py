@@ -72,20 +72,24 @@ def repair_desktop_settings_schema(db):
             'template_match_confidence': 'FLOAT',
         },
         'user_templates': {
+            'public_visitor_hash': 'VARCHAR(64)',
             'thumb_path': 'VARCHAR(500)',
             'file_size': 'INTEGER',
         },
         'materials': {
+            'public_visitor_hash': 'VARCHAR(64)',
             'caption': 'VARCHAR(500)',
             'original_filename': 'VARCHAR(500)',
         },
         'reference_files': {
+            'public_visitor_hash': 'VARCHAR(64)',
             'mineru_batch_id': 'VARCHAR(100)',
         },
         'tasks': {
             'completed_at': 'DATETIME',
         },
         'user_style_templates': {
+            'public_visitor_hash': 'VARCHAR(64)',
             'color': 'VARCHAR(20)',
         },
     }

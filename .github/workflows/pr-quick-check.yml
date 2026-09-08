@@ -94,7 +94,7 @@ jobs:
           done
           curl -fsS http://127.0.0.1:3488/health > /dev/null
           cd frontend
-          if ! npx playwright test e2e/web-build-deep-links.spec.ts --reporter=list; then
+          if ! npx playwright test e2e/web-build-deep-links.spec.ts e2e/public-assets.spec.ts --reporter=list; then
             cat /tmp/web-build-backend.log /tmp/web-build-preview.log
             exit 1
           fi

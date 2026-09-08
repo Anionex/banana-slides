@@ -9,6 +9,7 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 
+from models.public_visitor import public_asset_query
 from flask import Blueprint, request, jsonify, current_app, Response, stream_with_context
 from sqlalchemy import desc
 from utils.validators import normalize_aspect_ratio
@@ -70,7 +71,7 @@ def _get_project_reference_files_content(project_id: str) -> list:
     Returns:
         List of dicts with 'filename' and 'content' keys
     """
-    reference_files = ReferenceFile.query.filter_by(
+    reference_files = public_asset_query(ReferenceFile).filter_by(
         project_id=project_id,
         parse_status='completed'
     ).all()

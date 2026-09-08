@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { FileText, Upload, X, Loader2, CheckCircle2, XCircle, RefreshCw, ArrowUpDown, AlertTriangle, Lightbulb } from 'lucide-react';
 import { useT } from '@/hooks/useT';
+import { isPublicDemo } from '@/utils/publicDemo';
 import { Button, useToast, Modal } from '@/components/shared';
 
 // ReferenceFileSelector 组件自包含翻译
@@ -158,6 +159,10 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
   // Load projects list
   useEffect(() => {
     if (isOpen) {
+      if (isPublicDemo) {
+        setProjects([]);
+        return;
+      }
       listProjects().then(response => {
         if (response.data?.projects) {
           setProjects(response.data.projects);
@@ -708,4 +713,3 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
     </Modal>
   );
 });
-
