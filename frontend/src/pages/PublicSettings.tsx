@@ -1,6 +1,7 @@
+import { ProviderPill } from '@/components/settings/ProviderPill';
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, Lock } from 'lucide-react';
+import { Home, Key, Lock } from 'lucide-react';
 import { apiClient } from '@/api/client';
 import { publicPartners } from '@/utils/publicDemo';
 import { Button, useToast, useConfirm } from '@/components/shared';
@@ -21,7 +22,7 @@ const secretFields = [
   ['api_key', 'API Key'], ['mineru_token', 'MinerU Token'], ['baidu_api_key', '百度 OCR API Key'],
   ['elevenlabs_api_key', 'ElevenLabs API Key'],
 ];
-export function PublicSettings() {
+export function PublicSettings({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { show, ToastContainer } = useToast();
@@ -138,23 +139,39 @@ export function PublicSettings() {
     }
   };
   const inputClass = 'w-full rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-primary px-3 py-2 text-sm disabled:opacity-60';
-  const sectionClass = 'rounded-xl border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary p-5 space-y-4';
-  return <div className="min-h-screen bg-gray-50 dark:bg-background-primary text-gray-900 dark:text-foreground-primary">
-    <header className="border-b border-gray-200 dark:border-border-primary px-4 py-3 flex items-center gap-4 bg-white dark:bg-background-secondary">
+  const sectionClass = 'border-b border-gray-200 dark:border-border-primary pb-6 space-y-4';
+  const Content = embedded ? 'div' : 'main';
+  return <div className={`${embedded ? '' : 'min-h-screen bg-gray-50 dark:bg-background-primary'} text-gray-900 dark:text-foreground-primary`}>
+    {!embedded && <header className="border-b border-gray-200 dark:border-border-primary px-4 py-3 flex items-center gap-4 bg-white dark:bg-background-secondary">
       <Button variant="ghost" icon={<Home size={18} />} onClick={() => navigate('/')}>返回首页</Button><h1 className="font-semibold text-lg">设置</h1>
-    </header>
-    <main className="max-w-3xl mx-auto p-4 md:p-8 space-y-5">
-      {location.state?.needsApiKey && <p role="status" className="rounded-lg bg-blue-50 dark:bg-blue-900/20 p-3 text-sm">请先选择 API 提供商并填写你的 API Key。保存后返回首页继续，刚才的输入已保留。</p>}
-      {location.state?.apiVerificationFailed && <p role="alert" className="rounded-lg bg-amber-50 dark:bg-amber-900/20 p-3 text-sm">API Key 验证失败，请检查所选 API 提供商、密钥及账户用量后重试。刚才的文字输入已保留。</p>}
+    </header>}
+    <Content className={embedded ? 'space-y-6' : 'max-w-5xl mx-auto p-4 md:p-8 space-y-6 bg-white dark:bg-background-secondary'}>
+      {!embedded && location.state?.needsApiKey && <p role="status" className="rounded-lg bg-blue-50 dark:bg-blue-900/20 p-3 text-sm">请先选择 API 提供商并填写你的 API Key。保存后返回首页继续，刚才的输入已保留。</p>}
+      {!embedded && location.state?.apiVerificationFailed && <p role="alert" className="rounded-lg bg-amber-50 dark:bg-amber-900/20 p-3 text-sm">API Key 验证失败，请检查所选 API 提供商、密钥及账户用量后重试。刚才的文字输入已保留。</p>}
       {loading ? <p role="status">正在加载个人设置…</p> : error ? <div role="alert">{error}<Button onClick={() => void load()}>重试</Button></div> : <>
         <fieldset disabled={saving} className="min-w-0 space-y-5">
         <section className={sectionClass} aria-label="API 配置">
-          <h2 className="font-semibold">API 配置</h2>
-          <label className="block text-sm space-y-2"><span>API 提供商</span>
-            <select className={inputClass} value={String(data.partner)} onChange={e => selectProvider(e.target.value)}>
-              {Object.entries(publicPartners).map(([id, profile]) => <option key={id} value={id}>{profile.name}</option>)}
-            </select>
-          </label>
+          <h2 className="text-xl font-semibold flex items-center gap-2"><Key size={20} />API 配置</h2>
+          <p className="text-sm text-gray-500">选择适合你的 API 提供商，填写自己的 Key 后保存。</p>
+          <div>
+            <p className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">API 提供商</p>
+            <div role="radiogroup" aria-label="API 提供商" className="flex flex-wrap gap-2">
+              {['inferera', 'apimart', 'volcengine'].filter(id => publicPartners[id]).map(id => <ProviderPill
+                key={id} value={id} label={publicPartners[id].name} selected={data.partner === id}
+                hint={id === 'apimart' ? '仅需 $0.006/张' : id === 'volcengine' ? '国内直连' : undefined}
+                promotion={id === 'apimart' || id === 'volcengine' ? id : undefined}
+                onSelect={() => selectProvider(id)}
+              />)}
+            </div>
+          </div>
+          {data.partner === 'apimart' && <div className="rounded-lg border border-violet-200 bg-violet-50 p-3 text-sm dark:border-violet-900 dark:bg-violet-950/30" data-testid="public-provider-benefits">
+            <p className="font-medium">APIMart · 低价生图，按量付费</p>
+            <p className="mt-1 text-gray-600 dark:text-foreground-secondary">GPT-Image-2 低至 $0.006/张，无月费，适合批量出图或关注使用成本的场景。</p>
+          </div>}
+          {data.partner === 'volcengine' && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950/30" data-testid="public-provider-benefits">
+            <p className="font-medium">火山 Agent Plan · 国内直连，订阅使用</p>
+            <p className="mt-1 text-gray-600 dark:text-foreground-secondary">无需特殊网络环境，订阅也可用于日常使用和其他兼容工具。请使用 Agent Plan 订阅专属 Key。</p>
+          </div>}
           <p className="text-sm text-gray-500">{partner?.key_hint}。切换 API 提供商后使用各自保存的密钥。</p>
           <label className="block text-sm space-y-2"><span>API Key</span><input type="password" autoComplete="new-password" className={inputClass} value={String(data.api_key || '')} onChange={e => set('api_key', e.target.value)} placeholder={hasSavedKey ? '已保存，留空保持不变' : '输入该 API 提供商的 API Key'} /></label>
           <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 p-3 text-sm space-y-2">
@@ -211,6 +228,6 @@ export function PublicSettings() {
           })}</div>
         </section>
       </>}
-    </main><ToastContainer />{ConfirmDialog}
+    </Content><ToastContainer />{ConfirmDialog}
   </div>;
 }

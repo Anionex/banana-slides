@@ -1,7 +1,8 @@
+import { ProviderPill } from '@/components/settings/ProviderPill';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain, ArrowUp, ArrowUpRight, HelpCircle, Link2, ChevronDown, Volume2, Info, RefreshCw, CheckCircle, Lightbulb, Sparkles } from 'lucide-react';
+import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain, ArrowUp, ArrowUpRight, HelpCircle, Link2, ChevronDown, Volume2, Info, RefreshCw, CheckCircle, Lightbulb } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { appVersion } from '@/utils/appVersion';
 import { isDesktop } from '@/utils';
@@ -2216,42 +2217,18 @@ export const Settings: React.FC = () => {
 
                   return (
                     <div key={option.value} className="group relative">
-                      <button
-                        type="button"
-                        role="radio"
-                        aria-checked={isSelected}
-                        aria-describedby={hoverPlan ? `${hoverPlan.testId}-popover` : undefined}
+                      <ProviderPill
+                        value={option.value}
+                        label={option.label}
+                        selected={isSelected}
                         disabled={isDisabled}
-                        data-provider={option.value}
-                        onClick={() => selectGlobalProvider(option.value)}
-                        className={`inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-banana-500 focus:ring-offset-2 dark:focus:ring-offset-background-primary ${
-                          isSelected
-                            ? 'border-banana-500 bg-banana-400 font-medium text-gray-950 shadow-sm'
-                            : 'border-gray-200 bg-white text-gray-700 hover:border-banana-300 hover:bg-banana-50 dark:border-border-primary dark:bg-background-secondary dark:text-foreground-secondary dark:hover:border-banana-700 dark:hover:bg-banana-950/30'
-                        } disabled:cursor-not-allowed disabled:opacity-45`}
+                        hint={hint}
+                        promotion={hoverPlanKey}
+                        describedBy={hoverPlan ? `${hoverPlan.testId}-popover` : undefined}
+                        onSelect={() => selectGlobalProvider(option.value)}
                       >
-                        <span>{option.label}</span>
-                        {hoverPlan && (
-                          <span
-                            aria-hidden="true"
-                            className={`inline-flex h-4 w-4 items-center justify-center rounded-full ${
-                              hoverPlan.key === 'apimart'
-                                ? 'bg-violet-100 text-violet-600 dark:bg-violet-950/70 dark:text-violet-300'
-                                : 'bg-amber-100 text-amber-700 dark:bg-amber-950/70 dark:text-amber-300'
-                            }`}
-                          >
-                            <Sparkles size={10} className="animate-pulse" />
-                          </span>
-                        )}
-                        {hint && (
-                          <span className={`text-[11px] ${isSelected ? 'text-gray-800' : 'text-amber-700 dark:text-amber-300'}`}>
-                            {hint}
-                          </span>
-                        )}
-                        {isDisabled && (
-                          <span className="text-[11px]">{t('settings.openaiOAuth.disconnected')}</span>
-                        )}
-                      </button>
+                        {isDisabled && <span className="text-[11px]">{t('settings.openaiOAuth.disconnected')}</span>}
+                      </ProviderPill>
 
                       {hoverPlan && (
                         <div

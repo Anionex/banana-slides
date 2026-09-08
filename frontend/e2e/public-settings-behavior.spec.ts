@@ -1,3 +1,4 @@
+import { publicProvider } from './helpers/public-provider';
 import { test, expect } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 
@@ -9,12 +10,12 @@ test('all public settings round-trip, provider drafts stay separate, reset clear
   await page.addInitScript(token => localStorage.setItem('banana-slides-user-token', token), visitor);
   await page.goto('/settings');
   await expect(page.getByText(/合作方|合作关系/)).toHaveCount(0);
-  await page.getByRole('combobox', { name: 'API 提供商', exact: true }).selectOption('apimart');
+  await publicProvider(page, 'apimart').click();
   await page.getByLabel('API Key', { exact: true }).fill('apimart-draft-placeholder');
-  await page.getByRole('combobox', { name: 'API 提供商', exact: true }).selectOption('volcengine');
+  await publicProvider(page, 'volcengine').click();
   await expect(page.getByLabel('API Key', { exact: true })).toHaveValue('');
   await page.getByLabel('API Key', { exact: true }).fill('volcengine-draft-placeholder');
-  await page.getByRole('combobox', { name: 'API 提供商', exact: true }).selectOption('apimart');
+  await publicProvider(page, 'apimart').click();
   await expect(page.getByLabel('API Key', { exact: true })).toHaveValue('apimart-draft-placeholder');
   const values: Record<string, string | number | boolean> = {
     image_resolution: '4K', image_aspect_ratio: '9:16', output_language: 'en', description_generation_mode: 'parallel',
@@ -45,8 +46,8 @@ test('all public settings round-trip, provider drafts stay separate, reset clear
   for (const field of ['mineru_token_length', 'baidu_api_key_length', 'elevenlabs_api_key_length']) expect(saved[field]).toBe(21);
   await expect(page.getByRole('combobox', { name: '默认图像比例', exact: true })).toHaveValue('9:16');
   await expect(page.getByLabel('图像推理预算', { exact: true })).toHaveValue('4096');
-  await page.getByRole('combobox', { name: 'API 提供商', exact: true }).selectOption('inferera');
-  await page.getByRole('combobox', { name: 'API 提供商', exact: true }).selectOption('apimart');
+  await publicProvider(page, 'inferera').click();
+  await publicProvider(page, 'apimart').click();
   await expect(page.getByLabel('API Key', { exact: true })).toHaveAttribute('placeholder', '已保存，留空保持不变');
   await page.getByRole('button', { name: '重置设置', exact: true }).click();
   await page.getByRole('button', { name: '确定', exact: true }).click();

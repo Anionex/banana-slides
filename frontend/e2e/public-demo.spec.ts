@@ -1,3 +1,4 @@
+import { publicProvider } from './helpers/public-provider';
 import { test, expect } from '@playwright/test';
 const token = 'public-e2e-visitor-00000000000001';
 const noKeyToken = 'public-e2e-no-key-000000000000000';
@@ -15,7 +16,7 @@ test.beforeEach(async ({ page }, testInfo) => {
 test('real settings: partners, locked models, persistence, isolation and reset', async ({ page, request }) => {
   await request.post(`${base}/api/settings/reset`, { headers: auth });
   await page.goto('/settings');
-  await page.getByLabel('API 提供商').selectOption('apimart');
+  await publicProvider(page, 'apimart').click();
   await expect(page.getByLabel('文本模型', { exact: true })).toHaveValue('gpt-5.6-sol');
   await expect(page.getByLabel('文本模型', { exact: true })).toBeDisabled();
   await page.getByLabel('API Key', { exact: true }).fill('public-e2e-placeholder-key');
@@ -25,18 +26,18 @@ test('real settings: partners, locked models, persistence, isolation and reset',
   await page.getByRole('button', { name: '保存设置', exact: true }).click();
   await expect(page.getByText('设置保存成功')).toBeVisible();
   await page.reload();
-  await expect(page.getByLabel('API 提供商')).toHaveValue('apimart');
+  await expect(publicProvider(page, 'apimart')).toHaveAttribute('aria-checked', 'true');
   await expect(page.getByLabel('文本推理预算', { exact: true })).toHaveValue('2048');
   await expect(page.getByLabel('MinerU Token', { exact: true })).toHaveAttribute('placeholder', '已保存，留空保持不变');
   await expect(page.getByLabel('API Key', { exact: true })).toHaveAttribute('placeholder', '已保存，留空保持不变');
   const other = await request.get(`${base}/api/settings`, { headers: { 'X-User-Token': 'public-e2e-other-000000000000001' } });
   expect((await other.json()).data.api_key_length).toBe(0);
   for (const partner of ['inferera', 'volcengine']) {
-    await page.getByLabel('API 提供商').selectOption(partner);
+    await publicProvider(page, partner).click();
     await page.getByRole('button', { name: '保存设置', exact: true }).click();
     await expect(page.getByText('设置保存成功')).toBeVisible();
     await page.reload();
-    await expect(page.getByLabel('API 提供商')).toHaveValue(partner);
+    await expect(publicProvider(page, partner)).toHaveAttribute('aria-checked', 'true');
     await expect(page.getByLabel('API Key', { exact: true })).toHaveAttribute('placeholder', '输入该 API 提供商的 API Key');
     await expect(page.getByLabel('图像生成模型', { exact: true })).toBeDisabled();
   }
@@ -44,7 +45,7 @@ test('real settings: partners, locked models, persistence, isolation and reset',
   await page.getByRole('button', { name: '确定', exact: true }).click();
   await expect(page.getByText('个人设置已重置')).toBeVisible();
   await page.reload();
-  await expect(page.getByLabel('API 提供商')).toHaveValue('inferera');
+  await expect(publicProvider(page, 'inferera')).toHaveAttribute('aria-checked', 'true');
   await expect(page.getByLabel('MinerU Token', { exact: true })).toHaveAttribute('placeholder', '输入 MinerU Token');
   await page.screenshot({ path: '../work/qa/public-settings.png', fullPage: true });
 });

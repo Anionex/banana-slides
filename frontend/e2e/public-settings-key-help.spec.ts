@@ -1,3 +1,4 @@
+import { publicProvider } from './helpers/public-provider';
 import { test, expect } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 
@@ -19,13 +20,12 @@ test.beforeEach(async ({ page }, testInfo) => {
 for (const provider of providers) {
   test(`${provider.name}: real settings save/reload, help link and clipboard`, async ({ page }) => {
     await page.goto('/settings');
-    const select = page.getByRole('combobox', { name: 'API 提供商', exact: true });
     try {
-      await select.selectOption(provider.id);
+      await publicProvider(page, provider.id).click();
       await page.getByRole('button', { name: '保存设置', exact: true }).click();
       await expect(page.getByText('设置保存成功')).toBeVisible();
       await page.reload();
-      await expect(select).toHaveValue(provider.id);
+      await expect(publicProvider(page, provider.id)).toHaveAttribute('aria-checked', 'true');
       const step = page.locator('ol > li').first();
       await expect(step).toContainText(`前往 ${provider.name} 注册或登录`);
       await expect(step.getByRole('link')).toBeVisible();
@@ -44,7 +44,7 @@ for (const provider of providers) {
 
   test(`${provider.name}: hiding the link preserves instructions and copy action`, async ({ page }) => {
     await page.goto('/settings');
-    await page.getByRole('combobox', { name: 'API 提供商', exact: true }).selectOption(provider.id);
+    await publicProvider(page, provider.id).click();
     // Reproduce the reported appearance without claiming an extension caused it.
     await page.addStyleTag({ content: 'ol a { display: none !important; }' });
     const step = page.locator('ol > li').first();
@@ -67,7 +67,7 @@ test('clipboard rejection shows an error instead of success', async ({ page }) =
 test('legacy clipboard fallback copies the selected provider URL', async ({ page }) => {
   await page.addInitScript(() => Object.defineProperty(navigator, 'clipboard', { value: undefined }));
   await page.goto('/settings');
-  await page.getByRole('combobox', { name: 'API 提供商', exact: true }).selectOption('apimart');
+  await publicProvider(page, 'apimart').click();
   await page.getByRole('button', { name: '复制链接', exact: true }).click();
   await expect(page.getByText('链接已复制到剪贴板', { exact: true })).toBeVisible();
   const reader = await page.context().newPage();
