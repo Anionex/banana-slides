@@ -276,7 +276,7 @@ export function PublicSettings({ embedded = false }: { embedded?: boolean }) {
       activeTests.current.delete(name);
     }
   };
-  const field = (config: SettingsFieldConfig, disabled = false) => (
+  const field = (config: SettingsFieldConfig) => (
     <SettingsField
       key={config.key}
       field={config}
@@ -288,7 +288,6 @@ export function PublicSettings({ embedded = false }: { embedded?: boolean }) {
           ? "已保存，留空保持不变"
           : config.placeholder
       }
-      isDisabled={disabled}
       onChange={(value) => set(config.key, value)}
     />
   );
@@ -371,6 +370,7 @@ export function PublicSettings({ embedded = false }: { embedded?: boolean }) {
                       API 提供商
                     </p>
                     <SettingsProviderPicker
+                      dismissPromotionOnSelect
                       label="API 提供商"
                       selectedGlobalProvider={providerId}
                       selectGlobalProvider={selectProvider}
@@ -399,16 +399,6 @@ export function PublicSettings({ embedded = false }: { embedded?: boolean }) {
                     </p>
                   </div>
                   <div className="space-y-3 pl-3 border-l-2 border-banana-300 dark:border-banana-600">
-                    <Input
-                      label="API Base URL"
-                      aria-label="API Base URL"
-                      value={partner?.base || ""}
-                      readOnly
-                      disabled
-                    />
-                    <p className="-mt-2 text-sm text-gray-500 dark:text-foreground-tertiary">
-                      接口地址随 API 提供商固定，无需修改。
-                    </p>
                     <div>
                       <Input
                         label="API Key"
@@ -461,54 +451,10 @@ export function PublicSettings({ embedded = false }: { embedded?: boolean }) {
                   你的密钥仅用于你的请求，不会与其他访客共享。
                 </p>
               </SettingsSection>
-              <SettingsSection title="模型配置" icon={<FileText size={20} />}>
-                {[
-                  ["文本模型", partner?.text, "textModelDesc"],
-                  ["图像生成模型", partner?.image, "imageModelDesc"],
-                  ["图像描述模型", partner?.caption, "imageCaptionModelDesc"],
-                ].map(([label, value, hint]) => (
-                  <div
-                    key={label}
-                    className="pb-6 border-b border-gray-200 dark:border-border-primary last:border-b-0 last:pb-0 space-y-3"
-                  >
-                    <Input
-                      label={label}
-                      aria-label={label}
-                      value={value || ""}
-                      disabled
-                      readOnly
-                    />
-                    <p className="-mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">
-                      {description(hint || "")}
-                    </p>
-                    <SettingsField
-                      t={t}
-                      field={{
-                        key: label + "-provider",
-                        label: label + "提供商",
-                        type: "text",
-                      }}
-                      value={partner?.name || ""}
-                      isDisabled
-                      onChange={() => {}}
-                    />
-                    <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">
-                      模型按所选 API 提供商固定。
-                    </p>
-                  </div>
-                ))}
-              </SettingsSection>
               <SettingsSection
                 title={t("settings.sections.mineruConfig")}
                 icon={<FileText size={20} />}
               >
-                <Input
-                  label="MinerU API Base URL"
-                  aria-label="MinerU API Base URL"
-                  value="https://mineru.net"
-                  disabled
-                  readOnly
-                />
                 {field({
                   key: "mineru_token",
                   label: "MinerU Token",
@@ -649,17 +595,15 @@ export function PublicSettings({ embedded = false }: { embedded?: boolean }) {
                     type: "switch",
                     description: description("enableTextReasoningDesc"),
                   })}
-                  {field(
-                    {
+                  {Boolean(data.enable_text_reasoning) &&
+                    field({
                       key: "text_thinking_budget",
                       label: "文本推理预算",
                       type: "number",
                       min: 1,
                       max: 8192,
                       description: description("textThinkingBudgetDesc"),
-                    },
-                    !data.enable_text_reasoning,
-                  )}
+                    })}
                 </SettingsSection>
                 <SettingsSection
                   title={t("settings.sections.imageReasoning")}
@@ -671,17 +615,15 @@ export function PublicSettings({ embedded = false }: { embedded?: boolean }) {
                     type: "switch",
                     description: description("enableImageReasoningDesc"),
                   })}
-                  {field(
-                    {
+                  {Boolean(data.enable_image_reasoning) &&
+                    field({
                       key: "image_thinking_budget",
                       label: "图像推理预算",
                       type: "number",
                       min: 1,
                       max: 8192,
                       description: description("imageThinkingBudgetDesc"),
-                    },
-                    !data.enable_image_reasoning,
-                  )}
+                    })}
                 </SettingsSection>
               </SettingsAdvanced>
             </fieldset>

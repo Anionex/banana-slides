@@ -17,8 +17,7 @@ test('real settings: partners, locked models, persistence, isolation and reset',
   await request.post(`${base}/api/settings/reset`, { headers: auth });
   await page.goto('/settings');
   await publicProvider(page, 'apimart').click();
-  await expect(page.getByLabel('文本模型', { exact: true })).toHaveValue('gpt-5.6-sol');
-  await expect(page.getByLabel('文本模型', { exact: true })).toBeDisabled();
+  await expect(page.getByLabel('文本模型', { exact: true })).toHaveCount(0);
   await page.getByLabel('API Key', { exact: true }).fill('public-e2e-placeholder-key');
   await page.getByRole('button', { name: '高级设置', exact: true }).click();
   await page.getByRole('switch', { name: '文本推理模式', exact: true }).check();
@@ -41,7 +40,7 @@ test('real settings: partners, locked models, persistence, isolation and reset',
     await page.reload();
     await expect(publicProvider(page, partner)).toHaveAttribute('aria-checked', 'true');
     await expect(page.getByLabel('API Key', { exact: true })).toHaveAttribute('placeholder', '输入该 API 提供商的 API Key');
-    await expect(page.getByLabel('图像生成模型', { exact: true })).toBeDisabled();
+    await expect(page.getByLabel('图像生成模型', { exact: true })).toHaveCount(0);
   }
   await page.getByRole('button', { name: '重置设置', exact: true }).click();
   await page.getByRole('button', { name: '确定', exact: true }).click();

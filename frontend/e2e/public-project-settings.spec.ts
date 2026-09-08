@@ -2,6 +2,15 @@ import { publicProvider } from './helpers/public-provider';
 import { test, expect, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 
+async function expectFixedSettingsHidden(page: Page) {
+  for (const label of ['API Base URL', 'MinerU API Base URL', '文本模型', '图像生成模型', '图像描述模型', '文本模型提供商', '图像生成模型提供商', '图像描述模型提供商']) {
+    await expect(page.getByLabel(label, { exact: true })).toHaveCount(0);
+  }
+  await expect(page.getByRole('heading', { name: '模型配置', exact: true })).toHaveCount(0);
+  await expect(page.getByLabel('API Key', { exact: true })).toBeEditable();
+  await expect(page.getByLabel('MinerU Token', { exact: true })).toBeEditable();
+}
+
 async function openSettings(page: Page, projectId: string) {
   await page.goto(`/project/${projectId}/preview`);
   await page.getByRole('button', { name: '项目设置', exact: true }).waitFor();
@@ -47,11 +56,9 @@ for (const partner of ['inferera', 'apimart', 'volcengine']) {
     await expect(page.getByRole('heading', { name: '个人设置', exact: true })).toBeVisible();
     await expect(page.getByText('这些设置仅应用于你的请求，其他访客不受影响。')).toBeVisible();
     await expect(page.getByRole('button', { name: '返回首页', exact: true })).toHaveCount(0);
-    await expect(page.getByLabel('API Base URL', { exact: true })).toBeDisabled();
+    await expectFixedSettingsHidden(page);
     await publicProvider(page, partner).click();
-    for (const label of ['文本模型', '图像生成模型', '图像描述模型']) {
-      await expect(page.getByLabel(label, { exact: true })).toBeDisabled();
-    }
+    await expectFixedSettingsHidden(page);
     const key = page.getByLabel('API Key', { exact: true });
     await key.fill('integration-only-modal-key');
     await page.getByRole('combobox', { name: '图像清晰度', exact: true }).selectOption('4K');
@@ -70,6 +77,7 @@ for (const partner of ['inferera', 'apimart', 'volcengine']) {
       await expect(guestPage.getByRole('combobox', { name: '图像清晰度', exact: true })).toHaveValue('2K');
     } finally { await guest.close(); }
     await page.goto('/settings');
+    await expectFixedSettingsHidden(page);
     await expect(publicProvider(page, partner)).toHaveAttribute('aria-checked', 'true');
     await expect(key).toHaveAttribute('placeholder', '已保存，留空保持不变');
     await expect(page.getByRole('button', { name: '返回首页', exact: true })).toBeVisible();
@@ -124,7 +132,9 @@ for (const width of [1440, 390]) {
     for (const provider of ['inferera', 'apimart', 'volcengine']) {
       await publicProvider(page, provider).click();
       await expect(publicProvider(page, provider)).toHaveAttribute('aria-checked', 'true');
+      await expectFixedSettingsHidden(page);
       if (provider !== 'inferera') {
+        await page.getByRole('heading', { name: '个人设置', exact: true }).hover();
         await publicProvider(page, provider).hover();
         await expect(page.getByTestId(`provider-plan-${provider}`)).toContainText(provider === 'apimart' ? '按量付费' : '国内直连');
       }
@@ -188,8 +198,13 @@ test('modal presentation matches full settings fields and provider details', asy
   await expect(promo).toHaveCSS('opacity', '1');
   await expect(promo).toContainText('1 美元可生成 160+ 张图片');
   await promo.getByRole('button').click();
+  await expect(promo).toHaveCount(0);
+  await publicProvider(page, 'apimart').focus();
+  await expect(promo).toBeVisible();
+  await publicProvider(page, 'apimart').press('Enter');
+  await expect(promo).toHaveCount(0);
   await expect(publicProvider(page, 'apimart')).toHaveAttribute('aria-checked', 'true');
-  await expect(page.getByLabel('API Base URL', { exact: true })).toHaveValue('https://api.apimart.ai/v1');
+  await expectFixedSettingsHidden(page);
   await page.getByRole('heading', { name: '个人设置', exact: true }).click();
   await page.screenshot({ path: test.info().outputPath('personal-modal.png'), animations: 'disabled' });
 

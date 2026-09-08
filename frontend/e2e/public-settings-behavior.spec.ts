@@ -18,6 +18,8 @@ test('all public settings round-trip, provider drafts stay separate, reset clear
   await publicProvider(page, 'apimart').click();
   await expect(page.getByLabel('API Key', { exact: true })).toHaveValue('apimart-draft-placeholder');
   await page.getByRole('button', { name: '高级设置', exact: true }).click();
+  await expect(page.getByLabel('文本推理预算', { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel('图像推理预算', { exact: true })).toHaveCount(0);
   await page.getByTestId('setting-output_language').locator('[data-value=en]').click();
   const values: Record<string, string | number | boolean> = {
     image_resolution: '4K', image_aspect_ratio: '9:16', output_language: 'en', description_generation_mode: 'parallel',
@@ -31,6 +33,12 @@ test('all public settings round-trip, provider drafts stay separate, reset clear
   for (const label of ['文本推理模式', '图像推理模式', '图像质量检查', '启用 ElevenLabs 视频配音']) await page.getByRole('switch', { name: label, exact: true }).check();
   for (const [label, value] of [['描述生成最大并发数', '3'], ['图像生成最大并发数', '2'], ['文本推理预算', '2048'], ['图像推理预算', '4096'], ['ElevenLabs Voice ID', 'voice-test']]) {
     await page.getByLabel(label, { exact: true }).fill(value);
+  }
+  for (const [mode, budget, value] of [['文本推理模式', '文本推理预算', '2048'], ['图像推理模式', '图像推理预算', '4096']]) {
+    await page.getByRole('switch', { name: mode, exact: true }).uncheck();
+    await expect(page.getByLabel(budget, { exact: true })).toHaveCount(0);
+    await page.getByRole('switch', { name: mode, exact: true }).check();
+    await expect(page.getByLabel(budget, { exact: true })).toHaveValue(value);
   }
   for (const label of ['MinerU Token', '百度 OCR API Key', 'ElevenLabs API Key']) await page.getByLabel(label, { exact: true }).fill('auxiliary-placeholder');
   await page.getByRole('button', { name: '保存设置', exact: true }).click();
@@ -59,7 +67,7 @@ test('all public settings round-trip, provider drafts stay separate, reset clear
   await page.reload();
   await page.getByRole('button', { name: '高级设置', exact: true }).click();
   await expect(page.getByRole('switch', { name: '文本推理模式', exact: true })).not.toBeChecked();
-  await expect(page.getByLabel('文本推理预算', { exact: true })).toBeDisabled();
+  await expect(page.getByLabel('文本推理预算', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('combobox', { name: '默认图像比例', exact: true })).toHaveValue('16:9');
   const reset = (await (await request.get('/api/settings', { headers })).json()).data;
   expect(reset.provider_key_lengths).toEqual({ inferera: 0, apimart: 0, volcengine: 0 });
