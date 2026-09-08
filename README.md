@@ -48,7 +48,7 @@
 
 </div>
 
-公开 Demo 提供 Inferera、APIMart 和火山 Agent Plan 的固定模型配置，API Key 按访客隔离。公开版不提供历史记录，请保存预览页链接以便再次访问；描述额外字段配置固定，正文和生成要求仍可编辑。设置页的各项服务测试可同时运行，分别显示结果。首页设置页与预览页的「项目设置 → 个人设置」复用开源版的表单、供应商悬浮介绍和 Key 获取指引；两处保存的个人配置同步生效，固定接口与模型配置自动应用，不显示不可编辑字段。站主可在 `.env` 设置 `PUBLIC_DEMO_ADMIN_PASSWORD`，通过 `/admin/history` 口令入口查看历史。参见[公开 Demo 使用与迁移说明](docs/zh/public-demo.mdx)。
+公开 Demo 提供 Inferera、APIMart 和火山 Agent Plan 的固定模型配置，API Key 按访客隔离。公开版不提供历史记录，请保存预览页链接以便再次访问；描述额外字段配置固定，正文和生成要求仍可编辑。设置页的各项服务测试可同时运行，分别显示结果。站主可在 `.env` 设置 `PUBLIC_DEMO_ADMIN_PASSWORD`，通过 `/admin/history` 口令入口查看历史。参见[公开 Demo 使用与迁移说明](docs/zh/public-demo.mdx)。
 
 ## ❤️ 赞助
 
