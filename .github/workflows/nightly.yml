@@ -36,9 +36,9 @@ jobs:
         run: |
           chmod +x scripts/setup-env-from-secrets.sh
           ./scripts/setup-env-from-secrets.sh
-          sed -i 's/^AI_PROVIDER_FORMAT=.*/AI_PROVIDER_FORMAT=gemini/' .env || echo "AI_PROVIDER_FORMAT=gemini" >> .env
+          sed -i 's/^AI_PROVIDER_FORMAT=.*/AI_PROVIDER_FORMAT=openai/' .env || echo "AI_PROVIDER_FORMAT=openai" >> .env
         env:
-          AI_PROVIDER_FORMAT: gemini
+          AI_PROVIDER_FORMAT: openai
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           GOOGLE_API_BASE: ${{ secrets.GOOGLE_API_BASE }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -74,7 +74,12 @@ jobs:
           exit 1
 
       - name: Start services
-        run: docker compose up -d
+        run: |
+          # 全新 runner 上 uploads 目录不存在；先由 runner 创建并放开写权限，
+          # 否则 Docker 会以 root 创建 bind mount 根目录，seed-project 在宿主写图片时会报 EACCES。
+          mkdir -p uploads
+          chmod 777 uploads
+          docker compose up -d
 
       - name: Wait for services
         run: |

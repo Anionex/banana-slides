@@ -6,7 +6,7 @@
  *   - Playwright: import { seedProjectWithImages } from './helpers/seed-project'
  *   - CLI:        npx tsx frontend/e2e/helpers/seed-project.ts [PAGE_COUNT]
  */
-import { execSync } from 'child_process'
+import { execFileSync, execSync } from 'child_process'
 import * as fs from 'fs'
 import * as path from 'path'
 
@@ -18,6 +18,26 @@ const UPLOADS = path.join(PROJECT_ROOT, 'uploads')
 const FIXTURES = path.join(FRONTEND_DIR, 'e2e', 'fixtures')
 
 function sql(query: string) {
+  // E2E 通常跑在 docker compose 环境：宿主直接写容器 bind mount 的 SQLite 文件会与
+  // 容器内后端并发争锁，出现 disk I/O error。优先在容器内执行；非容器环境回退宿主 sqlite3。
+  try {
+    execFileSync(
+      'docker',
+      [
+        'exec',
+        '-e',
+        `SEED_SQL=${query}`,
+        'banana-slides-backend',
+        'python',
+        '-c',
+        'import os,sqlite3; c=sqlite3.connect("/app/backend/instance/database.db"); c.execute(os.environ["SEED_SQL"]); c.commit()',
+      ],
+      { stdio: 'pipe', timeout: 15000 }
+    )
+    return
+  } catch {
+    // 非 Docker 环境（本地 uv run 后端）没有容器，直接用宿主 sqlite3。
+  }
   execSync(`sqlite3 -cmd ".timeout 5000" "${DB_PATH}" "${query.replace(/"/g, '\\"')}"`)
 }
 
