@@ -1,233 +1,796 @@
-import { ProviderPill } from '@/components/settings/ProviderPill';
-import { useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, Key, Lock } from 'lucide-react';
-import { apiClient } from '@/api/client';
-import { publicPartners } from '@/utils/publicDemo';
-import { Button, useToast, useConfirm } from '@/components/shared';
-import { getSettings } from '@/api/endpoints';
+import { useT } from "@/hooks/useT";
+import { settingsI18n } from "@/components/settings/settingsI18n";
+import { SettingsPageFrame } from "@/components/settings/SettingsPageFrame";
+import { SettingsProviderPicker } from "@/components/settings/SettingsProviderPicker";
+import { SettingsApiGuidance } from "@/components/settings/SettingsApiGuidance";
+import {
+  SettingsField,
+  type SettingsFieldConfig,
+} from "@/components/settings/SettingsField";
+import {
+  SettingsSection,
+  SettingsAdvanced,
+  SettingsServiceRow,
+  SettingsActions,
+} from "@/components/settings/SettingsLayout";
+import { useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
+import {
+  Key,
+  Lock,
+  FileText,
+  Image,
+  Zap,
+  Globe,
+  Brain,
+  Volume2,
+  Save,
+  RotateCcw,
+  Lightbulb,
+} from "lucide-react";
+import { apiClient } from "@/api/client";
+import { publicPartners } from "@/utils/publicDemo";
+import { Button, Input, useToast, useConfirm } from "@/components/shared";
+import { getSettings } from "@/api/endpoints";
 
-import { ASPECT_RATIO_OPTIONS } from '@/config/aspectRatio';
+import { ASPECT_RATIO_OPTIONS } from "@/config/aspectRatio";
 
 type Data = Record<string, unknown>;
-type ServiceResult = { status: 'running' | 'success' | 'error'; provider: string; message: string; detail?: string };
+type ServiceResult = {
+  status: "running" | "success" | "error";
+  provider: string;
+  message: string;
+  detail?: string;
+};
 const services = [
-  ['text-model', '文本模型'], ['caption-model', '图片识别'], ['image-model', '图像生成'],
-  ['mineru-pdf', 'MinerU 解析'], ['baidu-ocr', '百度 OCR'], ['baidu-inpaint', '百度图像修复'],
+  ["text-model", "文本模型"],
+  ["caption-model", "图片识别"],
+  ["image-model", "图像生成"],
+  ["mineru-pdf", "MinerU 解析"],
+  ["baidu-ocr", "百度 OCR"],
+  ["baidu-inpaint", "百度图像修复"],
 ] as const;
-const editableFields = ['partner', 'image_resolution', 'image_aspect_ratio', 'max_description_workers', 'max_image_workers',
-  'output_language', 'description_generation_mode', 'enable_text_reasoning', 'text_thinking_budget',
-  'enable_image_reasoning', 'image_thinking_budget', 'enable_image_quality_control', 'elevenlabs_enabled', 'elevenlabs_voice_id'];
+const editableFields = [
+  "partner",
+  "image_resolution",
+  "image_aspect_ratio",
+  "max_description_workers",
+  "max_image_workers",
+  "output_language",
+  "description_generation_mode",
+  "enable_text_reasoning",
+  "text_thinking_budget",
+  "enable_image_reasoning",
+  "image_thinking_budget",
+  "enable_image_quality_control",
+  "elevenlabs_enabled",
+  "elevenlabs_voice_id",
+];
 const secretFields = [
-  ['api_key', 'API Key'], ['mineru_token', 'MinerU Token'], ['baidu_api_key', '百度 OCR API Key'],
-  ['elevenlabs_api_key', 'ElevenLabs API Key'],
+  ["api_key", "API Key"],
+  ["mineru_token", "MinerU Token"],
+  ["baidu_api_key", "百度 OCR API Key"],
+  ["elevenlabs_api_key", "ElevenLabs API Key"],
 ];
 export function PublicSettings({ embedded = false }: { embedded?: boolean }) {
-  const navigate = useNavigate();
   const location = useLocation();
+  const t = useT(settingsI18n);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const { show, ToastContainer } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
   const [data, setData] = useState<Data>({});
   const [saved, setSaved] = useState<Data>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [testResults, setTestResults] = useState<Record<string, ServiceResult>>({});
+  const [testResults, setTestResults] = useState<Record<string, ServiceResult>>(
+    {},
+  );
   const activeTests = useRef(new Map<string, AbortController>());
   const keyDrafts = useRef<Record<string, string>>({});
   useEffect(() => {
     const running = activeTests.current;
-    return () => { running.forEach(controller => controller.abort()); running.clear(); };
+    return () => {
+      running.forEach((controller) => controller.abort());
+      running.clear();
+    };
   }, []);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const apply = (next: Data) => {
     keyDrafts.current = {};
     setSaved(next);
-    setData({ ...next, ...Object.fromEntries(secretFields.map(([key]) => [key, ''])) });
+    setData({
+      ...next,
+      ...Object.fromEntries(secretFields.map(([key]) => [key, ""])),
+    });
   };
   const load = async () => {
-    setLoading(true); setError('');
-    try { const response = await getSettings(); apply(response.data as unknown as Data); }
-    catch { setError('设置加载失败，请重试。'); }
-    finally { setLoading(false); }
+    setLoading(true);
+    setError("");
+    try {
+      const response = await getSettings();
+      apply(response.data as unknown as Data);
+    } catch {
+      setError("设置加载失败，请重试。");
+    } finally {
+      setLoading(false);
+    }
   };
-  useEffect(() => { void load(); }, []);
-  const set = (key: string, value: string | number | boolean) => setData(prev => ({ ...prev, [key]: value }));
+  useEffect(() => {
+    void load();
+  }, []);
+  const set = (key: string, value: string | number | boolean) =>
+    setData((prev) => ({ ...prev, [key]: value }));
   const partner = publicPartners[String(data.partner)];
-  const copyProviderLink = async () => {
-    if (!partner?.signup) return;
+  const copyProviderLink = async (url = partner?.signup) => {
+    if (!url) return;
     try {
       if (navigator.clipboard) {
-        await navigator.clipboard.writeText(partner.signup);
+        await navigator.clipboard.writeText(url);
       } else {
-        const textarea = document.createElement('textarea');
-        textarea.value = partner.signup;
-        textarea.style.position = 'fixed';
-        textarea.style.opacity = '0';
+        const textarea = document.createElement("textarea");
+        textarea.value = url;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
         document.body.appendChild(textarea);
         try {
           textarea.select();
-          if (!document.execCommand('copy')) throw new Error('Copy failed');
+          if (!document.execCommand("copy")) throw new Error("Copy failed");
         } finally {
           textarea.remove();
         }
       }
-      show({ message: '链接已复制到剪贴板', type: 'success' });
+      show({ message: "链接已复制到剪贴板", type: "success" });
     } catch {
-      show({ message: '复制失败，请手动复制链接', type: 'error' });
+      show({ message: "复制失败，请手动复制链接", type: "error" });
     }
   };
-  const keyLengths = saved.provider_key_lengths as Record<string, number> | undefined;
-  const hasSavedKey = Number(keyLengths?.[String(data.partner)] ?? (data.partner === saved.partner ? saved.api_key_length : 0)) > 0;
-  const dirty = editableFields.some(key => data[key] !== saved[key]) || secretFields.some(([key]) => Boolean(data[key]));
+  const keyLengths = saved.provider_key_lengths as
+    | Record<string, number>
+    | undefined;
+  const hasSavedKey =
+    Number(
+      keyLengths?.[String(data.partner)] ??
+        (data.partner === saved.partner ? saved.api_key_length : 0),
+    ) > 0;
+  const dirty =
+    editableFields.some((key) => data[key] !== saved[key]) ||
+    secretFields.some(([key]) => Boolean(data[key]));
   const selectProvider = (next: string) => {
-    keyDrafts.current[String(data.partner)] = String(data.api_key || '');
-    setData(prev => ({ ...prev, partner: next, api_key: keyDrafts.current[next] || '' }));
+    keyDrafts.current[String(data.partner)] = String(data.api_key || "");
+    setData((prev) => ({
+      ...prev,
+      partner: next,
+      api_key: keyDrafts.current[next] || "",
+    }));
   };
   const save = async () => {
     setSaving(true);
     const fields = [...editableFields, ...secretFields.map(([key]) => key)];
     try {
-      const response = await apiClient.put('/api/settings', Object.fromEntries(fields.filter(key => data[key] !== undefined).map(key => [key, data[key]])));
-      apply(response.data.data); show({ message: '设置保存成功', type: 'success' });
-    } catch { show({ message: '设置保存失败，请重试。', type: 'error' }); }
-    finally { setSaving(false); }
+      const response = await apiClient.put(
+        "/api/settings",
+        Object.fromEntries(
+          fields
+            .filter((key) => data[key] !== undefined)
+            .map((key) => [key, data[key]]),
+        ),
+      );
+      apply(response.data.data);
+      show({ message: "设置保存成功", type: "success" });
+    } catch {
+      show({ message: "设置保存失败，请重试。", type: "error" });
+    } finally {
+      setSaving(false);
+    }
   };
-  const reset = () => confirm('将清空你保存的所有 API 提供商密钥及个人配置，其他访客不受影响。', () => { void performReset(); }, { title: '重置个人设置' });
+  const reset = () =>
+    confirm(
+      "将清空你保存的所有 API 提供商密钥及个人配置，其他访客不受影响。",
+      () => {
+        void performReset();
+      },
+      { title: "重置个人设置" },
+    );
   const performReset = async () => {
     setSaving(true);
-    try { const response = await apiClient.post('/api/settings/reset'); apply(response.data.data); show({ message: '个人设置已重置', type: 'success' }); }
-    catch { show({ message: '重置失败，请重试。', type: 'error' }); }
-    finally { setSaving(false); }
+    try {
+      const response = await apiClient.post("/api/settings/reset");
+      apply(response.data.data);
+      show({ message: "个人设置已重置", type: "success" });
+    } catch {
+      show({ message: "重置失败，请重试。", type: "error" });
+    } finally {
+      setSaving(false);
+    }
   };
   const test = async (name: string) => {
     if (activeTests.current.has(name) || saving || dirty) return;
     const controller = new AbortController();
     activeTests.current.set(name, controller);
-    const provider = publicPartners[String(saved.partner)]?.name || '';
-    const update = (status: ServiceResult['status'], message: string, detail?: string) => {
-      setTestResults(prev => ({ ...prev, [name]: { status, message, detail, provider } }));
+    const provider = publicPartners[String(saved.partner)]?.name || "";
+    const update = (
+      status: ServiceResult["status"],
+      message: string,
+      detail?: string,
+    ) => {
+      setTestResults((prev) => ({
+        ...prev,
+        [name]: { status, message, detail, provider },
+      }));
     };
-    update('running', '正在测试…');
+    update("running", "正在测试…");
     let timedOut = false;
-    const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 600000);
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, 600000);
     try {
-      const response = (await apiClient.post(`/api/settings/tests/${name}`, {}, { signal: controller.signal })).data;
+      const response = (
+        await apiClient.post(
+          `/api/settings/tests/${name}`,
+          {},
+          { signal: controller.signal },
+        )
+      ).data;
       const taskId = response.data?.task_id;
-      if (!taskId) throw new Error('服务测试未启动');
+      if (!taskId) throw new Error("服务测试未启动");
       while (!controller.signal.aborted) {
-        const response = await apiClient.get(`/api/settings/tests/${taskId}/status`, { signal: controller.signal });
+        const response = await apiClient.get(
+          `/api/settings/tests/${taskId}/status`,
+          { signal: controller.signal },
+        );
         const state = response.data.data;
-        if (state?.status === 'COMPLETED') {
+        if (state?.status === "COMPLETED") {
           const result = state.result || {};
-          const detail = result.reply || result.caption || result.recognized_text || result.content_preview || (result.image_size ? result.image_size.join(' × ') : '');
-          update(result.success === false ? 'error' : 'success', state.message || result.message || '测试完成', String(detail));
+          const detail =
+            result.reply ||
+            result.caption ||
+            result.recognized_text ||
+            result.content_preview ||
+            (result.image_size ? result.image_size.join(" × ") : "");
+          update(
+            result.success === false ? "error" : "success",
+            state.message || result.message || "测试完成",
+            String(detail),
+          );
           return;
         }
-        if (state?.status === 'FAILED') throw new Error(state.error || '服务测试失败');
-        await new Promise<void>(resolve => {
-          const finish = () => { clearTimeout(timer); controller.signal.removeEventListener('abort', finish); resolve(); };
+        if (state?.status === "FAILED")
+          throw new Error(state.error || "服务测试失败");
+        await new Promise<void>((resolve) => {
+          const finish = () => {
+            clearTimeout(timer);
+            controller.signal.removeEventListener("abort", finish);
+            resolve();
+          };
           const timer = setTimeout(finish, 1500);
-          controller.signal.addEventListener('abort', finish, { once: true });
+          controller.signal.addEventListener("abort", finish, { once: true });
         });
       }
     } catch (e) {
-      if (!controller.signal.aborted) update('error', e instanceof Error ? e.message : '服务测试失败');
+      if (!controller.signal.aborted)
+        update("error", e instanceof Error ? e.message : "服务测试失败");
     } finally {
-      if (timedOut) update('error', '等待结果超时，请稍后重试。');
+      if (timedOut) update("error", "等待结果超时，请稍后重试。");
       clearTimeout(timeout);
       activeTests.current.delete(name);
     }
   };
-  const inputClass = 'w-full rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-primary px-3 py-2 text-sm disabled:opacity-60';
-  const sectionClass = 'border-b border-gray-200 dark:border-border-primary pb-6 space-y-4';
-  const Content = embedded ? 'div' : 'main';
-  return <div className={`${embedded ? '' : 'min-h-screen bg-gray-50 dark:bg-background-primary'} text-gray-900 dark:text-foreground-primary`}>
-    {!embedded && <header className="border-b border-gray-200 dark:border-border-primary px-4 py-3 flex items-center gap-4 bg-white dark:bg-background-secondary">
-      <Button variant="ghost" icon={<Home size={18} />} onClick={() => navigate('/')}>返回首页</Button><h1 className="font-semibold text-lg">设置</h1>
-    </header>}
-    <Content className={embedded ? 'space-y-6' : 'max-w-5xl mx-auto p-4 md:p-8 space-y-6 bg-white dark:bg-background-secondary'}>
-      {!embedded && location.state?.needsApiKey && <p role="status" className="rounded-lg bg-blue-50 dark:bg-blue-900/20 p-3 text-sm">请先选择 API 提供商并填写你的 API Key。保存后返回首页继续，刚才的输入已保留。</p>}
-      {!embedded && location.state?.apiVerificationFailed && <p role="alert" className="rounded-lg bg-amber-50 dark:bg-amber-900/20 p-3 text-sm">API Key 验证失败，请检查所选 API 提供商、密钥及账户用量后重试。刚才的文字输入已保留。</p>}
-      {loading ? <p role="status">正在加载个人设置…</p> : error ? <div role="alert">{error}<Button onClick={() => void load()}>重试</Button></div> : <>
-        <fieldset disabled={saving} className="min-w-0 space-y-5">
-        <section className={sectionClass} aria-label="API 配置">
-          <h2 className="text-xl font-semibold flex items-center gap-2"><Key size={20} />API 配置</h2>
-          <p className="text-sm text-gray-500">选择适合你的 API 提供商，填写自己的 Key 后保存。</p>
-          <div>
-            <p className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">API 提供商</p>
-            <div role="radiogroup" aria-label="API 提供商" className="flex flex-wrap gap-2">
-              {['inferera', 'apimart', 'volcengine'].filter(id => publicPartners[id]).map(id => <ProviderPill
-                key={id} value={id} label={publicPartners[id].name} selected={data.partner === id}
-                hint={id === 'apimart' ? '仅需 $0.006/张' : id === 'volcengine' ? '国内直连' : undefined}
-                promotion={id === 'apimart' || id === 'volcengine' ? id : undefined}
-                onSelect={() => selectProvider(id)}
-              />)}
-            </div>
+  const field = (config: SettingsFieldConfig, disabled = false) => (
+    <SettingsField
+      key={config.key}
+      field={config}
+      t={t}
+      value={data[config.key] as string | number | boolean}
+      placeholder={
+        secretFields.some(([key]) => key === config.key) &&
+        Number(saved[config.key + "_length"]) > 0
+          ? "已保存，留空保持不变"
+          : config.placeholder
+      }
+      isDisabled={disabled}
+      onChange={(value) => set(config.key, value)}
+    />
+  );
+  const description = (key: string) => t(`settings.fields.${key}`);
+  const providerId = String(data.partner);
+  const promotions = ["apimart", "volcengine"].map((id) => ({
+    key: id,
+    testId: `provider-plan-${id}`,
+    active: providerId === id,
+    name: t(`settings.providerComparison.${id}.name`),
+    tagline: t(`settings.providerComparison.${id}.tagline`),
+    suitedFor: t(`settings.providerComparison.${id}.suitedFor`),
+    points: [1, 2, 3].map((n) =>
+      t(`settings.providerComparison.${id}.point${n}`),
+    ),
+    cta: t(`settings.providerComparison.${id}.cta`),
+    activeLabel: t(`settings.providerComparison.${id}.active`),
+    note: "提供商的接口与模型已固定，选择后填写对应 Key 即可。",
+    onSelect: () => selectProvider(id),
+    href: publicPartners[id]?.signup || "",
+    linkLabel: t(`settings.providerComparison.${id}.link`),
+  }));
+  // Keep the public provider identity and signup URLs while sharing the original guide presentation.
+  const guideT: typeof t = (key, params) => {
+    if (key === "settings.apiKeyTip.linkLabel") return "Inferera 申请 API Key";
+    if (key === "settings.apiKeyHelp.linkLabel") return "访问 Inferera 官网 →";
+    if (
+      key === "settings.apiKeyHelp.step1" ||
+      key === "settings.apimartKeyHelp.step1"
+    )
+      return `前往 ${partner?.name} 注册或登录：{{link}}`;
+    if (key === "settings.apiKeyHelp.step2") return "按平台说明完成充值";
+    if (key === "settings.apiKeyHelp.step3")
+      return "进入 API Key 管理页面创建密钥";
+    if (key === "settings.apiKeyHelp.step4")
+      return "复制 API Key，填入本页并保存";
+    if (key === "settings.volcengineKeyHelp.step1")
+      return "前往 火山 Agent Plan 注册或登录，并订阅服务：";
+    return t(key, params);
+  };
+  const body = (
+    <>
+      <div className="space-y-8">
+        {!embedded && location.state?.needsApiKey && (
+          <p
+            role="status"
+            className="rounded-lg bg-blue-50 dark:bg-blue-900/20 p-3 text-sm"
+          >
+            请先选择 API 提供商并填写你的 API
+            Key。保存后返回首页继续，刚才的输入已保留。
+          </p>
+        )}
+        {!embedded && location.state?.apiVerificationFailed && (
+          <p
+            role="alert"
+            className="rounded-lg bg-amber-50 dark:bg-amber-900/20 p-3 text-sm"
+          >
+            API Key 验证失败，请检查所选 API
+            提供商、密钥及账户用量后重试。刚才的文字输入已保留。
+          </p>
+        )}
+        {loading ? (
+          <p role="status">正在加载个人设置…</p>
+        ) : error ? (
+          <div role="alert">
+            {error}
+            <Button onClick={() => void load()}>重试</Button>
           </div>
-          {data.partner === 'apimart' && <div className="rounded-lg border border-violet-200 bg-violet-50 p-3 text-sm dark:border-violet-900 dark:bg-violet-950/30" data-testid="public-provider-benefits">
-            <p className="font-medium">APIMart · 低价生图，按量付费</p>
-            <p className="mt-1 text-gray-600 dark:text-foreground-secondary">GPT-Image-2 低至 $0.006/张，无月费，适合批量出图或关注使用成本的场景。</p>
-          </div>}
-          {data.partner === 'volcengine' && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950/30" data-testid="public-provider-benefits">
-            <p className="font-medium">火山 Agent Plan · 国内直连，订阅使用</p>
-            <p className="mt-1 text-gray-600 dark:text-foreground-secondary">无需特殊网络环境，订阅也可用于日常使用和其他兼容工具。请使用 Agent Plan 订阅专属 Key。</p>
-          </div>}
-          <p className="text-sm text-gray-500">{partner?.key_hint}。切换 API 提供商后使用各自保存的密钥。</p>
-          <label className="block text-sm space-y-2"><span>API Key</span><input type="password" autoComplete="new-password" className={inputClass} value={String(data.api_key || '')} onChange={e => set('api_key', e.target.value)} placeholder={hasSavedKey ? '已保存，留空保持不变' : '输入该 API 提供商的 API Key'} /></label>
-          <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 p-3 text-sm space-y-2">
-            <p className="font-medium">如何获取 API Key</p>
-            <ol className="list-decimal list-inside space-y-1">
-              <li>
-                前往 {partner?.name} 注册或登录：
-                <span className="inline-flex items-center gap-2">
-                  <a className="text-blue-600 hover:text-blue-800 underline font-medium" href={partner?.signup} target="_blank" rel="noopener noreferrer">点击此处访问 {partner?.name} →</a>
-                  <button type="button" onClick={() => void copyProviderLink()} className="text-xs px-2 py-0.5 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded transition-colors">复制链接</button>
-                </span>
-              </li>
-              <li>按平台说明充值或订阅对应服务</li>
-              <li>创建上方所需类型的 API Key，填入并保存</li>
-            </ol>
-            <p className="text-xs flex items-center gap-1"><Lock size={12} />你的密钥仅用于你的请求，不会与其他访客共享。</p>
-          </div>
-        </section>
-        <section className={sectionClass} aria-label="模型配置"><h2 className="font-semibold">模型配置</h2>
-          {([['文本模型', partner?.text], ['图像生成模型', partner?.image], ['图像描述模型', partner?.caption]]).map(([label, value]) => <label className="block text-sm space-y-2" key={label}><span>{label}</span><input className={inputClass} value={value || ''} disabled readOnly /></label>)}
-          <p className="text-xs text-gray-500">模型按所选 API 提供商固定。</p>
-        </section>
-        <section className={sectionClass}><h2 className="font-semibold">图像与生成设置</h2>
-          {([['image_resolution', '图像清晰度', ['1K', '2K', '4K']], ['image_aspect_ratio', '默认图像比例', ASPECT_RATIO_OPTIONS.map(option => option.value)], ['output_language', '输出语言', ['zh', 'en', 'ja', 'auto']], ['description_generation_mode', '描述生成模式', ['streaming', 'parallel']]] as const).map(([key, label, choices]) => <label className="block text-sm space-y-2" key={key}><span>{label}</span><select className={inputClass} value={String(data[key])} onChange={e => set(key, e.target.value)}>{choices.map(value => <option key={value} value={value}>{({ zh: '中文', en: 'English', ja: '日本語', auto: '自动', streaming: '流式', parallel: '并行' } as Record<string, string>)[value] || value}</option>)}</select></label>)}
-          {([['max_description_workers', '描述生成最大并发数'], ['max_image_workers', '图像生成最大并发数']] as const).map(([key, label]) => <label className="block text-sm space-y-2" key={key}><span>{label}</span><input className={inputClass} type="number" min={1} max={20} value={Number(data[key])} onChange={e => set(key, Number(e.target.value))} /></label>)}
-          {([['enable_text_reasoning', '文本推理模式'], ['enable_image_reasoning', '图像推理模式'], ['enable_image_quality_control', '图像质量检查']] as const).map(([key, label]) => <label className="flex items-center gap-2 text-sm" key={key}><input type="checkbox" checked={Boolean(data[key])} onChange={e => set(key, e.target.checked)} />{label}</label>)}
-        </section>
-        <section className={sectionClass}><h2 className="font-semibold">推理预算</h2>
-          {([['text_thinking_budget', '文本推理预算', 'enable_text_reasoning'], ['image_thinking_budget', '图像推理预算', 'enable_image_reasoning']] as const).map(([key, label, enabled]) => <label className="block text-sm space-y-2" key={key}><span>{label}</span><input className={inputClass} type="number" min={1} max={8192} disabled={!data[enabled]} value={Number(data[key])} onChange={e => set(key, Number(e.target.value))} /></label>)}
-        </section>
-        <section className={sectionClass}><h2 className="font-semibold">解析与导出配置</h2>
-          {secretFields.slice(1).map(([key, label]) => <label className="block text-sm space-y-2" key={key}><span>{label}</span><input className={inputClass} type="password" autoComplete="new-password" value={String(data[key] || '')} placeholder={Number(saved[key + '_length']) > 0 ? '已保存，留空保持不变' : `输入 ${label}`} onChange={e => set(key, e.target.value)} /></label>)}
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={Boolean(data.elevenlabs_enabled)} onChange={e => set('elevenlabs_enabled', e.target.checked)} />启用 ElevenLabs 视频配音</label>
-          <label className="block text-sm space-y-2"><span>ElevenLabs Voice ID</span><input className={inputClass} value={String(data.elevenlabs_voice_id || '')} onChange={e => set('elevenlabs_voice_id', e.target.value)} /></label>
-        </section>
-        </fieldset>
-        <div className="flex gap-3"><Button onClick={() => void save()} disabled={saving}>{saving ? '正在保存…' : '保存设置'}</Button><Button variant="secondary" onClick={() => void reset()} disabled={saving}>重置设置</Button></div>
-        <section className={sectionClass}>
-          <h2 className="font-semibold">服务测试</h2>
-          <p className="text-sm text-gray-500">使用已保存的配置。各项可同时运行，结果独立显示；图像生成可能需要数分钟，最长等待 10 分钟。</p>
-          {dirty && <p role="status" className="text-sm text-amber-700 dark:text-amber-400">设置有未保存的修改，请先保存后再开始新测试。已运行的测试继续使用启动时的配置。</p>}
-          <div className="space-y-4">{services.map(([name, label]) => {
-            const result = testResults[name];
-            const running = result?.status === 'running';
-            return <div key={name} data-testid={`service-test-${name}`} className="border-t border-gray-100 dark:border-border-primary pt-4 space-y-2">
-              <div className="flex items-center justify-between gap-3"><span className="font-medium text-sm">{label}</span>
-                <Button variant="secondary" disabled={running || saving || dirty} onClick={() => void test(name)}>{running ? `正在测试${label}…` : `测试${label}`}</Button>
+        ) : (
+          <>
+            <fieldset disabled={saving} className="min-w-0 space-y-8">
+              <SettingsSection
+                title="API 配置"
+                icon={<Key size={20} />}
+                description="选择适合你的 API 提供商，填写自己的 Key 后保存。"
+              >
+                <div className="space-y-3">
+                  <div>
+                    <p className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">
+                      API 提供商
+                    </p>
+                    <SettingsProviderPicker
+                      label="API 提供商"
+                      selectedGlobalProvider={providerId}
+                      selectGlobalProvider={selectProvider}
+                      providerPromotions={promotions}
+                      globalProviderSources={[
+                        "inferera",
+                        "apimart",
+                        "volcengine",
+                      ]
+                        .filter((id) => publicPartners[id])
+                        .map((id) => ({
+                          value: id,
+                          label: publicPartners[id].name,
+                          hint:
+                            id === "apimart"
+                              ? t(
+                                  "settings.providerComparison.apimart.providerHint",
+                                )
+                              : id === "volcengine"
+                                ? t("settings.volcenginePromo.providerHint")
+                                : undefined,
+                        }))}
+                    />
+                    <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">
+                      {partner?.key_hint}。切换 API 提供商后使用各自保存的密钥。
+                    </p>
+                  </div>
+                  <div className="space-y-3 pl-3 border-l-2 border-banana-300 dark:border-banana-600">
+                    <Input
+                      label="API Base URL"
+                      aria-label="API Base URL"
+                      value={partner?.base || ""}
+                      readOnly
+                      disabled
+                    />
+                    <p className="-mt-2 text-sm text-gray-500 dark:text-foreground-tertiary">
+                      接口地址随 API 提供商固定，无需修改。
+                    </p>
+                    <div>
+                      <Input
+                        label="API Key"
+                        aria-label="API Key"
+                        type="password"
+                        autoComplete="new-password"
+                        value={String(data.api_key || "")}
+                        onChange={(e) => set("api_key", e.target.value)}
+                        placeholder={
+                          hasSavedKey
+                            ? "已保存，留空保持不变"
+                            : "输入该 API 提供商的 API Key"
+                        }
+                      />
+                      <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">
+                        留空则保持当前设置不变，输入新值则更新
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <SettingsApiGuidance
+                  t={guideT}
+                  usesVolcengineCampaignPromo={providerId === "volcengine"}
+                  providerFormat={providerId}
+                  volcengineAgentPlansUrl={
+                    publicPartners.volcengine?.signup || ""
+                  }
+                  volcengineLogoUrl="/volcengine/huoshan.png"
+                  isZh
+                  activeVolcenginePromoKey="settings.volcenginePromo"
+                  activeApiKeyHelpKey={
+                    providerId === "volcengine"
+                      ? "settings.volcengineKeyHelp"
+                      : providerId === "apimart"
+                        ? "settings.apimartKeyHelp"
+                        : "settings.apiKeyHelp"
+                  }
+                  activeApiKeyTipKey={
+                    providerId === "apimart"
+                      ? "settings.apimartApiKeyTip"
+                      : "settings.apiKeyTip"
+                  }
+                  activeApiKeyHelpUrl={partner?.signup || ""}
+                  copyToClipboard={(url) => {
+                    void copyProviderLink(url);
+                  }}
+                />
+                <p className="text-sm text-gray-500 flex items-center gap-1">
+                  <Lock size={14} />
+                  你的密钥仅用于你的请求，不会与其他访客共享。
+                </p>
+              </SettingsSection>
+              <SettingsSection title="模型配置" icon={<FileText size={20} />}>
+                {[
+                  ["文本模型", partner?.text, "textModelDesc"],
+                  ["图像生成模型", partner?.image, "imageModelDesc"],
+                  ["图像描述模型", partner?.caption, "imageCaptionModelDesc"],
+                ].map(([label, value, hint]) => (
+                  <div
+                    key={label}
+                    className="pb-6 border-b border-gray-200 dark:border-border-primary last:border-b-0 last:pb-0 space-y-3"
+                  >
+                    <Input
+                      label={label}
+                      aria-label={label}
+                      value={value || ""}
+                      disabled
+                      readOnly
+                    />
+                    <p className="-mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">
+                      {description(hint || "")}
+                    </p>
+                    <SettingsField
+                      t={t}
+                      field={{
+                        key: label + "-provider",
+                        label: label + "提供商",
+                        type: "text",
+                      }}
+                      value={partner?.name || ""}
+                      isDisabled
+                      onChange={() => {}}
+                    />
+                    <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">
+                      模型按所选 API 提供商固定。
+                    </p>
+                  </div>
+                ))}
+              </SettingsSection>
+              <SettingsSection
+                title={t("settings.sections.mineruConfig")}
+                icon={<FileText size={20} />}
+              >
+                <Input
+                  label="MinerU API Base URL"
+                  aria-label="MinerU API Base URL"
+                  value="https://mineru.net"
+                  disabled
+                  readOnly
+                />
+                {field({
+                  key: "mineru_token",
+                  label: "MinerU Token",
+                  type: "password",
+                  placeholder: "输入 MinerU Token",
+                  description: description("mineruTokenDesc"),
+                  link: "https://mineru.net/apiManage/token",
+                })}
+              </SettingsSection>
+              <SettingsSection
+                title={t("settings.sections.imageConfig")}
+                icon={<Image size={20} />}
+              >
+                {field({
+                  key: "image_resolution",
+                  label: "图像清晰度",
+                  type: "select",
+                  options: ["1K", "2K", "4K"].map((value) => ({
+                    value,
+                    label: `${value} (${Number(value[0]) * 1024}px)`,
+                  })),
+                  description: description("imageResolutionDesc"),
+                })}
+                {field({
+                  key: "image_aspect_ratio",
+                  label: "默认图像比例",
+                  type: "select",
+                  options: ASPECT_RATIO_OPTIONS,
+                  description: "创建新项目时使用的默认图片比例。",
+                })}
+                {field({
+                  key: "enable_image_quality_control",
+                  label: "图像质量检查",
+                  type: "switch",
+                  description: description("enableImageQualityControlDesc"),
+                })}
+              </SettingsSection>
+              <SettingsSection
+                title={t("settings.sections.outputLanguage")}
+                icon={<Globe size={20} />}
+              >
+                {field({
+                  key: "output_language",
+                  label: "输出语言",
+                  type: "buttons",
+                  options: [
+                    { value: "zh", label: "简体中文" },
+                    { value: "en", label: "English" },
+                    { value: "ja", label: "日本語" },
+                    { value: "auto", label: "自动" },
+                  ],
+                  description: description("defaultOutputLanguageDesc"),
+                })}
+              </SettingsSection>
+              <SettingsSection
+                title={t("settings.sections.baiduOcr")}
+                icon={<FileText size={20} />}
+              >
+                {field({
+                  key: "baidu_api_key",
+                  label: "百度 OCR API Key",
+                  type: "password",
+                  placeholder: "输入 百度 OCR API Key",
+                  description: description("baiduOcrApiKeyDesc"),
+                  link: "https://console.bce.baidu.com/iam/#/iam/apikey/list",
+                })}
+              </SettingsSection>
+              <SettingsSection
+                title={t("settings.sections.elevenlabs")}
+                icon={<Volume2 size={20} />}
+              >
+                {field({
+                  key: "elevenlabs_api_key",
+                  label: "ElevenLabs API Key",
+                  type: "password",
+                  placeholder: "输入 ElevenLabs API Key",
+                  description: description("elevenLabsApiKeyDesc"),
+                  link: "https://elevenlabs.io/app/settings/api-keys",
+                })}
+                {field({
+                  key: "elevenlabs_enabled",
+                  label: "启用 ElevenLabs 视频配音",
+                  type: "switch",
+                })}
+                {field({
+                  key: "elevenlabs_voice_id",
+                  label: "ElevenLabs Voice ID",
+                  type: "text",
+                })}
+              </SettingsSection>
+              <SettingsAdvanced
+                open={advancedOpen}
+                onToggle={() => setAdvancedOpen(!advancedOpen)}
+                label="高级设置"
+              >
+                <SettingsSection
+                  title={t("settings.sections.performanceConfig")}
+                  icon={<Zap size={20} />}
+                >
+                  {field({
+                    key: "description_generation_mode",
+                    label: "描述生成模式",
+                    type: "select",
+                    options: [
+                      { value: "streaming", label: "流式" },
+                      { value: "parallel", label: "并行" },
+                    ],
+                  })}
+                  {[
+                    [
+                      "max_description_workers",
+                      "描述生成最大并发数",
+                      "maxDescriptionWorkersDesc",
+                    ],
+                    [
+                      "max_image_workers",
+                      "图像生成最大并发数",
+                      "maxImageWorkersDesc",
+                    ],
+                  ].map(([key, label, hint]) =>
+                    field({
+                      key,
+                      label,
+                      type: "number",
+                      min: 1,
+                      max: 20,
+                      description: description(hint),
+                    }),
+                  )}
+                </SettingsSection>
+                <SettingsSection
+                  title={t("settings.sections.textReasoning")}
+                  icon={<Brain size={20} />}
+                >
+                  {field({
+                    key: "enable_text_reasoning",
+                    label: "文本推理模式",
+                    type: "switch",
+                    description: description("enableTextReasoningDesc"),
+                  })}
+                  {field(
+                    {
+                      key: "text_thinking_budget",
+                      label: "文本推理预算",
+                      type: "number",
+                      min: 1,
+                      max: 8192,
+                      description: description("textThinkingBudgetDesc"),
+                    },
+                    !data.enable_text_reasoning,
+                  )}
+                </SettingsSection>
+                <SettingsSection
+                  title={t("settings.sections.imageReasoning")}
+                  icon={<Brain size={20} />}
+                >
+                  {field({
+                    key: "enable_image_reasoning",
+                    label: "图像推理模式",
+                    type: "switch",
+                    description: description("enableImageReasoningDesc"),
+                  })}
+                  {field(
+                    {
+                      key: "image_thinking_budget",
+                      label: "图像推理预算",
+                      type: "number",
+                      min: 1,
+                      max: 8192,
+                      description: description("imageThinkingBudgetDesc"),
+                    },
+                    !data.enable_image_reasoning,
+                  )}
+                </SettingsSection>
+              </SettingsAdvanced>
+            </fieldset>
+            <SettingsSection
+              title="服务测试"
+              icon={<FileText size={20} />}
+              description={t("settings.serviceTest.description")}
+            >
+              <div className="pl-4 border-l-4 border-yellow-300 dark:border-yellow-600">
+                <p className="text-sm text-gray-700 dark:text-foreground-secondary flex items-start gap-1.5">
+                  <Lightbulb size={15} className="flex-shrink-0 mt-0.5" />
+                  使用已保存的配置。各项可同时运行，结果独立显示；图像生成可能需要数分钟，最长等待
+                  10 分钟。
+                </p>
               </div>
-              {result && <div role="status" className={`text-sm ${result.status === 'error' ? 'text-red-600' : result.status === 'success' ? 'text-green-700 dark:text-green-400' : 'text-gray-500'}`}>
-                <p>{result.provider} · {result.message}</p>
-                {result.detail && <p className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-words text-gray-600 dark:text-foreground-secondary">{result.detail}</p>}
-              </div>}
-            </div>;
-          })}</div>
-        </section>
-      </>}
-    </Content><ToastContainer />{ConfirmDialog}
-  </div>;
+              {dirty && (
+                <p
+                  role="status"
+                  className="text-sm text-amber-700 dark:text-amber-400"
+                >
+                  设置有未保存的修改，请先保存后再开始新测试。已运行的测试继续使用启动时的配置。
+                </p>
+              )}
+              <div className="space-y-4">
+                {services.map(([name, label]) => {
+                  const result = testResults[name];
+                  const running = result?.status === "running";
+                  const hintKeys: Record<string, string> = {
+                    "text-model": "textModel",
+                    "caption-model": "captionModel",
+                    "image-model": "imageModel",
+                    "mineru-pdf": "mineruPdf",
+                    "baidu-ocr": "baiduOcr",
+                    "baidu-inpaint": "baiduInpaint",
+                  };
+                  return (
+                    <SettingsServiceRow
+                      key={name}
+                      testId={`service-test-${name}`}
+                      title={label}
+                      description={t(
+                        `settings.serviceTest.tests.${hintKeys[name]}.description`,
+                      )}
+                      action={
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          aria-label={
+                            running ? `正在测试${label}…` : `测试${label}`
+                          }
+                          disabled={running || saving || dirty}
+                          onClick={() => void test(name)}
+                        >
+                          {running ? "测试中…" : "开始测试"}
+                        </Button>
+                      }
+                    >
+                      {result && (
+                        <div
+                          role="status"
+                          className={`text-sm ${result.status === "error" ? "text-red-600" : result.status === "success" ? "text-green-600" : "text-gray-500"}`}
+                        >
+                          <p>
+                            {result.provider} · {result.message}
+                          </p>
+                          {result.detail && (
+                            <p className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-words">
+                              {result.detail}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </SettingsServiceRow>
+                  );
+                })}
+              </div>
+            </SettingsSection>
+            <SettingsActions>
+              <Button
+                variant="secondary"
+                icon={<RotateCcw size={18} />}
+                onClick={() => void reset()}
+                disabled={saving}
+              >
+                重置设置
+              </Button>
+              <Button
+                icon={<Save size={18} />}
+                onClick={() => void save()}
+                disabled={saving}
+              >
+                {saving ? "正在保存…" : "保存设置"}
+              </Button>
+            </SettingsActions>
+          </>
+        )}
+      </div>
+      <ToastContainer />
+      {ConfirmDialog}
+    </>
+  );
+  return embedded ? (
+    body
+  ) : (
+    <SettingsPageFrame
+      title="个人设置"
+      subtitle="配置你的 API 与生成参数，其他访客不受影响"
+    >
+      {body}
+    </SettingsPageFrame>
+  );
 }

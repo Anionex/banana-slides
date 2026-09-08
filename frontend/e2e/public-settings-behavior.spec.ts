@@ -17,16 +17,18 @@ test('all public settings round-trip, provider drafts stay separate, reset clear
   await page.getByLabel('API Key', { exact: true }).fill('volcengine-draft-placeholder');
   await publicProvider(page, 'apimart').click();
   await expect(page.getByLabel('API Key', { exact: true })).toHaveValue('apimart-draft-placeholder');
+  await page.getByRole('button', { name: '高级设置', exact: true }).click();
+  await page.getByTestId('setting-output_language').locator('[data-value=en]').click();
   const values: Record<string, string | number | boolean> = {
     image_resolution: '4K', image_aspect_ratio: '9:16', output_language: 'en', description_generation_mode: 'parallel',
     max_description_workers: 3, max_image_workers: 2, enable_text_reasoning: true, enable_image_reasoning: true,
     enable_image_quality_control: true, text_thinking_budget: 2048, image_thinking_budget: 4096,
     elevenlabs_enabled: true, elevenlabs_voice_id: 'voice-test',
   };
-  for (const [label, value] of [['图像清晰度', '4K'], ['默认图像比例', '9:16'], ['输出语言', 'en'], ['描述生成模式', 'parallel']]) {
+  for (const [label, value] of [['图像清晰度', '4K'], ['默认图像比例', '9:16'], ['描述生成模式', 'parallel']]) {
     await page.getByRole('combobox', { name: label, exact: true }).selectOption(value);
   }
-  for (const label of ['文本推理模式', '图像推理模式', '图像质量检查', '启用 ElevenLabs 视频配音']) await page.getByLabel(label, { exact: true }).check();
+  for (const label of ['文本推理模式', '图像推理模式', '图像质量检查', '启用 ElevenLabs 视频配音']) await page.getByRole('switch', { name: label, exact: true }).check();
   for (const [label, value] of [['描述生成最大并发数', '3'], ['图像生成最大并发数', '2'], ['文本推理预算', '2048'], ['图像推理预算', '4096'], ['ElevenLabs Voice ID', 'voice-test']]) {
     await page.getByLabel(label, { exact: true }).fill(value);
   }
@@ -34,12 +36,14 @@ test('all public settings round-trip, provider drafts stay separate, reset clear
   await page.getByRole('button', { name: '保存设置', exact: true }).click();
   await expect(page.getByText('设置保存成功')).toBeVisible();
   await page.reload();
+  await page.getByRole('button', { name: '高级设置', exact: true }).click();
+  await expect(page.getByTestId('setting-output_language').locator('[data-value=en]')).toHaveAttribute('aria-pressed', 'true');
   const saved = (await (await request.get('/api/settings', { headers })).json()).data;
   expect(saved).toMatchObject(values);
-  for (const [label, value] of [['图像清晰度', '4K'], ['默认图像比例', '9:16'], ['输出语言', 'en'], ['描述生成模式', 'parallel']]) {
+  for (const [label, value] of [['图像清晰度', '4K'], ['默认图像比例', '9:16'], ['描述生成模式', 'parallel']]) {
     await expect(page.getByRole('combobox', { name: label, exact: true })).toHaveValue(value);
   }
-  for (const label of ['文本推理模式', '图像推理模式', '图像质量检查', '启用 ElevenLabs 视频配音']) await expect(page.getByLabel(label, { exact: true })).toBeChecked();
+  for (const label of ['文本推理模式', '图像推理模式', '图像质量检查', '启用 ElevenLabs 视频配音']) await expect(page.getByRole('switch', { name: label, exact: true })).toBeChecked();
   for (const [label, value] of [['描述生成最大并发数', '3'], ['图像生成最大并发数', '2'], ['文本推理预算', '2048'], ['图像推理预算', '4096'], ['ElevenLabs Voice ID', 'voice-test']]) {
     await expect(page.getByLabel(label, { exact: true })).toHaveValue(value);
   }
@@ -53,7 +57,8 @@ test('all public settings round-trip, provider drafts stay separate, reset clear
   await page.getByRole('button', { name: '确定', exact: true }).click();
   await expect(page.getByText('个人设置已重置')).toBeVisible();
   await page.reload();
-  await expect(page.getByLabel('文本推理模式', { exact: true })).not.toBeChecked();
+  await page.getByRole('button', { name: '高级设置', exact: true }).click();
+  await expect(page.getByRole('switch', { name: '文本推理模式', exact: true })).not.toBeChecked();
   await expect(page.getByLabel('文本推理预算', { exact: true })).toBeDisabled();
   await expect(page.getByRole('combobox', { name: '默认图像比例', exact: true })).toHaveValue('16:9');
   const reset = (await (await request.get('/api/settings', { headers })).json()).data;

@@ -20,13 +20,15 @@ test('real settings: partners, locked models, persistence, isolation and reset',
   await expect(page.getByLabel('文本模型', { exact: true })).toHaveValue('gpt-5.6-sol');
   await expect(page.getByLabel('文本模型', { exact: true })).toBeDisabled();
   await page.getByLabel('API Key', { exact: true }).fill('public-e2e-placeholder-key');
-  await page.getByLabel('文本推理模式', { exact: true }).check();
+  await page.getByRole('button', { name: '高级设置', exact: true }).click();
+  await page.getByRole('switch', { name: '文本推理模式', exact: true }).check();
   await page.getByLabel('文本推理预算', { exact: true }).fill('2048');
   await page.getByLabel('MinerU Token', { exact: true }).fill('private-parser-placeholder');
   await page.getByRole('button', { name: '保存设置', exact: true }).click();
   await expect(page.getByText('设置保存成功')).toBeVisible();
   await page.reload();
   await expect(publicProvider(page, 'apimart')).toHaveAttribute('aria-checked', 'true');
+  await page.getByRole('button', { name: '高级设置', exact: true }).click();
   await expect(page.getByLabel('文本推理预算', { exact: true })).toHaveValue('2048');
   await expect(page.getByLabel('MinerU Token', { exact: true })).toHaveAttribute('placeholder', '已保存，留空保持不变');
   await expect(page.getByLabel('API Key', { exact: true })).toHaveAttribute('placeholder', '已保存，留空保持不变');

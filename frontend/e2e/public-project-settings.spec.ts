@@ -47,7 +47,7 @@ for (const partner of ['inferera', 'apimart', 'volcengine']) {
     await expect(page.getByRole('heading', { name: '个人设置', exact: true })).toBeVisible();
     await expect(page.getByText('这些设置仅应用于你的请求，其他访客不受影响。')).toBeVisible();
     await expect(page.getByRole('button', { name: '返回首页', exact: true })).toHaveCount(0);
-    await expect(page.getByText('API Base URL', { exact: true })).toHaveCount(0);
+    await expect(page.getByLabel('API Base URL', { exact: true })).toBeDisabled();
     await publicProvider(page, partner).click();
     for (const label of ['文本模型', '图像生成模型', '图像描述模型']) {
       await expect(page.getByLabel(label, { exact: true })).toBeDisabled();
@@ -125,7 +125,8 @@ for (const width of [1440, 390]) {
       await publicProvider(page, provider).click();
       await expect(publicProvider(page, provider)).toHaveAttribute('aria-checked', 'true');
       if (provider !== 'inferera') {
-        await expect(page.getByTestId('public-provider-benefits')).toContainText(provider === 'apimart' ? '按量付费' : '国内直连');
+        await publicProvider(page, provider).hover();
+        await expect(page.getByTestId(`provider-plan-${provider}`)).toContainText(provider === 'apimart' ? '按量付费' : '国内直连');
       }
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
@@ -166,4 +167,42 @@ test('real modal: narrow viewport keeps tabs, provider controls and saving usabl
   await expect(page.getByRole('combobox', { name: '图像清晰度', exact: true })).toHaveValue('4K');
   await page.getByRole('heading', { name: '个人设置', exact: true }).scrollIntoViewIfNeeded();
   await page.screenshot({ animations: 'disabled', path: test.info().outputPath('modal-390.png') });
+});
+
+
+test('modal presentation matches full settings fields and provider details', async ({ page }) => {
+  await openSettings(page, projectId);
+  const styles = async () => ({
+    input: await page.locator('input[type=password]').first().evaluate(element => {
+      const css = getComputedStyle(element);
+      return [css.fontSize, css.height, css.padding, css.borderRadius, css.borderColor];
+    }),
+    provider: await page.locator('[data-provider="apimart"]').evaluate(element => {
+      const css = getComputedStyle(element);
+      return [css.fontSize, css.padding, css.borderRadius];
+    }),
+  });
+  const personal = await styles();
+  await page.locator('[data-provider="apimart"]').hover();
+  const promo = page.getByTestId('provider-plan-apimart');
+  await expect(promo).toHaveCSS('opacity', '1');
+  await expect(promo).toContainText('1 美元可生成 160+ 张图片');
+  await promo.getByRole('button').click();
+  await expect(publicProvider(page, 'apimart')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByLabel('API Base URL', { exact: true })).toHaveValue('https://api.apimart.ai/v1');
+  await page.getByRole('heading', { name: '个人设置', exact: true }).click();
+  await page.screenshot({ path: test.info().outputPath('personal-modal.png'), animations: 'disabled' });
+
+  await page.route(url => url.pathname === '/api/public-config', route => route.fulfill({ json: { success: true, data: { enabled: false } } }));
+  await page.route(url => url.pathname === '/api/settings', route => route.fulfill({ json: { success: true, data: { ai_provider_format: 'gemini', api_base_url: '', api_key_length: 0 } } }));
+  await page.route(url => url.pathname.startsWith('/api/'), async route => {
+    if (['/api/public-config', '/api/settings'].includes(new URL(route.request().url()).pathname)) return route.fallback();
+    await route.continue({ headers: { ...route.request().headers(), 'X-User-Token': token } });
+  });
+  await openSettings(page, projectId);
+  expect(await styles()).toEqual(personal);
+  await page.screenshot({ path: test.info().outputPath('original-modal.png'), animations: 'disabled' });
+  await page.locator('[data-provider="apimart"]').hover();
+  await expect(promo).toHaveCSS('opacity', '1');
+  await expect(promo).toContainText('1 美元可生成 160+ 张图片');
 });

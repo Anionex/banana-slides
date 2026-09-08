@@ -7,7 +7,7 @@ The public demo uses the same creation interface as the main version, with simpl
 
 ## Configuration and Usage
 
-The settings page and “Project Settings → Personal Settings” in the preview provide the same personal configuration. Provider buttons display APIMart’s price hint and Volcengine Agent Plan’s direct-access benefit; selecting a provider shows its benefits and key setup instructions. Both entry points share the saved configuration, and saving or resetting affects only the current visitor.
+The settings page and “Project Settings → Personal Settings” in the preview provide the same personal configuration. Both reuse the open-source forms, provider promotion popovers, and key setup guides. APIMart shows a price hint and Volcengine Agent Plan shows a direct-access hint. Hover or keyboard focus reveals the full benefits; selecting Volcengine also shows its brand introduction and setup steps. Both entry points share the saved configuration, and saving or resetting affects only the current visitor.
 
 1. Open Settings and select Inferera, APIMart, or Volcengine Agent Plan.
 2. Enter and save your API Key for that API provider. Keys are saved separately for each API provider, so switching configurations never sends one provider's Key to another.
@@ -20,7 +20,7 @@ The settings page and “Project Settings → Personal Settings” in the previe
 | APIMart | gpt-5.6-sol / gpt-5.6-luna | gpt-image-2 |
 | Volcengine Agent Plan | doubao-seed-2.1-turbo | doubao-seedream-5.0-lite |
 
-Models and API endpoints are fixed and cannot be changed. The Volcengine option only supports **Keys dedicated to an Agent Plan subscription**; regular pay-as-you-go ModelArk Keys are not supported. Service tests use your saved personal configuration and make real calls to the provider's API. Tests for text, image recognition, image generation, MinerU, Baidu OCR, and Baidu image inpainting can run concurrently, each showing its own progress, result, and retry option, with a maximum wait of ten minutes. Save configuration changes before starting a new test; tests already running continue to use the configuration they started with.
+Models and API endpoints appear as read-only fields. Expand Advanced Settings to adjust concurrency, description generation mode, and reasoning parameters. The Volcengine option only supports **Keys dedicated to an Agent Plan subscription**; regular pay-as-you-go ModelArk Keys are not supported. Service tests use your saved personal configuration and make real calls to the provider's API. Tests for text, image recognition, image generation, MinerU, Baidu OCR, and Baidu image inpainting can run concurrently, each showing its own progress, result, and retry option, with a maximum wait of ten minutes. Save configuration changes before starting a new test; tests already running continue to use the configuration they started with.
 
 Before starting generation or renovation from the home page, a lightweight call to your personal text model verifies the Key. If verification fails, you are directed to Settings with your text draft preserved, and no project is created.
 
