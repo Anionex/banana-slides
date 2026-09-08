@@ -147,3 +147,23 @@ test('live modal: saved personal key runs the real text service', async ({ page 
   await expect(service).toContainText('文本模型测试成功', { timeout: 120000 });
   await expect(service.getByRole('button')).toBeEnabled();
 });
+
+test('real modal: narrow viewport keeps tabs, provider controls and saving usable', async ({ page }) => {
+  await openSettings(page, projectId);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const key = page.getByLabel('API Key', { exact: true });
+  const box = await key.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.width).toBeGreaterThan(250);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(374);
+  await publicProvider(page, 'apimart').click();
+  await page.getByRole('combobox', { name: '图像清晰度', exact: true }).selectOption('4K');
+  await page.getByRole('button', { name: '保存设置', exact: true }).click();
+  await expect(page.getByText('设置保存成功', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '导出设置', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '可编辑 PPTX 导出设置', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '个人设置', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: '图像清晰度', exact: true })).toHaveValue('4K');
+  await page.getByRole('heading', { name: '个人设置', exact: true }).scrollIntoViewIfNeeded();
+  await page.screenshot({ animations: 'disabled', path: test.info().outputPath('modal-390.png') });
+});
