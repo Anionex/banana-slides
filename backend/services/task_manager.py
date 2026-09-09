@@ -271,8 +271,13 @@ class TaskManager:
         from services.task_watchdog import task_watchdog
         task_watchdog.start(task_id)
 
+        def _run(tid, *run_args, **run_kwargs):
+            # 队列等待不算"卡住"：真正开始执行时重新打一次心跳
+            task_watchdog.touch(tid, '开始执行')
+            return func(tid, *run_args, **run_kwargs)
+
         try:
-            future = executor.submit(func, task_id, *args, **kwargs)
+            future = executor.submit(_run, task_id, *args, **kwargs)
         except Exception:
             task_watchdog.forget(task_id)
             raise

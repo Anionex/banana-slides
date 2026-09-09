@@ -277,6 +277,29 @@ def test_orphan_grace_zero_falls_back_to_default(monkeypatch):
     assert get_orphan_grace_seconds() > 0
 
 
+def test_stall_clock_starts_when_task_actually_begins(app):
+    """排队等待不算卡住：worker 真正开始时重新打心跳（Codex P2）。"""
+    project_id = _create_project(app)
+    task_id = _create_export_task(app, project_id, heartbeat_age_seconds=0)
+    observed = {}
+
+    def worker(tid):
+        observed['step'] = task_watchdog.last_step(tid)
+        observed['idle'] = task_watchdog.seconds_since_touch(tid)
+
+    task_manager.submit_task(task_id, worker)
+    try:
+        deadline = time.time() + 5
+        while 'step' not in observed and time.time() < deadline:
+            time.sleep(0.05)
+        assert observed.get('step') == '开始执行'
+        assert observed.get('idle') is not None and observed['idle'] < 1
+    finally:
+        with task_manager.lock:
+            task_manager.active_tasks.pop(task_id, None)
+        task_watchdog.forget(task_id)
+
+
 def test_set_progress_stamps_heartbeat_and_preserves_failure_reason(app):
     """任何任务写进度都会刷新 heartbeat_at；失败原因不会被后续进度覆盖。"""
     project_id = _create_project(app)
