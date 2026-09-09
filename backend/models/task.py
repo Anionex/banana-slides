@@ -4,6 +4,7 @@ Task model for tracking async operations
 import uuid
 import json
 from datetime import datetime
+from sqlalchemy.orm import validates
 from . import db
 
 
@@ -73,6 +74,21 @@ class Task(db.Model):
         if failed is not None:
             prog['failed'] = failed
         self.set_progress(prog)
+
+    @validates('status')
+    def _keep_watchdog_failure_terminal(self, key, value):
+        """看门狗判定的失败是终态，不允许 worker 之后把它改回成功。
+
+        后台任务无法被真正取消：被判"卡住"的 worker 可能稍后恢复并跑完。
+        此时用户已经看到失败提示（前端已停止轮询），状态若静默变回
+        COMPLETED 会造成误解与重复执行，因此这里保持 FAILED，
+        但产物信息（download_url 等）仍由 set_progress 写入。
+        """
+        if value != 'FAILED' and self.status == 'FAILED':
+            progress = self.get_progress() or {}
+            if progress.get('error_stage') == 'task_watchdog':
+                return 'FAILED'
+        return value
     
     def to_dict(self):
         """Convert to dictionary"""

@@ -2019,45 +2019,33 @@ def export_editable_pptx_with_recursive_analysis_task(
             
             task = Task.query.get(task_id)
             if task:
-                task_progress = task.get_progress() or {}
-                watchdog_failed = (
-                    task.status == 'FAILED'
-                    and task_progress.get('error_stage') == 'task_watchdog'
-                )
-                if watchdog_failed:
-                    # 已被看门狗判定失败（用户已经看到失败提示），不再把状态改回完成；
-                    # 但把产物信息写进进度，导出文件仍会出现在"已导出文件"里。
+                # 注意：如果该任务已被看门狗判为失败，Task.status 的校验器
+                # 会保持 FAILED 终态，但下面的产物信息仍会写入进度。
+                task.status = 'COMPLETED'
+                task.completed_at = datetime.utcnow()
+                touch_task(task_id, "完成")
+                task.set_progress({
+                    "total": 100,
+                    "completed": 100,
+                    "failed": 0,
+                    "current_step": "导出完成",
+                    "percent": 100,
+                    "messages": progress_messages,
+                    "download_url": download_path,
+                    "filename": filename,
+                    "method": "recursive_analysis",
+                    "max_depth": max_depth,
+                    "warnings": warning_messages,  # 单独的警告列表
+                    "warning_details": export_warnings.to_dict() if export_warnings else {}  # 详细警告信息
+                })
+                db.session.commit()
+                if task.status == 'COMPLETED':
+                    logger.info(f"✓ 任务 {task_id} 完成 - 递归分析导出成功（深度={max_depth}）")
+                else:
                     logger.warning(
-                        f"任务 {task_id} 在看门狗判失败后仍完成了导出，保持 FAILED 状态，"
+                        f"任务 {task_id} 在看门狗判失败后仍完成了导出，保持 FAILED 终态，"
                         f"产物: {filename}"
                     )
-                    task.set_progress({
-                        **task_progress,
-                        "download_url": download_path,
-                        "filename": filename,
-                        "finished_after_watchdog": True,
-                    })
-                    db.session.commit()
-                else:
-                    task.status = 'COMPLETED'
-                    task.completed_at = datetime.utcnow()
-                    touch_task(task_id, "完成")
-                    task.set_progress({
-                        "total": 100,
-                        "completed": 100,
-                        "failed": 0,
-                        "current_step": "导出完成",
-                        "percent": 100,
-                        "messages": progress_messages,
-                        "download_url": download_path,
-                        "filename": filename,
-                        "method": "recursive_analysis",
-                        "max_depth": max_depth,
-                        "warnings": warning_messages,  # 单独的警告列表
-                        "warning_details": export_warnings.to_dict() if export_warnings else {}  # 详细警告信息
-                    })
-                    db.session.commit()
-                    logger.info(f"✓ 任务 {task_id} 完成 - 递归分析导出成功（深度={max_depth}）")
 
         except ExportError as e:
             # 导出错误（fail_fast 模式下的详细错误）

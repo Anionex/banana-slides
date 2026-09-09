@@ -362,8 +362,37 @@ def test_watchdog_failure_stays_terminal_when_export_finishes(app, db_session, t
     assert stored.status == 'FAILED'
     progress = stored.get_progress()
     assert progress['error_code'] == STALLED_ERROR_CODE
-    assert progress['finished_after_watchdog'] is True
     assert progress['download_url'].endswith('demo.pptx')
+    assert progress['filename'] == 'demo.pptx'
+
+
+def test_watchdog_failure_is_terminal_for_every_task_type(app, db_session):
+    """任何任务类型（不只是导出）在看门狗判失败后都不能被改回成功。"""
+    project_id = _create_project(app)
+    with app.app_context():
+        task = Task(
+            id=str(uuid.uuid4()),
+            project_id=project_id,
+            task_type='GENERATE_IMAGES',
+            status='FAILED',
+            error_message='任务疑似卡住：已30 分钟没有进度更新。',
+        )
+        task.progress = json.dumps({
+            'percent': 40,
+            'error_code': STALLED_ERROR_CODE,
+            'error_stage': 'task_watchdog',
+        })
+        db.session.add(task)
+        db.session.commit()
+
+        # worker 之后恢复并尝试标记完成
+        task.status = 'COMPLETED'
+        task.set_progress({'total': 10, 'completed': 10, 'percent': 100, 'current_step': '完成'})
+        db.session.commit()
+
+        stored = Task.query.get(task.id)
+        assert stored.status == 'FAILED'
+        assert stored.get_progress()['error_code'] == STALLED_ERROR_CODE
 
 
 def test_set_progress_stamps_heartbeat_and_preserves_failure_reason(app):
