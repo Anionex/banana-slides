@@ -316,3 +316,37 @@ def test_apimart_non_gpt_image_model_never_sends_quality():
     # The configured tier must not leak to models that do not support it; the
     # request keeps the previous 'auto' default.
     assert client.images.with_raw_response.generate.call_args.kwargs["quality"] == "auto"
+
+
+# ---------------------------------------------------------------------------
+# Provider factory wiring
+# ---------------------------------------------------------------------------
+
+def test_factory_forwards_image_quality_setting(monkeypatch):
+    """IMAGE_QUALITY must reach the provider through get_image_provider."""
+    monkeypatch.setenv('AI_PROVIDER_FORMAT', 'openai')
+    monkeypatch.setenv('OPENAI_API_KEY', 'test-key')
+    monkeypatch.setenv('OPENAI_API_BASE', 'https://api.openai.com/v1')
+    monkeypatch.setenv('IMAGE_QUALITY', 'xhigh')
+
+    from services.ai_providers import get_image_provider
+
+    with patch("services.ai_providers.image.openai_provider.OpenAI"):
+        provider = get_image_provider('gpt-image-2.5-flare')
+
+    assert provider.image_quality == 'xhigh'
+    assert provider._resolve_quality() == 'xhigh'
+
+
+def test_factory_defaults_image_quality_to_auto(monkeypatch):
+    monkeypatch.setenv('AI_PROVIDER_FORMAT', 'openai')
+    monkeypatch.setenv('OPENAI_API_KEY', 'test-key')
+    monkeypatch.setenv('OPENAI_API_BASE', 'https://api.openai.com/v1')
+    monkeypatch.delenv('IMAGE_QUALITY', raising=False)
+
+    from services.ai_providers import get_image_provider
+
+    with patch("services.ai_providers.image.openai_provider.OpenAI"):
+        provider = get_image_provider('gpt-image-2.5-flare')
+
+    assert provider.image_quality == 'auto'
