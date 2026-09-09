@@ -303,6 +303,7 @@ class OpenAIImageProvider(ImageProvider):
         self.model = model
         self.image_api_protocol = image_api_protocol or 'auto'
         self.image_quality = image_quality or 'auto'
+        self._quality_warning_logged = False
     
     def _encode_image_to_base64(self, image: Image.Image) -> str:
         """
@@ -614,20 +615,26 @@ class OpenAIImageProvider(ImageProvider):
         # gpt-image-2.5+ additionally accepts xhigh / max.
         requested = (self.image_quality or 'auto').strip().lower()
         if requested not in _IMAGE_QUALITY_TIERS:
-            logger.warning(
+            self._warn_quality_once(
                 "Unsupported image quality %r for %s; falling back to auto",
                 self.image_quality,
                 self.model,
             )
             return 'auto'
         if requested in _EXTENDED_IMAGE_QUALITY_TIERS and not _gpt_image_supports_extended_quality(self.model):
-            logger.warning(
+            self._warn_quality_once(
                 "%s does not support quality=%s; falling back to high",
                 self.model,
                 requested,
             )
             return 'high'
         return requested
+
+    def _warn_quality_once(self, message: str, *args) -> None:
+        """Log a quality fallback once per provider instance (bulk jobs would spam)."""
+        if not self._quality_warning_logged:
+            logger.warning(message, *args)
+            self._quality_warning_logged = True
 
     def _is_apimart(self) -> bool:
         return "api.apimart.ai" in (self.api_base or "").lower()
@@ -847,14 +854,11 @@ class OpenAIImageProvider(ImageProvider):
             extra_body=extra_body,
         )
         # APIMart forwards the OpenAI images API quality tier, but only the GPT
-        # Image family documents it. Send it only when the user picked an
-        # explicit tier so default requests keep the original payload shape.
-        configured_quality = (self.image_quality or 'auto').strip().lower()
-        quality = (
-            self._resolve_quality()
-            if _is_gpt_image_model(self.model) and configured_quality != 'auto'
-            else None
-        )
+        # Image family documents it. Send it only when a tier is actually in
+        # effect so default (and invalid-value) requests keep the original shape.
+        quality = self._resolve_quality() if _is_gpt_image_model(self.model) else None
+        if quality == 'auto':
+            quality = None
         if quality:
             kwargs['quality'] = quality
         logger.debug(

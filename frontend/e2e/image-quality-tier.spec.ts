@@ -77,6 +77,22 @@ test.describe('Image quality tier setting', () => {
       await expect(page.getByTestId('openai-image-quality-select')).toHaveCount(0);
     });
 
+    test('hides the quality tiers for a model that ignores them (Seedream)', async ({ page }) => {
+      await mockSettings(page, {
+        ai_provider_format: 'volcengine',
+        image_model_source: 'volcengine',
+        image_model: 'doubao-seedream-5.0-lite',
+      });
+
+      await page.goto(`${BASE_URL}/settings`);
+      await page.waitForLoadState('networkidle');
+
+      // Protocol select is still shown (Seedream needs the images path) while the
+      // quality tiers are hidden because Seedream does not accept a quality param.
+      await expect(page.getByTestId('openai-image-api-protocol-select')).toBeVisible();
+      await expect(page.getByTestId('openai-image-quality-select')).toHaveCount(0);
+    });
+
     test('restores the saved tier into the select', async ({ page }) => {
       await mockSettings(page, { image_quality: 'xhigh' });
 
@@ -128,9 +144,14 @@ test.describe('Image quality tier setting', () => {
       BASE_URL.replace(/:\d+$/, ':' + (parseInt(BASE_URL.split(':').pop()!) + 2000));
 
     test.beforeAll(async ({ request }) => {
-      // Make the OpenAI-compatible image section visible in the settings page.
+      // Make the OpenAI-compatible image section visible in the settings page:
+      // the quality control only shows for GPT Image models.
       await request.put(`${apiBase()}/api/settings`, {
-        data: { ai_provider_format: 'openai', image_model_source: 'openai' },
+        data: {
+          ai_provider_format: 'openai',
+          image_model_source: 'openai',
+          image_model: 'gpt-image-2.5-flare',
+        },
       });
     });
 

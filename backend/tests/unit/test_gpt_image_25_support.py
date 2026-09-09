@@ -313,9 +313,11 @@ def test_apimart_non_gpt_image_model_never_sends_quality():
 
     provider.generate_image("a cat", aspect_ratio="16:9", resolution="2K")
 
-    # The configured tier must not leak to models that do not support it; the
-    # request keeps the previous 'auto' default.
-    assert client.images.with_raw_response.generate.call_args.kwargs["quality"] == "auto"
+    # A non-GPT-Image model must not be routed through the APIMart async path
+    # (that path forwards `quality`); it keeps the generic images request.
+    request = client.images.with_raw_response.generate.call_args.kwargs
+    assert "extra_body" not in request
+    assert request["quality"] == "auto"
 
 
 # ---------------------------------------------------------------------------
@@ -350,3 +352,128 @@ def test_factory_defaults_image_quality_to_auto(monkeypatch):
         provider = get_image_provider('gpt-image-2.5-flare')
 
     assert provider.image_quality == 'auto'
+
+
+# ---------------------------------------------------------------------------
+# Settings plumbing: startup sync, cache invalidation, explicit auto
+# ---------------------------------------------------------------------------
+
+def test_startup_loader_restores_image_quality(monkeypatch):
+    """A saved tier must survive a restart (_load_settings_to_config)."""
+    import importlib
+
+    from flask import Flask
+    from models import Settings
+
+    settings = Settings(image_quality='xhigh')
+    monkeypatch.setattr(Settings, 'get_settings', staticmethod(lambda: settings))
+    app_module = importlib.reload(importlib.import_module('app'))
+
+    flask_app = Flask(__name__)
+    with patch('services.task_manager.sync_resource_limits'):
+        app_module._load_settings_to_config(flask_app)
+
+    assert flask_app.config['IMAGE_QUALITY'] == 'xhigh'
+
+
+def test_startup_loader_falls_back_to_env_quality(monkeypatch):
+    import importlib
+
+    from flask import Flask
+    from config import Config
+    from models import Settings
+
+    monkeypatch.setattr(Config, 'IMAGE_QUALITY', 'medium')
+    settings = Settings(image_quality=None)
+    monkeypatch.setattr(Settings, 'get_settings', staticmethod(lambda: settings))
+    app_module = importlib.reload(importlib.import_module('app'))
+
+    flask_app = Flask(__name__)
+    with patch('services.task_manager.sync_resource_limits'):
+        app_module._load_settings_to_config(flask_app)
+
+    assert flask_app.config['IMAGE_QUALITY'] == 'medium'
+
+
+def _new_sync_app(seed=None):
+    """Flask app pre-seeded so _sync_settings_to_config rewrites nothing."""
+    from flask import Flask
+    from config import Config
+
+    app = Flask(__name__)
+    app.config.update(
+        IMAGE_QUALITY='auto',
+        AI_PROVIDER_FORMAT='gemini',
+        TEXT_MODEL=Config.TEXT_MODEL,
+        IMAGE_MODEL=Config.IMAGE_MODEL,
+        IMAGE_CAPTION_MODEL=Config.IMAGE_CAPTION_MODEL,
+    )
+    if seed:
+        app.config.update({k: v for k, v in seed.items() if k != 'IMAGE_QUALITY'})
+    return app
+
+
+def _run_sync_settings(quality, app):
+    """Return how often _sync_settings_to_config cleared the AI service cache."""
+    from controllers.settings_controller import _sync_settings_to_config
+    from models import Settings
+
+    settings = Settings(image_quality=quality, ai_provider_format='gemini')
+
+    with app.app_context(), patch(
+        'controllers.settings_controller._provider_api_env_defaults', return_value={}
+    ), patch('services.task_manager.sync_resource_limits'), patch(
+        'services.ai_service_manager.clear_ai_service_cache'
+    ) as clear_cache:
+        _sync_settings_to_config(settings)
+        return clear_cache.call_count
+
+
+def test_sync_settings_invalidates_provider_cache_on_quality_change():
+    """Image providers are cached per model name, so a quality-only save must
+    clear the cache — otherwise generation keeps the previous tier."""
+    # Warm the config once so unrelated keys already match, then a repeat run
+    # must be a no-op: that makes the quality delta the only variable.
+    warm_app = _new_sync_app()
+    _run_sync_settings(None, warm_app)
+
+    assert _run_sync_settings(None, _new_sync_app(dict(warm_app.config))) == 0
+    assert _run_sync_settings('max', _new_sync_app(dict(warm_app.config))) == 1
+
+
+def test_update_settings_stores_explicit_auto_quality():
+    """Picking 'auto' in the UI must override an IMAGE_QUALITY value from .env,
+    so it is stored literally instead of as NULL (= follow env)."""
+    from flask import Flask
+    from controllers.settings_controller import update_settings
+    from models import Settings
+
+    app = Flask(__name__)
+    settings = Settings()
+
+    with app.test_request_context('/api/settings/', method='PUT', json={'image_quality': 'auto'}):
+        with patch('controllers.settings_controller.Settings.get_settings', return_value=settings), patch(
+            'controllers.settings_controller.db.session.commit'
+        ), patch('controllers.settings_controller._sync_settings_to_config'):
+            response = update_settings()
+
+    assert response[1] == 200 if isinstance(response, tuple) else True
+    assert settings.image_quality == 'auto'
+
+
+def test_codex_quality_mapping(monkeypatch):
+    """Codex keeps its historical 'high' default and only passes tiers it can use."""
+    from services.ai_providers.image.codex_provider import CodexImageProvider
+
+    assert CodexImageProvider(api_key='t', model='gpt-image-2.5-flare')._resolve_quality() == 'high'
+    assert CodexImageProvider(api_key='t', model='gpt-image-2.5-flare', image_quality='max')._resolve_quality() == 'max'
+    assert CodexImageProvider(api_key='t', model='gpt-image-2.5-sunburst', image_quality='low')._resolve_quality() == 'low'
+    assert CodexImageProvider(api_key='t', model='gpt-image-2', image_quality='max')._resolve_quality() == 'high'
+    assert CodexImageProvider(api_key='t', model='gpt-image-2', image_quality='medium')._resolve_quality() == 'medium'
+    assert CodexImageProvider(api_key='t', model='gpt-image-2', image_quality='nonsense')._resolve_quality() == 'high'
+
+    payload = CodexImageProvider(api_key='t', model='gpt-image-2.5-flare', image_quality='max')._build_payload(
+        'a cat', '16:9'
+    )
+    assert payload['tools'][0]['quality'] == 'max'
+    assert payload['tools'][0]['model'] == 'gpt-image-2.5-flare'

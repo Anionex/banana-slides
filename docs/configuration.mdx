@@ -37,7 +37,7 @@ OPENAI_API_BASE=https://api.openai.com/v1
 
 ### Image quality tier (GPT Image)
 
-When the image model is served over an OpenAI-compatible API, pick the generation quality under Settings → Image Generation Model → Image Quality. The control only appears when the image provider is OpenAI or Volcengine Agent Plan; other providers are unaffected.
+When the image model is served over an OpenAI-compatible API, pick the generation quality under Settings → Image Generation Model → Image Quality. The control only appears when the image provider is OpenAI or Volcengine Agent Plan *and* the model belongs to the GPT Image family (`gpt-image-*`, `chatgpt-image-*`); DALL·E, Seedream and other models hide it because the tier has no effect there.
 
 | Tier | Meaning |
 | --- | --- |
@@ -49,10 +49,11 @@ When the image model is served over an OpenAI-compatible API, pick the generatio
 Notes:
 
 - `gpt-image-2.5-flare` and `gpt-image-2.5-sunburst` accept all six tiers. `gpt-image-2`, `gpt-image-1.5`, `gpt-image-1`, and `chatgpt-image-*` stop at `high`; selecting `xhigh` / `max` falls back to `high` and logs a warning.
+- Codex (OpenAI OAuth) reads the same setting: `auto` keeps Codex's historical `high`, while `low` / `medium` / `high` and the 2.5 `xhigh` / `max` tiers are forwarded to the Codex `image_generation` tool; `xhigh` / `max` still fall back to `high` on older models.
 - `dall-e-3` always uses `standard`; `dall-e-2` and Volcengine Seedream receive no quality parameter.
 - Cost note: the 2.5 tiers sit lower than their 2.0 counterparts (2.5 `high` costs roughly what `gpt-image-2` `medium` used to). To keep the old `high` look, select `max`, which costs about what the old `high` did.
 - Model names are matched by the `gpt-image` / `chatgpt-image` prefix, so dated snapshots such as `gpt-image-2.5-flare-2026-09-08` also route to the images API automatically.
-- You can set the default through the environment instead: `IMAGE_QUALITY=high` (one of `auto` / `low` / `medium` / `high` / `xhigh` / `max`). The value saved in Settings takes precedence.
+- You can set the default through the environment instead: `IMAGE_QUALITY=high` (one of `auto` / `low` / `medium` / `high` / `xhigh` / `max`). A value saved in Settings — including an explicit `auto` — takes precedence and survives restarts; the environment is only used until the first save.
 
 ## SenseNova / SenseTime (OpenAI-Compatible)
 

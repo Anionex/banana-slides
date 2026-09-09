@@ -281,7 +281,9 @@ def update_settings():
             if quality not in ALLOWED_IMAGE_QUALITIES:
                 allowed_values = "', '".join(ALLOWED_IMAGE_QUALITIES)
                 return bad_request(f"image_quality must be one of '{allowed_values}'")
-            settings.image_quality = quality if quality != "auto" else None
+            # Store 'auto' literally: an explicit choice in the UI must override
+            # an IMAGE_QUALITY value coming from .env, unlike NULL (= follow env).
+            settings.image_quality = quality
 
         if "image_aspect_ratio" in data:
             aspect_ratio = data["image_aspect_ratio"]
@@ -738,7 +740,13 @@ def _sync_settings_to_config(settings: Settings):
     # Sync image generation settings (fall back to Config when NULL)
     current_app.config["DEFAULT_RESOLUTION"] = settings.image_resolution or Config.DEFAULT_RESOLUTION
     current_app.config["DEFAULT_ASPECT_RATIO"] = settings.image_aspect_ratio or Config.DEFAULT_ASPECT_RATIO
-    current_app.config["IMAGE_QUALITY"] = getattr(settings, "image_quality", None) or Config.IMAGE_QUALITY
+    new_quality = getattr(settings, "image_quality", None) or Config.IMAGE_QUALITY
+    if current_app.config.get("IMAGE_QUALITY") != new_quality:
+        # Image providers are cached per model name, so a quality change must
+        # invalidate the cache or generation keeps using the previous tier.
+        ai_config_changed = True
+        logger.info(f"Image quality changed: {current_app.config.get('IMAGE_QUALITY')} -> {new_quality}")
+    current_app.config["IMAGE_QUALITY"] = new_quality
 
     # Sync worker settings (fall back to Config when NULL)
     current_app.config["MAX_DESCRIPTION_WORKERS"] = settings.max_description_workers or Config.MAX_DESCRIPTION_WORKERS

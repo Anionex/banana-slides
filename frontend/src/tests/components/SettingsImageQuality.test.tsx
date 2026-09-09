@@ -134,4 +134,19 @@ describe('Settings image quality tier', () => {
     await screen.findByDisplayValue('gemini-3-pro-image-preview');
     expect(screen.queryByTestId('openai-image-quality-select')).toBeNull();
   });
+
+  it('hides the quality select for models that ignore it (Seedream)', async () => {
+    getSettings.mockResolvedValueOnce({
+      data: {
+        ...baseSettings,
+        image_model: 'doubao-seedream-5.0-lite',
+      },
+    });
+    renderSettings();
+
+    await screen.findByDisplayValue('doubao-seedream-5.0-lite');
+    // The protocol select stays visible for Seedream, the quality select must not.
+    expect(screen.getByTestId('openai-image-api-protocol-select')).toBeTruthy();
+    expect(screen.queryByTestId('openai-image-quality-select')).toBeNull();
+  });
 });

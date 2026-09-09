@@ -37,7 +37,7 @@ OPENAI_API_BASE=https://api.openai.com/v1
 
 ### 图片质量档位（GPT Image）
 
-使用 OpenAI 兼容的图片模型时，可在「设置 → 图像生成模型 → 图片质量档位」选择生成质量。该选项只在图片提供商为 OpenAI / 火山 Agent Plan 时显示，其他提供商不受影响。
+使用 OpenAI 兼容的图片模型时，可在「设置 → 图像生成模型 → 图片质量档位」选择生成质量。该选项只在图片提供商为 OpenAI / 火山 Agent Plan，且模型属于 GPT Image 系列（`gpt-image-*`、`chatgpt-image-*`）时显示；DALL·E、Seedream 等其他模型不显示，因为档位对它们无效。
 
 | 档位 | 说明 |
 | --- | --- |
@@ -49,10 +49,11 @@ OPENAI_API_BASE=https://api.openai.com/v1
 注意事项：
 
 - `gpt-image-2.5-flare` 与 `gpt-image-2.5-sunburst` 支持全部六档；`gpt-image-2`、`gpt-image-1.5`、`gpt-image-1`、`chatgpt-image-*` 只支持到 `high`，选择 `xhigh` / `max` 时会自动回落到 `high` 并在日志中给出提示。
+- Codex（OpenAI OAuth）同样读取该设置：`auto` 保持 Codex 原有的 `high`，`low` / `medium` / `high` 与 2.5 的 `xhigh` / `max` 会原样传给 Codex 的 `image_generation` 工具，旧模型上的 `xhigh` / `max` 同样回落到 `high`。
 - `dall-e-3` 固定使用 `standard`，`dall-e-2` 与火山 Seedream 不发送质量参数。
 - 成本提醒：2.5 的档位语义相比 2 代整体下移（2.5 的 `high` 约等于旧 `gpt-image-2` 的 `medium` 用量）。想保持旧版 `high` 的观感请选 `max`，成本也会回到旧版 `high` 的水平。
 - 模型名按 `gpt-image` / `chatgpt-image` 前缀识别，因此带日期快照的模型名（如 `gpt-image-2.5-flare-2026-09-08`）也会自动走图片接口，无需额外配置。
-- 也可以通过环境变量设置默认值：`IMAGE_QUALITY=high`（可选 `auto` / `low` / `medium` / `high` / `xhigh` / `max`），设置页里的值优先级更高。
+- 也可以通过环境变量设置默认值：`IMAGE_QUALITY=high`（可选 `auto` / `low` / `medium` / `high` / `xhigh` / `max`）。设置页保存的值（包括显式选择 `auto`）优先级更高，重启后依然生效；只有从未保存过时才回落到环境变量。
 
 ## 商汤日日新（OpenAI 兼容）
 

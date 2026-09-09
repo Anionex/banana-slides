@@ -95,6 +95,9 @@ const APIMART_RECOMMENDED_MODELS = {
   image: 'gpt-image-2.5-flare',
   caption: 'gpt-5.6-luna',
 };
+// Quality tiers only apply to the GPT Image family (matches the backend's
+// _is_gpt_image_model); DALL-E, Seedream and Gemini models ignore the setting.
+const GPT_IMAGE_MODEL_PATTERN = /^(gpt-image|chatgpt-image)/i;
 const isApimartBaseUrl = (url: string) =>
   url.trim().replace(/\/+$/, '') === APIMART_BASE_URL;
 // 火山 Agent Plans（OpenAI 兼容）: 专属 Base URL 与模型名
@@ -1523,28 +1526,31 @@ export const Settings: React.FC = () => {
               </p>
             </div>
 
-            {/* Quality tier: only GPT Image / DALL-E models expose this parameter */}
-            <div className="pl-3 border-l-2 border-banana-300 dark:border-banana-600">
-              <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">
-                {t('settings.fields.imageQuality')}
-              </label>
-              <select
-                data-testid="openai-image-quality-select"
-                value={formData.image_quality}
-                onChange={(e) => handleFieldChange('image_quality', e.target.value)}
-                className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
-              >
-                <option value="auto">{t('settings.fields.imageQualityAuto')}</option>
-                <option value="low">{t('settings.fields.imageQualityLow')}</option>
-                <option value="medium">{t('settings.fields.imageQualityMedium')}</option>
-                <option value="high">{t('settings.fields.imageQualityHigh')}</option>
-                <option value="xhigh">{t('settings.fields.imageQualityXhigh')}</option>
-                <option value="max">{t('settings.fields.imageQualityMax')}</option>
-              </select>
-              <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">
-                {t('settings.fields.imageQualityDesc')}
-              </p>
-            </div>
+            {/* Quality tier: only GPT Image models accept this parameter, so hide
+                the control for Seedream and other models where it has no effect. */}
+            {GPT_IMAGE_MODEL_PATTERN.test(formData.image_model || '') && (
+              <div className="pl-3 border-l-2 border-banana-300 dark:border-banana-600">
+                <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">
+                  {t('settings.fields.imageQuality')}
+                </label>
+                <select
+                  data-testid="openai-image-quality-select"
+                  value={formData.image_quality}
+                  onChange={(e) => handleFieldChange('image_quality', e.target.value)}
+                  className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
+                >
+                  <option value="auto">{t('settings.fields.imageQualityAuto')}</option>
+                  <option value="low">{t('settings.fields.imageQualityLow')}</option>
+                  <option value="medium">{t('settings.fields.imageQualityMedium')}</option>
+                  <option value="high">{t('settings.fields.imageQualityHigh')}</option>
+                  <option value="xhigh">{t('settings.fields.imageQualityXhigh')}</option>
+                  <option value="max">{t('settings.fields.imageQualityMax')}</option>
+                </select>
+                <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">
+                  {t('settings.fields.imageQualityDesc')}
+                </p>
+              </div>
+            )}
           </>
         )}
 
