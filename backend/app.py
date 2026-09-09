@@ -451,12 +451,13 @@ def _port_available(port: int) -> bool:
 
     如果端口已被占用（例如另一个实例正在跑），启动会在 app.run 处失败；
     此时不应该执行任务对账，否则会把那个实例正在跑的任务误判为中断。
+    探测选项与 werkzeug 服务器保持一致（SO_REUSEADDR），
+    否则 TIME_WAIT 会被误判为"端口被占用"，导致刚重启时跳过对账。
     """
     import socket
 
     probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    # 不要设置 SO_REUSEADDR：macOS 上它允许绑定 0.0.0.0:port，
-    # 即使该端口已被 127.0.0.1:port 占用，检查会失效
+    probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
         probe.bind(('0.0.0.0', port))
         return True
@@ -464,6 +465,56 @@ def _port_available(port: int) -> bool:
         return False
     finally:
         probe.close()
+
+
+_instance_lock_handle = None
+
+
+def _acquire_instance_lock(target_app=None) -> bool:
+    """独占当前数据根，防止第二个实例把第一个实例的任务判为中断。
+
+    返回 True 表示本进程拿到了锁（可以执行启动对账）。锁文件随进程存活，
+    无法创建/加锁时返回 True（退回原来的行为，不影响启动）。
+    """
+    global _instance_lock_handle
+    if _instance_lock_handle is not None:
+        return True
+
+    target_app = target_app or app
+    root = target_app.config.get('UPLOAD_FOLDER') or os.path.dirname(os.path.abspath(__file__))
+    lock_path = os.path.join(root, '.backend-instance.lock')
+    try:
+        handle = open(lock_path, 'a+')
+    except OSError as lock_error:
+        logging.getLogger(__name__).warning(
+            f"Could not open instance lock {lock_path}: {lock_error}"
+        )
+        return True
+
+    try:
+        if os.name == 'nt':  # pragma: no cover - Windows
+            import msvcrt
+
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        handle.close()
+        return False
+
+    try:
+        handle.seek(0)
+        handle.truncate()
+        handle.write(f"{os.getpid()}\n")
+        handle.flush()
+    except OSError:  # pragma: no cover - 写 pid 失败不影响锁
+        pass
+
+    _instance_lock_handle = handle  # 保持打开：锁随进程存在
+    return True
 
 
 if __name__ == '__main__':
@@ -483,7 +534,12 @@ if __name__ == '__main__':
         port = server.server_port
         print(f"LISTENING_ON:{port}", flush=True)
 
-        _reconcile_orphaned_tasks_on_startup()
+        if _acquire_instance_lock(app):
+            _reconcile_orphaned_tasks_on_startup()
+        else:
+            logging.getLogger(__name__).warning(
+                "Another backend instance owns this data root; skipped task reconciliation"
+            )
 
         logging.info(
             "\n"
@@ -522,10 +578,11 @@ if __name__ == '__main__':
     )
 
     # Using absolute paths for database, so WSL path issues should not occur
-    if _port_available(port):
+    if _acquire_instance_lock(app) and _port_available(port):
         _reconcile_orphaned_tasks_on_startup()
     else:
         logging.getLogger(__name__).warning(
-            f"Port {port} is already in use; skipped orphaned task reconciliation"
+            f"Port {port} busy or another instance owns the data root; "
+            "skipped orphaned task reconciliation"
         )
     app.run(host='0.0.0.0', port=port, debug=debug, use_reloader=debug)

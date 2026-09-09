@@ -22,6 +22,7 @@ class Task(db.Model):
         'error_details',
         'help_text',
         'backend_status',
+        'watchdog_message_text',
     )
     
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))

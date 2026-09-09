@@ -75,7 +75,7 @@ _TEXTS = {
         'interrupted': '任务被中断：后台服务已重启或进程已退出，该任务不会继续执行。',
         'interrupted_detail': '最后一次进度更新在 {duration}前。',
         'interrupted_help': INTERRUPTED_HELP_TEXT,
-        'stalled': '任务疑似卡住：已 {duration}没有进度更新',
+        'stalled': '任务疑似卡住：已 {duration}没有进度更新{step}。',
         'stalled_step': '（最后一步：{step}）',
         'stalled_help': '可以点右侧的 × 移除该任务后重新导出；若反复出现，请把应用日志发给开发者。',
         'hours': '{value} 小时',
@@ -83,16 +83,19 @@ _TEXTS = {
         'seconds': '{value} 秒',
         'step_starting': '开始执行',
         'step_preparing': '准备',
+        'step_exporting': '导出',
         'step_layout': '版面分析',
         'step_style': '样式提取',
         'step_build': '构建 PPTX',
         'step_saving': '保存文件',
+        'step_narration': '旁白',
+        'step_done': '完成',
     },
     'en': {
         'interrupted': 'Task interrupted: the backend restarted or the process exited, so this task will not continue.',
         'interrupted_detail': ' Last progress update was {duration} ago.',
         'interrupted_help': 'Remove the entry with the × button, then start the task again.',
-        'stalled': 'Task looks stuck: no progress for {duration}',
+        'stalled': 'Task looks stuck: no progress for {duration}{step}.',
         'stalled_step': ' (last step: {step})',
         'stalled_help': 'Remove the task with the × button and run it again. If it keeps happening, send the app log to the developer.',
         'hours': '{value} hours',
@@ -100,10 +103,13 @@ _TEXTS = {
         'seconds': '{value} seconds',
         'step_starting': 'starting',
         'step_preparing': 'preparing',
+        'step_exporting': 'exporting',
         'step_layout': 'layout analysis',
         'step_style': 'style extraction',
         'step_build': 'building the PPTX',
         'step_saving': 'saving the file',
+        'step_narration': 'narration',
+        'step_done': 'done',
     },
 }
 
@@ -111,11 +117,15 @@ _STEP_KEYS = {
     '开始执行': 'step_starting',
     '准备': 'step_preparing',
     '配置': 'step_preparing',
+    '开始': 'step_starting',
+    '导出': 'step_exporting',
     '版面分析': 'step_layout',
     '样式提取': 'step_style',
     '构建PPTX': 'step_build',
     '保存文件': 'step_saving',
-    '完成': 'step_saving',
+    '旁白': 'step_narration',
+    '完成': 'step_done',
+    '导出完成': 'step_done',
 }
 
 
@@ -146,11 +156,17 @@ def _texts() -> Dict[str, str]:
 
 
 def _localized_step(step: Optional[str]) -> Optional[str]:
-    """把心跳里的阶段名映射成当前语言的文案；未知阶段返回 None（不插入句子）。"""
+    """把心跳里的阶段名映射成当前语言的文案。
+
+    未知阶段：中文界面直接用后端原文（信息不丢），英文界面返回 None
+    （避免中英混排，只省略这一句）。
+    """
     if not step:
         return None
     key = _STEP_KEYS.get(step)
-    return _texts()[key] if key else None
+    if key:
+        return _texts()[key]
+    return step if not _current_language().startswith('en') else None
 
 
 def _positive_env_float(name: str, default: float) -> float:
@@ -373,6 +389,9 @@ def mark_task_failed(
         'backend_status': 'FAILED',
         'error_code': error_code,
         'error_stage': error_stage,
+        # 记录看门狗自己写下的文案：展示时只有它才允许被本地化改写，
+        # worker 之后写入的更具体的错误不会被顶掉
+        'watchdog_message_text': message,
         'help_text': help_text,
         'error_details': {**(previous_progress.get('error_details') or {}), **(error_details or {})},
         'heartbeat_at': datetime.utcnow().isoformat(),
@@ -433,7 +452,10 @@ def mark_task_stalled(task, stalled_seconds: float) -> bool:
     return mark_task_failed(
         task,
         error_code=STALLED_ERROR_CODE,
-        message=f"{texts['stalled'].format(duration=_format_duration(stalled_seconds))}{step_detail}。",
+        message=texts['stalled'].format(
+            duration=_format_duration(stalled_seconds),
+            step=step_detail,
+        ),
         help_text=texts['stalled_help'],
         error_details={
             'reason': 'stalled',
@@ -501,6 +523,10 @@ def localize_watchdog_payload(payload: Dict) -> Dict:
     code = progress.get('error_code')
     if code not in (INTERRUPTED_ERROR_CODE, STALLED_ERROR_CODE):
         return payload
+    # 只有"看门狗写下的那句"才重算；worker 后来写了更具体的错误时保持原样
+    watchdog_text = progress.get('watchdog_message_text')
+    if not watchdog_text or payload.get('error_message') != watchdog_text:
+        return payload
 
     texts = _texts()
     details = progress.get('error_details') or {}
@@ -515,7 +541,7 @@ def localize_watchdog_payload(payload: Dict) -> Dict:
         if duration:
             localized_step = _localized_step(details.get('last_step'))
             step_detail = texts['stalled_step'].format(step=localized_step) if localized_step else ''
-            payload['error_message'] = f"{texts['stalled'].format(duration=duration)}{step_detail}。"
+            payload['error_message'] = texts['stalled'].format(duration=duration, step=step_detail)
         progress['help_text'] = texts['stalled_help']
 
     payload['progress'] = progress

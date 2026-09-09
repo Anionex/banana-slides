@@ -377,6 +377,7 @@ def test_startup_reconciled_message_is_localized_at_display_time(client, app):
             'error_code': INTERRUPTED_ERROR_CODE,
             'error_stage': 'task_watchdog',
             'error_details': {'reason': 'interrupted', 'idle_seconds': 10800},
+            'watchdog_message_text': '任务被中断：后台服务已重启或进程已退出，该任务不会继续执行。',
             'help_text': '点任务右侧的 × 移除这条记录，然后重新发起即可。',
         })
         db.session.commit()
@@ -391,6 +392,156 @@ def test_startup_reconciled_message_is_localized_at_display_time(client, app):
     assert data['progress']['help_text'].startswith('Remove the entry')
 
 
+def test_worker_error_is_not_overwritten_by_localization(client, app):
+    """看门狗判失败后 worker 写了更具体的错误，展示时不能被通用文案顶掉（复核 M2）。"""
+    project_id = _create_project(app)
+    task_id = _create_export_task(app, project_id, status='FAILED', heartbeat_age_seconds=7200)
+
+    with app.app_context():
+        task = Task.query.get(task_id)
+        task.error_message = 'AI 服务返回 401 invalid api key'
+        task.progress = json.dumps({
+            'percent': 40,
+            'error_code': STALLED_ERROR_CODE,
+            'error_stage': 'task_watchdog',
+            'error_details': {'reason': 'stalled', 'idle_seconds': 1900, 'last_step': '构建PPTX'},
+            'watchdog_message_text': '任务疑似卡住：已 32 分钟没有进度更新（最后一步：构建 PPTX）。',
+        })
+        db.session.commit()
+
+    response = client.get(
+        f'/api/projects/{project_id}/tasks/{task_id}',
+        headers={'Accept-Language': 'en'},
+    )
+    data = response.get_json()['data']
+    assert data['error_message'] == 'AI 服务返回 401 invalid api key'
+
+
+def test_stalled_message_is_localized_at_display_time(client, app):
+    """STALLED 的展示路径也要按界面语言重算（复核：此前无覆盖）。"""
+    project_id = _create_project(app)
+    task_id = _create_export_task(app, project_id, status='FAILED', heartbeat_age_seconds=7200)
+    chinese_message = '任务疑似卡住：已 32 分钟没有进度更新（最后一步：构建 PPTX）。'
+
+    with app.app_context():
+        task = Task.query.get(task_id)
+        task.error_message = chinese_message
+        task.progress = json.dumps({
+            'percent': 88,
+            'error_code': STALLED_ERROR_CODE,
+            'error_stage': 'task_watchdog',
+            'error_details': {'reason': 'stalled', 'idle_seconds': 1900, 'last_step': '构建PPTX'},
+            'watchdog_message_text': chinese_message,
+            'help_text': '可以点右侧的 × 移除该任务后重新导出。',
+        })
+        db.session.commit()
+
+    response = client.get(
+        f'/api/projects/{project_id}/tasks/{task_id}',
+        headers={'Accept-Language': 'en'},
+    )
+    data = response.get_json()['data']
+    assert data['error_message'].startswith('Task looks stuck')
+    assert 'building the PPTX' in data['error_message']
+    assert data['error_message'].endswith('.')
+    assert '。' not in data['error_message']
+    assert data['progress']['help_text'].startswith('Remove the task')
+
+
+def test_settings_test_status_localizes_watchdog_failure(client, app):
+    """设置页测试任务的状态接口同样要本地化看门狗文案（复核：此前无覆盖）。"""
+    project_id = _create_project(app)
+    task_id = _create_export_task(app, project_id, status='FAILED', heartbeat_age_seconds=7200)
+
+    with app.app_context():
+        task = Task.query.get(task_id)
+        task.task_type = 'TEST_TEXT_MODEL'
+        task.error_message = '任务被中断：后台服务已重启或进程已退出，该任务不会继续执行。'
+        task.progress = json.dumps({
+            'percent': 0,
+            'error_code': INTERRUPTED_ERROR_CODE,
+            'error_stage': 'task_watchdog',
+            'error_details': {'reason': 'interrupted', 'idle_seconds': 10800},
+            'watchdog_message_text': '任务被中断：后台服务已重启或进程已退出，该任务不会继续执行。',
+        })
+        db.session.commit()
+
+    response = client.get(
+        f'/api/settings/tests/{task_id}/status',
+        headers={'Accept-Language': 'en'},
+    )
+    payload = response.get_json()['data']
+    assert payload['error'].startswith('Task interrupted')
+    assert payload['help_text'].startswith('Remove the entry')
+
+
+def test_task_scope_restores_previous_binding():
+    """task_scope 必须保存/恢复线程绑定（复核：此前无覆盖）。"""
+    from services.task_watchdog import task_scope
+
+    task_watchdog.forget('outer-task')
+    task_watchdog.forget('inner-task')
+    task_watchdog.bind_thread('outer-task')
+    try:
+        assert task_watchdog.thread_task() == 'outer-task'
+        with task_scope('inner-task'):
+            assert task_watchdog.thread_task() == 'inner-task'
+        assert task_watchdog.thread_task() == 'outer-task'
+
+        # 异常路径同样要恢复
+        try:
+            with task_scope('inner-task'):
+                raise RuntimeError('boom')
+        except RuntimeError:
+            pass
+        assert task_watchdog.thread_task() == 'outer-task'
+    finally:
+        task_watchdog.unbind_thread()
+        task_watchdog.forget('outer-task')
+        task_watchdog.forget('inner-task')
+    assert task_watchdog.thread_task() is None
+
+
+def test_runner_binds_and_unbinds_the_worker_thread(app):
+    """真实 submit_task 路径里 worker 线程必须绑定到任务（复核：此前无覆盖）。"""
+    project_id = _create_project(app)
+    task_id = _create_export_task(app, project_id, heartbeat_age_seconds=0)
+    observed = {}
+
+    def worker(tid):
+        observed['bound'] = task_watchdog.thread_task()
+
+    task_manager.submit_task(task_id, worker)
+    try:
+        deadline = time.time() + 5
+        while 'bound' not in observed and time.time() < deadline:
+            time.sleep(0.05)
+        assert observed.get('bound') == task_id
+        # worker 结束后解绑（等 done callback 跑完）
+        deadline = time.time() + 5
+        while task_watchdog.thread_task() == task_id and time.time() < deadline:
+            time.sleep(0.05)
+        assert task_watchdog.thread_task() != task_id
+    finally:
+        with task_manager.lock:
+            task_manager.active_tasks.pop(task_id, None)
+        task_watchdog.forget(task_id)
+
+
+def test_every_limiter_wait_is_wrapped_in_task_scope():
+    """结构性回归：限流等待必须绑定任务，否则嵌套线程等槽时会被判卡住。"""
+    from pathlib import Path
+
+    source = Path(__file__).resolve().parents[2] / 'services' / 'task_manager.py'
+    limiter_lines = [
+        line for line in source.read_text(encoding='utf-8').splitlines()
+        if 'resource_limiter.slot(' in line
+    ]
+    assert limiter_lines, 'expected limiter usages in task_manager.py'
+    missing = [line.strip() for line in limiter_lines if 'task_scope(task_id)' not in line]
+    assert not missing, f'limiter waits without task_scope: {missing}'
+
+
 def test_port_available_detects_occupied_port():
     """端口被占用时跳过对账，避免第二个实例误判另一实例的任务（Codex P2）。"""
     import socket
@@ -398,7 +549,8 @@ def test_port_available_detects_occupied_port():
     from app import _port_available
 
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    listener.bind(('127.0.0.1', 0))
+    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    listener.bind(('0.0.0.0', 0))
     listener.listen(1)
     try:
         occupied = listener.getsockname()[1]
@@ -407,9 +559,61 @@ def test_port_available_detects_occupied_port():
         listener.close()
 
 
+def test_port_available_ignores_time_wait():
+    """只剩 TIME_WAIT 的端口要视为可用，否则刚重启时会跳过对账（复核 S1）。"""
+    import socket
+
+    from app import _port_available
+
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server.bind(('0.0.0.0', 0))
+    server.listen(1)
+    port = server.getsockname()[1]
+
+    client = socket.create_connection(('127.0.0.1', port))
+    conn, _ = server.accept()
+    conn.close()          # 服务端先关闭 → 服务端进入 TIME_WAIT
+    client.close()
+    server.close()
+
+    assert _port_available(port) is True
+
+
+def test_instance_lock_blocks_a_second_process(app):
+    """第二个实例拿不到数据根锁，因此不会执行启动对账（复核 M1）。"""
+    import os
+    import subprocess
+    import sys
+    import textwrap
+
+    from app import _acquire_instance_lock
+
+    lock_path = os.path.join(app.config['UPLOAD_FOLDER'], '.backend-instance.lock')
+    script = textwrap.dedent(
+        f"""
+        import fcntl, time
+        handle = open(r"{lock_path}", 'a+')
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        print('locked', flush=True)
+        time.sleep(10)
+        """
+    )
+    holder = subprocess.Popen(
+        [sys.executable, '-c', script], stdout=subprocess.PIPE, text=True
+    )
+    try:
+        assert holder.stdout.readline().strip() == 'locked'
+        assert _acquire_instance_lock(app) is False
+    finally:
+        holder.kill()
+        holder.wait(timeout=5)
+
+
 def test_limiter_wait_keeps_the_heartbeat_alive(app):
     """worker 等待限流槽时仍然算"活着"，不能被判卡住（Codex P2）。"""
     from services.task_manager import ResourceLimiter
+    from services.task_watchdog import task_scope
 
     project_id = _create_project(app)
     task_id = _create_export_task(app, project_id, heartbeat_age_seconds=0)
@@ -417,14 +621,11 @@ def test_limiter_wait_keeps_the_heartbeat_alive(app):
     seen = {}
 
     def worker(tid):
-        # 与真实路径一致：worker 线程内部绑定自己
-        task_watchdog.bind_thread(tid)
-        try:
+        # 与真实路径一致：worker 线程内部用 task_scope 绑定自己
+        with task_scope(tid):
             task_watchdog.touch(tid, '等待限流槽')
             with limiter.slot('blocked'):
                 seen['idle_after_wait'] = task_watchdog.seconds_since_touch(tid)
-        finally:
-            task_watchdog.unbind_thread()
 
     holder_ready = threading.Event()
 
