@@ -300,6 +300,13 @@ def test_stall_clock_starts_when_task_actually_begins(app):
         task_watchdog.forget(task_id)
 
 
+def test_task_insert_does_not_start_the_stall_clock(app):
+    """创建任务行本身不算"有进度"，否则排队时长会计入卡住判定（Codex P2）。"""
+    project_id = _create_project(app)
+    task_id = _create_export_task(app, project_id, heartbeat_age_seconds=0)
+    assert task_watchdog.seconds_since_touch(task_id) is None
+
+
 def test_watchdog_failure_stays_terminal_when_export_finishes(app, db_session, tmp_path, monkeypatch):
     """看门狗判失败后 worker 又跑完：保持 FAILED，但保留产物信息（Codex P2）。"""
     from PIL import Image

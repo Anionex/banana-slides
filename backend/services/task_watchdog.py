@@ -141,13 +141,15 @@ def touch_task(task_id: Optional[str], step: Optional[str] = None) -> None:
     task_watchdog.touch(task_id, step)
 
 
-@event.listens_for(Task, 'after_insert')
 @event.listens_for(Task, 'after_update')
 def _touch_on_task_write(_mapper, _connection, target):
-    """Any database write to a task counts as activity for that task.
+    """Any database *update* to a task counts as activity for that task.
 
     This is what keeps the stall check meaningful for task types that never call
     ``touch_task`` explicitly: writing progress refreshes the heartbeat.
+    ``after_insert`` is deliberately excluded — the row is created before the
+    worker is submitted, so counting it would let queue wait time count towards
+    the stall timeout.
     """
     task_watchdog.touch(getattr(target, 'id', None))
 
