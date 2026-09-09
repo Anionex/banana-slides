@@ -1331,8 +1331,14 @@ def get_test_status(task_id: str):
 
         # 如果任务失败，包含错误信息
         elif task.status == 'FAILED':
-            response_data['error'] = task.error_message
             progress = task.get_progress()
+            from services.task_watchdog import localize_watchdog_payload
+            localized = localize_watchdog_payload({
+                'error_message': task.error_message,
+                'progress': dict(progress or {}),
+            })
+            response_data['error'] = localized['error_message']
+            progress = localized['progress']
             if progress:
                 response_data.update(progress)
 

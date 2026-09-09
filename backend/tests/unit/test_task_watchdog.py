@@ -131,7 +131,7 @@ def test_status_endpoint_fails_stalled_task_owned_by_this_process(client, app, m
         assert data['status'] == 'FAILED'
         assert data['progress']['error_code'] == STALLED_ERROR_CODE
         assert '卡住' in data['error_message']
-        assert '构建PPTX' in data['error_message']
+        assert '构建 PPTX' in data['error_message']
     finally:
         with task_manager.lock:
             task_manager.active_tasks.pop(task_id, None)
@@ -361,6 +361,34 @@ def test_watchdog_message_falls_back_to_output_language(client, app, monkeypatch
     data = _get_task_status(client, project_id, task_id)
 
     assert data['error_message'].startswith('Task interrupted')
+
+
+def test_startup_reconciled_message_is_localized_at_display_time(client, app):
+    """启动对账发生在无请求上下文时（只能按 OUTPUT_LANGUAGE 写），
+    展示时要按界面语言重算（Codex P2）。"""
+    project_id = _create_project(app)
+    task_id = _create_export_task(app, project_id, status='FAILED', heartbeat_age_seconds=7200)
+
+    with app.app_context():
+        task = Task.query.get(task_id)
+        task.error_message = '任务被中断：后台服务已重启或进程已退出，该任务不会继续执行。'
+        task.progress = json.dumps({
+            'percent': 88,
+            'error_code': INTERRUPTED_ERROR_CODE,
+            'error_stage': 'task_watchdog',
+            'error_details': {'reason': 'interrupted', 'idle_seconds': 10800},
+            'help_text': '点任务右侧的 × 移除这条记录，然后重新发起即可。',
+        })
+        db.session.commit()
+
+    response = client.get(
+        f'/api/projects/{project_id}/tasks/{task_id}',
+        headers={'Accept-Language': 'en'},
+    )
+    data = response.get_json()['data']
+    assert data['error_message'].startswith('Task interrupted')
+    assert '3.0 hours' in data['error_message']
+    assert data['progress']['help_text'].startswith('Remove the entry')
 
 
 def test_port_available_detects_occupied_port():

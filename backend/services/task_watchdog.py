@@ -47,6 +47,7 @@ import logging
 import os
 import threading
 import time
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Dict, Optional, Set, Tuple
 
@@ -80,6 +81,12 @@ _TEXTS = {
         'hours': '{value} 小时',
         'minutes': '{value} 分钟',
         'seconds': '{value} 秒',
+        'step_starting': '开始执行',
+        'step_preparing': '准备',
+        'step_layout': '版面分析',
+        'step_style': '样式提取',
+        'step_build': '构建 PPTX',
+        'step_saving': '保存文件',
     },
     'en': {
         'interrupted': 'Task interrupted: the backend restarted or the process exited, so this task will not continue.',
@@ -91,7 +98,24 @@ _TEXTS = {
         'hours': '{value} hours',
         'minutes': '{value} minutes',
         'seconds': '{value} seconds',
+        'step_starting': 'starting',
+        'step_preparing': 'preparing',
+        'step_layout': 'layout analysis',
+        'step_style': 'style extraction',
+        'step_build': 'building the PPTX',
+        'step_saving': 'saving the file',
     },
+}
+
+_STEP_KEYS = {
+    '开始执行': 'step_starting',
+    '准备': 'step_preparing',
+    '配置': 'step_preparing',
+    '版面分析': 'step_layout',
+    '样式提取': 'step_style',
+    '构建PPTX': 'step_build',
+    '保存文件': 'step_saving',
+    '完成': 'step_saving',
 }
 
 
@@ -119,6 +143,14 @@ def _current_language() -> str:
 
 def _texts() -> Dict[str, str]:
     return _TEXTS['en'] if _current_language().startswith('en') else _TEXTS['zh']
+
+
+def _localized_step(step: Optional[str]) -> Optional[str]:
+    """把心跳里的阶段名映射成当前语言的文案；未知阶段返回 None（不插入句子）。"""
+    if not step:
+        return None
+    key = _STEP_KEYS.get(step)
+    return _texts()[key] if key else None
 
 
 def _positive_env_float(name: str, default: float) -> float:
@@ -207,6 +239,11 @@ class TaskWatchdog:
         if task_id:
             self.touch(task_id)
 
+    def thread_task(self) -> Optional[str]:
+        """当前线程绑定的任务（没有则 None）。"""
+        with self._lock:
+            return self._thread_tasks.get(threading.get_ident())
+
 
 task_watchdog = TaskWatchdog()
 
@@ -214,6 +251,24 @@ task_watchdog = TaskWatchdog()
 def touch_task(task_id: Optional[str], step: Optional[str] = None) -> None:
     """Module-level convenience wrapper used by task functions."""
     task_watchdog.touch(task_id, step)
+
+
+@contextmanager
+def task_scope(task_id: Optional[str]):
+    """把当前线程临时绑定到任务。
+
+    嵌套线程（例如逐页并发生成的 worker）里等待限流槽时，用它保持心跳，
+    避免"worker 活着但在排队"被误判为卡住。
+    """
+    previous = task_watchdog.thread_task()
+    task_watchdog.bind_thread(task_id)
+    try:
+        yield
+    finally:
+        if previous:
+            task_watchdog.bind_thread(previous)
+        else:
+            task_watchdog.unbind_thread()
 
 
 @event.listens_for(Task, 'after_update')
@@ -373,7 +428,8 @@ def mark_task_stalled(task, stalled_seconds: float) -> bool:
     """Mark a task owned by this process that stopped reporting progress."""
     texts = _texts()
     step = task_watchdog.last_step(task.id)
-    step_detail = texts['stalled_step'].format(step=step) if step else ''
+    localized_step = _localized_step(step)
+    step_detail = texts['stalled_step'].format(step=localized_step) if localized_step else ''
     return mark_task_failed(
         task,
         error_code=STALLED_ERROR_CODE,
@@ -433,6 +489,37 @@ def reconcile_task_for_response(task) -> bool:
         except Exception:  # pragma: no cover - defensive
             pass
         return False
+
+
+def localize_watchdog_payload(payload: Dict) -> Dict:
+    """按当前请求语言改写看门狗失败的文案。
+
+    启动对账发生在没有请求上下文的时候（只能按 OUTPUT_LANGUAGE 生成），
+    因此展示时再按界面语言重算一次 error_message / help_text。
+    """
+    progress = payload.get('progress') or {}
+    code = progress.get('error_code')
+    if code not in (INTERRUPTED_ERROR_CODE, STALLED_ERROR_CODE):
+        return payload
+
+    texts = _texts()
+    details = progress.get('error_details') or {}
+    idle = details.get('idle_seconds')
+    duration = _format_duration(float(idle)) if isinstance(idle, (int, float)) else None
+
+    if code == INTERRUPTED_ERROR_CODE:
+        detail = texts['interrupted_detail'].format(duration=duration) if duration else ''
+        payload['error_message'] = f"{texts['interrupted']}{detail}"
+        progress['help_text'] = texts['interrupted_help']
+    else:
+        if duration:
+            localized_step = _localized_step(details.get('last_step'))
+            step_detail = texts['stalled_step'].format(step=localized_step) if localized_step else ''
+            payload['error_message'] = f"{texts['stalled'].format(duration=duration)}{step_detail}。"
+        progress['help_text'] = texts['stalled_help']
+
+    payload['progress'] = progress
+    return payload
 
 
 def reconcile_orphaned_tasks() -> int:

@@ -18,7 +18,7 @@ from sqlalchemy import func
 from sqlalchemy.exc import OperationalError
 from PIL import Image, ImageDraw, ImageFilter
 from models import db, Task, Page, Material, PageImageVersion, Settings, ProjectTemplateAsset, Project
-from services.task_watchdog import task_watchdog
+from services.task_watchdog import task_scope, task_watchdog
 from utils import get_filtered_pages
 from utils.image_utils import check_image_resolution
 
@@ -640,7 +640,7 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                         from services.ai_service_manager import get_ai_service
                         ai_service = get_ai_service()
                         
-                        with text_resource_limiter.slot(
+                        with task_scope(task_id), text_resource_limiter.slot(
                             f"description project={project_id} page={page_id}"
                         ):
                             desc_result = ai_service.generate_page_description(
@@ -806,7 +806,7 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                                 db.session.commit()
                                 logger.debug(f"Page {page_id} status updated to GENERATING")
 
-                        with image_resource_limiter.slot(
+                        with task_scope(task_id), image_resource_limiter.slot(
                             f"project={project_id} page={page_id}",
                             on_acquire=mark_generating,
                         ):
@@ -1084,7 +1084,7 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
                     page_obj.status = 'GENERATING'
                     db.session.commit()
             
-            with image_resource_limiter.slot(
+            with task_scope(task_id), image_resource_limiter.slot(
                 f"project={project_id} page={page_id}",
                 on_acquire=mark_generating,
             ):
@@ -1187,7 +1187,7 @@ def edit_page_image_task(task_id: str, project_id: str, page_id: str,
             # Edit image
             logger.info(f"🎨 Editing image for page {page_id}...")
             try:
-                with image_resource_limiter.slot(
+                with task_scope(task_id), image_resource_limiter.slot(
                     f"edit project={project_id} page={page_id}",
                     on_acquire=mark_generating,
                 ):
@@ -1292,7 +1292,7 @@ def generate_material_image_task(task_id: str, project_id: str, prompt: str,
             
             # Generate image (复用核心逻辑)
             logger.info(f"🎨 Generating material image with prompt: {prompt[:100]}...")
-            with image_resource_limiter.slot(
+            with task_scope(task_id), image_resource_limiter.slot(
                 f"material-generate project={project_id} task={task_id}",
                 on_acquire=mark_processing,
             ):
@@ -1407,7 +1407,7 @@ def process_material_image_task(
                     task_obj.status = 'PROCESSING'
                     db.session.commit()
 
-            with image_resource_limiter.slot(
+            with task_scope(task_id), image_resource_limiter.slot(
                 f"material-process operation={operation} project={project_id} task={task_id}",
                 on_acquire=mark_processing,
             ):
@@ -1645,7 +1645,7 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
                             error = 'empty_input'
                         else:
                             # Step B: AI extract structured content
-                            with text_resource_limiter.slot(
+                            with task_scope(task_id), text_resource_limiter.slot(
                                 f"renovation-extract project={project_id} page-index={idx}"
                             ):
                                 content = ai_service.extract_page_content(md_text, language=language)
@@ -1662,7 +1662,7 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
                                     elif page_obj.generated_image_path:
                                         image_path = file_service.get_absolute_path(page_obj.generated_image_path)
                                     if image_path and Path(image_path).exists():
-                                        with text_resource_limiter.slot(
+                                        with task_scope(task_id), text_resource_limiter.slot(
                                             f"layout-caption project={project_id} page-index={idx}"
                                         ):
                                             caption = ai_service.generate_layout_caption(image_path)
@@ -2630,7 +2630,7 @@ def analyze_template_task(task_id: str, project_id: str, asset_id: str,
         task = Task.query.get(task_id)
         if not task:
             return
-        with text_resource_limiter.slot(label=f'analyze_template:{asset_id}'):
+        with task_scope(task_id), text_resource_limiter.slot(label=f'analyze_template:{asset_id}'):
             try:
                 _set_task_processing(task_id)
                 task.set_progress({'asset_id': asset_id, 'stage': 'calling_ai'})
@@ -2706,7 +2706,7 @@ def auto_match_templates_task(task_id: str, project_id: str,
         task = Task.query.get(task_id)
         if not task:
             return
-        with text_resource_limiter.slot(label=f'auto_match:{project_id}'):
+        with task_scope(task_id), text_resource_limiter.slot(label=f'auto_match:{project_id}'):
             try:
                 _set_task_processing(task_id)
                 language = (app.config.get('OUTPUT_LANGUAGE') or 'zh').lower()
