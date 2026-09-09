@@ -71,7 +71,7 @@ test.describe('Settings APIMart provider pill', () => {
     await expect(apiSection.locator('input').first()).toHaveValue(APIMART_BASE_URL);
     const modelInputs = page.locator('input[placeholder^="留空使用环境变量配置"]');
     await expect(modelInputs.nth(0)).toHaveValue('gpt-5.6-sol');
-    await expect(modelInputs.nth(1)).toHaveValue('gpt-image-2');
+    await expect(modelInputs.nth(1)).toHaveValue('gpt-image-2.5-flare');
     await expect(modelInputs.nth(2)).toHaveValue('gpt-5.6-luna');
 
     await page.getByTestId('global-provider-pills').locator('[data-provider="openai"]').click();
@@ -83,7 +83,7 @@ test.describe('Settings APIMart provider pill', () => {
     expect(savedPayload?.ai_provider_format).toBe('openai');
     expect(savedPayload?.api_base_url).toBe(APIMART_BASE_URL);
     expect(savedPayload?.text_model).toBe('gpt-5.6-sol');
-    expect(savedPayload?.image_model).toBe('gpt-image-2');
+    expect(savedPayload?.image_model).toBe('gpt-image-2.5-flare');
     expect(savedPayload?.image_caption_model).toBe('gpt-5.6-luna');
     expect(savedPayload?.openai_image_api_protocol).toBe('images');
   });

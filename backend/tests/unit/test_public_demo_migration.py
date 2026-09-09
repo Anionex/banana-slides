@@ -3,11 +3,20 @@ import json
 import sqlite3
 from pathlib import Path
 import pytest
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 
 ROOT = Path(__file__).resolve().parents[3]
 spec = importlib.util.spec_from_file_location('migrate_public_demo', ROOT / 'scripts/migrate-public-demo.py')
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
+
+
+def _current_migration_head() -> str:
+    """Resolve the head from the migration graph so new migrations don't break this test."""
+    config = Config(str(ROOT / 'backend/alembic.ini'))
+    config.set_main_option('script_location', str(ROOT / 'backend/migrations'))
+    return ScriptDirectory.from_config(config).get_heads()[0]
 
 
 def test_legacy_copy_preserves_project_ids_and_separates_keys(tmp_path):
@@ -36,7 +45,7 @@ def test_legacy_copy_preserves_project_ids_and_separates_keys(tmp_path):
         assert conn.execute('SELECT count(*) FROM settings').fetchone()[0] == 0
         visitors = [json.loads(row[0]) for row in conn.execute('SELECT config_json FROM public_visitors')]
         assert {v['provider_keys']['inferera'] for v in visitors} == {'first-private-key', 'second-private-key'}
-        assert conn.execute('SELECT version_num FROM alembic_version').fetchone()[0] == 'public_demo_visitors'
+        assert conn.execute('SELECT version_num FROM alembic_version').fetchone()[0] == _current_migration_head()
         columns = {r[1] for r in conn.execute('PRAGMA table_info(settings)')}
         assert {'text_model_source', 'image_api_key', 'description_extra_fields'} <= columns
     with pytest.raises(ValueError, match='new file'):
