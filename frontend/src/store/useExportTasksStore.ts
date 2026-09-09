@@ -26,6 +26,12 @@ const exportI18n = {
       durationHours: '{{value}} 小时',
       durationMinutes: '{{value}} 分钟',
       durationSeconds: '{{value}} 秒',
+      stepStarting: '开始执行',
+      stepPreparing: '准备',
+      stepLayoutAnalysis: '版面分析',
+      stepStyleExtraction: '样式提取',
+      stepBuildingPptx: '构建 PPTX',
+      stepSaving: '保存文件',
     },
   },
   en: {
@@ -48,6 +54,12 @@ const exportI18n = {
       durationHours: '{{value}} hours',
       durationMinutes: '{{value}} minutes',
       durationSeconds: '{{value}} seconds',
+      stepStarting: 'starting',
+      stepPreparing: 'preparing',
+      stepLayoutAnalysis: 'layout analysis',
+      stepStyleExtraction: 'style extraction',
+      stepBuildingPptx: 'building the PPTX',
+      stepSaving: 'saving the file',
     },
   },
 };
@@ -60,6 +72,24 @@ const MAX_CREATE_CONFIRMATION_RETRIES = 6;
 // 不依赖后端的中文句子（避免中英混排与文案漂移导致的重复）。
 const TASK_INTERRUPTED_CODE = 'TASK_INTERRUPTED';
 const TASK_STALLED_CODE = 'TASK_STALLED';
+
+// 后端心跳里的阶段名（中文），映射成本地化文案；未知阶段不插入句子
+const STEP_LABEL_KEYS: Record<string, string> = {
+  '开始执行': 'exportStore.stepStarting',
+  '准备': 'exportStore.stepPreparing',
+  '配置': 'exportStore.stepPreparing',
+  '版面分析': 'exportStore.stepLayoutAnalysis',
+  '样式提取': 'exportStore.stepStyleExtraction',
+  '构建PPTX': 'exportStore.stepBuildingPptx',
+  '保存文件': 'exportStore.stepSaving',
+  '完成': 'exportStore.stepSaving',
+};
+
+const localizeStep = (step: string | undefined): string | undefined => {
+  if (!step) return undefined;
+  const key = STEP_LABEL_KEYS[step];
+  return key ? t(key) : undefined;
+};
 
 const formatDuration = (seconds: number): string => {
   if (seconds >= 3600) {
@@ -85,8 +115,9 @@ const describeWatchdogFailure = (
   }
   if (errorCode === TASK_STALLED_CODE) {
     if (!duration) return undefined;
-    return details?.last_step
-      ? t('exportStore.taskStalled', { duration, step: details.last_step })
+    const step = localizeStep(details?.last_step);
+    return step
+      ? t('exportStore.taskStalled', { duration, step })
       : t('exportStore.taskStalledNoStep', { duration });
   }
   return undefined;

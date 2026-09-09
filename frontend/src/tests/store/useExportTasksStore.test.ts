@@ -518,8 +518,49 @@ describe('useExportTasksStore', () => {
     expect(task.status).toBe('FAILED')
     expect(task.errorMessage).toContain('导出疑似卡住')
     expect(task.errorMessage).toContain('21 分钟')
-    expect(task.errorMessage).toContain('构建PPTX')
+    // 后端阶段名会被本地化，不直接插入原始中文标签
+    expect(task.errorMessage).toContain('构建 PPTX')
     expect(task.errorMessage).not.toContain(RAW_BACKEND_TEXT)
+  })
+
+  it('localizes the stalled step label for the English UI', async () => {
+    await i18n.changeLanguage('en')
+    try {
+      const task = await pollFailedTask('task-stalled-en', {
+        status: 'FAILED',
+        error_message: RAW_BACKEND_TEXT,
+        progress: {
+          total: 100,
+          completed: 88,
+          percent: 88,
+          error_code: 'TASK_STALLED',
+          error_details: { reason: 'stalled', idle_seconds: 1260, last_step: '构建PPTX' },
+        },
+      })
+
+      expect(task.errorMessage).toContain('Export looks stuck')
+      expect(task.errorMessage).toContain('building the PPTX')
+      expect(task.errorMessage).not.toMatch(/[\u4e00-\u9fff]/)
+    } finally {
+      await i18n.changeLanguage('zh')
+    }
+  })
+
+  it('omits an unknown step label instead of interpolating raw backend text', async () => {
+    const task = await pollFailedTask('task-stalled-unknown-step', {
+      status: 'FAILED',
+      error_message: RAW_BACKEND_TEXT,
+      progress: {
+        total: 100,
+        completed: 88,
+        percent: 88,
+        error_code: 'TASK_STALLED',
+        error_details: { reason: 'stalled', idle_seconds: 1260, last_step: '内部阶段名XYZ' },
+      },
+    })
+
+    expect(task.errorMessage).toContain('导出疑似卡住')
+    expect(task.errorMessage).not.toContain('内部阶段名XYZ')
   })
 
   it('falls back to the backend message when watchdog details are missing', async () => {

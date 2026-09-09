@@ -300,6 +300,72 @@ def test_stall_clock_starts_when_task_actually_begins(app):
         task_watchdog.forget(task_id)
 
 
+def test_watchdog_failure_stays_terminal_when_export_finishes(app, db_session, tmp_path, monkeypatch):
+    """看门狗判失败后 worker 又跑完：保持 FAILED，但保留产物信息（Codex P2）。"""
+    from PIL import Image
+    from models import Page
+    from services.export_service import ExportService
+    from services.task_manager import export_editable_pptx_with_recursive_analysis_task
+
+    image_path = tmp_path / 'page.png'
+    Image.new('RGB', (320, 180), 'white').save(image_path)
+
+    project = Project(creation_type='idea', idea_prompt='demo')
+    db.session.add(project)
+    db.session.flush()
+    db.session.add(Page(project_id=project.id, order_index=0, generated_image_path='pages/page.png'))
+    task = Task(
+        project_id=project.id,
+        task_type='EXPORT_EDITABLE_PPTX',
+        status='FAILED',
+        error_message='任务疑似卡住：已30 分钟没有进度更新。',
+    )
+    task.progress = json.dumps({
+        'percent': 88,
+        'error_code': STALLED_ERROR_CODE,
+        'error_stage': 'task_watchdog',
+        'current_step': '构建第 17/24 页...',
+    })
+    db.session.add(task)
+    db.session.commit()
+    task_id = task.id
+
+    class FileServiceStub:
+        def get_absolute_path(self, _relative_path):
+            return str(image_path)
+
+    monkeypatch.setattr(
+        'services.image_editability.TextAttributeExtractorFactory.create_caption_model_extractor',
+        lambda: None,
+    )
+
+    def fake_export(*_args, progress_callback=None, heartbeat_callback=None, **_kwargs):
+        progress_callback('构建PPTX', '构建第 24/24 页...', 94)
+        return b'pptx-bytes', None
+
+    monkeypatch.setattr(
+        ExportService,
+        'create_editable_pptx_with_recursive_analysis',
+        staticmethod(fake_export),
+    )
+
+    export_editable_pptx_with_recursive_analysis_task(
+        task_id=task_id,
+        project_id=project.id,
+        filename='demo.pptx',
+        file_service=FileServiceStub(),
+        app=app,
+    )
+
+    db.session.expire_all()
+    stored = Task.query.get(task_id)
+    assert stored.status == 'FAILED'
+    progress = stored.get_progress()
+    assert progress['error_code'] == STALLED_ERROR_CODE
+    assert progress['finished_after_watchdog'] is True
+    assert progress['download_url'].endswith('demo.pptx')
+
+
 def test_set_progress_stamps_heartbeat_and_preserves_failure_reason(app):
     """任何任务写进度都会刷新 heartbeat_at；失败原因不会被后续进度覆盖。"""
     project_id = _create_project(app)

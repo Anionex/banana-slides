@@ -218,7 +218,7 @@ test('a stalled task renders the localized stuck message', async ({ page, reques
 
     const panel = page.getByTestId('export-tasks-list')
     await expect(panel.getByText(/^导出失败$/)).toBeVisible({ timeout: 15000 })
-    await expect(panel.getByText(/导出疑似卡住：已 21 分钟没有进度更新（最后一步：构建PPTX）/)).toBeVisible()
+    await expect(panel.getByText(/导出疑似卡住：已 21 分钟没有进度更新（最后一步：构建 PPTX）/)).toBeVisible()
     await expect(panel.getByText('TASK_STALLED')).toBeVisible()
     await expect(panel.getByText('任务状态对账')).toBeVisible()
   } finally {
