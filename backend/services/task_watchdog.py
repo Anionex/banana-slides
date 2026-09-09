@@ -38,7 +38,7 @@ import logging
 import os
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Optional, Set, Tuple
 
 logger = logging.getLogger(__name__)
@@ -134,7 +134,7 @@ def _parse_progress_timestamp(raw) -> Optional[datetime]:
         return raw
     if isinstance(raw, (int, float)):
         try:
-            return datetime.utcfromtimestamp(float(raw))
+            return datetime.fromtimestamp(float(raw), tz=timezone.utc).replace(tzinfo=None)
         except (OverflowError, OSError, ValueError):
             return None
     if isinstance(raw, str):
