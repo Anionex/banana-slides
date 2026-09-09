@@ -43,6 +43,10 @@ CONFIG_FIELDS = {'image_resolution': 'DEFAULT_RESOLUTION', 'image_aspect_ratio':
                  'elevenlabs_enabled': 'ELEVENLABS_ENABLED', 'enable_text_reasoning': 'ENABLE_TEXT_REASONING',
                  'text_thinking_budget': 'TEXT_THINKING_BUDGET', 'enable_image_reasoning': 'ENABLE_IMAGE_REASONING',
                  'image_thinking_budget': 'IMAGE_THINKING_BUDGET'}
+SITE_MANAGED_FIELDS = {
+    'mineru': ('mineru_token', 'PUBLIC_DEMO_MINERU_TOKEN'),
+    'baidu': ('baidu_api_key', 'PUBLIC_DEMO_BAIDU_API_KEY'),
+}
 
 
 def enabled():
@@ -59,9 +63,26 @@ def visitor():
     return _task_visitor.get()
 
 
+def site_managed_values():
+    """Return only credentials explicitly shared by the public-demo operator."""
+    if not enabled():
+        return {}
+    result = {}
+    for _, (field, config_key) in SITE_MANAGED_FIELDS.items():
+        value = dict.get(current_app.config, config_key, '')
+        if isinstance(value, str) and value.strip():
+            result[field] = value.strip()
+    return result
+
+
+def site_managed_services():
+    fields = site_managed_values()
+    return [service for service, (field, _) in SITE_MANAGED_FIELDS.items() if field in fields]
+
+
 def values():
     v = visitor()
-    data = {**DEFAULTS, **(v['config'] if v else {})}
+    data = {**DEFAULTS, **(v['config'] if v else {}), **site_managed_values()}
     profile = PROFILES[data['partner']]
     data.update(ai_provider_format=profile['format'], api_base_url=profile['base'],
                 text_model=profile['text'], image_model=profile['image'], image_caption_model=profile['caption'],
@@ -159,7 +180,8 @@ def settings_json():
         data[field + '_length'] = len(data.pop(field, '') or '')
     data.update(description_extra_fields=list(Settings.DEFAULT_EXTRA_FIELDS),
                 image_prompt_extra_fields=list(Settings.DEFAULT_IMAGE_PROMPT_FIELDS),
-                openai_oauth_connected=False)
+                openai_oauth_connected=False,
+                site_managed_services=site_managed_services())
     return data
 
 
@@ -234,6 +256,9 @@ def update_public_settings(row):
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return bad_request('设置必须是 JSON 对象')
+    data = dict(data)
+    for managed_field in site_managed_values():
+        data.pop(managed_field, None)
     allowed = set(DEFAULTS) - {'mineru_api_base'} | {'api_key'}
     if set(data) - allowed:
         return bad_request('公开版不允许修改模型、接口地址或描述生成字段配置。')

@@ -69,6 +69,8 @@ def create_app():
     app.config.from_object(Config)
     app.config['PUBLIC_DEMO'] = os.getenv('PUBLIC_DEMO', '').lower() == 'true'
     app.config['PUBLIC_DEMO_ADMIN_PASSWORD'] = os.getenv('PUBLIC_DEMO_ADMIN_PASSWORD', '')
+    app.config['PUBLIC_DEMO_MINERU_TOKEN'] = os.getenv('PUBLIC_DEMO_MINERU_TOKEN', '')
+    app.config['PUBLIC_DEMO_BAIDU_API_KEY'] = os.getenv('PUBLIC_DEMO_BAIDU_API_KEY', '')
 
     # Desktop DATABASE_PATH must win over any DATABASE_URL left in .env.
     db_path_env = os.environ.get('DATABASE_PATH')

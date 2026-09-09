@@ -145,16 +145,26 @@ export function PublicSettings({ embedded = false }: { embedded?: boolean }) {
     }
   };
   const keyLengths = saved.provider_key_lengths as
-    | Record<string, number>
-    | undefined;
+    Record<string, number> | undefined;
   const hasSavedKey =
     Number(
       keyLengths?.[String(data.partner)] ??
         (data.partner === saved.partner ? saved.api_key_length : 0),
     ) > 0;
+  const siteManagedServices = new Set(
+    Array.isArray(saved.site_managed_services)
+      ? saved.site_managed_services.map(String)
+      : [],
+  );
+  const managedSecretFields = new Set([
+    ...(siteManagedServices.has("mineru") ? ["mineru_token"] : []),
+    ...(siteManagedServices.has("baidu") ? ["baidu_api_key"] : []),
+  ]);
   const dirty =
     editableFields.some((key) => data[key] !== saved[key]) ||
-    secretFields.some(([key]) => Boolean(data[key]));
+    secretFields.some(
+      ([key]) => !managedSecretFields.has(key) && Boolean(data[key]),
+    );
   const selectProvider = (next: string) => {
     keyDrafts.current[String(data.partner)] = String(data.api_key || "");
     setData((prev) => ({
@@ -165,7 +175,12 @@ export function PublicSettings({ embedded = false }: { embedded?: boolean }) {
   };
   const save = async () => {
     setSaving(true);
-    const fields = [...editableFields, ...secretFields.map(([key]) => key)];
+    const fields = [
+      ...editableFields,
+      ...secretFields
+        .map(([key]) => key)
+        .filter((key) => !managedSecretFields.has(key)),
+    ];
     try {
       const response = await apiClient.put(
         "/api/settings",
@@ -207,7 +222,12 @@ export function PublicSettings({ embedded = false }: { embedded?: boolean }) {
     if (activeTests.current.has(name) || saving || dirty) return;
     const controller = new AbortController();
     activeTests.current.set(name, controller);
-    const provider = publicPartners[String(saved.partner)]?.name || "";
+    const provider =
+      name === "mineru-pdf" && siteManagedServices.has("mineru")
+        ? "站点 MinerU"
+        : name.startsWith("baidu-") && siteManagedServices.has("baidu")
+          ? "站点百度"
+          : publicPartners[String(saved.partner)]?.name || "";
     const update = (
       status: ServiceResult["status"],
       message: string,
@@ -451,19 +471,21 @@ export function PublicSettings({ embedded = false }: { embedded?: boolean }) {
                   你的密钥仅用于你的请求，不会与其他访客共享。
                 </p>
               </SettingsSection>
-              <SettingsSection
-                title={t("settings.sections.mineruConfig")}
-                icon={<FileText size={20} />}
-              >
-                {field({
-                  key: "mineru_token",
-                  label: "MinerU Token",
-                  type: "password",
-                  placeholder: "输入 MinerU Token",
-                  description: description("mineruTokenDesc"),
-                  link: "https://mineru.net/apiManage/token",
-                })}
-              </SettingsSection>
+              {!siteManagedServices.has("mineru") && (
+                <SettingsSection
+                  title={t("settings.sections.mineruConfig")}
+                  icon={<FileText size={20} />}
+                >
+                  {field({
+                    key: "mineru_token",
+                    label: "MinerU Token",
+                    type: "password",
+                    placeholder: "输入 MinerU Token",
+                    description: description("mineruTokenDesc"),
+                    link: "https://mineru.net/apiManage/token",
+                  })}
+                </SettingsSection>
+              )}
               <SettingsSection
                 title={t("settings.sections.imageConfig")}
                 icon={<Image size={20} />}
@@ -509,19 +531,21 @@ export function PublicSettings({ embedded = false }: { embedded?: boolean }) {
                   description: description("defaultOutputLanguageDesc"),
                 })}
               </SettingsSection>
-              <SettingsSection
-                title={t("settings.sections.baiduOcr")}
-                icon={<FileText size={20} />}
-              >
-                {field({
-                  key: "baidu_api_key",
-                  label: "百度 OCR API Key",
-                  type: "password",
-                  placeholder: "输入 百度 OCR API Key",
-                  description: description("baiduOcrApiKeyDesc"),
-                  link: "https://console.bce.baidu.com/iam/#/iam/apikey/list",
-                })}
-              </SettingsSection>
+              {!siteManagedServices.has("baidu") && (
+                <SettingsSection
+                  title={t("settings.sections.baiduOcr")}
+                  icon={<FileText size={20} />}
+                >
+                  {field({
+                    key: "baidu_api_key",
+                    label: "百度 OCR API Key",
+                    type: "password",
+                    placeholder: "输入 百度 OCR API Key",
+                    description: description("baiduOcrApiKeyDesc"),
+                    link: "https://console.bce.baidu.com/iam/#/iam/apikey/list",
+                  })}
+                </SettingsSection>
+              )}
               <SettingsSection
                 title={t("settings.sections.elevenlabs")}
                 icon={<Volume2 size={20} />}
@@ -632,6 +656,19 @@ export function PublicSettings({ embedded = false }: { embedded?: boolean }) {
               icon={<FileText size={20} />}
               description={t("settings.serviceTest.description")}
             >
+              {siteManagedServices.size > 0 && (
+                <p
+                  data-testid="site-managed-services"
+                  className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800 dark:bg-green-900/20 dark:text-green-300"
+                >
+                  {siteManagedServices.has("mineru") &&
+                  siteManagedServices.has("baidu")
+                    ? "MinerU 解析、百度 OCR 与百度图像修复由站点提供，无需填写凭据。"
+                    : siteManagedServices.has("mineru")
+                      ? "MinerU 解析由站点提供，无需填写凭据。"
+                      : "百度 OCR 与百度图像修复由站点提供，无需填写凭据。"}
+                </p>
+              )}
               <div className="pl-4 border-l-4 border-yellow-300 dark:border-yellow-600">
                 <p className="text-sm text-gray-700 dark:text-foreground-secondary flex items-start gap-1.5">
                   <Lightbulb size={15} className="flex-shrink-0 mt-0.5" />

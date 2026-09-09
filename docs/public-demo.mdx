@@ -24,7 +24,7 @@ Fixed API endpoints, model names, and model providers are hidden from personal s
 
 Before starting generation or renovation from the home page, a lightweight call to your personal text model verifies the Key. If verification fails, you are directed to Settings with your text draft preserved, and no project is created.
 
-For document parsing, OCR, or video voiceovers, enter the corresponding MinerU, Baidu OCR, or ElevenLabs credentials in your personal settings. The public version does not use fallback server credentials; without personal credentials, the corresponding service cannot complete its calls.
+For document parsing, OCR, or video voiceovers, enter the corresponding MinerU, Baidu OCR, or ElevenLabs credentials in your personal settings. Except for shared services explicitly enabled by the site owner as described below, the public version does not use normal fallback server credentials; without personal credentials, the corresponding service cannot complete its calls.
 
 ## Fields, History, and Sharing
 
@@ -52,6 +52,19 @@ Do not combine it with the standard `docker-compose.yml`. This configuration ena
 Set `PUBLIC_DEMO_ADMIN_PASSWORD` to a long random password in the server's `.env`, restart the backend, then visit `/admin/history` and enter the password to view the paginated history list. With Docker Compose, run `docker compose -f docker-compose.demo.yml up -d --force-recreate backend` after changing `.env` to apply the configuration. Leaving the password empty disables this entry point.
 
 The entry point does not appear in the public navigation. The regular `/history` page and public history API remain disabled. The page is read-only: clicking a project opens its existing preview in a new tab, with no rename or delete actions. The password is held only in the current page's memory and checked by the backend on every list request. After signing out or refreshing, you must enter it again. It is never written to browser storage or included in the URL. Use HTTPS for publicly accessible deployments.
+
+## Site-Provided MinerU and Baidu Services
+
+The site owner can explicitly enable shared services in the public backend's `.env`:
+
+```dotenv
+PUBLIC_DEMO_MINERU_TOKEN=
+PUBLIC_DEMO_BAIDU_API_KEY=
+```
+
+These variables take effect only when `PUBLIC_DEMO=true`. They let every visitor use MinerU parsing, and Baidu OCR and image inpainting, respectively. Once configured, personal settings hide the matching credential fields and identify the services as site-provided. API responses expose only the enabled state and credential length, never the credential value. Regular `MINERU_TOKEN`, `BAIDU_API_KEY`, and database settings are still never shared automatically.
+
+Shared calls consume the site owner's account quota. Leave either value empty to disable that shared service and restore the visitor credential field. Restart the backend container after changing these values.
 
 ## Migrating the Legacy Sponsor Demo
 

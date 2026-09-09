@@ -1,3 +1,4 @@
+import hashlib
 import json
 from concurrent.futures import ThreadPoolExecutor
 import pytest
@@ -13,7 +14,8 @@ def public_app(tmp_path):
     app.config.update(PUBLIC_DEMO=True, TESTING=True,
                       SQLALCHEMY_DATABASE_URI='sqlite:///' + str(tmp_path / 'public.db'),
                       GOOGLE_API_KEY='server-secret', TEXT_API_KEY='server-text-secret',
-                      MINERU_TOKEN='server-mineru', TEXT_MODEL='server-model')
+                      MINERU_TOKEN='server-mineru', TEXT_MODEL='server-model',
+                      PUBLIC_DEMO_MINERU_TOKEN='', PUBLIC_DEMO_BAIDU_API_KEY='')
     db.init_app(app)
     install(app)
     with app.app_context():
@@ -127,6 +129,41 @@ def test_service_test_results_and_baidu_credentials_are_private(public_app, monk
     assert client.get(f'/api/settings/tests/{task_id}/status', headers=A).status_code == 200
     assert client.get(f'/api/settings/tests/{task_id}/status', headers=B).status_code == 404
     assert client.get(f'/api/projects/{scope}/tasks/{task_id}', headers=B).status_code == 404
+
+
+def test_explicit_site_managed_services_override_visitor_secrets_without_exposure(public_app):
+    from controllers.settings_controller import settings_bp, _get_baidu_credentials
+    from models import PublicVisitor, Settings
+    from services.ai_providers import _resolve_setting
+    public_app.register_blueprint(settings_bp)
+    public_app.config.update(PUBLIC_DEMO_MINERU_TOKEN='shared-mineru-secret',
+                             PUBLIC_DEMO_BAIDU_API_KEY='shared-baidu-secret')
+    client = public_app.test_client()
+    response = client.put('/api/settings', headers=A, json={
+        'mineru_token': 'visitor-mineru-secret',
+        'baidu_api_key': 'visitor-baidu-secret',
+    })
+    assert response.status_code == 200
+    data = response.json['data']
+    assert data['site_managed_services'] == ['mineru', 'baidu']
+    assert data['mineru_token_length'] == len('shared-mineru-secret')
+    assert data['baidu_api_key_length'] == len('shared-baidu-secret')
+    assert b'shared-' not in response.data and b'visitor-' not in response.data
+    with public_app.app_context():
+        token_hash = hashlib.sha256(A['X-User-Token'].encode()).hexdigest()
+        row = db.session.get(PublicVisitor, token_hash)
+        assert 'mineru' not in row.config_json and 'baidu' not in row.config_json
+    with public_app.test_request_context('/api/settings', headers=A):
+        public_app.preprocess_request()
+        assert _resolve_setting('MINERU_TOKEN') == 'shared-mineru-secret'
+        assert _get_baidu_credentials() == 'shared-baidu-secret'
+        assert Settings.get_settings().mineru_token == 'shared-mineru-secret'
+        with VisitorThreadPoolExecutor(max_workers=1) as pool:
+            value = pool.submit(lambda: current_app.config['BAIDU_API_KEY']).result(timeout=5)
+            assert value == 'shared-baidu-secret'
+    reset = client.post('/api/settings/reset', headers=A).json['data']
+    assert reset['site_managed_services'] == ['mineru', 'baidu']
+    assert reset['mineru_token_length'] == len('shared-mineru-secret')
 
 
 def test_nonpublic_settings_keep_normal_routes(public_app):

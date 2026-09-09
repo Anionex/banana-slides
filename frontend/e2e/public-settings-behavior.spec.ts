@@ -4,6 +4,33 @@ import { randomUUID } from 'node:crypto';
 
 const serviceNames = ['text-model', 'caption-model', 'image-model', 'mineru-pdf', 'baidu-ocr', 'baidu-inpaint'];
 
+test('site-managed MinerU and Baidu hide credentials and identify shared test results', async ({ page }) => {
+  await page.route(url => url.pathname === '/api/settings' && url.search === '', async route => {
+    if (route.request().method() !== 'GET') return route.continue();
+    const response = await route.fetch();
+    const body = await response.json();
+    body.data.site_managed_services = ['mineru', 'baidu'];
+    body.data.mineru_token_length = 19;
+    body.data.baidu_api_key_length = 19;
+    await route.fulfill({ response, json: body });
+  });
+  await page.route(url => url.pathname.startsWith('/api/settings/tests/'), async route => {
+    const name = new URL(route.request().url()).pathname.split('/')[4];
+    const isStart = route.request().method() === 'POST';
+    await route.fulfill({ json: { success: true, data: isStart
+      ? { task_id: name }
+      : { status: 'COMPLETED', message: `${name} 完成`, result: { success: true } } } });
+  });
+  await page.goto('/settings');
+  await expect(page.getByLabel('MinerU Token', { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel('百度 OCR API Key', { exact: true })).toHaveCount(0);
+  await expect(page.getByTestId('site-managed-services')).toContainText('MinerU 解析、百度 OCR 与百度图像修复由站点提供，无需填写凭据。');
+  for (const name of ['mineru-pdf', 'baidu-ocr', 'baidu-inpaint']) await page.getByTestId(`service-test-${name}`).getByRole('button').click();
+  await expect(page.getByTestId('service-test-mineru-pdf')).toContainText('站点 MinerU · mineru-pdf 完成');
+  await expect(page.getByTestId('service-test-baidu-ocr')).toContainText('站点百度 · baidu-ocr 完成');
+  await expect(page.getByTestId('service-test-baidu-inpaint')).toContainText('站点百度 · baidu-inpaint 完成');
+});
+
 test('all public settings round-trip, provider drafts stay separate, reset clears all personal keys', async ({ page, request }) => {
   const visitor = randomUUID();
   const headers = { 'X-User-Token': visitor };

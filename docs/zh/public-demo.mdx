@@ -24,7 +24,7 @@ description: 固定 API 提供商、个人密钥隔离与 PPT 链接分享
 
 从首页发起生成或翻新前，会用个人文本模型做轻量 Key 校验。校验失败时会引导返回设置页，保留文字草稿，不创建项目。
 
-需要文档解析、OCR 或视频配音时，在个人设置中填写相应的 MinerU、百度 OCR 或 ElevenLabs 凭据。公开版不会使用服务器的备用密钥；缺少个人凭据时，相应服务不能完成调用。
+需要文档解析、OCR 或视频配音时，在个人设置中填写相应的 MinerU、百度 OCR 或 ElevenLabs 凭据。除站主按下文显式开启的共享服务外，公开版不会使用服务器的普通备用密钥；缺少个人凭据时，相应服务不能完成调用。
 
 ## 字段、历史与分享
 
@@ -52,6 +52,19 @@ docker compose -f docker-compose.demo.yml up -d
 在服务端 `.env` 设置 `PUBLIC_DEMO_ADMIN_PASSWORD` 为一个长随机口令，重启后端后访问 `/admin/history`，输入口令即可查看历史列表和分页。使用 Docker Compose 时，修改 `.env` 后执行 `docker compose -f docker-compose.demo.yml up -d --force-recreate backend` 使配置生效。留空则关闭入口。
 
 入口不出现在公开导航中，普通 `/history` 和公开历史接口仍关闭。页面只提供查看，点击项目会在新标签页打开现有预览，不提供改名或删除。口令只保留在当前页面内存中，每次读取列表都由后端校验；退出或刷新后需重新输入，不写入浏览器存储，也不放进 URL。对外部署应使用 HTTPS。
+
+## 站点提供 MinerU 与百度服务
+
+站主可以在公开版后端的 `.env` 中显式配置共享服务：
+
+```dotenv
+PUBLIC_DEMO_MINERU_TOKEN=
+PUBLIC_DEMO_BAIDU_API_KEY=
+```
+
+这两个变量只在 `PUBLIC_DEMO=true` 时生效，分别供所有访客使用 MinerU 解析，以及百度 OCR 和百度图像修复。配置后，个人设置页会隐藏对应凭据输入区，并标明这些服务由站点提供；响应只返回启用状态和密钥长度，不返回密钥内容。普通的 `MINERU_TOKEN`、`BAIDU_API_KEY` 和数据库设置仍不会自动共享。
+
+共享调用会消耗站主账户的额度。留空即可关闭对应共享能力并恢复访客自己的凭据输入。修改后重启后端容器使配置生效。
 
 ## 旧 sponsor Demo 的迁移
 
