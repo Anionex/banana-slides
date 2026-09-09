@@ -52,6 +52,11 @@ class Task(db.Model):
         任务是否还在推进（进程重启后也能从数据库读到）。
         """
         if not data:
+            existing = self.get_progress() or {}
+            if existing.get('error_stage') == 'task_watchdog':
+                # 不能用空进度覆盖看门狗写入的失败诊断
+                # （例如设置页测试失败时会 set_progress({})）
+                return
             self.progress = None
             return
 

@@ -151,6 +151,9 @@ class TaskWatchdog:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._heartbeats: Dict[str, Tuple[float, Optional[str]]] = {}
+        # 线程 → 任务：让长时间等待外部资源（限流槽等）的 worker
+        # 也能刷新自己的心跳
+        self._thread_tasks: Dict[int, str] = {}
 
     def start(self, task_id: str, step: Optional[str] = None) -> None:
         self.touch(task_id, step)
@@ -185,6 +188,24 @@ class TaskWatchdog:
     def tracked_ids(self) -> Set[str]:
         with self._lock:
             return set(self._heartbeats)
+
+    def bind_thread(self, task_id: Optional[str]) -> None:
+        """把当前线程绑定到任务，便于在阻塞等待时打心跳。"""
+        if not task_id:
+            return
+        with self._lock:
+            self._thread_tasks[threading.get_ident()] = task_id
+
+    def unbind_thread(self) -> None:
+        with self._lock:
+            self._thread_tasks.pop(threading.get_ident(), None)
+
+    def touch_current_thread(self) -> None:
+        """刷新当前线程所属任务的心跳（没有绑定则什么都不做）。"""
+        with self._lock:
+            task_id = self._thread_tasks.get(threading.get_ident())
+        if task_id:
+            self.touch(task_id)
 
 
 task_watchdog = TaskWatchdog()

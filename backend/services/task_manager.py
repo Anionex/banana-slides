@@ -18,6 +18,7 @@ from sqlalchemy import func
 from sqlalchemy.exc import OperationalError
 from PIL import Image, ImageDraw, ImageFilter
 from models import db, Task, Page, Material, PageImageVersion, Settings, ProjectTemplateAsset, Project
+from services.task_watchdog import task_watchdog
 from utils import get_filtered_pages
 from utils.image_utils import check_image_resolution
 
@@ -236,6 +237,8 @@ class ResourceLimiter:
                         f"{self.name} limiter full ({self._in_use}/{self.capacity}), "
                         f"waiting: {label}"
                     )
+                # 等待限流槽期间 worker 仍然活着，保持心跳，避免被看门狗判为卡住
+                task_watchdog.touch_current_thread()
                 self._condition.wait(timeout=0.5)
 
             self._in_use += 1
@@ -268,13 +271,15 @@ class TaskManager:
         with self.lock:
             executor = self.executor
 
-        from services.task_watchdog import task_watchdog
-
         def _run(tid, *run_args, **run_kwargs):
             # 队列等待不算"卡住"：worker 真正开始执行时才登记心跳，
             # 因此排队期间不会因为"没有心跳"被判为卡住
             task_watchdog.touch(tid, '开始执行')
-            return func(tid, *run_args, **run_kwargs)
+            task_watchdog.bind_thread(tid)
+            try:
+                return func(tid, *run_args, **run_kwargs)
+            finally:
+                task_watchdog.unbind_thread()
 
         try:
             future = executor.submit(_run, task_id, *args, **kwargs)
@@ -302,7 +307,6 @@ class TaskManager:
     
     def _cleanup_task(self, task_id: str):
         """Clean up completed task"""
-        from services.task_watchdog import task_watchdog
         task_watchdog.forget(task_id)
         with self.lock:
             if task_id in self.active_tasks:

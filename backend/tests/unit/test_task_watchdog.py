@@ -379,6 +379,47 @@ def test_port_available_detects_occupied_port():
         listener.close()
 
 
+def test_limiter_wait_keeps_the_heartbeat_alive(app):
+    """worker 等待限流槽时仍然算"活着"，不能被判卡住（Codex P2）。"""
+    from services.task_manager import ResourceLimiter
+
+    project_id = _create_project(app)
+    task_id = _create_export_task(app, project_id, heartbeat_age_seconds=0)
+    limiter = ResourceLimiter('test-limiter', 1)
+    seen = {}
+
+    def worker(tid):
+        # 与真实路径一致：worker 线程内部绑定自己
+        task_watchdog.bind_thread(tid)
+        try:
+            task_watchdog.touch(tid, '等待限流槽')
+            with limiter.slot('blocked'):
+                seen['idle_after_wait'] = task_watchdog.seconds_since_touch(tid)
+        finally:
+            task_watchdog.unbind_thread()
+
+    holder_ready = threading.Event()
+
+    def holder():
+        with limiter.slot('holder'):
+            holder_ready.set()
+            time.sleep(2.0)
+
+    holder_thread = threading.Thread(target=holder)
+    holder_thread.start()
+    assert holder_ready.wait(timeout=3)
+
+    worker_thread = threading.Thread(target=worker, args=(task_id,))
+    worker_thread.start()
+    worker_thread.join(timeout=5)
+    holder_thread.join(timeout=3)
+    task_watchdog.forget(task_id)
+
+    assert 'idle_after_wait' in seen
+    # 等待期间心跳被持续刷新（而不是停留在约 2 秒前的初值）
+    assert seen['idle_after_wait'] < 1.0, seen
+
+
 def test_watchdog_failure_stays_terminal_when_export_finishes(app, db_session, tmp_path, monkeypatch):
     """看门狗判失败后 worker 又跑完：保持 FAILED，但保留产物信息（Codex P2）。"""
     from PIL import Image
@@ -504,3 +545,11 @@ def test_set_progress_stamps_heartbeat_and_preserves_failure_reason(app):
         assert progress['heartbeat_at']
         age = progress_age_seconds(task)
         assert age is not None and age < 5
+
+        # 空进度写入（设置页测试失败路径会这么写）也不能抹掉看门狗诊断
+        task.set_progress({})
+        db.session.commit()
+        progress = task.get_progress()
+        assert progress['error_code'] == 'TASK_INTERRUPTED'
+        assert progress['error_stage'] == 'task_watchdog'
+        assert progress['help_text'] == 'help'
