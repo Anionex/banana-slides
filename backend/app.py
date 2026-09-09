@@ -191,21 +191,6 @@ def create_app():
         # Load settings from database and sync to app.config
         _load_settings_to_config(app)
 
-        # 清理上一个进程遗留的后台任务：后台任务只存在于进程内，
-        # 重启后数据库里的 PENDING/PROCESSING 记录永远不会再推进，
-        # 前端却会一直显示"进行中"。这里在启动时统一标记为中断。
-        try:
-            from services.task_watchdog import reconcile_orphaned_tasks
-            reconciled = reconcile_orphaned_tasks()
-            if reconciled:
-                logging.getLogger(__name__).info(
-                    f"Reconciled {reconciled} orphaned background task(s) at startup"
-                )
-        except Exception as reconcile_error:  # pragma: no cover - never block startup
-            logging.getLogger(__name__).warning(
-                f"Orphaned task reconciliation failed: {reconcile_error}"
-            )
-
     # Access code enforcement on all /api/ routes
     @app.before_request
     def _enforce_access_code():
@@ -438,6 +423,29 @@ def _compute_worktree_port(base_port: int) -> int:
     return base_port + offset
 
 
+def _reconcile_orphaned_tasks_on_startup() -> None:
+    """清理上一个进程遗留的后台任务。
+
+    后台任务只存在于进程内，重启后数据库里的 PENDING/PROCESSING 记录
+    永远不会再推进，前端却会一直显示"进行中"。这里在服务真正启动前
+    统一标记为中断（只在启动入口调用，不在 create_app/import 时调用，
+    避免测试、脚本或第二个实例误判其它进程正在跑的任务）。
+    """
+    try:
+        from services.task_watchdog import reconcile_orphaned_tasks
+        # 需要应用上下文才能查询数据库
+        with app.app_context():
+            reconciled = reconcile_orphaned_tasks()
+        if reconciled:
+            logging.getLogger(__name__).info(
+                f"Reconciled {reconciled} orphaned background task(s) at startup"
+            )
+    except Exception as reconcile_error:  # pragma: no cover - never block startup
+        logging.getLogger(__name__).warning(
+            f"Orphaned task reconciliation failed: {reconcile_error}"
+        )
+
+
 if __name__ == '__main__':
     # Run development server
     if os.getenv("IN_DOCKER", "0") == "1":
@@ -454,6 +462,8 @@ if __name__ == '__main__':
         server = make_server('127.0.0.1', 0, app, threaded=True)
         port = server.server_port
         print(f"LISTENING_ON:{port}", flush=True)
+
+        _reconcile_orphaned_tasks_on_startup()
 
         logging.info(
             "\n"
@@ -492,4 +502,5 @@ if __name__ == '__main__':
     )
 
     # Using absolute paths for database, so WSL path issues should not occur
+    _reconcile_orphaned_tasks_on_startup()
     app.run(host='0.0.0.0', port=port, debug=debug, use_reloader=debug)

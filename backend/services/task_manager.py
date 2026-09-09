@@ -271,7 +271,11 @@ class TaskManager:
         from services.task_watchdog import task_watchdog
         task_watchdog.start(task_id)
 
-        future = executor.submit(func, task_id, *args, **kwargs)
+        try:
+            future = executor.submit(func, task_id, *args, **kwargs)
+        except Exception:
+            task_watchdog.forget(task_id)
+            raise
         
         with self.lock:
             self.active_tasks[task_id] = future
@@ -304,11 +308,6 @@ class TaskManager:
         with self.lock:
             return task_id in self.active_tasks
 
-    def active_task_ids(self) -> List[str]:
-        """Snapshot of task ids currently owned by this process."""
-        with self.lock:
-            return list(self.active_tasks.keys())
-    
     def shutdown(self):
         """Shutdown the executor"""
         self.executor.shutdown(wait=True)
@@ -1903,7 +1902,6 @@ def export_editable_pptx_with_recursive_analysis_task(
                 "current_step": "准备中...",
                 "percent": 0,
                 "messages": ["开始导出可编辑PPTX..."],  # 消息日志
-                "heartbeat_at": datetime.utcnow().isoformat(),
             })
             db.session.commit()
             
@@ -1936,7 +1934,6 @@ def export_editable_pptx_with_recursive_analysis_task(
                             "current_step": message,
                             "percent": percent,
                             "messages": progress_messages.copy(),
-                            "heartbeat_at": datetime.utcnow().isoformat(),
                         })
                         db.session.commit()
                 except Exception as e:
@@ -2027,7 +2024,6 @@ def export_editable_pptx_with_recursive_analysis_task(
                     "current_step": "导出完成",
                     "percent": 100,
                     "messages": progress_messages,
-                    "heartbeat_at": datetime.utcnow().isoformat(),
                     "download_url": download_path,
                     "filename": filename,
                     "method": "recursive_analysis",

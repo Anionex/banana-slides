@@ -28,11 +28,19 @@ registering the worker.
 Environment variables
 ---------------------
 ``TASK_STALL_TIMEOUT_SECONDS``
-    How long a task owned by this process may go without a heartbeat before it
-    is reported as stuck (default 1200 = 20 minutes). ``0`` disables the check.
+    How long a task owned by this process may go without writing progress before
+    it is reported as stuck (default 1800 = 30 minutes). ``0`` disables the check.
 ``TASK_ORPHAN_GRACE_SECONDS``
-    How old the last heartbeat of a task *not* owned by this process must be
-    before it is reported as interrupted (default 90 seconds).
+    How old the last progress write of a task *not* owned by this process must be
+    before it is reported as interrupted (default 300 seconds). Values <= 0 fall
+    back to the default.
+
+The heartbeat has two layers:
+
+* every ``Task.set_progress`` call stamps ``heartbeat_at`` into the progress JSON
+  (database-visible, survives restarts);
+* SQLAlchemy flush events refresh the in-memory registry, so "the task row is
+  being written" counts as activity for *every* task type.
 """
 import logging
 import os
@@ -40,6 +48,10 @@ import threading
 import time
 from datetime import datetime, timezone
 from typing import Dict, Optional, Set, Tuple
+
+from sqlalchemy import event
+
+from models import Task
 
 logger = logging.getLogger(__name__)
 
@@ -51,8 +63,8 @@ STALLED_ERROR_CODE = 'TASK_STALLED'
 INTERRUPTED_MESSAGE = '任务被中断：后台服务已重启或进程已退出，该任务不会继续执行。'
 INTERRUPTED_HELP_TEXT = '点任务右侧的 × 移除这条记录，然后重新发起即可。'
 
-DEFAULT_STALL_TIMEOUT_SECONDS = 1200.0
-DEFAULT_ORPHAN_GRACE_SECONDS = 90.0
+DEFAULT_STALL_TIMEOUT_SECONDS = 1800.0
+DEFAULT_ORPHAN_GRACE_SECONDS = 300.0
 
 
 def _positive_env_float(name: str, default: float) -> float:
@@ -74,7 +86,9 @@ def get_stall_timeout_seconds() -> float:
 
 def get_orphan_grace_seconds() -> float:
     """Seconds after the last heartbeat before an unowned task counts as orphaned."""
-    return _positive_env_float('TASK_ORPHAN_GRACE_SECONDS', DEFAULT_ORPHAN_GRACE_SECONDS)
+    value = _positive_env_float('TASK_ORPHAN_GRACE_SECONDS', DEFAULT_ORPHAN_GRACE_SECONDS)
+    # 0 会把"非本进程"的活跃任务全部立刻判死，不是有效配置
+    return value if value > 0 else DEFAULT_ORPHAN_GRACE_SECONDS
 
 
 class TaskWatchdog:
@@ -125,6 +139,17 @@ task_watchdog = TaskWatchdog()
 def touch_task(task_id: Optional[str], step: Optional[str] = None) -> None:
     """Module-level convenience wrapper used by task functions."""
     task_watchdog.touch(task_id, step)
+
+
+@event.listens_for(Task, 'after_insert')
+@event.listens_for(Task, 'after_update')
+def _touch_on_task_write(_mapper, _connection, target):
+    """Any database write to a task counts as activity for that task.
+
+    This is what keeps the stall check meaningful for task types that never call
+    ``touch_task`` explicitly: writing progress refreshes the heartbeat.
+    """
+    task_watchdog.touch(getattr(target, 'id', None))
 
 
 def _parse_progress_timestamp(raw) -> Optional[datetime]:
@@ -189,6 +214,7 @@ def mark_task_failed(
     help_text: Optional[str] = None,
     current_step: Optional[str] = None,
     error_stage: str = 'task_watchdog',
+    error_details: Optional[Dict] = None,
 ) -> bool:
     """Flip ``task`` to FAILED while keeping its last real progress visible."""
     from models import db
@@ -215,6 +241,7 @@ def mark_task_failed(
         'error_code': error_code,
         'error_stage': error_stage,
         'help_text': help_text,
+        'error_details': {**(previous_progress.get('error_details') or {}), **(error_details or {})},
     })
     db.session.commit()
     logger.warning("Task %s marked FAILED (%s): %s", task.id, error_code, message)
@@ -230,6 +257,10 @@ def mark_task_interrupted(task) -> bool:
         error_code=INTERRUPTED_ERROR_CODE,
         message=f"{INTERRUPTED_MESSAGE}{detail}",
         help_text=INTERRUPTED_HELP_TEXT,
+        error_details={
+            'reason': 'interrupted',
+            'idle_seconds': round(age, 1) if age is not None else None,
+        },
     )
 
 
@@ -245,6 +276,11 @@ def mark_task_stalled(task, stalled_seconds: float) -> bool:
             f"{step_detail}。"
         ),
         help_text='可以点右侧的 × 移除该任务后重新导出；若反复出现，请把应用日志发给开发者。',
+        error_details={
+            'reason': 'stalled',
+            'idle_seconds': round(stalled_seconds, 1),
+            'last_step': step,
+        },
     )
 
 
@@ -276,6 +312,24 @@ def evaluate_task_liveness(task) -> bool:
     if age is None or age <= grace:
         return False
     return mark_task_interrupted(task)
+
+
+def reconcile_task_for_response(task) -> bool:
+    """Run :func:`evaluate_task_liveness` from a request handler, safely.
+
+    A failure here must never break the status endpoint: the session is rolled
+    back so the caller can still serialize the task.
+    """
+    try:
+        return evaluate_task_liveness(task)
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("Task watchdog check failed for %s: %s", getattr(task, 'id', None), exc)
+        try:
+            from models import db
+            db.session.rollback()
+        except Exception:  # pragma: no cover - defensive
+            pass
+        return False
 
 
 def reconcile_orphaned_tasks() -> int:

@@ -1311,6 +1311,10 @@ def get_test_status(task_id: str):
         if not task:
             return error_response("TASK_NOT_FOUND", "测试任务不存在", 404)
 
+        # 与项目任务接口一致：进程重启/任务卡死时不要让前端一直显示"进行中"
+        from services.task_watchdog import reconcile_task_for_response
+        reconcile_task_for_response(task)
+
         # 构建响应数据
         response_data = {
             'status': task.status,

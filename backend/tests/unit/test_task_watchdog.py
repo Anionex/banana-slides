@@ -5,6 +5,8 @@
 数据库里的 PENDING/PROCESSING 记录在进程重启后永远不会再推进，
 而状态接口只回读数据库，于是前端一直把僵尸任务当"进行中"。
 """
+import json
+import threading
 import time
 import uuid
 from datetime import datetime, timedelta
@@ -15,6 +17,7 @@ from services.task_watchdog import (
     INTERRUPTED_ERROR_CODE,
     STALLED_ERROR_CODE,
     evaluate_task_liveness,
+    get_orphan_grace_seconds,
     progress_age_seconds,
     reconcile_orphaned_tasks,
     task_watchdog,
@@ -61,7 +64,8 @@ def _create_export_task(app, project_id, *, status='PROCESSING', percent=88,
             progress['heartbeat_at'] = (
                 datetime.utcnow() - timedelta(seconds=heartbeat_age_seconds)
             ).isoformat()
-        task.set_progress(progress)
+        # 直接写 JSON 模拟"过去某个时刻写入的进度"（set_progress 会打上当前时间的心跳）
+        task.progress = json.dumps(progress)
         db.session.add(task)
         db.session.commit()
         return task.id
@@ -205,3 +209,101 @@ def test_evaluate_task_liveness_ignores_finished_tasks(app):
         task = Task.query.get(task_id)
         assert evaluate_task_liveness(task) is False
         assert task.status == 'COMPLETED'
+
+
+def test_running_task_that_writes_progress_is_never_marked_stalled(client, app, monkeypatch):
+    """正在推进的任务不能被误杀（S1 回归）。
+
+    只有导出任务会显式调用 touch_task；其它任务类型（生图、视频导出、模板分析等）
+    只写数据库进度。因此"写进度"必须等价于"有心跳"。
+    """
+    monkeypatch.setenv('TASK_STALL_TIMEOUT_SECONDS', '1')
+    project_id = _create_project(app)
+    task_id = _create_export_task(app, project_id, heartbeat_age_seconds=0)
+
+    stop = threading.Event()
+
+    def worker(tid):
+        with app.app_context():
+            for index in range(40):
+                if stop.is_set():
+                    return
+                task = Task.query.get(tid)
+                if task is None:
+                    return
+                task.set_progress({
+                    'total': 100,
+                    'completed': index,
+                    'failed': 0,
+                    'percent': index,
+                    'current_step': f'第 {index} 步',
+                })
+                db.session.commit()
+                time.sleep(0.15)
+
+    task_manager.submit_task(task_id, worker)
+    try:
+        time.sleep(2.2)  # 远超 1s 的 stall 阈值，但 worker 一直在写进度
+        data = _get_task_status(client, project_id, task_id)
+        assert data['status'] == 'PROCESSING', data
+        assert data['progress']['percent'] > 0
+    finally:
+        stop.set()
+        with task_manager.lock:
+            task_manager.active_tasks.pop(task_id, None)
+        task_watchdog.forget(task_id)
+        time.sleep(0.2)
+
+
+def test_interrupted_task_uses_last_progress_write_not_created_at(client, app):
+    """中断判定必须基于最后一次写进度的时间，而不是创建时间。"""
+    project_id = _create_project(app)
+    task_id = _create_export_task(
+        app,
+        project_id,
+        created_age_seconds=7200,      # 两小时前创建
+        heartbeat_age_seconds=1200,    # 但 20 分钟前还在写进度
+    )
+
+    data = _get_task_status(client, project_id, task_id)
+
+    assert data['status'] == 'FAILED'
+    idle = data['progress']['error_details']['idle_seconds']
+    assert 1100 <= idle <= 1300, idle
+
+
+def test_orphan_grace_zero_falls_back_to_default(monkeypatch):
+    monkeypatch.setenv('TASK_ORPHAN_GRACE_SECONDS', '0')
+    assert get_orphan_grace_seconds() > 0
+
+
+def test_set_progress_stamps_heartbeat_and_preserves_failure_reason(app):
+    """任何任务写进度都会刷新 heartbeat_at；失败原因不会被后续进度覆盖。"""
+    project_id = _create_project(app)
+    task_id = _create_export_task(app, project_id, status='FAILED', heartbeat_age_seconds=60)
+
+    with app.app_context():
+        task = Task.query.get(task_id)
+        task.set_progress({
+            'total': 100,
+            'completed': 88,
+            'percent': 88,
+            'error_code': 'TASK_INTERRUPTED',
+            'error_stage': 'task_watchdog',
+            'error_details': {'reason': 'interrupted', 'idle_seconds': 60},
+            'help_text': 'help',
+        })
+        db.session.commit()
+
+        # 失败后 worker 又写了一次进度（没有带失败字段）
+        task.set_progress({'total': 100, 'completed': 90, 'percent': 90})
+        db.session.commit()
+
+        progress = task.get_progress()
+        assert progress['error_code'] == 'TASK_INTERRUPTED'
+        assert progress['error_stage'] == 'task_watchdog'
+        assert progress['help_text'] == 'help'
+        assert progress['error_details']['idle_seconds'] == 60
+        assert progress['heartbeat_at']
+        age = progress_age_seconds(task)
+        assert age is not None and age < 5

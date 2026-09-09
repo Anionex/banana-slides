@@ -1168,11 +1168,8 @@ def get_task_status(project_id, task_id):
         # 数据库里的 PENDING/PROCESSING 记录会永远停在最后一次进度上，
         # 前端就会一直显示"进行中"（例如"88% 构建第 17/24 页"）。
         # 这里按"任务是否真的还有 worker + 心跳是否新鲜"对账。
-        try:
-            from services.task_watchdog import evaluate_task_liveness
-            evaluate_task_liveness(task)
-        except Exception as watchdog_error:
-            logger.warning(f"task watchdog check failed for {task_id}: {watchdog_error}")
+        from services.task_watchdog import reconcile_task_for_response
+        reconcile_task_for_response(task)
         
         return success_response(task.to_dict())
     
