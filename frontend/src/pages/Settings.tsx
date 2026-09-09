@@ -92,7 +92,7 @@ const getAllProviderSources = (isZh: boolean) => [
 const API_KEY_PROVIDERS = new Set(['gemini', 'openai', 'volcengine']);
 const APIMART_RECOMMENDED_MODELS = {
   text: 'gpt-5.6-sol',
-  image: 'gpt-image-2',
+  image: 'gpt-image-2.5-flare',
   caption: 'gpt-5.6-luna',
 };
 const isApimartBaseUrl = (url: string) =>
@@ -156,6 +156,7 @@ const initialFormData = {
   mineru_api_base: '',
   mineru_token: '',
   image_resolution: '2K',
+  image_quality: 'auto',
   enable_image_quality_control: false,
   max_description_workers: 5,
   max_image_workers: 8,
@@ -583,6 +584,7 @@ const formDataFromSettings = (data: SettingsType): typeof initialFormData => {
     api_base_url: data.api_base_url || '',
     api_key: '',
     image_resolution: data.image_resolution || '2K',
+    image_quality: data.image_quality || 'auto',
     enable_image_quality_control: data.enable_image_quality_control ?? false,
     max_description_workers: data.max_description_workers || 5,
     max_image_workers: data.max_image_workers || 8,
@@ -1258,6 +1260,7 @@ export const Settings: React.FC = () => {
       if (formData.mineru_token) testSettings.mineru_token = formData.mineru_token;
       if (formData.baidu_api_key) testSettings.baidu_api_key = formData.baidu_api_key;
       if (formData.image_resolution) testSettings.image_resolution = formData.image_resolution;
+      if (formData.image_quality) testSettings.image_quality = formData.image_quality;
 
       // Per-model provider source overrides (always send, even empty, to clear saved values)
       testSettings.text_model_source = formData.text_model_source || '';
@@ -1500,24 +1503,49 @@ export const Settings: React.FC = () => {
           || sourceValue === 'volcengine'
           || (!sourceValue && ['openai', 'volcengine'].includes(formData.ai_provider_format))
         ) && (
-          <div className="pl-3 border-l-2 border-banana-300 dark:border-banana-600">
-            <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">
-              {t('settings.fields.imageApiProtocol')}
-            </label>
-            <select
-              data-testid="openai-image-api-protocol-select"
-              value={formData.openai_image_api_protocol}
-              onChange={(e) => handleFieldChange('openai_image_api_protocol', e.target.value)}
-              className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
-            >
-              <option value="auto">{t('settings.fields.imageApiProtocolAuto')}</option>
-              <option value="images">{t('settings.fields.imageApiProtocolImages')}</option>
-              <option value="chat">{t('settings.fields.imageApiProtocolChat')}</option>
-            </select>
-            <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">
-              {t('settings.fields.imageApiProtocolDesc')}
-            </p>
-          </div>
+          <>
+            <div className="pl-3 border-l-2 border-banana-300 dark:border-banana-600">
+              <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">
+                {t('settings.fields.imageApiProtocol')}
+              </label>
+              <select
+                data-testid="openai-image-api-protocol-select"
+                value={formData.openai_image_api_protocol}
+                onChange={(e) => handleFieldChange('openai_image_api_protocol', e.target.value)}
+                className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
+              >
+                <option value="auto">{t('settings.fields.imageApiProtocolAuto')}</option>
+                <option value="images">{t('settings.fields.imageApiProtocolImages')}</option>
+                <option value="chat">{t('settings.fields.imageApiProtocolChat')}</option>
+              </select>
+              <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">
+                {t('settings.fields.imageApiProtocolDesc')}
+              </p>
+            </div>
+
+            {/* Quality tier: only GPT Image / DALL-E models expose this parameter */}
+            <div className="pl-3 border-l-2 border-banana-300 dark:border-banana-600">
+              <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">
+                {t('settings.fields.imageQuality')}
+              </label>
+              <select
+                data-testid="openai-image-quality-select"
+                value={formData.image_quality}
+                onChange={(e) => handleFieldChange('image_quality', e.target.value)}
+                className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
+              >
+                <option value="auto">{t('settings.fields.imageQualityAuto')}</option>
+                <option value="low">{t('settings.fields.imageQualityLow')}</option>
+                <option value="medium">{t('settings.fields.imageQualityMedium')}</option>
+                <option value="high">{t('settings.fields.imageQualityHigh')}</option>
+                <option value="xhigh">{t('settings.fields.imageQualityXhigh')}</option>
+                <option value="max">{t('settings.fields.imageQualityMax')}</option>
+              </select>
+              <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">
+                {t('settings.fields.imageQualityDesc')}
+              </p>
+            </div>
+          </>
         )}
 
         {/* LazyLLM 厂商：显示厂商 API Key */}

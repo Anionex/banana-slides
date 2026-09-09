@@ -1405,6 +1405,7 @@ export interface TestSettingsOverride {
   baidu_api_key?: string;
   ai_provider_format?: string;
   image_resolution?: string;
+  image_quality?: string;
   enable_text_reasoning?: boolean;
   text_thinking_budget?: number;
   enable_image_reasoning?: boolean;
