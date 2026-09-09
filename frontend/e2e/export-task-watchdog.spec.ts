@@ -94,17 +94,18 @@ test('a task left over from a previous run stops showing 88% and reports interru
     await page.waitForFunction(() => document.body.innerText.length > 50, { timeout: 15000 })
     await page.getByLabel('导出任务').click()
 
+    const panel = page.getByTestId('export-tasks-list')
     // 页面加载后第一次轮询就会对账：任务从"进行中 88%"变成失败，并给出中断原因
-    await expect(page.getByText('导出失败')).toBeVisible({ timeout: 20000 })
-    await expect(page.getByText(/任务被中断/)).toBeVisible({ timeout: 20000 })
-    await expect(page.getByText(/3\.5 小时前/)).toBeVisible()
-    await expect(page.getByText('TASK_INTERRUPTED')).toBeVisible()
-    await expect(page.getByText('任务状态对账')).toBeVisible()
-    await expect(page.getByText('点任务右侧的 × 移除这条记录，然后重新发起即可。')).toBeVisible()
+    await expect(panel.getByText(/^导出失败$/)).toBeVisible({ timeout: 20000 })
+    // 文案由前端按 error_code + 结构化细节拼装，不依赖后端中文句子
+    await expect(panel.getByText(/导出被中断：.*3\.5 小时/)).toBeVisible({ timeout: 20000 })
+    await expect(panel.getByText('TASK_INTERRUPTED')).toBeVisible()
+    await expect(panel.getByText('任务状态对账')).toBeVisible()
+    await expect(panel.getByText('点任务右侧的 × 移除这条记录，然后重新发起即可。')).toBeVisible()
 
     // 进度条（88%）不应再作为"进行中"显示，也不能显示"进行中"计数
-    await expect(page.getByText('88%')).toHaveCount(0)
-    await expect(page.getByText(/1 进行中/)).toHaveCount(0)
+    await expect(panel.getByText('88%')).toHaveCount(0)
+    await expect(page.getByText(/^\d+ 进行中$/)).toHaveCount(0)
 
     const taskResponse = await request.get(`/api/projects/${projectId}/tasks/${taskId}`)
     expect(taskResponse.ok()).toBeTruthy()
@@ -147,19 +148,79 @@ test('a task with a fresh heartbeat keeps running instead of being failed', asyn
     createdAt: new Date().toISOString(),
   })
 
+  const statusRequests: string[] = []
+  page.on('request', (req) => {
+    if (req.url().includes(`/tasks/${taskId}`)) statusRequests.push(req.url())
+  })
+
   try {
     await page.goto(`/project/${projectId}/preview`)
     await page.waitForFunction(() => document.body.innerText.length > 50, { timeout: 15000 })
     await page.getByLabel('导出任务').click()
 
-    await expect(page.getByText('88%')).toBeVisible({ timeout: 10000 })
-    await page.waitForTimeout(6000) // 至少经过 2 次轮询
-    await expect(page.getByText('88%')).toBeVisible()
-    await expect(page.getByText(/任务被中断/)).toHaveCount(0)
+    const panel = page.getByTestId('export-tasks-list')
+    await expect(panel.getByText('88%')).toBeVisible({ timeout: 10000 })
+
+    // 断言"确实发生了轮询"，而不是空等待
+    await expect.poll(() => statusRequests.length, { timeout: 15000 }).toBeGreaterThanOrEqual(3)
+
+    await expect(panel.getByText('88%')).toBeVisible()
+    await expect(panel.getByText(/导出被中断|导出疑似卡住/)).toHaveCount(0)
+    // 也不应该出现"状态查询中断"的监控横幅（说明轮询正常）
+    await expect(panel.getByText('状态查询暂时中断')).toHaveCount(0)
 
     const taskResponse = await request.get(`/api/projects/${projectId}/tasks/${taskId}`)
     const backendTask = (await taskResponse.json()).data
     expect(backendTask.status).toBe('PROCESSING')
+  } finally {
+    await request.delete(`/api/projects/${projectId}`)
+  }
+})
+
+test('a stalled task renders the localized stuck message', async ({ page, request }) => {
+  const projectId = await createProject(request, '卡住任务展示 E2E')
+  const taskId = crypto.randomUUID()
+  const localTaskId = `e2e-watchdog-stalled-${Date.now()}`
+
+  insertExportTask({
+    taskId,
+    projectId,
+    status: 'FAILED',
+    progress: {
+      total: 100,
+      completed: 88,
+      failed: 1,
+      current_step: '构建第 17/24 页...',
+      percent: 88,
+      backend_status: 'FAILED',
+      error_code: 'TASK_STALLED',
+      error_stage: 'task_watchdog',
+      error_details: { reason: 'stalled', idle_seconds: 1260, last_step: '构建PPTX' },
+      messages: ['[构建PPTX] 构建第 17/24 页...'],
+    },
+  })
+
+  await seedStoredTask(page, {
+    id: localTaskId,
+    taskId,
+    projectId,
+    type: 'editable-pptx',
+    // 以"进行中"恢复，第一次轮询就能拿到后端的 FAILED + TASK_STALLED
+    status: 'PROCESSING',
+    progress: { total: 100, completed: 88, percent: 88 },
+    createdAt: new Date().toISOString(),
+  })
+
+  try {
+    await page.goto(`/project/${projectId}/preview`)
+    await page.waitForFunction(() => document.body.innerText.length > 50, { timeout: 15000 })
+    await page.getByLabel('导出任务').click()
+
+    const panel = page.getByTestId('export-tasks-list')
+    await expect(panel.getByText(/^导出失败$/)).toBeVisible({ timeout: 15000 })
+    await expect(panel.getByText(/导出疑似卡住：已 21 分钟没有进度更新（最后一步：构建PPTX）/)).toBeVisible()
+    await expect(panel.getByText('TASK_STALLED')).toBeVisible()
+    await expect(panel.getByText('任务状态对账')).toBeVisible()
   } finally {
     await request.delete(`/api/projects/${projectId}`)
   }

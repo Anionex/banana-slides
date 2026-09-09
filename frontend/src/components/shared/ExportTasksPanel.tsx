@@ -36,6 +36,8 @@ const exportI18n = {
       queueSubmissionStage: "后台任务提交",
       textRenderStage: "内容写入",
       taskWatchdogStage: "任务状态对账",
+      taskInterruptedHelp: "点任务右侧的 × 移除这条记录，然后重新发起即可。",
+      taskStalledHelp: "可以点右侧的 × 移除该任务后重新导出；若反复出现，请把应用日志发给开发者。",
       exportedFiles: "已导出文件",
       deleteExportTitle: "删除导出文件",
       deleteExportMessage: "确定要删除「{{filename}}」吗？此操作会移除服务器上的文件。",
@@ -70,6 +72,8 @@ const exportI18n = {
       queueSubmissionStage: "Background task submission",
       textRenderStage: "Content rendering",
       taskWatchdogStage: "Task status reconciliation",
+      taskInterruptedHelp: "Remove the entry with the × button, then start the export again.",
+      taskStalledHelp: "Remove the task with the × button and export again. If it keeps happening, send the app log to the developer.",
       exportedFiles: "Exported Files",
       deleteExportTitle: "Delete Exported File",
       deleteExportMessage: "Delete \"{{filename}}\" from the server?",
@@ -270,6 +274,13 @@ const TaskItem: React.FC<{
     task_watchdog: t('export.taskWatchdogStage'),
   };
   const errorStageLabel = errorStage ? (errorStageLabels[errorStage] || errorStage) : undefined;
+  // 看门狗失败的帮助文案由前端本地化，避免英文界面下混排中文
+  const watchdogHelpKey = task.progress?.error_code === 'TASK_INTERRUPTED'
+    ? 'export.taskInterruptedHelp'
+    : task.progress?.error_code === 'TASK_STALLED'
+      ? 'export.taskStalledHelp'
+      : undefined;
+  const helpText = watchdogHelpKey ? t(watchdogHelpKey) : task.progress?.help_text;
   
   const hasWarnings = task.status === 'COMPLETED' && task.progress?.warnings && task.progress.warnings.length > 0;
 
@@ -423,12 +434,12 @@ const TaskItem: React.FC<{
               </div>
             </div>
 
-            {task.progress?.help_text && (
+            {helpText && (
               <div className="p-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded">
                 <div className="flex items-start gap-2">
                   <HelpCircle size={14} className="text-blue-500 flex-shrink-0 mt-0.5" />
                   <p className="text-xs text-blue-700">
-                    {task.progress.help_text}
+                    {helpText}
                   </p>
                 </div>
               </div>
@@ -630,7 +641,7 @@ export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, p
       </button>
       
       {isExpanded && (
-        <div className="max-h-96 overflow-y-auto">
+        <div className="max-h-96 overflow-y-auto" data-testid="export-tasks-list">
           {activeTasks.length > 0 && (
             <div className="p-2 border-b border-gray-100 dark:border-border-primary">
               {activeTasks.map(task => (
