@@ -335,18 +335,48 @@ def test_stale_read_does_not_overwrite_a_finished_task(app):
         assert Task.query.get(task_id).status == 'COMPLETED'
 
 
-def test_watchdog_message_follows_output_language(client, app, monkeypatch):
-    """非导出任务直接展示 error_message，因此要跟随应用输出语言（Codex P2）。"""
+def test_watchdog_message_follows_interface_language(client, app):
+    """非导出任务直接展示 error_message，因此要跟随界面语言（Accept-Language）。"""
+    project_id = _create_project(app)
+    task_id = _create_export_task(app, project_id, heartbeat_age_seconds=7200)
+
+    response = client.get(
+        f'/api/projects/{project_id}/tasks/{task_id}',
+        headers={'Accept-Language': 'en-US,en;q=0.9'},
+    )
+    data = response.get_json()['data']
+
+    assert data['status'] == 'FAILED'
+    assert data['error_message'].startswith('Task interrupted')
+    assert data['progress']['help_text'].startswith('Remove the entry')
+    assert data['progress']['error_code'] == INTERRUPTED_ERROR_CODE
+
+
+def test_watchdog_message_falls_back_to_output_language(client, app, monkeypatch):
+    """没有 Accept-Language 时回退到应用配置的输出语言。"""
     project_id = _create_project(app)
     task_id = _create_export_task(app, project_id, heartbeat_age_seconds=7200)
 
     monkeypatch.setitem(app.config, 'OUTPUT_LANGUAGE', 'en')
     data = _get_task_status(client, project_id, task_id)
 
-    assert data['status'] == 'FAILED'
     assert data['error_message'].startswith('Task interrupted')
-    assert data['progress']['help_text'].startswith('Remove the entry')
-    assert data['progress']['error_code'] == INTERRUPTED_ERROR_CODE
+
+
+def test_port_available_detects_occupied_port():
+    """端口被占用时跳过对账，避免第二个实例误判另一实例的任务（Codex P2）。"""
+    import socket
+
+    from app import _port_available
+
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.bind(('127.0.0.1', 0))
+    listener.listen(1)
+    try:
+        occupied = listener.getsockname()[1]
+        assert _port_available(occupied) is False
+    finally:
+        listener.close()
 
 
 def test_watchdog_failure_stays_terminal_when_export_finishes(app, db_session, tmp_path, monkeypatch):

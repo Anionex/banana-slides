@@ -96,9 +96,18 @@ _TEXTS = {
 
 
 def _current_language() -> str:
-    """应用配置的输出语言（zh/en/...），拿不到时回退到环境变量/中文。"""
+    """用户可见文案的语言。
+
+    优先用界面语言（前端在 Accept-Language 里带上 i18n 语言），
+    其次才是应用配置的内容输出语言，最后回退中文。
+    """
     try:
-        from flask import current_app
+        from flask import current_app, has_request_context, request
+
+        if has_request_context():
+            header = (request.headers.get('Accept-Language') or '').split(',')[0].strip()
+            if header:
+                return header.lower()
 
         configured = current_app.config.get('OUTPUT_LANGUAGE')
         if configured:

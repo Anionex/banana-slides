@@ -446,6 +446,26 @@ def _reconcile_orphaned_tasks_on_startup() -> None:
         )
 
 
+def _port_available(port: int) -> bool:
+    """检查端口是否可绑定。
+
+    如果端口已被占用（例如另一个实例正在跑），启动会在 app.run 处失败；
+    此时不应该执行任务对账，否则会把那个实例正在跑的任务误判为中断。
+    """
+    import socket
+
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    # 不要设置 SO_REUSEADDR：macOS 上它允许绑定 0.0.0.0:port，
+    # 即使该端口已被 127.0.0.1:port 占用，检查会失效
+    try:
+        probe.bind(('0.0.0.0', port))
+        return True
+    except OSError:
+        return False
+    finally:
+        probe.close()
+
+
 if __name__ == '__main__':
     # Run development server
     if os.getenv("IN_DOCKER", "0") == "1":
@@ -502,5 +522,10 @@ if __name__ == '__main__':
     )
 
     # Using absolute paths for database, so WSL path issues should not occur
-    _reconcile_orphaned_tasks_on_startup()
+    if _port_available(port):
+        _reconcile_orphaned_tasks_on_startup()
+    else:
+        logging.getLogger(__name__).warning(
+            f"Port {port} is already in use; skipped orphaned task reconciliation"
+        )
     app.run(host='0.0.0.0', port=port, debug=debug, use_reloader=debug)
