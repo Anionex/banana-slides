@@ -35,6 +35,25 @@ OPENAI_API_KEY=your-api-key
 OPENAI_API_BASE=https://api.openai.com/v1
 ```
 
+### 图片质量档位（GPT Image）
+
+使用 OpenAI 兼容的图片模型时，可在「设置 → 图像生成模型 → 图片质量档位」选择生成质量。该选项只在图片提供商为 OpenAI / 火山 Agent Plan 时显示，其他提供商不受影响。
+
+| 档位 | 说明 |
+| --- | --- |
+| `auto` | 默认，由模型自行决定 |
+| `low` / `medium` | 更省成本，适合草稿 |
+| `high` | 旧版 GPT Image 的最高档 |
+| `xhigh` / `max` | 仅 `gpt-image-2.5` 及更新模型支持，画质更高、耗时更长 |
+
+注意事项：
+
+- `gpt-image-2.5-flare` 与 `gpt-image-2.5-sunburst` 支持全部六档；`gpt-image-2`、`gpt-image-1.5`、`gpt-image-1`、`chatgpt-image-*` 只支持到 `high`，选择 `xhigh` / `max` 时会自动回落到 `high` 并在日志中给出提示。
+- `dall-e-3` 固定使用 `standard`，`dall-e-2` 与火山 Seedream 不发送质量参数。
+- 成本提醒：2.5 的档位语义相比 2 代整体下移（2.5 的 `high` 约等于旧 `gpt-image-2` 的 `medium` 用量）。想保持旧版 `high` 的观感请选 `max`，成本也会回到旧版 `high` 的水平。
+- 模型名按 `gpt-image` / `chatgpt-image` 前缀识别，因此带日期快照的模型名（如 `gpt-image-2.5-flare-2026-09-08`）也会自动走图片接口，无需额外配置。
+- 也可以通过环境变量设置默认值：`IMAGE_QUALITY=high`（可选 `auto` / `low` / `medium` / `high` / `xhigh` / `max`），设置页里的值优先级更高。
+
 ## 商汤日日新（OpenAI 兼容）
 
 商汤 `SenseNova (商汤)` Provider 会继续保留，默认 Provider 也不会改变。商汤 U1 系列生图模型当前应通过 OpenAI 兼容路径接入：应用识别到 `sensenova-u1*` 模型名后，会自动改用商汤原生 JSON 图片接口（`/images/generations` 和 `/images/edits`），不会走 OpenAI SDK 的 multipart `images.edit` 请求。
@@ -74,7 +93,7 @@ AI_PROVIDER_FORMAT=openai
 OPENAI_API_KEY=你的-apimart-api-key
 OPENAI_API_BASE=https://api.apimart.ai/v1
 TEXT_MODEL=gpt-5.6-sol
-IMAGE_MODEL=gpt-image-2
+IMAGE_MODEL=gpt-image-2.5-flare
 IMAGE_CAPTION_MODEL=gpt-5.6-luna
 IMAGE_MODEL_SOURCE=openai
 IMAGE_CAPTION_MODEL_SOURCE=openai
@@ -84,10 +103,11 @@ IMAGE_CAPTION_API_BASE=https://api.apimart.ai/v1
 
 注意事项：
 
-- 必须使用 APIMart 控制台真实存在的模型 ID。`gemini-3-pro-image` 不是 APIMart 的模型 ID，可使用 `gpt-image-2` 或 `gemini-3-pro-image-preview`（以控制台列表为准）。
+- 必须使用 APIMart 控制台真实存在的模型 ID。`gemini-3-pro-image` 不是 APIMart 的模型 ID，可使用 `gpt-image-2.5-flare`、`gpt-image-2` 或 `gemini-3-pro-image-preview`（以控制台列表为准）。
 - 如果 `IMAGE_MODEL_SOURCE` 为空，图像专属 `IMAGE_API_BASE` 不会生效，图像请求会使用全局 `OPENAI_API_BASE`；只想让图像模型走 APIMart 时请设置 `IMAGE_MODEL_SOURCE=openai`。
 - 图像生成通常需要 1～2 分钟，应用会自动轮询异步任务直到完成或超时。
-- 使用 `gpt-image-2` 时，Banana 会把项目里的比例和 `1K/2K/4K` 转换成 APIMart 的 `size` 与 `resolution` 参数。若服务测试返回 `1672×941`，说明当前请求落在 APIMart 的 1K 档；请确认项目设置已选择 `2K` 或 `4K`。
+- 使用 `gpt-image-*` 模型时，Banana 会把项目里的比例和 `1K/2K/4K` 转换成 APIMart 的 `size` 与 `resolution` 参数。若服务测试返回 `1672×941`，说明当前请求落在 APIMart 的 1K 档；请确认项目设置已选择 `2K` 或 `4K`。
+- 在设置页显式选择 `low` / `medium` / `high` / `xhigh` / `max` 质量档位时，Banana 会把该档位一并传给 APIMart；保持默认 `auto` 时请求参数与旧版本完全一致。
 
 ## 火山 AgentPlans
 
