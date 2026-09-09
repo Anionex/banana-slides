@@ -11,6 +11,8 @@ import time
 import uuid
 from datetime import datetime, timedelta
 
+from sqlalchemy import update
+
 from models import Project, Task, db
 from services.task_manager import task_manager
 from services.task_watchdog import (
@@ -18,6 +20,7 @@ from services.task_watchdog import (
     STALLED_ERROR_CODE,
     evaluate_task_liveness,
     get_orphan_grace_seconds,
+    mark_task_interrupted,
     progress_age_seconds,
     reconcile_orphaned_tasks,
     task_watchdog,
@@ -305,6 +308,45 @@ def test_task_insert_does_not_start_the_stall_clock(app):
     project_id = _create_project(app)
     task_id = _create_export_task(app, project_id, heartbeat_age_seconds=0)
     assert task_watchdog.seconds_since_touch(task_id) is None
+
+
+def test_stale_read_does_not_overwrite_a_finished_task(app):
+    """请求拿到过期快照时不能把已经完成的任务改写成失败（Codex P2）。"""
+    project_id = _create_project(app)
+    task_id = _create_export_task(app, project_id, heartbeat_age_seconds=7200)
+
+    with app.app_context():
+        # 模拟"请求已读到 PROCESSING 快照，之后 worker 提交了完成"
+        stale_progress = Task.query.get(task_id).get_progress()
+        db.session.execute(
+            update(Task).where(Task.id == task_id).values(status='COMPLETED')
+        )
+        db.session.commit()
+
+        class _StaleTask:
+            id = task_id
+            status = 'PROCESSING'
+            created_at = datetime.utcnow() - timedelta(hours=2)
+
+            def get_progress(self):
+                return stale_progress
+
+        assert mark_task_interrupted(_StaleTask()) is False
+        assert Task.query.get(task_id).status == 'COMPLETED'
+
+
+def test_watchdog_message_follows_output_language(client, app, monkeypatch):
+    """非导出任务直接展示 error_message，因此要跟随应用输出语言（Codex P2）。"""
+    project_id = _create_project(app)
+    task_id = _create_export_task(app, project_id, heartbeat_age_seconds=7200)
+
+    monkeypatch.setitem(app.config, 'OUTPUT_LANGUAGE', 'en')
+    data = _get_task_status(client, project_id, task_id)
+
+    assert data['status'] == 'FAILED'
+    assert data['error_message'].startswith('Task interrupted')
+    assert data['progress']['help_text'].startswith('Remove the entry')
+    assert data['progress']['error_code'] == INTERRUPTED_ERROR_CODE
 
 
 def test_watchdog_failure_stays_terminal_when_export_finishes(app, db_session, tmp_path, monkeypatch):

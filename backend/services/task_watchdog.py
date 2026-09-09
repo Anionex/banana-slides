@@ -42,6 +42,7 @@ The heartbeat has two layers:
 * SQLAlchemy flush events refresh the in-memory registry, so "the task row is
   being written" counts as activity for *every* task type.
 """
+import json
 import logging
 import os
 import threading
@@ -50,8 +51,9 @@ from datetime import datetime, timezone
 from typing import Dict, Optional, Set, Tuple
 
 from sqlalchemy import event
+from sqlalchemy import update
 
-from models import Task
+from models import Task, db
 
 logger = logging.getLogger(__name__)
 
@@ -60,11 +62,54 @@ ACTIVE_TASK_STATUSES = frozenset({'PENDING', 'PROCESSING', 'RUNNING'})
 INTERRUPTED_ERROR_CODE = 'TASK_INTERRUPTED'
 STALLED_ERROR_CODE = 'TASK_STALLED'
 
-INTERRUPTED_MESSAGE = '任务被中断：后台服务已重启或进程已退出，该任务不会继续执行。'
 INTERRUPTED_HELP_TEXT = '点任务右侧的 × 移除这条记录，然后重新发起即可。'
 
 DEFAULT_STALL_TIMEOUT_SECONDS = 1800.0
 DEFAULT_ORPHAN_GRACE_SECONDS = 300.0
+
+# 非导出任务（生图、视频导出、模板分析等）直接展示 error_message，
+# 所以这里按应用的输出语言生成文案；导出面板另有按 error_code 的前端本地化。
+_TEXTS = {
+    'zh': {
+        'interrupted': '任务被中断：后台服务已重启或进程已退出，该任务不会继续执行。',
+        'interrupted_detail': '最后一次进度更新在 {duration}前。',
+        'interrupted_help': INTERRUPTED_HELP_TEXT,
+        'stalled': '任务疑似卡住：已 {duration}没有进度更新',
+        'stalled_step': '（最后一步：{step}）',
+        'stalled_help': '可以点右侧的 × 移除该任务后重新导出；若反复出现，请把应用日志发给开发者。',
+        'hours': '{value} 小时',
+        'minutes': '{value} 分钟',
+        'seconds': '{value} 秒',
+    },
+    'en': {
+        'interrupted': 'Task interrupted: the backend restarted or the process exited, so this task will not continue.',
+        'interrupted_detail': ' Last progress update was {duration} ago.',
+        'interrupted_help': 'Remove the entry with the × button, then start the task again.',
+        'stalled': 'Task looks stuck: no progress for {duration}',
+        'stalled_step': ' (last step: {step})',
+        'stalled_help': 'Remove the task with the × button and run it again. If it keeps happening, send the app log to the developer.',
+        'hours': '{value} hours',
+        'minutes': '{value} minutes',
+        'seconds': '{value} seconds',
+    },
+}
+
+
+def _current_language() -> str:
+    """应用配置的输出语言（zh/en/...），拿不到时回退到环境变量/中文。"""
+    try:
+        from flask import current_app
+
+        configured = current_app.config.get('OUTPUT_LANGUAGE')
+        if configured:
+            return str(configured).lower()
+    except Exception:  # pragma: no cover - 请求上下文之外
+        pass
+    return (os.getenv('OUTPUT_LANGUAGE') or 'zh').lower()
+
+
+def _texts() -> Dict[str, str]:
+    return _TEXTS['en'] if _current_language().startswith('en') else _TEXTS['zh']
 
 
 def _positive_env_float(name: str, default: float) -> float:
@@ -201,11 +246,12 @@ def progress_age_seconds(task) -> Optional[float]:
 
 
 def _format_duration(seconds: float) -> str:
+    texts = _texts()
     if seconds >= 3600:
-        return f"{seconds / 3600:.1f} 小时"
+        return texts['hours'].format(value=f"{seconds / 3600:.1f}")
     if seconds >= 60:
-        return f"{seconds / 60:.0f} 分钟"
-    return f"{seconds:.0f} 秒"
+        return texts['minutes'].format(value=f"{seconds / 60:.0f}")
+    return texts['seconds'].format(value=f"{seconds:.0f}")
 
 
 def mark_task_failed(
@@ -218,9 +264,12 @@ def mark_task_failed(
     error_stage: str = 'task_watchdog',
     error_details: Optional[Dict] = None,
 ) -> bool:
-    """Flip ``task`` to FAILED while keeping its last real progress visible."""
-    from models import db
+    """Flip ``task`` to FAILED while keeping its last real progress visible.
 
+    使用带状态条件的 UPDATE：如果 worker 恰好在这次查询之后提交了
+    COMPLETED（此时它已从 active_tasks 移除），条件不满足，不会把成功
+    覆盖成失败。
+    """
     if task is None or task.status not in ACTIVE_TASK_STATUSES:
         return False
 
@@ -228,10 +277,7 @@ def mark_task_failed(
     previous_messages = list(previous_progress.get('messages') or [])
     step_label = current_step or previous_progress.get('current_step') or '未知阶段'
 
-    task.status = 'FAILED'
-    task.error_message = message
-    task.completed_at = datetime.utcnow()
-    task.set_progress({
+    payload = {
         **previous_progress,
         'total': previous_progress.get('total', 100),
         'completed': previous_progress.get('completed', previous_progress.get('percent', 0)),
@@ -244,8 +290,34 @@ def mark_task_failed(
         'error_stage': error_stage,
         'help_text': help_text,
         'error_details': {**(previous_progress.get('error_details') or {}), **(error_details or {})},
-    })
+        'heartbeat_at': datetime.utcnow().isoformat(),
+    }
+
+    result = db.session.execute(
+        update(Task)
+        .where(Task.id == task.id, Task.status.in_(tuple(ACTIVE_TASK_STATUSES)))
+        .values(
+            status='FAILED',
+            error_message=message,
+            completed_at=datetime.utcnow(),
+            progress=json.dumps(payload),
+        )
+        .execution_options(synchronize_session=False)
+    )
     db.session.commit()
+
+    def _expire() -> None:
+        try:
+            db.session.expire(task)
+        except Exception:  # pragma: no cover - 非 ORM 对象/已分离实例
+            pass
+
+    if not result.rowcount:
+        # 任务在本次查询之后已经进入终态（例如刚好完成），不要覆盖
+        _expire()
+        return False
+
+    _expire()
     logger.warning("Task %s marked FAILED (%s): %s", task.id, error_code, message)
     return True
 
@@ -253,12 +325,13 @@ def mark_task_failed(
 def mark_task_interrupted(task) -> bool:
     """Mark a task whose worker no longer exists (restart / process exit)."""
     age = progress_age_seconds(task)
-    detail = f"最后一次进度更新在 {_format_duration(age)}前。" if age is not None else ''
+    texts = _texts()
+    detail = texts['interrupted_detail'].format(duration=_format_duration(age)) if age is not None else ''
     return mark_task_failed(
         task,
         error_code=INTERRUPTED_ERROR_CODE,
-        message=f"{INTERRUPTED_MESSAGE}{detail}",
-        help_text=INTERRUPTED_HELP_TEXT,
+        message=f"{texts['interrupted']}{detail}",
+        help_text=texts['interrupted_help'],
         error_details={
             'reason': 'interrupted',
             'idle_seconds': round(age, 1) if age is not None else None,
@@ -268,16 +341,14 @@ def mark_task_interrupted(task) -> bool:
 
 def mark_task_stalled(task, stalled_seconds: float) -> bool:
     """Mark a task owned by this process that stopped reporting progress."""
+    texts = _texts()
     step = task_watchdog.last_step(task.id)
-    step_detail = f"，最后一步：{step}" if step else ''
+    step_detail = texts['stalled_step'].format(step=step) if step else ''
     return mark_task_failed(
         task,
         error_code=STALLED_ERROR_CODE,
-        message=(
-            f"任务疑似卡住：已{_format_duration(stalled_seconds)}没有进度更新"
-            f"{step_detail}。"
-        ),
-        help_text='可以点右侧的 × 移除该任务后重新导出；若反复出现，请把应用日志发给开发者。',
+        message=f"{texts['stalled'].format(duration=_format_duration(stalled_seconds))}{step_detail}。",
+        help_text=texts['stalled_help'],
         error_details={
             'reason': 'stalled',
             'idle_seconds': round(stalled_seconds, 1),
