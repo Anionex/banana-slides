@@ -19,6 +19,8 @@ const exportI18n = {
       pollServiceUnavailable: '导出状态服务暂时不可用',
       pollNetworkError: '状态查询网络连接中断',
       createConfirmationPending: '创建响应中断后暂未查到任务，可能仍在经过网关或写入队列',
+      taskInterrupted: '任务被中断：后台服务已重启或进程已退出，该任务不会继续执行。',
+      taskStalled: '任务疑似卡住：',
     },
   },
   en: {
@@ -34,6 +36,8 @@ const exportI18n = {
       pollServiceUnavailable: 'The export status service is temporarily unavailable',
       pollNetworkError: 'The status-check connection was interrupted',
       createConfirmationPending: 'The task is not visible yet after the create response was interrupted; it may still be passing through the gateway or queue',
+      taskInterrupted: 'Task interrupted: the backend restarted, so this task will not continue.',
+      taskStalled: 'Task looks stuck:',
     },
   },
 };
@@ -41,6 +45,12 @@ const t = getT(exportI18n);
 const EXPORT_POLL_INTERVAL_MS = 2000;
 const MAX_POLL_RETRY_DELAY_MS = 30000;
 const MAX_CREATE_CONFIRMATION_RETRIES = 6;
+// 后端看门狗写入的 error_code（见 backend/services/task_watchdog.py）：
+// 这类任务已不可能继续推进，用本地化文案替换后端的中文句子前缀。
+const WATCHDOG_ERROR_KEYS: Record<string, string> = {
+  TASK_INTERRUPTED: 'exportStore.taskInterrupted',
+  TASK_STALLED: 'exportStore.taskStalled',
+};
 export const activePolls = new Set<string>();
 
 interface PollingIssue {
@@ -355,9 +365,21 @@ export const useExportTasksStore = create<ExportTasksState>()(
               const taskErrorMessage = task.error_message
                 || (typeof task.error === 'string' ? task.error : task.error?.message)
                 || t('exportStore.exportFailed');
-              updates.errorMessage = updates.progress?.error_code
-                ? taskErrorMessage
-                : normalizeErrorMessage(taskErrorMessage);
+              const watchdogKey = updates.progress?.error_code
+                ? WATCHDOG_ERROR_KEYS[updates.progress.error_code]
+                : undefined;
+              if (watchdogKey) {
+                // 后端已经给出中文完整句子（含"多久没有进度"等细节）；
+                // 仅当本地化前缀不是该句子的开头时（例如英文界面）才补上前缀。
+                const headline = t(watchdogKey);
+                updates.errorMessage = taskErrorMessage.startsWith(headline)
+                  ? taskErrorMessage
+                  : `${headline} ${taskErrorMessage}`;
+              } else {
+                updates.errorMessage = updates.progress?.error_code
+                  ? taskErrorMessage
+                  : normalizeErrorMessage(taskErrorMessage);
+              }
               updates.completedAt = new Date().toISOString();
               activePolls.delete(id);
               get().updateTask(id, updates);

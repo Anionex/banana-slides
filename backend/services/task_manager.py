@@ -268,6 +268,9 @@ class TaskManager:
         with self.lock:
             executor = self.executor
 
+        from services.task_watchdog import task_watchdog
+        task_watchdog.start(task_id)
+
         future = executor.submit(func, task_id, *args, **kwargs)
         
         with self.lock:
@@ -290,6 +293,8 @@ class TaskManager:
     
     def _cleanup_task(self, task_id: str):
         """Clean up completed task"""
+        from services.task_watchdog import task_watchdog
+        task_watchdog.forget(task_id)
         with self.lock:
             if task_id in self.active_tasks:
                 del self.active_tasks[task_id]
@@ -298,6 +303,11 @@ class TaskManager:
         """Check if task is still running"""
         with self.lock:
             return task_id in self.active_tasks
+
+    def active_task_ids(self) -> List[str]:
+        """Snapshot of task ids currently owned by this process."""
+        with self.lock:
+            return list(self.active_tasks.keys())
     
     def shutdown(self):
         """Shutdown the executor"""
@@ -1814,6 +1824,7 @@ def export_editable_pptx_with_recursive_analysis_task(
         from PIL import Image
         from models import Project
         from services.export_service import ExportService, ExportError
+        from services.task_watchdog import touch_task
 
         logger.info(f"开始递归分析导出任务 {task_id} for project {project_id}")
 
@@ -1891,7 +1902,8 @@ def export_editable_pptx_with_recursive_analysis_task(
                 "failed": 0,
                 "current_step": "准备中...",
                 "percent": 0,
-                "messages": ["开始导出可编辑PPTX..."]  # 消息日志
+                "messages": ["开始导出可编辑PPTX..."],  # 消息日志
+                "heartbeat_at": datetime.utcnow().isoformat(),
             })
             db.session.commit()
             
@@ -1904,6 +1916,9 @@ def export_editable_pptx_with_recursive_analysis_task(
                 nonlocal progress_messages, current_stage
                 try:
                     current_stage = step
+                    # 心跳：既更新内存看门狗，也写入数据库，
+                    # 这样重启后能判断任务是否真的还在跑（见 services/task_watchdog.py）
+                    touch_task(task_id, step)
                     # 添加新消息到日志
                     new_message = f"[{step}] {message}"
                     progress_messages.append(new_message)
@@ -1920,11 +1935,16 @@ def export_editable_pptx_with_recursive_analysis_task(
                             "failed": 0,
                             "current_step": message,
                             "percent": percent,
-                            "messages": progress_messages.copy()
+                            "messages": progress_messages.copy(),
+                            "heartbeat_at": datetime.utcnow().isoformat(),
                         })
                         db.session.commit()
                 except Exception as e:
                     logger.warning(f"更新进度失败: {e}")
+
+            def heartbeat_callback(step: str):
+                """仅更新内存心跳（不写库），用于元素级细粒度进度。"""
+                touch_task(task_id, step)
             
             # Step 1: 准备工作
             logger.info("Step 1: 准备工作...")
@@ -1973,6 +1993,7 @@ def export_editable_pptx_with_recursive_analysis_task(
                 max_workers=max_workers,
                 text_attribute_extractor=text_attribute_extractor,
                 progress_callback=progress_callback,
+                heartbeat_callback=heartbeat_callback,
                 export_extractor_method=export_extractor_method,
                 export_inpaint_method=export_inpaint_method,
                 enable_icon_subject_extraction=enable_icon_subject_extraction,
@@ -1998,6 +2019,7 @@ def export_editable_pptx_with_recursive_analysis_task(
             if task:
                 task.status = 'COMPLETED'
                 task.completed_at = datetime.utcnow()
+                touch_task(task_id, "完成")
                 task.set_progress({
                     "total": 100,
                     "completed": 100,
@@ -2005,6 +2027,7 @@ def export_editable_pptx_with_recursive_analysis_task(
                     "current_step": "导出完成",
                     "percent": 100,
                     "messages": progress_messages,
+                    "heartbeat_at": datetime.utcnow().isoformat(),
                     "download_url": download_path,
                     "filename": filename,
                     "method": "recursive_analysis",

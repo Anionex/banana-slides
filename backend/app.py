@@ -191,6 +191,21 @@ def create_app():
         # Load settings from database and sync to app.config
         _load_settings_to_config(app)
 
+        # 清理上一个进程遗留的后台任务：后台任务只存在于进程内，
+        # 重启后数据库里的 PENDING/PROCESSING 记录永远不会再推进，
+        # 前端却会一直显示"进行中"。这里在启动时统一标记为中断。
+        try:
+            from services.task_watchdog import reconcile_orphaned_tasks
+            reconciled = reconcile_orphaned_tasks()
+            if reconciled:
+                logging.getLogger(__name__).info(
+                    f"Reconciled {reconciled} orphaned background task(s) at startup"
+                )
+        except Exception as reconcile_error:  # pragma: no cover - never block startup
+            logging.getLogger(__name__).warning(
+                f"Orphaned task reconciliation failed: {reconcile_error}"
+            )
+
     # Access code enforcement on all /api/ routes
     @app.before_request
     def _enforce_access_code():

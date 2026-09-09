@@ -435,6 +435,79 @@ describe('useExportTasksStore', () => {
     expect(task.completedAt).toBeTruthy()
   })
 
+  it('shows the interrupted-task headline without duplicating the backend sentence', async () => {
+    vi.mocked(api.getTaskStatus).mockResolvedValue({
+      data: {
+        status: 'FAILED',
+        error_message: '任务被中断：后台服务已重启或进程已退出，该任务不会继续执行。最后一次进度更新在 3.5 小时前。',
+        progress: {
+          total: 100,
+          completed: 88,
+          percent: 88,
+          current_step: '构建第 17/24 页...',
+          error_code: 'TASK_INTERRUPTED',
+          help_text: '点任务右侧的 × 移除这条记录，然后重新发起即可。',
+        },
+      },
+    } as any)
+
+    act(() => {
+      useExportTasksStore.getState().addTask({
+        id: 'interrupted-export',
+        taskId: 'task-interrupted',
+        projectId: 'project-a',
+        type: 'editable-pptx',
+        status: 'PROCESSING',
+      })
+    })
+
+    await act(async () => {
+      await useExportTasksStore.getState().pollTask('interrupted-export', 'project-a', 'task-interrupted')
+    })
+
+    const task = useExportTasksStore.getState().tasks[0]
+    expect(task.status).toBe('FAILED')
+    expect(task.errorMessage).toContain('任务被中断')
+    expect(task.errorMessage).toContain('3.5 小时前')
+    expect(task.errorMessage?.match(/任务被中断/g)).toHaveLength(1)
+    expect(task.progress?.error_code).toBe('TASK_INTERRUPTED')
+  })
+
+  it('labels a stalled task with the localized headline plus backend detail', async () => {
+    vi.mocked(api.getTaskStatus).mockResolvedValue({
+      data: {
+        status: 'FAILED',
+        error_message: '任务疑似卡住：已 21 分钟没有进度更新，最后一步：构建PPTX。',
+        progress: {
+          total: 100,
+          completed: 88,
+          percent: 88,
+          error_code: 'TASK_STALLED',
+        },
+      },
+    } as any)
+
+    act(() => {
+      useExportTasksStore.getState().addTask({
+        id: 'stalled-export',
+        taskId: 'task-stalled',
+        projectId: 'project-a',
+        type: 'editable-pptx',
+        status: 'PROCESSING',
+      })
+    })
+
+    await act(async () => {
+      await useExportTasksStore.getState().pollTask('stalled-export', 'project-a', 'task-stalled')
+    })
+
+    const task = useExportTasksStore.getState().tasks[0]
+    expect(task.status).toBe('FAILED')
+    expect(task.errorMessage).toContain('任务疑似卡住')
+    expect(task.errorMessage).toContain('构建PPTX')
+    expect(task.progress?.error_code).toBe('TASK_STALLED')
+  })
+
   it('does not poll tasks that are already completed', async () => {
     act(() => {
       useExportTasksStore.getState().addTask({

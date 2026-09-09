@@ -35,6 +35,7 @@ const exportI18n = {
       styleExtractionStage: "文本样式提取",
       queueSubmissionStage: "后台任务提交",
       textRenderStage: "内容写入",
+      taskWatchdogStage: "任务状态对账",
       exportedFiles: "已导出文件",
       deleteExportTitle: "删除导出文件",
       deleteExportMessage: "确定要删除「{{filename}}」吗？此操作会移除服务器上的文件。",
@@ -68,6 +69,7 @@ const exportI18n = {
       styleExtractionStage: "Text style extraction",
       queueSubmissionStage: "Background task submission",
       textRenderStage: "Content rendering",
+      taskWatchdogStage: "Task status reconciliation",
       exportedFiles: "Exported Files",
       deleteExportTitle: "Delete Exported File",
       deleteExportMessage: "Delete \"{{filename}}\" from the server?",
@@ -265,6 +267,7 @@ const TaskItem: React.FC<{
     style_extraction: t('export.styleExtractionStage'),
     queue_submission: t('export.queueSubmissionStage'),
     text_render: t('export.textRenderStage'),
+    task_watchdog: t('export.taskWatchdogStage'),
   };
   const errorStageLabel = errorStage ? (errorStageLabels[errorStage] || errorStage) : undefined;
   

@@ -60,6 +60,19 @@ The panel shows **Export Failed** only after the backend explicitly reports fail
   For best extraction results, configure `BAIDU_API_KEY` in your environment. See [Configuration](/configuration#baidu-api-key).
 </Note>
 
+### Interrupted and Stalled Tasks
+
+Background export tasks live only inside the app process, so they do not survive a process exit (closing or restarting the app, installing an update, or a crash). To keep the UI from showing the last known progress forever (for example "88% building page 17/24"), Banana Slides reconciles tasks in two ways:
+
+- On startup, any task left "in progress" by a previous run is marked failed with error code `TASK_INTERRUPTED`, keeping the real progress it had reached.
+- When the preview page polls a task, the task is also marked failed if no background thread is handling it anymore, or if this process has reported no progress for more than 20 minutes. The latter uses error code `TASK_STALLED` and names the stage where it stopped.
+
+In both cases the task panel suggests removing the entry with the × button and exporting again. A new export always creates a new task; it never reuses an interrupted one.
+
+Thresholds can be tuned with environment variables: `TASK_STALL_TIMEOUT_SECONDS` (default 1200 seconds, set to 0 to disable stall detection) and `TASK_ORPHAN_GRACE_SECONDS` (default 90 seconds; tasks with a fresh heartbeat are never touched, so multiple backend processes do not interrupt each other).
+
+Build progress is more granular as well: dense pages show "building page N/M (X elements processed)" and the style extraction stage reports completed counts, making it easier to tell a slow export from a stuck one.
+
 ## Icon Transparent Background
 
 In **Project Settings → Export Settings** you can toggle **Icon Transparent Background**, which is enabled by default. When enabled, images classified as icons during editable PPTX export are processed via the local RMBG-2.0 model to produce transparent-background PNGs before being placed in the PPT, avoiding the icon's original background clashing with the new slide background.
