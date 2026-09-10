@@ -1350,6 +1350,10 @@ def get_test_status(task_id: str):
         if not task or (enabled() and task.project_id != settings_test_scope()):
             return error_response("TASK_NOT_FOUND", "测试任务不存在", 404)
 
+        # 与项目任务接口一致：进程重启/任务卡死时不要让前端一直显示"进行中"
+        from services.task_watchdog import reconcile_task_for_response
+        reconcile_task_for_response(task)
+
         # 构建响应数据
         response_data = {
             'status': task.status,
@@ -1366,8 +1370,14 @@ def get_test_status(task_id: str):
 
         # 如果任务失败，包含错误信息
         elif task.status == 'FAILED':
-            response_data['error'] = task.error_message
             progress = task.get_progress()
+            from services.task_watchdog import localize_watchdog_payload
+            localized = localize_watchdog_payload({
+                'error_message': task.error_message,
+                'progress': dict(progress or {}),
+            })
+            response_data['error'] = localized['error_message']
+            progress = localized['progress']
             if progress:
                 response_data.update(progress)
 

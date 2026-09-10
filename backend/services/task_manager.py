@@ -19,6 +19,7 @@ from sqlalchemy import func
 from sqlalchemy.exc import OperationalError
 from PIL import Image, ImageDraw, ImageFilter
 from models import db, Task, Page, Material, PageImageVersion, Settings, ProjectTemplateAsset, Project
+from services.task_watchdog import task_scope, task_watchdog
 from utils import get_filtered_pages
 from utils.image_utils import check_image_resolution
 
@@ -237,6 +238,8 @@ class ResourceLimiter:
                         f"{self.name} limiter full ({self._in_use}/{self.capacity}), "
                         f"waiting: {label}"
                     )
+                # 等待限流槽期间 worker 仍然活着，保持心跳，避免被看门狗判为卡住
+                task_watchdog.touch_current_thread()
                 self._condition.wait(timeout=0.5)
 
             self._in_use += 1
@@ -269,7 +272,21 @@ class TaskManager:
         with self.lock:
             executor = self.executor
 
-        future = executor.submit(func, task_id, *args, **kwargs)
+        def _run(tid, *run_args, **run_kwargs):
+            # 队列等待不算"卡住"：worker 真正开始执行时才登记心跳，
+            # 因此排队期间不会因为"没有心跳"被判为卡住
+            task_watchdog.touch(tid, '开始执行')
+            task_watchdog.bind_thread(tid)
+            try:
+                return func(tid, *run_args, **run_kwargs)
+            finally:
+                task_watchdog.unbind_thread()
+
+        try:
+            future = executor.submit(_run, task_id, *args, **kwargs)
+        except Exception:
+            task_watchdog.forget(task_id)
+            raise
         
         with self.lock:
             self.active_tasks[task_id] = future
@@ -291,6 +308,7 @@ class TaskManager:
     
     def _cleanup_task(self, task_id: str):
         """Clean up completed task"""
+        task_watchdog.forget(task_id)
         with self.lock:
             if task_id in self.active_tasks:
                 del self.active_tasks[task_id]
@@ -299,7 +317,7 @@ class TaskManager:
         """Check if task is still running"""
         with self.lock:
             return task_id in self.active_tasks
-    
+
     def shutdown(self):
         """Shutdown the executor"""
         self.executor.shutdown(wait=True)
@@ -623,7 +641,7 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                         from services.ai_service_manager import get_ai_service
                         ai_service = get_ai_service()
                         
-                        with text_resource_limiter.slot(
+                        with task_scope(task_id), text_resource_limiter.slot(
                             f"description project={project_id} page={page_id}"
                         ):
                             desc_result = ai_service.generate_page_description(
@@ -789,7 +807,7 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                                 db.session.commit()
                                 logger.debug(f"Page {page_id} status updated to GENERATING")
 
-                        with image_resource_limiter.slot(
+                        with task_scope(task_id), image_resource_limiter.slot(
                             f"project={project_id} page={page_id}",
                             on_acquire=mark_generating,
                         ):
@@ -1067,7 +1085,7 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
                     page_obj.status = 'GENERATING'
                     db.session.commit()
             
-            with image_resource_limiter.slot(
+            with task_scope(task_id), image_resource_limiter.slot(
                 f"project={project_id} page={page_id}",
                 on_acquire=mark_generating,
             ):
@@ -1170,7 +1188,7 @@ def edit_page_image_task(task_id: str, project_id: str, page_id: str,
             # Edit image
             logger.info(f"🎨 Editing image for page {page_id}...")
             try:
-                with image_resource_limiter.slot(
+                with task_scope(task_id), image_resource_limiter.slot(
                     f"edit project={project_id} page={page_id}",
                     on_acquire=mark_generating,
                 ):
@@ -1275,7 +1293,7 @@ def generate_material_image_task(task_id: str, project_id: str, prompt: str,
             
             # Generate image (复用核心逻辑)
             logger.info(f"🎨 Generating material image with prompt: {prompt[:100]}...")
-            with image_resource_limiter.slot(
+            with task_scope(task_id), image_resource_limiter.slot(
                 f"material-generate project={project_id} task={task_id}",
                 on_acquire=mark_processing,
             ):
@@ -1390,7 +1408,7 @@ def process_material_image_task(
                     task_obj.status = 'PROCESSING'
                     db.session.commit()
 
-            with image_resource_limiter.slot(
+            with task_scope(task_id), image_resource_limiter.slot(
                 f"material-process operation={operation} project={project_id} task={task_id}",
                 on_acquire=mark_processing,
             ):
@@ -1628,7 +1646,7 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
                             error = 'empty_input'
                         else:
                             # Step B: AI extract structured content
-                            with text_resource_limiter.slot(
+                            with task_scope(task_id), text_resource_limiter.slot(
                                 f"renovation-extract project={project_id} page-index={idx}"
                             ):
                                 content = ai_service.extract_page_content(md_text, language=language)
@@ -1645,7 +1663,7 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
                                     elif page_obj.generated_image_path:
                                         image_path = file_service.get_absolute_path(page_obj.generated_image_path)
                                     if image_path and Path(image_path).exists():
-                                        with text_resource_limiter.slot(
+                                        with task_scope(task_id), text_resource_limiter.slot(
                                             f"layout-caption project={project_id} page-index={idx}"
                                         ):
                                             caption = ai_service.generate_layout_caption(image_path)
@@ -1815,6 +1833,7 @@ def export_editable_pptx_with_recursive_analysis_task(
         from PIL import Image
         from models import Project
         from services.export_service import ExportService, ExportError
+        from services.task_watchdog import touch_task
 
         logger.info(f"开始递归分析导出任务 {task_id} for project {project_id}")
 
@@ -1892,7 +1911,7 @@ def export_editable_pptx_with_recursive_analysis_task(
                 "failed": 0,
                 "current_step": "准备中...",
                 "percent": 0,
-                "messages": ["开始导出可编辑PPTX..."]  # 消息日志
+                "messages": ["开始导出可编辑PPTX..."],  # 消息日志
             })
             db.session.commit()
             
@@ -1905,6 +1924,9 @@ def export_editable_pptx_with_recursive_analysis_task(
                 nonlocal progress_messages, current_stage
                 try:
                     current_stage = step
+                    # 心跳：既更新内存看门狗，也写入数据库，
+                    # 这样重启后能判断任务是否真的还在跑（见 services/task_watchdog.py）
+                    touch_task(task_id, step)
                     # 添加新消息到日志
                     new_message = f"[{step}] {message}"
                     progress_messages.append(new_message)
@@ -1921,11 +1943,15 @@ def export_editable_pptx_with_recursive_analysis_task(
                             "failed": 0,
                             "current_step": message,
                             "percent": percent,
-                            "messages": progress_messages.copy()
+                            "messages": progress_messages.copy(),
                         })
                         db.session.commit()
                 except Exception as e:
                     logger.warning(f"更新进度失败: {e}")
+
+            def heartbeat_callback(step: str):
+                """仅更新内存心跳（不写库），用于元素级细粒度进度。"""
+                touch_task(task_id, step)
             
             # Step 1: 准备工作
             logger.info("Step 1: 准备工作...")
@@ -1974,6 +2000,7 @@ def export_editable_pptx_with_recursive_analysis_task(
                 max_workers=max_workers,
                 text_attribute_extractor=text_attribute_extractor,
                 progress_callback=progress_callback,
+                heartbeat_callback=heartbeat_callback,
                 export_extractor_method=export_extractor_method,
                 export_inpaint_method=export_inpaint_method,
                 enable_icon_subject_extraction=enable_icon_subject_extraction,
@@ -1997,8 +2024,11 @@ def export_editable_pptx_with_recursive_analysis_task(
             
             task = Task.query.get(task_id)
             if task:
+                # 注意：如果该任务已被看门狗判为失败，Task.status 的校验器
+                # 会保持 FAILED 终态，但下面的产物信息仍会写入进度。
                 task.status = 'COMPLETED'
                 task.completed_at = datetime.utcnow()
+                touch_task(task_id, "完成")
                 task.set_progress({
                     "total": 100,
                     "completed": 100,
@@ -2014,7 +2044,13 @@ def export_editable_pptx_with_recursive_analysis_task(
                     "warning_details": export_warnings.to_dict() if export_warnings else {}  # 详细警告信息
                 })
                 db.session.commit()
-                logger.info(f"✓ 任务 {task_id} 完成 - 递归分析导出成功（深度={max_depth}）")
+                if task.status == 'COMPLETED':
+                    logger.info(f"✓ 任务 {task_id} 完成 - 递归分析导出成功（深度={max_depth}）")
+                else:
+                    logger.warning(
+                        f"任务 {task_id} 在看门狗判失败后仍完成了导出，保持 FAILED 终态，"
+                        f"产物: {filename}"
+                    )
 
         except ExportError as e:
             # 导出错误（fail_fast 模式下的详细错误）
@@ -2595,7 +2631,7 @@ def analyze_template_task(task_id: str, project_id: str, asset_id: str,
         task = Task.query.get(task_id)
         if not task:
             return
-        with text_resource_limiter.slot(label=f'analyze_template:{asset_id}'):
+        with task_scope(task_id), text_resource_limiter.slot(label=f'analyze_template:{asset_id}'):
             try:
                 _set_task_processing(task_id)
                 task.set_progress({'asset_id': asset_id, 'stage': 'calling_ai'})
@@ -2671,7 +2707,7 @@ def auto_match_templates_task(task_id: str, project_id: str,
         task = Task.query.get(task_id)
         if not task:
             return
-        with text_resource_limiter.slot(label=f'auto_match:{project_id}'):
+        with task_scope(task_id), text_resource_limiter.slot(label=f'auto_match:{project_id}'):
             try:
                 _set_task_processing(task_id)
                 language = (app.config.get('OUTPUT_LANGUAGE') or 'zh').lower()
