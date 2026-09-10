@@ -12,6 +12,7 @@ def repair_desktop_settings_schema(db):
             'api_key': 'VARCHAR(500)',
             'image_resolution': 'VARCHAR(20)',
             'image_aspect_ratio': 'VARCHAR(10)',
+            'image_quality': 'VARCHAR(10)',
             'max_description_workers': 'INTEGER',
             'max_image_workers': 'INTEGER',
             'text_model': 'VARCHAR(100)',

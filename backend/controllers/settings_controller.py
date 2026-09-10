@@ -25,6 +25,8 @@ from services.update_check_service import check_for_update
 
 logger = logging.getLogger(__name__)
 ALLOWED_PROVIDER_FORMATS = {"openai", "gemini", "volcengine", "lazyllm", "codex"} | LAZYLLM_VENDORS
+# OpenAI 兼容图片模型的质量档位；xhigh / max 需要 gpt-image-2.5 及更新模型
+ALLOWED_IMAGE_QUALITIES = ("auto", "low", "medium", "high", "xhigh", "max")
 
 settings_bp = Blueprint(
     "settings", __name__, url_prefix="/api/settings"
@@ -158,6 +160,10 @@ def temporary_settings_override(settings_override: dict):
             original_values["DEFAULT_RESOLUTION"] = current_app.config.get("DEFAULT_RESOLUTION")
             current_app.config["DEFAULT_RESOLUTION"] = settings_override["image_resolution"]
 
+        if settings_override.get("image_quality"):
+            original_values["IMAGE_QUALITY"] = current_app.config.get("IMAGE_QUALITY")
+            current_app.config["IMAGE_QUALITY"] = settings_override["image_quality"]
+
         if "enable_text_reasoning" in settings_override:
             original_values["ENABLE_TEXT_REASONING"] = current_app.config.get("ENABLE_TEXT_REASONING")
             current_app.config["ENABLE_TEXT_REASONING"] = settings_override["enable_text_reasoning"]
@@ -269,6 +275,15 @@ def update_settings():
             if resolution not in ["1K", "2K", "4K"]:
                 return bad_request("Resolution must be 1K, 2K, or 4K")
             settings.image_resolution = resolution
+
+        if "image_quality" in data:
+            quality = data["image_quality"]
+            if quality not in ALLOWED_IMAGE_QUALITIES:
+                allowed_values = "', '".join(ALLOWED_IMAGE_QUALITIES)
+                return bad_request(f"image_quality must be one of '{allowed_values}'")
+            # Store 'auto' literally: an explicit choice in the UI must override
+            # an IMAGE_QUALITY value coming from .env, unlike NULL (= follow env).
+            settings.image_quality = quality
 
         if "image_aspect_ratio" in data:
             aspect_ratio = data["image_aspect_ratio"]
@@ -467,6 +482,7 @@ def reset_settings():
         settings.image_model_source = None
         settings.image_caption_model_source = None
         settings.openai_image_api_protocol = None
+        settings.image_quality = None
         settings.lazyllm_api_keys = None
         for model_type in ('text', 'image', 'image_caption'):
             setattr(settings, f'{model_type}_api_key', None)
@@ -724,6 +740,13 @@ def _sync_settings_to_config(settings: Settings):
     # Sync image generation settings (fall back to Config when NULL)
     current_app.config["DEFAULT_RESOLUTION"] = settings.image_resolution or Config.DEFAULT_RESOLUTION
     current_app.config["DEFAULT_ASPECT_RATIO"] = settings.image_aspect_ratio or Config.DEFAULT_ASPECT_RATIO
+    new_quality = getattr(settings, "image_quality", None) or Config.IMAGE_QUALITY
+    if current_app.config.get("IMAGE_QUALITY") != new_quality:
+        # Image providers are cached per model name, so a quality change must
+        # invalidate the cache or generation keeps using the previous tier.
+        ai_config_changed = True
+        logger.info(f"Image quality changed: {current_app.config.get('IMAGE_QUALITY')} -> {new_quality}")
+    current_app.config["IMAGE_QUALITY"] = new_quality
 
     # Sync worker settings (fall back to Config when NULL)
     current_app.config["MAX_DESCRIPTION_WORKERS"] = settings.max_description_workers or Config.MAX_DESCRIPTION_WORKERS
@@ -1251,6 +1274,11 @@ def run_settings_test(test_name: str):
             test_settings["baidu_api_key"] = global_settings.baidu_api_key
         if global_settings.image_resolution:
             test_settings["image_resolution"] = global_settings.image_resolution
+        test_settings["image_quality"] = (
+            global_settings.image_quality
+            or current_app.config.get('IMAGE_QUALITY')
+            or 'auto'
+        )
         # 推理模式设置
         test_settings["enable_text_reasoning"] = global_settings.enable_text_reasoning
         test_settings["text_thinking_budget"] = global_settings.text_thinking_budget

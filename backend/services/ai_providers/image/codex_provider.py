@@ -20,7 +20,12 @@ from PIL import Image
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
 
 from .base import ImageProvider
-from .openai_provider import _compute_gpt_image_size
+from .openai_provider import (
+    _EXTENDED_IMAGE_QUALITY_TIERS,
+    _IMAGE_QUALITY_TIERS,
+    _compute_gpt_image_size,
+    _gpt_image_supports_extended_quality,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -57,17 +62,37 @@ def _log_codex_retry(retry_state):
 class CodexImageProvider(ImageProvider):
     """Image generation via the ChatGPT Codex Responses API (OAuth)."""
 
-    def __init__(self, api_key: str, model: str = "gpt-image-1", resolution: str = "2K"):
+    def __init__(self, api_key: str, model: str = "gpt-image-1", resolution: str = "2K", image_quality: str = "auto"):
         """
         Args:
             api_key: OAuth access token.
             model:   The image model (e.g. gpt-image-1, gpt-image-2).
                      Used inside the image_generation tool definition.
             resolution: Target resolution (1K/2K/4K) for dynamic size calculation.
+            image_quality: Quality tier for the image_generation tool. 'auto'
+                keeps Codex's historical 'high'; xhigh / max require
+                gpt-image-2.5 or newer and otherwise fall back to 'high'.
         """
         self.api_key = api_key
         self.image_model = model
         self.resolution = resolution
+        self.image_quality = image_quality or 'auto'
+
+    def _resolve_quality(self) -> str:
+        """Map the configured tier onto a value the Codex tool accepts."""
+        requested = (self.image_quality or 'auto').strip().lower()
+        if requested not in _IMAGE_QUALITY_TIERS:
+            return 'high'
+        if requested == 'auto':
+            return 'high'   # Codex has always used high; keep that default
+        if requested in _EXTENDED_IMAGE_QUALITY_TIERS and not _gpt_image_supports_extended_quality(self.image_model):
+            logger.warning(
+                "%s does not support quality=%s through Codex; falling back to high",
+                self.image_model,
+                requested,
+            )
+            return 'high'
+        return requested
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -79,9 +104,10 @@ class CodexImageProvider(ImageProvider):
             "Content-Type": "application/json",
         }
 
-    def _build_payload(self, prompt: str, aspect_ratio: str, ref_images: Optional[List[Image.Image]] = None, quality: str = "high", resolution: Optional[str] = None) -> dict:
+    def _build_payload(self, prompt: str, aspect_ratio: str, ref_images: Optional[List[Image.Image]] = None, quality: Optional[str] = None, resolution: Optional[str] = None) -> dict:
         """Build a Responses API request with image_generation tool."""
         size = _compute_gpt_image_size(aspect_ratio, resolution or self.resolution)
+        quality = quality or self._resolve_quality()
 
         content = []
         if ref_images:

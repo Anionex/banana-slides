@@ -110,6 +110,9 @@ class Config:
     # 图片生成配置
     DEFAULT_ASPECT_RATIO = "16:9"
     DEFAULT_RESOLUTION = "2K"
+    # 图片质量档位（OpenAI 兼容图片模型: auto/low/medium/high/xhigh/max）
+    # xhigh / max 需要 gpt-image-2.5 及更新模型，旧模型会自动回落到 high
+    IMAGE_QUALITY = os.getenv('IMAGE_QUALITY', 'auto')
     
     # 日志配置
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO').upper()
