@@ -318,7 +318,9 @@ def _load_settings_to_config(app):
         aspect_ratio = settings.image_aspect_ratio or Config.DEFAULT_ASPECT_RATIO
         app.config['DEFAULT_RESOLUTION'] = resolution
         app.config['DEFAULT_ASPECT_RATIO'] = aspect_ratio
-        logging.info(f"Loaded image settings: {resolution}, {aspect_ratio}")
+        image_quality = getattr(settings, 'image_quality', None) or Config.IMAGE_QUALITY
+        app.config['IMAGE_QUALITY'] = image_quality
+        logging.info(f"Loaded image settings: {resolution}, {aspect_ratio}, quality={image_quality}")
 
         # Load worker settings (fall back to .env/Config when NULL)
         desc_workers = settings.max_description_workers or Config.MAX_DESCRIPTION_WORKERS

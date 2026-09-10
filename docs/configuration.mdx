@@ -35,6 +35,26 @@ OPENAI_API_KEY=your-api-key
 OPENAI_API_BASE=https://api.openai.com/v1
 ```
 
+### Image quality tier (GPT Image)
+
+When the image model is served over an OpenAI-compatible API, pick the generation quality under Settings → Image Generation Model → Image Quality. The control only appears when the image provider is OpenAI or Volcengine Agent Plan *and* the model belongs to the GPT Image family (`gpt-image-*`, `chatgpt-image-*`); DALL·E, Seedream and other models hide it because the tier has no effect there.
+
+| Tier | Meaning |
+| --- | --- |
+| `auto` | Default; the model decides |
+| `low` / `medium` | Cheaper drafts |
+| `high` | Top tier of earlier GPT Image models |
+| `xhigh` / `max` | `gpt-image-2.5` and newer only; higher quality, longer generation |
+
+Notes:
+
+- `gpt-image-2.5-flare` and `gpt-image-2.5-sunburst` accept all six tiers. `gpt-image-2`, `gpt-image-1.5`, `gpt-image-1`, and `chatgpt-image-*` stop at `high`; selecting `xhigh` / `max` falls back to `high` and logs a warning.
+- Codex (OpenAI OAuth) reads the same setting: `auto` keeps Codex's historical `high`, while `low` / `medium` / `high` and the 2.5 `xhigh` / `max` tiers are forwarded to the Codex `image_generation` tool; `xhigh` / `max` still fall back to `high` on older models.
+- `dall-e-3` always uses `standard`; `dall-e-2` and Volcengine Seedream receive no quality parameter.
+- Cost note: the 2.5 tiers sit lower than their 2.0 counterparts (2.5 `high` costs roughly what `gpt-image-2` `medium` used to). To keep the old `high` look, select `max`, which costs about what the old `high` did.
+- Model names are matched by the `gpt-image` / `chatgpt-image` prefix, so dated snapshots such as `gpt-image-2.5-flare-2026-09-08` also route to the images API automatically.
+- You can set the default through the environment instead: `IMAGE_QUALITY=high` (one of `auto` / `low` / `medium` / `high` / `xhigh` / `max`). A value saved in Settings — including an explicit `auto` — takes precedence and survives restarts; the environment is only used until the first save.
+
 ## SenseNova / SenseTime (OpenAI-Compatible)
 
 The legacy `SenseNova (商汤)` LazyLLM provider remains available, and the default provider is unchanged. SenseNova U1 image models should use the OpenAI-compatible path: Banana Slides recognizes `sensenova-u1*` model names and switches to SenseNova's native JSON endpoints (`/images/generations` and `/images/edits`) instead of the OpenAI SDK's multipart `images.edit` request.
@@ -74,7 +94,7 @@ AI_PROVIDER_FORMAT=openai
 OPENAI_API_KEY=your-apimart-api-key
 OPENAI_API_BASE=https://api.apimart.ai/v1
 TEXT_MODEL=gpt-5.6-sol
-IMAGE_MODEL=gpt-image-2
+IMAGE_MODEL=gpt-image-2.5-flare
 IMAGE_CAPTION_MODEL=gpt-5.6-luna
 IMAGE_MODEL_SOURCE=openai
 IMAGE_CAPTION_MODEL_SOURCE=openai
@@ -84,10 +104,11 @@ IMAGE_CAPTION_API_BASE=https://api.apimart.ai/v1
 
 Notes:
 
-- Use model IDs listed in the APIMart console. `gemini-3-pro-image` is not an APIMart model ID; use `gpt-image-2` or `gemini-3-pro-image-preview` when available.
+- Use model IDs listed in the APIMart console. `gemini-3-pro-image` is not an APIMart model ID; use `gpt-image-2.5-flare`, `gpt-image-2`, or `gemini-3-pro-image-preview` when available.
 - If `IMAGE_MODEL_SOURCE` is empty, the image-specific `IMAGE_API_BASE` is ignored and image calls use the global `OPENAI_API_BASE`; set `IMAGE_MODEL_SOURCE=openai` when APIMart should be used only for image generation.
 - Image generation can take about one to two minutes; the app polls the async task until completion or timeout.
-- For `gpt-image-2`, Banana converts the project ratio and `1K/2K/4K` tier into APIMart's `size` and `resolution` parameters. If the service test returns `1672x941`, the request is using APIMart's 1K tier; select `2K` or `4K` in project settings.
+- For `gpt-image-*` models, Banana converts the project ratio and `1K/2K/4K` tier into APIMart's `size` and `resolution` parameters. If the service test returns `1672x941`, the request is using APIMart's 1K tier; select `2K` or `4K` in project settings.
+- When you explicitly pick a `low` / `medium` / `high` / `xhigh` / `max` tier in Settings, Banana forwards it to APIMart as well; leaving the default `auto` keeps the request payload identical to earlier versions.
 
 ## Volcengine AgentPlans
 
