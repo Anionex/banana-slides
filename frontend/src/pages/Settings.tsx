@@ -1399,6 +1399,16 @@ export const Settings: React.FC = () => {
     const sourceValue = formData[item.sourceKey] as string;
     const isApiKeyProvider = API_KEY_PROVIDERS.has(sourceValue);
     const isLazyllm = sourceValue && isLazyllmVendor(sourceValue);
+    // Image generation options: the images/chat protocol only applies to
+    // OpenAI-compatible HTTP providers, while the quality tier also applies to
+    // Codex (OAuth), which builds its own image_generation request.
+    const imageProviderValue = sourceValue || formData.ai_provider_format;
+    const isOpenAiCompatibleImageSource = item.sourceKey === 'image_model_source'
+      && (imageProviderValue === 'openai' || imageProviderValue === 'volcengine');
+    const isCodexImageSource = item.sourceKey === 'image_model_source'
+      && imageProviderValue === 'codex';
+    const showsQualityTier = (isOpenAiCompatibleImageSource || isCodexImageSource)
+      && GPT_IMAGE_MODEL_PATTERN.test(formData.image_model || '');
     // 'openai' in source dropdown means OpenAI format (API key provider), not lazyllm openai vendor
     // lazyllm openai vendor is handled separately
 
@@ -1500,35 +1510,34 @@ export const Settings: React.FC = () => {
           </div>
         )}
 
-        {/* Image API Protocol: for image model when effective provider is OpenAI-compatible */}
-        {item.sourceKey === 'image_model_source' && (
-          sourceValue === 'openai'
-          || sourceValue === 'volcengine'
-          || (!sourceValue && ['openai', 'volcengine'].includes(formData.ai_provider_format))
-        ) && (
+        {/* Image request options for the effective image provider */}
+        {(isOpenAiCompatibleImageSource || isCodexImageSource) && (
           <>
-            <div className="pl-3 border-l-2 border-banana-300 dark:border-banana-600">
-              <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">
-                {t('settings.fields.imageApiProtocol')}
-              </label>
-              <select
-                data-testid="openai-image-api-protocol-select"
-                value={formData.openai_image_api_protocol}
-                onChange={(e) => handleFieldChange('openai_image_api_protocol', e.target.value)}
-                className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
-              >
-                <option value="auto">{t('settings.fields.imageApiProtocolAuto')}</option>
-                <option value="images">{t('settings.fields.imageApiProtocolImages')}</option>
-                <option value="chat">{t('settings.fields.imageApiProtocolChat')}</option>
-              </select>
-              <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">
-                {t('settings.fields.imageApiProtocolDesc')}
-              </p>
-            </div>
+            {/* Image API Protocol: OpenAI-compatible HTTP endpoints only */}
+            {isOpenAiCompatibleImageSource && (
+              <div className="pl-3 border-l-2 border-banana-300 dark:border-banana-600">
+                <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">
+                  {t('settings.fields.imageApiProtocol')}
+                </label>
+                <select
+                  data-testid="openai-image-api-protocol-select"
+                  value={formData.openai_image_api_protocol}
+                  onChange={(e) => handleFieldChange('openai_image_api_protocol', e.target.value)}
+                  className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
+                >
+                  <option value="auto">{t('settings.fields.imageApiProtocolAuto')}</option>
+                  <option value="images">{t('settings.fields.imageApiProtocolImages')}</option>
+                  <option value="chat">{t('settings.fields.imageApiProtocolChat')}</option>
+                </select>
+                <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">
+                  {t('settings.fields.imageApiProtocolDesc')}
+                </p>
+              </div>
+            )}
 
             {/* Quality tier: only GPT Image models accept this parameter, so hide
                 the control for Seedream and other models where it has no effect. */}
-            {GPT_IMAGE_MODEL_PATTERN.test(formData.image_model || '') && (
+            {showsQualityTier && (
               <div className="pl-3 border-l-2 border-banana-300 dark:border-banana-600">
                 <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">
                   {t('settings.fields.imageQuality')}

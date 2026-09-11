@@ -37,7 +37,7 @@ OPENAI_API_BASE=https://api.openai.com/v1
 
 ### 图片质量档位（GPT Image）
 
-使用 OpenAI 兼容的图片模型时，可在「设置 → 图像生成模型 → 图片质量档位」选择生成质量。该选项只在图片提供商为 OpenAI / 火山 Agent Plan，且模型属于 GPT Image 系列（`gpt-image-*`、`chatgpt-image-*`）时显示；DALL·E、Seedream 等其他模型不显示，因为档位对它们无效。
+使用 OpenAI 兼容的图片模型时，可在「设置 → 图像生成模型 → 图片质量档位」选择生成质量。该选项在图片提供商为 OpenAI、火山 Agent Plan 或 Codex（OpenAI OAuth），且模型属于 GPT Image 系列（`gpt-image-*`、`chatgpt-image-*`）时显示；DALL·E、Seedream 等其他模型不显示，因为档位对它们无效。Codex 走 Responses API，不需要也不显示 images/chat 协议选择。
 
 | 档位 | 说明 |
 | --- | --- |
