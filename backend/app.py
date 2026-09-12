@@ -339,6 +339,12 @@ def _load_settings_to_config(app):
         if settings.image_model:
             app.config['IMAGE_MODEL'] = settings.image_model
             logging.info(f"Loaded IMAGE_MODEL from settings: {settings.image_model}")
+
+        # Load OpenAI image API protocol (与保存时 settings_controller 的同步保持一致,
+        # 否则重启后回落 'auto', gpt-image-2-high 等带后缀模型会误走 chat 路径)
+        if settings.openai_image_api_protocol:
+            app.config['OPENAI_IMAGE_API_PROTOCOL'] = settings.openai_image_api_protocol
+            logging.info(f"Loaded OPENAI_IMAGE_API_PROTOCOL from settings: {settings.openai_image_api_protocol}")
         
         # Load MinerU settings
         if settings.mineru_api_base:
