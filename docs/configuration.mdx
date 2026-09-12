@@ -37,7 +37,7 @@ OPENAI_API_BASE=https://api.openai.com/v1
 
 ### Image quality tier (GPT Image)
 
-When the image model is served over an OpenAI-compatible API, pick the generation quality under Settings → Image Generation Model → Image Quality. The control only appears when the image provider is OpenAI or Volcengine Agent Plan *and* the model belongs to the GPT Image family (`gpt-image-*`, `chatgpt-image-*`); DALL·E, Seedream and other models hide it because the tier has no effect there.
+When the image model is served over an OpenAI-compatible API, pick the generation quality under Settings → Image Generation Model → Image Quality. The control appears when the image provider is OpenAI, Volcengine Agent Plan or Codex (OpenAI OAuth) *and* the model belongs to the GPT Image family (`gpt-image-*`, `chatgpt-image-*`); DALL·E, Seedream and other models hide it because the tier has no effect there. Codex talks to the Responses API, so it shows no images/chat protocol option.
 
 | Tier | Meaning |
 | --- | --- |

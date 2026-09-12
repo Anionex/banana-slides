@@ -99,6 +99,8 @@ describe('Settings image quality tier', () => {
 
     const select = await screen.findByTestId('openai-image-quality-select');
     expect((select as HTMLSelectElement).value).toBe('auto');
+    // OpenAI-compatible providers show both request options.
+    expect(screen.getByTestId('openai-image-api-protocol-select')).toBeTruthy();
 
     await userEvent.selectOptions(select, 'max');
     await userEvent.click(screen.getByRole('button', { name: /保存设置|Save Settings/ }));
@@ -148,5 +150,48 @@ describe('Settings image quality tier', () => {
     // The protocol select stays visible for Seedream, the quality select must not.
     expect(screen.getByTestId('openai-image-api-protocol-select')).toBeTruthy();
     expect(screen.queryByTestId('openai-image-quality-select')).toBeNull();
+  });
+
+  it('shows the quality tier for Codex (OAuth) without the images/chat protocol', async () => {
+    getSettings.mockResolvedValueOnce({
+      data: {
+        ...baseSettings,
+        ai_provider_format: 'codex',
+        image_model_source: '',
+        image_model: 'gpt-image-2.5',
+        openai_oauth_connected: true,
+      },
+    });
+    renderSettings();
+
+    const select = await screen.findByTestId('openai-image-quality-select');
+    expect(select).toBeTruthy();
+    await userEvent.selectOptions(select, 'xhigh');
+    await userEvent.click(screen.getByRole('button', { name: /保存设置|Save Settings/ }));
+
+    await waitFor(() => {
+      expect(updateSettings).toHaveBeenCalledWith(
+        expect.objectContaining({ image_quality: 'xhigh' })
+      );
+    });
+    // Codex talks to the Responses API, so the images/chat protocol is meaningless.
+    expect(screen.queryByTestId('openai-image-api-protocol-select')).toBeNull();
+  });
+
+  it('shows the quality tier when Codex is the per-model image source', async () => {
+    getSettings.mockResolvedValueOnce({
+      data: {
+        ...baseSettings,
+        ai_provider_format: 'gemini',
+        image_model_source: 'codex',
+        image_model: 'gpt-image-2.5-sunburst',
+        openai_oauth_connected: true,
+      },
+    });
+    renderSettings();
+
+    const select = await screen.findByTestId('openai-image-quality-select');
+    expect((select as HTMLSelectElement).value).toBe('auto');
+    expect(screen.queryByTestId('openai-image-api-protocol-select')).toBeNull();
   });
 });

@@ -93,6 +93,27 @@ test.describe('Image quality tier setting', () => {
       await expect(page.getByTestId('openai-image-quality-select')).toHaveCount(0);
     });
 
+    test('shows the quality tiers for Codex (OAuth) without the images/chat protocol', async ({ page }) => {
+      await mockSettings(page, {
+        ai_provider_format: 'codex',
+        image_model_source: '',
+        image_model: 'gpt-image-2.5',
+        openai_oauth_connected: true,
+      });
+
+      await page.goto(`${BASE_URL}/settings`);
+      await page.waitForLoadState('networkidle');
+
+      const qualitySelect = page.getByTestId('openai-image-quality-select');
+      await expect(qualitySelect).toBeVisible();
+      await expect(qualitySelect.locator('option')).toHaveCount(6);
+      // Codex builds its own image_generation request, so images/chat does not apply.
+      await expect(page.getByTestId('openai-image-api-protocol-select')).toHaveCount(0);
+
+      await qualitySelect.selectOption('max');
+      await expect(qualitySelect).toHaveValue('max');
+    });
+
     test('restores the saved tier into the select', async ({ page }) => {
       await mockSettings(page, { image_quality: 'xhigh' });
 
