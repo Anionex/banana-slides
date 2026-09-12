@@ -1288,12 +1288,28 @@ class OpenAIImageProvider(ImageProvider):
                         base64_data = base64_matches[0]
                         logger.debug(f"Found base64 image data in string")
                         try:
-                            image_data = base64.b64decode(base64_data)
+                            image_data = base64.b64decode(base64_matches[0])
                             image = Image.open(BytesIO(image_data))
                             logger.debug(f"Successfully extracted base64 image from string: {image.size}, {image.mode}")
                             return image
                         except Exception as decode_error:
                             logger.warning(f"Failed to decode base64 image from string: {decode_error}")
+
+                    # Last resort: some relays (e.g. Adobe Firefly-backed proxies)
+                    # return a bare pre-signed URL whose path has no file extension.
+                    # If the whole content is a single URL, try downloading it —
+                    # Image.open below validates it is actually an image.
+                    bare_url = content_str.strip()
+                    if bare_url.startswith(('http://', 'https://')) and not any(c.isspace() for c in bare_url):
+                        try:
+                            response = requests.get(bare_url, timeout=60, stream=True)
+                            response.raise_for_status()
+                            image = Image.open(BytesIO(response.content))
+                            image.load()
+                            logger.debug(f"Successfully downloaded image from bare URL: {image.size}, {image.mode}")
+                            return image
+                        except Exception as download_error:
+                            logger.warning(f"Failed to download image from bare URL: {download_error}")
             
             # Log raw response for debugging
             logger.warning(f"Unable to extract image. Raw message type: {type(message)}")
