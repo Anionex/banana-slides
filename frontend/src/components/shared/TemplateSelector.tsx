@@ -358,7 +358,18 @@ export const getTemplateFile = async (
     }
   }
 
-  const userTemplate = userTemplates.find(t => t.template_id === templateId);
+  // 优先从传入的列表查找；若未命中（列表可能过期，例如本次会话刚上传的模板
+  // 还没同步到调用方的 state），再从后端拉取一次最新列表兜底。
+  let userTemplate = userTemplates.find(t => t.template_id === templateId);
+  if (!userTemplate) {
+    try {
+      const response = await listUserTemplates();
+      userTemplate = response.data?.templates?.find(t => t.template_id === templateId);
+    } catch (error) {
+      console.error('Failed to refresh user templates:', error);
+    }
+  }
+
   if (userTemplate) {
     try {
       const imageUrl = getImageUrl(userTemplate.template_image_url);
