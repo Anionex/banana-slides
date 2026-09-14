@@ -1,0 +1,33 @@
+---
+title: "How to keep every slide visually consistent"
+description: "Use a stronger image model, image templates, and text description templates to keep the whole deck visually consistent"
+---
+
+When a generated deck feels like every slide has its own visual opinion, the model usually needs a stable style anchor first. Start with a stronger image generation model, then add constraints based on whether your workflow is driven by image templates or text description templates.
+
+## 1. Use a stronger image generation model
+
+Visual consistency depends heavily on the model's ability to understand and continue a style across pages. Stronger models are usually better at preserving similar colors, materials, composition, and visual language.
+
+If the deck drifts noticeably from slide to slide, try a stronger image generation model before spending too much time tuning prompts.
+
+## 2. When using an image template
+
+If your workflow mainly uses image templates to control the slide look, add two layers of guidance:
+
+1. Use a text prompt to describe the style template you want, then generate or choose a reference image you like.
+2. In project settings, add extra constraints to the image generation prompt so later slides continue in the same style.
+
+<Tip>
+  Project-level settings are available from the preview page, not the first project creation step.
+</Tip>
+
+The image template gives the model a visual reference, while the project-level prompt explains how that style should continue across the deck.
+
+## 3. When using a text description template
+
+If the image reference does not constrain the style well enough, use text descriptions to lock the style down.
+
+Ask a capable AI model to rewrite a custom template prompt based on the project's existing template prompt. You can provide both the example prompt and reference images, then ask it to imitate the style and produce a version tailored to this project.
+
+This can produce highly consistent decks because every page description is constrained by the same written style system before image generation starts.
