@@ -76,7 +76,28 @@ export function triggerDownload(relativeOrAbsoluteUrl: string, filename?: string
     }
     (window as any).electronAPI.downloadFile(url, filename || fallbackFilename);
   } else {
-    window.open(relativeOrAbsoluteUrl, '_blank');
+    // Web 模式：用隐藏的 <a download> 触发下载，而不是 window.open。
+    // window.open 在 await 之后（如 PPTX 需等待后端生成十几秒）已脱离用户手势
+    // 上下文，会被浏览器弹窗拦截器静默拦截，表现为“点导出没反应”。
+    // <a> 点击不受弹窗拦截影响，且能直达下载而非在新标签打开大文件。
+    try {
+      const link = document.createElement('a');
+      link.href = relativeOrAbsoluteUrl;
+      link.rel = 'noopener';
+      if (filename) {
+        link.download = filename;
+      } else {
+        // 同源时给出文件名以触发下载；跨源 download 属性会被忽略，退回默认行为。
+        const inferred = relativeOrAbsoluteUrl.split('?')[0].split('/').filter(Boolean).pop();
+        if (inferred) link.download = inferred;
+      }
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.warn('triggerDownload failed, falling back to window.open:', error);
+      window.open(relativeOrAbsoluteUrl, '_blank');
+    }
   }
 }
 
