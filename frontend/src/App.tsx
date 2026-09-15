@@ -1,3 +1,6 @@
+import { isPublicDemo } from '@/utils/publicDemo';
+import { PublicSettings } from './pages/PublicSettings';
+import { AdminHistory } from './pages/AdminHistory';
 import { useEffect } from 'react';
 import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Home } from './pages/Home';
@@ -20,7 +23,7 @@ function App() {
   // 恢复项目状态
   useEffect(() => {
     const savedProjectId = localStorage.getItem('currentProjectId');
-    if (savedProjectId && !currentProject) {
+    if (!isPublicDemo && savedProjectId && !currentProject) {
       syncProject();
     }
   }, [currentProject, syncProject]);
@@ -36,7 +39,7 @@ function App() {
 
   return (
     <>
-      <UpdateChecker />
+      {!isPublicDemo && <UpdateChecker />}
       <div style={isDesktop ? { paddingTop: `${getDesktopTopInset()}px` } : undefined}>
         <AccessCodeGuard>
           {(() => {
@@ -47,8 +50,9 @@ function App() {
                 <Routes>
                   <Route path="/" element={<Home />} />
                   <Route path="/landing" element={<Landing />} />
-                  <Route path="/history" element={<History />} />
-                  <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/history" element={isPublicDemo ? <Navigate to="/" replace /> : <History />} />
+                  <Route path="/admin/history" element={isPublicDemo ? <AdminHistory /> : <Navigate to="/" replace />} />
+                  <Route path="/settings" element={isPublicDemo ? <PublicSettings /> : <SettingsPage />} />
                   <Route path="/project/:projectId/outline" element={<OutlineEditor />} />
                   <Route path="/project/:projectId/detail" element={<DetailEditor />} />
                   <Route path="/project/:projectId/template-setup" element={<TemplateSetupPage />} />

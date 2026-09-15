@@ -1,0 +1,37 @@
+# Standalone public deployment; do not combine with docker-compose.yml.
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: banana-slides-demo-backend
+    env_file: .env
+    environment:
+      PUBLIC_DEMO: "true"
+      DATABASE_URL: sqlite:////app/backend/instance/database.db
+    ports:
+      - "${BACKEND_PORT:-5000}:5000"
+    volumes:
+      - ./backend/instance:/app/backend/instance
+      - ./uploads:/app/uploads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: banana-slides-demo-frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+networks:
+  default:
+    name: banana-slides-demo-network

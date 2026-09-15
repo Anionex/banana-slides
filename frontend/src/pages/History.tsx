@@ -22,6 +22,8 @@ const historyI18n = {
     history: {
       title: '历史项目',
       subtitle: '查看和管理你的所有项目',
+      readOnlySubtitle: '查看历史项目，点击在新标签页打开预览',
+      exit: '退出历史查看',
       noProjects: '暂无历史项目',
       createFirst: '创建你的第一个项目开始使用吧',
       selectedCount: '已选择 {{count}} 项',
@@ -50,6 +52,8 @@ const historyI18n = {
     history: {
       title: 'Project History',
       subtitle: 'View and manage all your projects',
+      readOnlySubtitle: 'View past projects. Click to open a preview in a new tab.',
+      exit: 'Exit History',
       noProjects: 'No projects yet',
       createFirst: 'Create your first project to get started',
       selectedCount: '{{count}} selected',
@@ -76,7 +80,13 @@ const historyI18n = {
 const DEFAULT_PAGE_SIZE = 5;
 const PAGE_SIZE_KEY = 'history_page_size';
 
-export const History: React.FC = () => {
+interface HistoryProps {
+  readOnly?: boolean;
+  projectLoader?: typeof api.listProjects;
+  onExit?: () => void;
+}
+
+export const History: React.FC<HistoryProps> = ({ readOnly = false, projectLoader = api.listProjects, onExit }) => {
   const navigate = useNavigate();
   const { i18n } = useTranslation();
   const t = useT(historyI18n); // 组件内翻译 + 自动 fallback 到全局
@@ -106,7 +116,7 @@ export const History: React.FC = () => {
     setError(null);
     try {
       const offset = (page - 1) * pageSize;
-      const response = await api.listProjects(pageSize, offset);
+      const response = await projectLoader(pageSize, offset);
       if (response.data?.projects) {
         const normalizedProjects = response.data.projects.map(normalizeProject);
         setProjects(normalizedProjects);
@@ -118,11 +128,11 @@ export const History: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [pageSize]);
+  }, [pageSize, projectLoader]);
 
   useEffect(() => {
     loadProjects(currentPage);
-  }, [currentPage, pageSize]);
+  }, [currentPage, loadProjects]);
 
   const handlePageChange = useCallback((page: number) => {
     setSelectedProjects(new Set());
@@ -142,6 +152,11 @@ export const History: React.FC = () => {
   const handleSelectProject = useCallback(async (project: Project) => {
     const projectId = project.id || project.project_id;
     if (!projectId) return;
+
+    if (readOnly) {
+      window.open(`/project/${projectId}/preview`, '_blank', 'noopener,noreferrer');
+      return;
+    }
 
     // 如果正在批量选择模式，不跳转
     if (selectedProjects.size > 0) {
@@ -172,7 +187,7 @@ export const History: React.FC = () => {
       });
     }
    
-  }, [selectedProjects, editingProjectId, setCurrentProject, syncProject, navigate, show]);
+  }, [readOnly, selectedProjects, editingProjectId, setCurrentProject, syncProject, navigate, show]);
 
   // ===== 批量选择操作 =====
 
@@ -417,8 +432,9 @@ export const History: React.FC = () => {
         <div className="mb-6 md:mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-foreground-primary mb-1 md:mb-2">{t('history.title')}</h1>
-            <p className="text-sm md:text-base text-gray-600 dark:text-foreground-tertiary">{t('history.subtitle')}</p>
+            <p className="text-sm md:text-base text-gray-600 dark:text-foreground-tertiary">{t(readOnly ? 'history.readOnlySubtitle' : 'history.subtitle')}</p>
           </div>
+          {onExit && <Button variant="secondary" size="sm" onClick={onExit}>{t('history.exit')}</Button>}
           {projects.length > 0 && selectedProjects.size > 0 && (
             <div className="flex items-center gap-3">
               <span className="text-sm text-gray-600 dark:text-foreground-tertiary">
@@ -474,7 +490,7 @@ export const History: React.FC = () => {
         ) : (
           <div className="space-y-4">
             {/* 全选工具栏 */}
-            {projects.length > 0 && (
+            {!readOnly && projects.length > 0 && (
               <div className="flex items-center gap-3 pb-2 border-b border-gray-200 dark:border-border-primary">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -497,6 +513,7 @@ export const History: React.FC = () => {
               return (
                 <ProjectCard
                   key={projectId}
+                  readOnly={readOnly}
                   project={project}
                   isSelected={selectedProjects.has(projectId)}
                   isEditing={editingProjectId === projectId}

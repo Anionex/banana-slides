@@ -12,7 +12,7 @@ jobs:
   quick-check:
     name: Quick Check (Lint + Unit Tests + Build)
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 12
 
     steps:
       - name: Checkout code
@@ -71,6 +71,38 @@ jobs:
 
       - name: Frontend build check
         run: cd frontend && npm run build
+
+      - name: Build web frontend and install browser
+        run: |
+          cd frontend
+          npm run build:web
+          npx playwright install --with-deps chromium
+
+      - name: Test built web deep links against real backend
+        run: |
+          cp .env.example .env
+          printf '\nPUBLIC_DEMO=true\nBACKEND_PORT=5011\nFRONTEND_PORT=3488\n' >> .env
+          uv run --directory backend alembic upgrade head
+          uv run --directory backend python app.py > /tmp/web-build-backend.log 2>&1 &
+          BACKEND_PID=$!
+          npm --prefix frontend run preview -- --host 127.0.0.1 --port 3488 > /tmp/web-build-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill "$BACKEND_PID" "$PREVIEW_PID" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:3488/health > /dev/null; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3488/health > /dev/null
+          cd frontend
+          if ! npx playwright test e2e/web-build-deep-links.spec.ts --reporter=list; then
+            cat /tmp/web-build-backend.log /tmp/web-build-preview.log
+            exit 1
+          fi
+        env:
+          CI: true
+          E2E_WEB_BUILD: '1'
+          BASE_URL: http://127.0.0.1:3488
+          NODE_OPTIONS: --dns-result-order=ipv4first
 
   docs-check:
     name: Docs Link Check

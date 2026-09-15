@@ -22,7 +22,7 @@
   <a href="https://github.com/Anionex/banana-slides/stargazers"><img src="https://img.shields.io/github/stars/Anionex/banana-slides?style=flat-square&color=FFD700" alt="GitHub Stars"></a>
   <a href="https://github.com/Anionex/banana-slides/network"><img src="https://img.shields.io/github/forks/Anionex/banana-slides?style=flat-square&color=FFD700" alt="GitHub Forks"></a>
   <a href="https://github.com/Anionex/banana-slides/watchers"><img src="https://img.shields.io/github/watchers/Anionex/banana-slides?style=flat-square&color=FFD700" alt="GitHub Watchers"></a>
-  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.6"><img src="https://img.shields.io/badge/version-v0.9.0--rc.6-44cc11?style=flat-square" alt="Version"></a>
+  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.7"><img src="https://img.shields.io/badge/version-v0.9.0--rc.7-44cc11?style=flat-square" alt="Version"></a>
   <a href="https://github.com/Anionex/banana-slides/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Anionex/banana-slides?color=0055aa&style=flat-square" alt="License"></a>
   <br>
   <img src="https://img.shields.io/badge/Docker-Build-4A90D9?logo=docker&logoColor=white&style=flat-square" alt="Docker Build">
@@ -38,7 +38,7 @@
   &nbsp;|&nbsp;
   <a href="https://docs.bananaslides.online/"><b>📖 文档</b></a>
   &nbsp;|&nbsp;
-  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.6"><b>💻 桌面版 RC6</b></a>
+  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.7"><b>💻 桌面版 RC7</b></a>
   &nbsp;|&nbsp;
  <a href="https://github.com/Anionex/banana-slides#-%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95"><b>部署方法</b></a>
 </p>
@@ -47,6 +47,8 @@
 </p>
 
 </div>
+
+公开 Demo 提供 Inferera、APIMart 和火山 Agent Plan 的固定模型配置，API Key 按访客隔离。公开版不提供历史记录，请保存预览页链接以便再次访问；描述额外字段配置固定，正文和生成要求仍可编辑。设置页的各项服务测试可同时运行，分别显示结果。站主可在 `.env` 设置 `PUBLIC_DEMO_ADMIN_PASSWORD`，通过 `/admin/history` 口令入口查看历史。参见[公开 Demo 使用与迁移说明](docs/zh/public-demo.mdx)。
 
 ## ❤️ 赞助
 
@@ -73,6 +75,7 @@
 </details>
 
 ## 🔥 最新动态
+- **[2026-09-05]**：0.9.0 候选版本 7 发布，修复 Codex（OpenAI OAuth）已连接但生图返回 400 的问题：内部调用主模型从 `gpt-5.4` 更新为 `gpt-5.6-terra`，图片模型仍保留 `gpt-image-2`，无需把图片模型改成文本模型。此版本还包含 RC6 之后的内容驱动风格描述与 SenseNova U1 生图支持；[查看下载与安装说明](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.7)
 - **[2026-08-30]**：0.9.0 候选版本 6 发布，新增可开关的桌面启动更新检查、包含更新摘要与完整日志链接的更新卡片，以及下载进度、失败重试和重启安装；同时修复 APIMart OpenAI-compatible 异步图片任务、非流式请求及 1K/2K/4K 分辨率传递；[查看下载与安装说明](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.6)
 - **[2026-08-29]**：0.9.0 候选版本 5 发布，新增沉浸式在线幻灯片播放器与 APIMart OpenAI-compatible Provider 预设，桌面版更新检查现可正确跟随 RC 通道；同时改进 PPT 改造的 MinerU 凭据错误提示、修复参考文档远程图片 SSRF 风险，并让图片编辑默认进入框选状态；[查看下载与安装说明](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.5)
 - **[2026-08-20]**：0.9.0 候选版本 4 发布，重点修复桌面打包版 LazyLLM 在线供应商不可用（qwen 等）与 SOCKS 代理依赖缺失，并恢复预览页「上一步」返回描述编辑页、修复导出任务弹层遮挡与桌面端属性抽屉交互；[一键下载并安装](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.4)
@@ -529,7 +532,7 @@ npm run dev
 
 欢迎在群中提出新功能建议或反馈～
 
-<img width="312" alt="0ed188e1aa9d2d6ffffebdf749a077c7" src="https://github.com/user-attachments/assets/943dd564-eb3c-436a-85e3-ec0547c29f15" />
+<img width="312" alt="image" src="https://github.com/user-attachments/assets/586861e7-5b25-4f91-8c81-1872b21def10" />
 
 
 

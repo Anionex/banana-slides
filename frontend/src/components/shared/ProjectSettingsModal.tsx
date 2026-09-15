@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { X, FileText, Settings as SettingsIcon, Download, Sparkles, AlertTriangle, HelpCircle, Lightbulb } from 'lucide-react';
 import { Button, Textarea, TextStyleSelector } from '@/components/shared';
 import { useT } from '@/hooks/useT';
+import { PublicSettings } from '@/pages/PublicSettings';
+import { isPublicDemo } from '@/utils/publicDemo';
 import { Settings } from '@/pages/Settings';
 import type { ExportExtractorMethod, ExportInpaintMethod } from '@/types';
 import { ASPECT_RATIO_OPTIONS } from '@/config/aspectRatio';
@@ -12,6 +14,7 @@ const projectSettingsI18n = {
     projectSettings: {
       title: "设置", projectConfig: "项目设置", exportConfig: "导出设置", globalConfig: "全局设置",
       projectConfigTitle: "项目级配置", projectConfigDesc: "这些设置仅应用于当前项目，不影响其他项目",
+      personalConfig: "个人设置", personalConfigDesc: "这些设置仅应用于你的请求，其他访客不受影响。",
       globalConfigTitle: "全局设置", globalConfigDesc: "这些设置应用于所有项目",
       aspectRatio: "画面比例", aspectRatioDesc: "设置生成幻灯片图片的画面比例",
       aspectRatioLocked: "已生成图片的项目无法调整画面比例",
@@ -48,6 +51,7 @@ const projectSettingsI18n = {
     projectSettings: {
       title: "Settings", projectConfig: "Project Settings", exportConfig: "Export Settings", globalConfig: "Global Settings",
       projectConfigTitle: "Project-level Configuration", projectConfigDesc: "These settings only apply to the current project",
+      personalConfig: "Personal Settings", personalConfigDesc: "These settings apply only to your requests and do not affect other visitors.",
       globalConfigTitle: "Global Settings", globalConfigDesc: "These settings apply to all projects",
       aspectRatio: "Aspect Ratio", aspectRatioDesc: "Set the aspect ratio for generated slide images",
       aspectRatioLocked: "Cannot change aspect ratio after images have been generated",
@@ -171,12 +175,12 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
           </button>
         </div>
 
-        <div className="flex-1 flex overflow-hidden min-h-0">
-          <aside className="w-64 bg-gray-50 dark:bg-background-primary border-r border-gray-200 dark:border-border-primary flex-shrink-0">
-            <nav className="p-4 space-y-2">
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
+          <aside className="w-full md:w-64 bg-gray-50 dark:bg-background-primary border-b md:border-b-0 md:border-r border-gray-200 dark:border-border-primary flex-shrink-0">
+            <nav className="grid grid-cols-3 gap-2 p-2 md:block md:p-4 md:space-y-2">
               <button
                 onClick={() => setActiveTab('project')}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                className={`w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-2 md:px-4 py-3 rounded-lg transition-all ${
                   activeTab === 'project'
                     ? 'bg-banana-500 text-white shadow-md'
                     : 'bg-white dark:bg-background-secondary text-gray-700 dark:text-foreground-secondary hover:bg-gray-100 dark:hover:bg-background-hover'
@@ -187,7 +191,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
               </button>
               <button
                 onClick={() => setActiveTab('export')}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                className={`w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-2 md:px-4 py-3 rounded-lg transition-all ${
                   activeTab === 'export'
                     ? 'bg-banana-500 text-white shadow-md'
                     : 'bg-white dark:bg-background-secondary text-gray-700 dark:text-foreground-secondary hover:bg-gray-100 dark:hover:bg-background-hover'
@@ -198,19 +202,19 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
               </button>
               <button
                 onClick={() => setActiveTab('global')}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                className={`w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-2 md:px-4 py-3 rounded-lg transition-all ${
                   activeTab === 'global'
                     ? 'bg-banana-500 text-white shadow-md'
                     : 'bg-white dark:bg-background-secondary text-gray-700 dark:text-foreground-secondary hover:bg-gray-100 dark:hover:bg-background-hover'
                 }`}
               >
                 <SettingsIcon size={20} />
-                <span className="font-medium">{t('projectSettings.globalConfig')}</span>
+                <span className="font-medium">{t(isPublicDemo ? 'projectSettings.personalConfig' : 'projectSettings.globalConfig')}</span>
               </button>
             </nav>
           </aside>
 
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="flex-1 min-w-0 min-h-0 overflow-y-auto p-4 md:p-6">
             {activeTab === 'project' ? (
               <div className="max-w-3xl space-y-6">
                 <div>
@@ -485,12 +489,12 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
             ) : (
               <div className="max-w-4xl">
                 <div className="mb-6">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('projectSettings.globalConfigTitle')}</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t(isPublicDemo ? 'projectSettings.personalConfig' : 'projectSettings.globalConfigTitle')}</h3>
                   <p className="text-sm text-gray-600 dark:text-foreground-tertiary">
-                    {t('projectSettings.globalConfigDesc')}
+                    {t(isPublicDemo ? 'projectSettings.personalConfigDesc' : 'projectSettings.globalConfigDesc')}
                   </p>
                 </div>
-                <Settings />
+                {isPublicDemo ? <PublicSettings embedded /> : <Settings />}
               </div>
             )}
           </div>

@@ -31,11 +31,37 @@ APIMART_TASK_REQUEST_TIMEOUT = 30.0
 
 
 # Models that use the native OpenAI images API (images.generate / images.edit)
-# rather than the chat completions multimodal path.
-_GPT_IMAGE_MODELS = {'gpt-image-1', 'gpt-image-1.5', 'gpt-image-2'}
+# rather than the chat completions multimodal path. Match by prefix so new
+# releases (gpt-image-2.5-flare / -sunburst, dated snapshots, chatgpt-image-*)
+# keep routing correctly without another hardcoded list.
+_GPT_IMAGE_MODEL_PREFIXES = ('gpt-image', 'chatgpt-image')
 _DALLE_MODELS = {'dall-e-2', 'dall-e-3'}
-_NATIVE_IMAGES_API_MODELS = _GPT_IMAGE_MODELS | _DALLE_MODELS
 _MAX_GPT_IMAGE_INPUTS = 16
+
+# Quality tiers accepted by the OpenAI images API. 'xhigh' / 'max' were added
+# with gpt-image-2.5; older GPT Image models reject them.
+_IMAGE_QUALITY_TIERS = ('auto', 'low', 'medium', 'high', 'xhigh', 'max')
+_EXTENDED_IMAGE_QUALITY_TIERS = ('xhigh', 'max')
+
+
+def _is_gpt_image_model(model: str) -> bool:
+    """Return True for the GPT Image family (gpt-image-*, chatgpt-image-*)."""
+    return (model or '').strip().lower().startswith(_GPT_IMAGE_MODEL_PREFIXES)
+
+
+def _gpt_image_supports_extended_quality(model: str) -> bool:
+    """Return True when the model accepts the xhigh / max quality tiers.
+
+    Those tiers shipped with gpt-image-2.5, so parse the version out of the
+    model name (gpt-image-2.5-flare -> (2, 5)) and compare against it.
+    Aliases such as chatgpt-image-latest carry no version and stay capped.
+    """
+    match = re.match(r'^gpt-image-(\d+)(?:\.(\d+))?', (model or '').strip().lower())
+    if not match:
+        return False
+    major = int(match.group(1))
+    minor = int(match.group(2) or 0)
+    return (major, minor) >= (2, 5)
 
 # Volcengine Seedream models only accept the native images API (images/generations).
 # The Agent Plan endpoint does not expose a chat-completions image modality, so an
@@ -252,7 +278,7 @@ class OpenAIImageProvider(ImageProvider):
     The provider will try multiple parameter formats to maximize compatibility.
     """
     
-    def __init__(self, api_key: str, api_base: str = None, model: str = "gemini-3-pro-image-preview", image_api_protocol: str = 'auto'):
+    def __init__(self, api_key: str, api_base: str = None, model: str = "gemini-3-pro-image-preview", image_api_protocol: str = 'auto', image_quality: str = 'auto'):
         """
         Initialize OpenAI image provider
 
@@ -261,6 +287,10 @@ class OpenAIImageProvider(ImageProvider):
             api_base: API base URL (e.g., https://api.inferera.com/v1)
             model: Model name to use
             image_api_protocol: 'auto' (detect by model name), 'images' (force images.generate), 'chat' (force chat.completions)
+            image_quality: Quality tier for GPT Image / DALL-E models:
+                'auto' (default), 'low', 'medium', 'high', 'xhigh', 'max'.
+                'xhigh' / 'max' require gpt-image-2.5 or newer; older models
+                fall back to 'high' with a warning.
         """
         self.client = OpenAI(
             api_key=api_key,
@@ -272,6 +302,8 @@ class OpenAIImageProvider(ImageProvider):
         self.api_base = api_base or ""
         self.model = model
         self.image_api_protocol = image_api_protocol or 'auto'
+        self.image_quality = image_quality or 'auto'
+        self._quality_warning_logged = False
     
     def _encode_image_to_base64(self, image: Image.Image) -> str:
         """
@@ -329,7 +361,8 @@ class OpenAIImageProvider(ImageProvider):
         """Return True when the model should use images.generate / images.edit."""
         model = self.model.lower()
         return (
-            model in _NATIVE_IMAGES_API_MODELS
+            _is_gpt_image_model(model)
+            or model in _DALLE_MODELS
             or model.startswith(_DOUBAO_SEEDREAM_PREFIX)
             or self._is_sensenova_image_model()
         )
@@ -573,7 +606,35 @@ class OpenAIImageProvider(ImageProvider):
             return None          # dall-e-2 has no quality param
         if model.startswith(_DOUBAO_SEEDREAM_PREFIX):
             return None          # Volcengine Seedream does not accept a quality param
-        return 'auto'            # gpt-image-* accepts auto / low / medium / high
+        if not _is_gpt_image_model(model):
+            # Non-GPT-Image models that reach the images API (forced protocol,
+            # Gemini via an OpenAI-compatible proxy) keep the previous default.
+            return 'auto'
+
+        # GPT Image / chatgpt-image accept auto / low / medium / high, and
+        # gpt-image-2.5+ additionally accepts xhigh / max.
+        requested = (self.image_quality or 'auto').strip().lower()
+        if requested not in _IMAGE_QUALITY_TIERS:
+            self._warn_quality_once(
+                "Unsupported image quality %r for %s; falling back to auto",
+                self.image_quality,
+                self.model,
+            )
+            return 'auto'
+        if requested in _EXTENDED_IMAGE_QUALITY_TIERS and not _gpt_image_supports_extended_quality(self.model):
+            self._warn_quality_once(
+                "%s does not support quality=%s; falling back to high",
+                self.model,
+                requested,
+            )
+            return 'high'
+        return requested
+
+    def _warn_quality_once(self, message: str, *args) -> None:
+        """Log a quality fallback once per provider instance (bulk jobs would spam)."""
+        if not self._quality_warning_logged:
+            logger.warning(message, *args)
+            self._quality_warning_logged = True
 
     def _is_apimart(self) -> bool:
         return "api.apimart.ai" in (self.api_base or "").lower()
@@ -792,11 +853,20 @@ class OpenAIImageProvider(ImageProvider):
             size=aspect_ratio,
             extra_body=extra_body,
         )
+        # APIMart forwards the OpenAI images API quality tier, but only the GPT
+        # Image family documents it. Send it only when a tier is actually in
+        # effect so default (and invalid-value) requests keep the original shape.
+        quality = self._resolve_quality() if _is_gpt_image_model(self.model) else None
+        if quality == 'auto':
+            quality = None
+        if quality:
+            kwargs['quality'] = quality
         logger.debug(
-            "Calling APIMart images API for model=%s, size=%s, resolution=%s, refs=%s",
+            "Calling APIMart images API for model=%s, size=%s, resolution=%s, quality=%s, refs=%s",
             self.model,
             aspect_ratio,
             resolution,
+            quality,
             len(ref_images) if ref_images else 0,
         )
         raw_response = self.client.images.with_raw_response.generate(**kwargs)
@@ -814,7 +884,7 @@ class OpenAIImageProvider(ImageProvider):
         resolution: str = '2K',
     ) -> Optional[Image.Image]:
         """Use the native OpenAI images API (gpt-image-* / dall-e-*)."""
-        if self._is_apimart() and self.model.lower() in _GPT_IMAGE_MODELS:
+        if self._is_apimart() and _is_gpt_image_model(self.model):
             return self._generate_with_apimart_images_api(
                 prompt,
                 ref_images,
@@ -843,7 +913,7 @@ class OpenAIImageProvider(ImageProvider):
             else:
                 # GPT Image accepts multiple inputs. Also preserve all inputs for
                 # OpenAI-compatible custom models when the Images API is forced.
-                if model in _GPT_IMAGE_MODELS and len(ref_images) > _MAX_GPT_IMAGE_INPUTS:
+                if _is_gpt_image_model(model) and len(ref_images) > _MAX_GPT_IMAGE_INPUTS:
                     raise ValueError(
                         f"{self.model} supports at most {_MAX_GPT_IMAGE_INPUTS} "
                         f"reference images, got {len(ref_images)}"
@@ -1029,7 +1099,7 @@ class OpenAIImageProvider(ImageProvider):
         Returns:
             Generated PIL Image object, or None if failed
         """
-        if self._is_apimart() and self.model.lower() in _GPT_IMAGE_MODELS:
+        if self._is_apimart() and _is_gpt_image_model(self.model):
             self._validate_apimart_reference_images(ref_images)
         try:
             # SenseNova U1 image models expose a JSON API, not the OpenAI SDK's

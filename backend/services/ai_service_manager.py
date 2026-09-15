@@ -103,6 +103,14 @@ def get_ai_service(force_new: bool = False) -> AIService:
         The providers are cached per model name. If TEXT_MODEL or IMAGE_MODEL
         changes in Flask config, new providers will be created automatically.
     """
+    from services.public_demo import enabled
+    if enabled():
+        return AIService(
+            text_provider=get_text_provider(model=current_app.config['TEXT_MODEL']),
+            image_provider=get_image_provider(model=current_app.config['IMAGE_MODEL']),
+            caption_provider=get_caption_provider(model=current_app.config['IMAGE_CAPTION_MODEL']),
+        )
+
     global _ai_service_instance
     
     if force_new:

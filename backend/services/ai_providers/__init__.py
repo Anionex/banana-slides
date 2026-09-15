@@ -92,6 +92,11 @@ def _resolve_setting(key: str, fallback: Optional[str] = None) -> Optional[str]:
         2. OS environment variable
         3. *fallback* argument (may be ``None``)
     """
+    from services.public_demo import enabled
+    if enabled():
+        from flask import current_app
+        return current_app.config.get(key, fallback)
+
     # 1) Try Flask app.config
     try:
         from flask import current_app
@@ -414,7 +419,14 @@ def get_image_provider(model: str = "gemini-3-pro-image-preview") -> ImageProvid
         logger.info("Image provider: %s, model=%s", fmt, model)
         logger.warning("%s format may not support all resolution settings; provider limits apply", fmt)
         image_api_protocol = _resolve_setting('OPENAI_IMAGE_API_PROTOCOL') or 'auto'
-        return OpenAIImageProvider(api_key=config['api_key'], api_base=config['api_base'], model=model, image_api_protocol=image_api_protocol)
+        image_quality = _resolve_setting('IMAGE_QUALITY') or 'auto'
+        return OpenAIImageProvider(
+            api_key=config['api_key'],
+            api_base=config['api_base'],
+            model=model,
+            image_api_protocol=image_api_protocol,
+            image_quality=image_quality,
+        )
     elif fmt == 'vertex':
         logger.info("Image provider: Vertex AI, model=%s, project=%s", model, config['project_id'])
         return GenAIImageProvider(
@@ -427,8 +439,14 @@ def get_image_provider(model: str = "gemini-3-pro-image-preview") -> ImageProvid
         return LazyLLMImageProvider(source=source, model=model)
     elif fmt == 'codex':
         resolution = _resolve_setting('DEFAULT_RESOLUTION', '2K') or '2K'
-        logger.info("Image provider: Codex (OAuth), model=%s, resolution=%s", model, resolution)
-        return CodexImageProvider(api_key=config['api_key'], model=model, resolution=resolution)
+        image_quality = _resolve_setting('IMAGE_QUALITY') or 'auto'
+        logger.info("Image provider: Codex (OAuth), model=%s, resolution=%s, quality=%s", model, resolution, image_quality)
+        return CodexImageProvider(
+            api_key=config['api_key'],
+            model=model,
+            resolution=resolution,
+            image_quality=image_quality,
+        )
     else:
         # gemini (default)
         logger.info("Image provider: Gemini, model=%s", model)

@@ -1,5 +1,7 @@
+import { visitorHeaders } from '@/utils/publicDemo';
 import axios from 'axios';
 import { isDesktop } from '@/utils';
+import i18n from '@/i18n';
 
 const DESKTOP_BACKEND_PORT_STORAGE_KEY = '__desktop_backend_port__';
 
@@ -92,10 +94,19 @@ apiClient.interceptors.request.use(
       config.baseURL = getBaseURL();
     }
 
+    const requestOrigin = new URL(config.url || '', config.baseURL || window.location.origin).origin;
+    const backendOrigin = new URL(getBaseURL() || window.location.origin).origin;
+    if (config.headers && requestOrigin === backendOrigin) Object.assign(config.headers, visitorHeaders());
+
     // Attach access code header for backend enforcement
     const accessCode = localStorage.getItem('banana-access-code');
     if (accessCode && config.headers) {
       config.headers['X-Access-Code'] = accessCode;
+    }
+
+    // 让后端按界面语言返回用户可见的错误文案（如后台任务被中断/卡住）
+    if (config.headers && !config.headers['Accept-Language']) {
+      config.headers['Accept-Language'] = i18n.language || 'zh';
     }
 
     // 如果请求体是 FormData，删除 Content-Type 让浏览器自动设置

@@ -29,3 +29,5 @@ from .project_template_asset import ProjectTemplateAsset
 
 __all__ = ['db', 'Project', 'Page', 'Task', 'UserTemplate', 'PageImageVersion', 'Material', 'ReferenceFile', 'Settings', 'UserStyleTemplate', 'ProjectTemplateAsset']
 
+
+from .public_visitor import PublicVisitor
