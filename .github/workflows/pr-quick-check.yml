@@ -98,6 +98,11 @@ jobs:
             cat /tmp/web-build-backend.log /tmp/web-build-preview.log
             exit 1
           fi
+          VITE_PUBLIC_LANDING=true npm run build:web
+          if ! E2E_PUBLIC_LANDING=1 npx playwright test e2e/public-landing.spec.ts e2e/web-build-deep-links.spec.ts --reporter=list; then
+            cat /tmp/web-build-backend.log /tmp/web-build-preview.log
+            exit 1
+          fi
         env:
           CI: true
           E2E_WEB_BUILD: '1'
