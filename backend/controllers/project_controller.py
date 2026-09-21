@@ -12,6 +12,7 @@ from pathlib import Path
 from flask import Blueprint, request, jsonify, current_app, Response, stream_with_context
 from sqlalchemy import desc
 from utils.validators import normalize_aspect_ratio
+from utils.sse import with_heartbeat
 from sqlalchemy.orm import joinedload
 from werkzeug.exceptions import BadRequest
 from werkzeug.utils import secure_filename
@@ -574,7 +575,7 @@ def generate_outline_stream(project_id):
     # Capture app reference for use inside the generator (which runs outside request context)
     app = current_app._get_current_object()
 
-    def sse_generate():
+    def sse_generate(stopped):
         with app.app_context():
             try:
                 # Re-fetch project inside app context to attach to this session
@@ -604,6 +605,8 @@ def generate_outline_stream(project_id):
                 streamed_pages = []
                 stream_complete = False
                 for page_data in ai_service.generate_outline_stream(project_context, language=language):
+                    if stopped.is_set():
+                        return
                     # Check for completion sentinel
                     if '__stream_complete__' in page_data:
                         stream_complete = page_data['__stream_complete__']
@@ -618,6 +621,9 @@ def generate_outline_stream(project_id):
                         'description_text': page_data.get('description_text'),
                         'extra_fields': page_data.get('extra_fields'),
                     })
+
+                if stopped.is_set():
+                    return
 
                 # Handle lock_page_count: pad with blank pages if needed
                 lock_page_count = data.get('lock_page_count', False)
@@ -656,7 +662,7 @@ def generate_outline_stream(project_id):
                 yield _sse_event('error', {'message': '生成过程中发生内部错误'})
 
     return Response(
-        stream_with_context(sse_generate()),
+        stream_with_context(with_heartbeat(sse_generate)),
         mimetype='text/event-stream',
         headers={
             'Cache-Control': 'no-cache, no-transform',
@@ -1724,4 +1730,3 @@ def generate_style_from_content():
     except Exception as e:
         logger.error(f"generate_style_from_content failed: {str(e)}", exc_info=True)
         return error_response('AI_SERVICE_ERROR', str(e), 503)
-
