@@ -568,6 +568,8 @@ def generate_outline_stream(project_id):
     project = Project.query.get(project_id)
     if not project:
         return not_found('Project')
+    # Do not hold the request session's connection throughout the SSE response.
+    db.session.remove()
 
     data = request.get_json() or {}
     language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
@@ -600,6 +602,9 @@ def generate_outline_stream(project_id):
                     proj.idea_prompt = idea_prompt
 
                 project_context = ProjectContext(proj, reference_files_content)
+                # All AI inputs are now plain values. Release the transaction before
+                # waiting on the provider, including after a client disconnect.
+                db.session.remove()
 
                 # Stream pages from AI
                 streamed_pages = []
@@ -624,6 +629,13 @@ def generate_outline_stream(project_id):
 
                 if stopped.is_set():
                     return
+
+                proj = db.session.get(Project, project_id)
+                if proj is None:
+                    yield _sse_event('error', {'message': 'Project no longer exists'})
+                    return
+                if project_context.creation_type not in ('outline', 'descriptions'):
+                    proj.idea_prompt = project_context.idea_prompt
 
                 # Handle lock_page_count: pad with blank pages if needed
                 lock_page_count = data.get('lock_page_count', False)

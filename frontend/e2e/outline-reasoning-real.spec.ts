@@ -59,7 +59,14 @@ test('reasoning disabled: real browser generation persists after reload', async 
     console.log(JSON.stringify(evidence));
     await testInfo.attach('real-generation.json', { body: JSON.stringify(evidence), contentType: 'application/json' });
   } finally {
-    if (id) await page.request.delete(`/api/projects/${id}`, { headers });
+    if (id) {
+      const deleted = await page.request.delete(`/api/projects/${id}`, { headers });
+      if (!deleted.ok()) {
+        expect(deleted.status()).toBe(403);
+        expect((await deleted.json()).error.code).toBe('PUBLIC_DELETE_DISABLED');
+        console.log(JSON.stringify({ testProjectRetained: id, reason: 'public-delete-disabled' }));
+      }
+    }
     if (configured) {
       const reset = await page.request.post('/api/settings/reset', { headers, data: {} });
       expect(reset.ok()).toBe(true);

@@ -1,5 +1,6 @@
 """Verify thinking controls in the actual Google SDK wire payload, for every text path."""
 import json
+from threading import Event
 
 import httpx
 import pytest
@@ -8,6 +9,7 @@ from google.genai import types
 from PIL import Image
 
 from services.ai_providers.text import genai_provider
+from services.ai_providers.text.stream_control import stream_limits
 
 
 @pytest.mark.parametrize('method', ['generate_text', 'generate_with_image', 'generate_text_stream'])
@@ -49,7 +51,8 @@ def test_thinking_wire_payload(monkeypatch, tmp_path, method, model, budget, exp
             Image.new('RGB', (8, 8), 'yellow').save(image)
             result = provider.generate_with_image('Describe', str(image), thinking_budget=budget)
         elif method == 'generate_text_stream':
-            result = ''.join(provider.generate_text_stream('Outline', thinking_budget=budget))
+            with stream_limits(240, Event()):
+                result = ''.join(provider.generate_text_stream('Outline', thinking_budget=budget))
         else:
             result = provider.generate_text('Outline', thinking_budget=budget)
         assert result == 'result'

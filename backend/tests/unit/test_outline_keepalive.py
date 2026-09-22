@@ -104,3 +104,27 @@ def test_route_timeout_does_not_save_late_pages(client, app, monkeypatch):
         project = db.session.get(Project, project_id)
         assert project.status == 'DRAFT'
         assert len(project.pages) == 0
+
+
+def test_outline_releases_db_session_while_waiting_and_saves_updated_idea(client, app, monkeypatch):
+    from models import db, Project
+    created = client.post('/api/projects', json={'creation_type': 'idea', 'idea_prompt': 'old idea'})
+    project_id = created.get_json()['data']['project_id']
+    checked = []
+
+    class FakeAIService:
+        def generate_outline_stream(self, context, language=None):
+            checked.append(not db.session.registry.has())
+            assert context.idea_prompt == 'new idea'
+            yield {'title': 'Saved outline', 'points': ['Point']}
+            yield {'__stream_complete__': True}
+
+    monkeypatch.setattr('controllers.project_controller.get_ai_service', lambda: FakeAIService())
+    response = client.post(f'/api/projects/{project_id}/generate/outline/stream',
+                           json={'idea_prompt': 'new idea'}, buffered=True)
+    assert 'event: done' in response.get_data(as_text=True)
+    assert checked == [True]
+    with app.app_context():
+        project = db.session.get(Project, project_id)
+        assert project.idea_prompt == 'new idea'
+        assert project.status == 'OUTLINE_GENERATED'

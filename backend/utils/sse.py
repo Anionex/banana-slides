@@ -4,6 +4,7 @@ from threading import Event
 from time import monotonic
 
 from services.public_demo import VisitorThread
+from services.ai_providers.text.stream_control import stream_limits
 
 
 def with_heartbeat(generate, *, interval=10, idle_timeout=300):
@@ -27,10 +28,13 @@ def with_heartbeat(generate, *, interval=10, idle_timeout=300):
     def produce():
         source = generate(stopped)
         try:
-            for chunk in source:
-                if stopped.is_set():
-                    break
-                send(chunk)
+            # SDK reads must finish before the UI idle deadline; retries are disabled
+            # within this request-local scope, never on a shared provider/client.
+            with stream_limits(min(240, idle_timeout * 0.8), stopped):
+                for chunk in source:
+                    if stopped.is_set():
+                        break
+                    send(chunk)
         except Exception as exc:
             send(exc)
         finally:
