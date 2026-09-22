@@ -76,7 +76,7 @@ class GenAITextProvider(TextProvider):
         elif thinking_budget == 0:
             model = self.model.rsplit('/', 1)[-1].lower()
             match = re.fullmatch(
-                r'gemini-(3(?:\.1)?|2\.5)-(flash-lite|flash|pro)(?:-preview(?:-\d{2}-\d{2})?)?',
+                r'gemini-(3(?:\.[178])?|2\.5)-(flash-lite|flash|pro)(?:-preview(?:-\d{2}-\d{2})?)?',
                 model,
             )
             if not match:
@@ -84,7 +84,7 @@ class GenAITextProvider(TextProvider):
             version, family = match.groups()
             if version.startswith('3'):
                 thinking = types.ThinkingConfig(
-                    thinking_level='low' if family == 'pro' else 'minimal'
+                    thinking_level='low' if family == 'pro' or version in ('3.7', '3.8') else 'minimal'
                 )
             else:
                 thinking = types.ThinkingConfig(thinking_budget=128 if family == 'pro' else 0)

@@ -17,7 +17,8 @@ from flask.config import Config as FlaskConfig
 _task_visitor = ContextVar('public_demo_visitor', default=None)
 PROFILES = {
     'inferera': dict(name='Inferera', format='gemini', base='https://api.inferera.com/gemini',
-                     text='gemini-3-flash-preview', image='gemini-3-pro-image-preview', caption='gemini-3-flash-preview',
+                     text='gemini-3.8-flash', image='gpt-image-2', caption='gemini-3.8-flash',
+                     image_format='openai', image_base='https://api.inferera.com/v1',
                      signup='https://inferera.com/?aff=17EC', key_hint='使用 Inferera API Key'),
     'apimart': dict(name='APIMart', format='openai', base='https://api.apimart.ai/v1',
                     text='gpt-5.6-sol', image='gpt-image-2', caption='gpt-5.6-luna',
@@ -107,6 +108,10 @@ def config_overrides():
         result[prefix + '_API_BASE'] = data['api_base_url']
     for prefix in ('TEXT', 'IMAGE', 'IMAGE_CAPTION'):
         result[prefix + '_MODEL_SOURCE'] = data['ai_provider_format']
+    profile = PROFILES[data['partner']]
+    # A partner key can serve different protocols for text and image models.
+    result['IMAGE_MODEL_SOURCE'] = profile.get('image_format', data['ai_provider_format'])
+    result['IMAGE_API_BASE'] = profile.get('image_base', data['api_base_url'])
     return result
 
 

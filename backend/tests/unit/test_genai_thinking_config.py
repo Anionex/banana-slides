@@ -25,7 +25,9 @@ from services.ai_providers.text.stream_control import stream_limits
     ('gemini-2.0-flash', 0, None),
     ('custom-text-alias', 0, None),
     ('gemini-3.1-flash-image-preview', 0, None),
-    ('gemini-3.7-flash', 0, None),
+    ('gemini-3.7-flash', 0, {'thinkingLevel': 'low'}),
+    ('gemini-3.8-flash', 0, {'thinkingLevel': 'low'}),
+    ('gemini-3.8-flash', 1024, {'thinkingBudget': 1024}),
     ('gemini-3-flash-preview', 1024, {'thinkingBudget': 1024}),
     ('gemini-2.5-flash', 1024, {'thinkingBudget': 1024}),
 ])
