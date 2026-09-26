@@ -160,58 +160,66 @@ export const generateOutlineStream = async (
   const lang = language || await getStoredOutputLanguage();
   const accessCode = localStorage.getItem('banana-access-code');
 
-  const response = await fetch(`${getBaseURL()}/api/projects/${projectId}/generate/outline/stream`, {
-    method: 'POST',
-    headers: {
-      ...visitorHeaders(),
-      'Content-Type': 'application/json',
-      ...(accessCode ? { 'X-Access-Code': accessCode } : {}),
-    },
-    body: JSON.stringify({ language: lang, lock_page_count: lockPageCount }),
-  });
-
-  if (!response.ok || !response.body) {
-    callbacks.onError(`HTTP ${response.status}`);
-    return;
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-
-  let readResult = await reader.read();
-  while (!readResult.done) {
-    const { value } = readResult;
-
-    buffer += decoder.decode(value, { stream: true });
-
-    // Parse SSE events from buffer
-    const parts = buffer.split('\n\n');
-    buffer = parts.pop() || '';
-
-    for (const part of parts) {
-      const lines = part.split('\n');
-      let eventType = '';
-      let eventData = '';
-
-      for (const line of lines) {
-        if (line.startsWith('event: ')) eventType = line.slice(7);
-        else if (line.startsWith('data: ')) eventData = line.slice(6);
-      }
-
-      if (!eventType || !eventData) continue;
-
-      try {
-        const parsed = JSON.parse(eventData);
-        if (eventType === 'page') callbacks.onPage(parsed);
-        else if (eventType === 'done') callbacks.onDone(parsed);
-        else if (eventType === 'error') callbacks.onError(parsed.message);
-      } catch {
-        // Skip malformed events
-      }
+  const controller = new AbortController();
+  const isZh = (localStorage.getItem('i18nextLng') || navigator.language).startsWith('zh');
+  let timer: ReturnType<typeof setTimeout>;
+  let timedOut = false;
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  const resetDeadline = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => { timedOut = true; controller.abort(); }, 45000);
+  };
+  resetDeadline();
+  try {
+    const response = await fetch(`${getBaseURL()}/api/projects/${projectId}/generate/outline/stream`, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        ...visitorHeaders(),
+        'Content-Type': 'application/json',
+        ...(accessCode ? { 'X-Access-Code': accessCode } : {}),
+      },
+      body: JSON.stringify({ language: lang, lock_page_count: lockPageCount }),
+    });
+    if (!response.ok || !response.body) {
+      throw new Error(response.status === 504
+        ? (isZh ? '生成连接超时，请重试。' : 'Generation connection timed out. Please try again.')
+        : `HTTP ${response.status}`);
     }
 
-    readResult = await reader.read();
+    reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (!controller.signal.aborted) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      resetDeadline(); // Includes SSE comments sent while the model is thinking.
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split(/\r?\n\r?\n/);
+      buffer = parts.pop() || '';
+      for (const part of parts) {
+        let eventType = '';
+        const data: string[] = [];
+        for (const line of part.split(/\r?\n/)) {
+          if (line.startsWith('event:')) eventType = line.slice(6).trim();
+          if (line.startsWith('data:')) data.push(line.slice(5).trimStart());
+        }
+        if (!eventType || !data.length) continue;
+        let parsed;
+        try { parsed = JSON.parse(data.join('\n')); } catch { continue; }
+        if (eventType === 'page') callbacks.onPage(parsed);
+        else if (eventType === 'done') { callbacks.onDone(parsed); return; }
+        else if (eventType === 'error') { callbacks.onError(parsed.message); return; }
+      }
+    }
+    throw new Error(isZh ? '生成连接已中断，未收到完成结果，请重试。' : 'Generation disconnected before completion. Please try again.');
+  } catch (error) {
+    if (timedOut) throw new Error(isZh ? '生成连接长时间无响应，请重试。' : 'Generation connection stopped responding. Please try again.');
+    throw error;
+  } finally {
+    clearTimeout(timer!);
+    controller.abort();
+    await reader?.cancel().catch(() => undefined);
   }
 };
 
