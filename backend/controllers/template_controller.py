@@ -2,7 +2,8 @@
 Template Controller - handles template-related endpoints
 """
 import logging
-from flask import Blueprint, request, current_app
+import os
+from flask import Blueprint, request, current_app, send_from_directory
 from models import db, Project, UserTemplate, UserStyleTemplate
 from utils import success_response, error_response, not_found, bad_request, allowed_file
 from services import FileService
@@ -95,19 +96,63 @@ def delete_template(project_id):
         return error_response('SERVER_ERROR', str(e), 500)
 
 
+SYSTEM_TEMPLATES_DIR = '/usr/share/nginx/html/templates'
+
+
+def _scan_system_templates():
+    if not os.path.isdir(SYSTEM_TEMPLATES_DIR):
+        return []
+    out = []
+    for fname in sorted(os.listdir(SYSTEM_TEMPLATES_DIR)):
+        if '-thumb' in fname:
+            continue
+        if not (fname.endswith('.png') or fname.endswith('.jpg') or fname.endswith('.jpeg')):
+            continue
+        if not fname.startswith('template_'):
+            continue
+        ext = '.' + fname.rsplit('.', 1)[1]
+        base = fname[: -len(ext)]
+        thumb_name = base + '-thumb.webp'
+        thumb_path = os.path.join(SYSTEM_TEMPLATES_DIR, thumb_name)
+        full_path = os.path.join(SYSTEM_TEMPLATES_DIR, fname)
+        try:
+            size = os.path.getsize(full_path)
+        except OSError:
+            continue
+        display_name = base.replace('template_', '').replace('_', ' ').title()
+        out.append({
+            'template_id': 'system_' + base,
+            'name': display_name,
+            'template_image_url': '/files/system-templates/' + fname,
+            'thumb_url': '/files/system-templates/' + thumb_name if os.path.exists(thumb_path) else None,
+            'file_size': size,
+            'created_at': '2026-07-14T00:00:00',
+            'updated_at': '2026-07-14T00:00:00',
+            'system': True,
+        })
+    return out
+
+
 @template_bp.route('/templates', methods=['GET'])
 def get_system_templates():
-    """
-    GET /api/templates - Get system preset templates
-    
-    Note: This is a placeholder for future implementation
-    """
-    # TODO: Implement system templates
-    templates = []
-    
-    return success_response({
-        'templates': templates
-    })
+    """Get system preset templates bundled in /usr/share/nginx/html/templates/."""
+    return success_response({'templates': _scan_system_templates()})
+
+
+system_template_serve_bp = Blueprint('system_template_serve', __name__, url_prefix='/files/system-templates')
+
+
+@system_template_serve_bp.route('/<path:filename>', methods=['GET'])
+def _serve_system_template_file(filename):
+    """Serve bundled template images (read-only, immutable)."""
+    if '..' in filename or filename.startswith('/'):
+        return error_response('BAD_REQUEST', 'Invalid path', 400)
+    full_path = os.path.join(SYSTEM_TEMPLATES_DIR, filename)
+    if not os.path.exists(full_path) or not os.path.isfile(full_path):
+        return not_found('File not found')
+    response = send_from_directory(SYSTEM_TEMPLATES_DIR, filename, conditional=True)
+    response.headers['Cache-Control'] = 'public, max-age=86400'
+    return response
 
 
 # ========== User Template Endpoints ==========
