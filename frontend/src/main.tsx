@@ -1,27 +1,21 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import App from './App.tsx'
-import './i18n'
-import './index.css'
+import React, { lazy, Suspense } from 'react';
+import ReactDOM from 'react-dom/client';
+import './i18n';
+import './index.css';
+import { isLandingPath, publicLandingEnabled } from './utils/publicLanding';
+import { initializePublicAnalytics } from './utils/publicAnalytics';
 
-import { initializePublicDemo } from './utils/publicDemo'
-import { getBaseURL } from './api/client'
-
-function Bootstrap() {
-  const [ready, setReady] = React.useState(false);
-  const [error, setError] = React.useState('');
-  const load = () => {
-    setError('');
-    initializePublicDemo(getBaseURL()).then(() => setReady(true)).catch(e => setError(e.message));
-  };
-  React.useEffect(load, []);
-  if (!ready) return <div className="p-8" role="status">{error || '正在连接服务…'}{error && <button className="ml-3 underline" onClick={load}>重试</button>}</div>;
-  return <App />;
-}
+// Marketing pages must not wait for API configuration or load editor styles/code.
+const showLanding = publicLandingEnabled && isLandingPath(window.location.pathname);
+const Page = showLanding
+  ? lazy(() => import('./landing/Landing').then(module => ({ default: module.Landing })))
+  : lazy(() => import('./AppBootstrap'));
+if (showLanding) initializePublicAnalytics();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <Bootstrap />
+    <Suspense fallback={<div className="p-8" role="status">加载中…</div>}>
+      <Page />
+    </Suspense>
   </React.StrictMode>,
-)
-
+);

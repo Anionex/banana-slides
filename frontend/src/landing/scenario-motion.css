@@ -1,0 +1,77 @@
+/* Animate the drawing itself. The gradient and its grain always move together. */
+.landing-page .scene-motion { transform-box: fill-box; transform-origin: center; --scene-animation: scene-arrive; --scene-delay: 0ms; --scene-duration: 1100ms; }
+.landing-page .scene-delay-1 { --scene-delay: 150ms; }
+.landing-page .scene-delay-2 { --scene-delay: 300ms; }
+.landing-page .scene-delay-3 { --scene-delay: 450ms; }
+.landing-page .scene-spark { --scene-animation: scene-spark; }
+.landing-page .scene-idea { --scene-animation: scene-idea; --scene-duration: 1000ms; }
+.landing-page .scene-draw { --scene-animation: scene-draw; }
+.landing-page .scene-swatch { --scene-animation: scene-swatch; --scene-duration: 850ms; }
+.landing-page .scene-cursor { --scene-animation: scene-cursor; --scene-duration: 1500ms; }
+.landing-page .scene-book { --scene-animation: scene-book; transform-origin: 50% 90%; }
+.landing-page .scene-pencil { --scene-animation: scene-pencil; --scene-duration: 1600ms; }
+.landing-page .scene-grow { --scene-animation: scene-grow; transform-origin: center bottom; }
+.landing-page .scene-ring { --scene-animation: scene-ring; --scene-duration: 1400ms; }
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Keyboard users can play the same sequence by focusing the selected label. */
+  .landing-page .landing-section:has(.landing-audiences button[aria-pressed=true]:focus-visible) .scene-motion {
+    animation: var(--scene-animation) var(--scene-duration) cubic-bezier(.22, .68, .25, 1) var(--scene-delay) 1 both;
+  }
+  @media (hover: hover) {
+    .landing-page .scenario-artwork:hover .scene-motion,
+    .landing-page .landing-section:has(.landing-audiences button[aria-pressed=true]:hover) .scene-motion {
+      animation: var(--scene-animation) var(--scene-duration) cubic-bezier(.22, .68, .25, 1) var(--scene-delay) 1 both;
+    }
+  }
+}
+
+@keyframes scene-arrive {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes scene-spark {
+  0% { transform: scale(.65) rotate(-20deg); }
+  45% { transform: scale(1.18) rotate(12deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+@keyframes scene-idea {
+  0% { opacity: 0; transform: translate(-23px, 20px); }
+  30% { opacity: 1; }
+  75% { opacity: 1; transform: translate(24px, -29px); }
+  100% { opacity: 1; transform: translate(0, 0); }
+}
+@keyframes scene-draw {
+  from { stroke-dasharray: 1; stroke-dashoffset: 1; }
+  to { stroke-dasharray: 1; stroke-dashoffset: 0; }
+}
+@keyframes scene-swatch {
+  0%, 100% { transform: translateY(0); }
+  45% { transform: translateY(-5px); }
+}
+@keyframes scene-cursor {
+  0%, 100% { transform: translate(0, 0); }
+  35% { transform: translate(-39px, -79px); }
+  55% { transform: translate(-44px, -70px); }
+}
+@keyframes scene-book {
+  0% { transform: scaleX(.82) skewY(-3deg); }
+  65% { transform: scaleX(1.025) skewY(1deg); }
+  100% { transform: scaleX(1) skewY(0deg); }
+}
+@keyframes scene-pencil {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(-64px, -29px); }
+  35% { transform: translate(-37px, -22px); }
+  50% { transform: translate(-61px, -3px); }
+  65% { transform: translate(-32px, 4px); }
+  80% { transform: translate(-54px, 23px); }
+}
+@keyframes scene-grow {
+  from { transform: scaleY(.08); }
+  to { transform: scaleY(1); }
+}
+@keyframes scene-ring {
+  from { opacity: .15; transform: rotate(-65deg) scale(.92); }
+  to { opacity: 1; transform: rotate(0deg) scale(1); }
+}

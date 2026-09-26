@@ -25,6 +25,9 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
+      args:
+        # Opt-in at build time; rebuilding only the frontend is sufficient.
+        VITE_PUBLIC_LANDING: "${VITE_PUBLIC_LANDING:-false}"
     container_name: banana-slides-demo-frontend
     ports:
       - "${FRONTEND_PORT:-3000}:80"
