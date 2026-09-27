@@ -25,6 +25,16 @@ test('built web admin history loads directly and after refresh', async ({ page }
   expect(errors).toEqual([]);
 });
 
+test('built web feedback inbox loads directly and after refresh', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/admin/feedback');
+  await expect(page.getByLabel('管理员口令')).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('button', { name: '查看反馈' })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test('built web shared preview loads directly and after refresh', async ({ page, request }) => {
   const headers = { 'X-User-Token': randomUUID() };
   const created = await request.post('/api/projects', {

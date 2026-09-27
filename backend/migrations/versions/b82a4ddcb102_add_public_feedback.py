@@ -13,6 +13,9 @@ depends_on = None
 
 
 def upgrade():
+    # Public demo deployments may already have this table from an older image backport.
+    if sa.inspect(op.get_bind()).has_table('feedback'):
+        return
     op.create_table(
         'feedback',
         sa.Column('id', sa.Integer(), primary_key=True),
