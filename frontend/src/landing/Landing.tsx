@@ -74,7 +74,7 @@ export function Landing() {
   const waitlistDialogRef = useRef<HTMLDialogElement>(null);
   const waitlistEmailRef = useRef<HTMLInputElement>(null);
   const openWaitlist = () => {
-    setWaitlistState('idle');
+    if (waitlistState !== 'submitting') setWaitlistState('idle');
     waitlistDialogRef.current?.showModal();
     waitlistEmailRef.current?.focus();
   };

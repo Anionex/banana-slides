@@ -67,6 +67,29 @@ test('signup explains a rejected email address', async ({ page }) => {
   await expect(page.getByRole('status')).toContainText('请输入有效的邮箱地址。');
 });
 
+test('reopening during submission keeps the form locked until the request finishes', async ({ page }) => {
+  let finishRequest = () => {};
+  const pending = new Promise<void>(resolve => { finishRequest = resolve; });
+  let requestCount = 0;
+  await page.route(url => url.pathname === '/api/waitlist', async route => {
+    requestCount += 1;
+    await pending;
+    await route.fulfill({ status: 200, body: '{}' });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: '预约在线版内测' }).click();
+  await page.getByLabel('你的邮箱地址').fill('pending@example.com');
+  await page.getByRole('button', { name: '预约内测' }).click();
+  await expect(page.getByRole('button', { name: '提交中…' })).toBeDisabled();
+  await expect.poll(() => requestCount).toBe(1);
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: '预约在线版内测' }).click();
+  await expect(page.getByRole('button', { name: '提交中…' })).toBeDisabled();
+  expect(requestCount).toBe(1);
+  finishRequest();
+  await expect(page.getByRole('status')).toContainText('已收到预约');
+});
+
 test('real signup persists once and owner exports the CSV', async ({ page }) => {
   const email = `waitlist-${Date.now()}@example.com`;
   await page.goto('/');
