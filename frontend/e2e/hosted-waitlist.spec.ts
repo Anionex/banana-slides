@@ -13,6 +13,7 @@ test('beta button opens a full-screen signup on desktop and mobile', async ({ pa
     await page.goto('/');
     await expect(page.locator('.landing-nav-actions a[href="/app"]')).toHaveText('体验 Demo');
     await expect(page.locator('.landing-hero-actions a[href="/app"]')).toContainText('体验 Demo');
+    await expect(page.locator('.landing-hero-actions a[href="https://github.com/Anionex/banana-slides"]')).toBeVisible();
     const waitlist = page.locator('.landing-waitlist');
     await expect(waitlist).toBeHidden();
     await page.getByRole('button', { name: '预约在线版内测' }).click();
