@@ -3,6 +3,7 @@ import { apiClient } from '@/api/client';
 import { Button } from '@/components/shared';
 import type { listProjects } from '@/api/endpoints';
 import { History } from './History';
+import { Link } from 'react-router-dom';
 
 export function AdminHistory() {
   const password = useRef('');
@@ -52,7 +53,7 @@ export function AdminHistory() {
       setExportError('导出失败，请检查管理员口令后重试。');
     } finally { setExporting(false); }
   };
-  if (unlocked) return <><History readOnly projectLoader={loadProjects} onExit={exit} headerActions={<Button variant="secondary" size="sm" disabled={exporting} onClick={() => { void exportWaitlist(); }}>{exporting ? '正在导出…' : '导出内测邮箱'}</Button>} />{exportError && <p role="alert" className="fixed bottom-4 right-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-red-700">{exportError}</p>}</>;
+  if (unlocked) return <><History readOnly projectLoader={loadProjects} onExit={exit} headerActions={<><Link className="text-sm underline" to="/admin/feedback">查看问题反馈</Link><Button variant="secondary" size="sm" disabled={exporting} onClick={() => { void exportWaitlist(); }}>{exporting ? '正在导出…' : '导出内测邮箱'}</Button></>} />{exportError && <p role="alert" className="fixed bottom-4 right-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-red-700">{exportError}</p>}</>;
   return <main className="min-h-screen bg-gray-50 dark:bg-background-primary flex items-center justify-center p-4">
     <form onSubmit={event => { event.preventDefault(); void unlock(); }} className="w-full max-w-sm rounded-xl border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary p-6 space-y-4 text-gray-900 dark:text-foreground-primary">
       <h1 className="text-xl font-semibold">历史记录访问</h1>
@@ -62,6 +63,7 @@ export function AdminHistory() {
       <p className="text-xs text-gray-500">刷新页面后需重新输入口令。</p>
       {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
       <Button type="submit" disabled={loading}>{loading ? '正在验证…' : '查看历史'}</Button>
+      <p><Link className="text-sm text-banana-700 underline dark:text-banana-400" to="/admin/feedback">查看问题反馈</Link></p>
     </form>
   </main>;
 }

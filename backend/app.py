@@ -207,7 +207,7 @@ def create_app():
             return  # not enabled
         if not request.path.startswith('/api/'):
             return  # non-API routes (health, static, etc.)
-        if request.path.startswith('/api/access-code/') or request.path in ('/api/public-config', '/api/waitlist'):
+        if request.path.startswith('/api/access-code/') or request.path in ('/api/public-config', '/api/waitlist', '/api/feedback'):
             return  # allow check/verify endpoints
         code = request.headers.get('X-Access-Code', '')
         if hmac.compare_digest(code, expected):

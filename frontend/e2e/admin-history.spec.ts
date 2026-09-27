@@ -53,7 +53,7 @@ test('real admin history: password, pagination, preview, refresh and exit; publi
   await page.reload();
   await expect(page.getByLabel('管理员口令')).toHaveValue('');
   await page.goto('/history');
-  await expect(page).toHaveURL('/');
+  await expect(page).toHaveURL(/\/(?:app)?$/);
 });
 
 test('mock admin history: disabled entry, request errors and retry keep the password form usable', async ({ page }) => {

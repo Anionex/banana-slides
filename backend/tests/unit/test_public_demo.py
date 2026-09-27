@@ -9,6 +9,10 @@ from models import db
 
 @pytest.fixture
 def public_app(tmp_path):
+    from services import public_demo
+    with public_demo._feedback_lock:
+        public_demo._feedback_last_sent.clear()
+        public_demo._feedback_accept_times.clear()
     app = Flask(__name__)
     app.config = PublicConfig(app.root_path, dict(app.config))
     app.config.update(PUBLIC_DEMO=True, TESTING=True,
@@ -21,6 +25,9 @@ def public_app(tmp_path):
     with app.app_context():
         db.create_all()
     yield app
+    with public_demo._feedback_lock:
+        public_demo._feedback_last_sent.clear()
+        public_demo._feedback_accept_times.clear()
 
 
 A = {'X-User-Token': 'visitor-a-0000000000000000000000000'}
@@ -51,6 +58,55 @@ def test_history_deletion_and_global_config_blocked(public_app):
     for method, url in [('get', '/api/projects'), ('get', '/api/projects/?limit=1'), ('delete', '/api/projects/a-project'), ('get', '/api/settings/active-config'), ('get', '/api/settings/openai-oauth/authorize'), ('post', '/api/settings/openai-oauth/disconnect')]:
         assert getattr(client, method)(url, headers=A).status_code == 403
     assert client.get('/api/public-config').json['data']['enabled'] is True
+
+
+def test_public_feedback_is_saved_and_only_visible_with_admin_password(public_app):
+    from models import Feedback
+
+    public_app.config['PUBLIC_DEMO_ADMIN_PASSWORD'] = 'feedback-admin-secret'
+    client = public_app.test_client()
+    assert client.post('/api/feedback', json={'message': '生成卡住了', 'page': '/app'}).status_code == 401
+    assert client.post('/api/feedback', headers=A, json={'message': '  ', 'page': '/app'}).status_code == 400
+    assert client.post('/api/feedback', headers=A, json={
+        'message': '恶意邮箱', 'email': 'user@example.com?bcc=attacker%40evil.com', 'page': '/app',
+    }).status_code == 400
+    assert client.post('/api/feedback', headers=A, json={'message': '测试机器人', 'website': 'spam.example'}).status_code == 200
+    with public_app.app_context():
+        assert Feedback.query.count() == 0
+
+    sent = client.post('/api/feedback', headers=A, json={
+        'message': '  生成卡住了  ', 'email': 'user@example.com', 'page': '/app',
+    })
+    assert sent.status_code == 200
+    assert sent.json['data']['received'] is True
+    assert client.post('/api/feedback', headers=A, json={'message': '再发一次', 'page': '/app'}).status_code == 429
+    assert client.post('/api/admin/feedback', headers=A, json={'password': 'wrong'}).status_code == 401
+    response = client.post('/api/admin/feedback?limit=20&offset=0', headers=B,
+                           json={'password': 'feedback-admin-secret'})
+    assert response.status_code == 200
+    assert response.headers['Cache-Control'] == 'no-store'
+    assert response.json['data']['total'] == 1
+    assert response.json['data']['items'][0]['message'] == '生成卡住了'
+    assert response.json['data']['items'][0]['reply_email'] == 'user@example.com'
+    assert response.json['data']['items'][0]['page_path'] == '/app'
+    assert client.post('/api/admin/feedback?limit=20&offset=1', headers=B,
+                       json={'password': 'feedback-admin-secret'}).json['data']['items'] == []
+
+
+def test_public_feedback_blocks_rotating_tokens_and_external_page_links(public_app):
+    from models import Feedback
+
+    client = public_app.test_client()
+    for index in range(20):
+        response = client.post('/api/feedback', headers={'X-User-Token': f'feedback-visitor-{index:03d}-token'},
+                               json={'message': f'问题 {index}', 'page': '/\\evil.example/path'})
+        assert response.status_code == 200
+    blocked = client.post('/api/feedback', headers={'X-User-Token': 'feedback-visitor-999-token'},
+                          json={'message': 'should be limited', 'page': '/app'})
+    assert blocked.status_code == 429
+    with public_app.app_context():
+        assert Feedback.query.count() == 20
+        assert {row.page_path for row in Feedback.query.all()} == {'/'}
 
 
 def test_config_isolation_in_nested_workers_and_no_server_fallback(public_app):

@@ -16,12 +16,14 @@
 .landing-page .grain-steps > span:nth-child(2) { left: 16.6%; top: 11.5%; width: 45%; height: 73%; --grain-field: linear-gradient(90deg, transparent, #000a 25%, #000e 55%, #000 80%); --grain-fade: linear-gradient(180deg, #0009, #000d 38%, #000 70%); }
 .landing-page .grain-steps > span:nth-child(3) { left: 19.8%; top: 45%; width: 60%; height: 66%; --grain-field: linear-gradient(130deg, #000d, #000a 35%, #0002 80%, transparent); }
 .landing-page .grain-steps > span:nth-child(4) { left: 73.5%; top: 64.3%; width: 40%; height: 48%; --grain-field: radial-gradient(ellipse at 100% 80%, #000b, #0006 60%, #0000 110%); }
+.landing-page .landing-hero-art .grain-steps > span, .landing-page .landing-waitlist-art .grain-steps > span { background: linear-gradient(90deg, #f8cc27 0%, #ffe271 58%, #fff9e9 100%); -webkit-mask-image: none; mask-image: none; }
+.landing-page .landing-hero-art .grain-steps > span::after, .landing-page .landing-waitlist-art .grain-steps > span::after { opacity: .48; mix-blend-mode: soft-light; }
 .landing-page { --landing-gutter: 6.8vw; background: var(--studio-paper); color: var(--studio-ink); overflow: clip; }
 .landing-page .landing-container { width: min(1240px, calc(100% - 2 * var(--landing-gutter))); margin-inline: auto; }
 .landing-page .landing-nav { min-height: 100px; display: flex; align-items: center; gap: 60px; }
 .landing-page .landing-nav nav { display: flex; gap: 30px; margin-left: 30px; }
-.landing-page .landing-nav nav a { font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
-.landing-page .landing-nav nav a:hover { color: var(--text-primary); }
+.landing-page .landing-nav nav a, .landing-page .landing-nav nav button { font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
+.landing-page .landing-nav nav a:hover, .landing-page .landing-nav nav button:hover { color: var(--text-primary); }
 .landing-page .landing-nav-actions { display: flex; align-items: center; gap: 30px; margin-left: auto; }
 .landing-page .landing-nav-actions > button { color: var(--text-secondary); font-size: 11px; }
 .landing-page .landing-nav-actions .studio-button { min-height: 40px; padding: 10px 20px; font-size: 11px; }
@@ -31,16 +33,36 @@
 .landing-page .landing-hero h1 { font-size: clamp(40px, 4.65vw, 67px); font-weight: 600; line-height: 1.08; letter-spacing: -2.5px; margin: 0 0 23px; text-wrap: balance; }
 .landing-page .landing-intro { max-width: 540px; font-size: clamp(14px, 1.3vw, 18px); line-height: 1.7; color: var(--text-secondary); text-wrap: pretty; }
 .landing-page .landing-hero-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 29px; }
-.landing-page .landing-waitlist { width: min(100%, 490px); margin-top: 34px; padding: 19px 21px 14px; border: 1px solid var(--studio-line); border-radius: 12px; background: #fffdf8e8; box-shadow: 0 8px 30px #2425220a; }
-.landing-page .landing-waitlist h2 { margin: 0 0 5px; font-size: 17px; font-weight: 600; letter-spacing: -.25px; }
-.landing-page .landing-waitlist > p { margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.6; }
-.landing-page .landing-waitlist form { display: flex; gap: 8px; margin-top: 13px; }
-.landing-page .landing-waitlist input { flex: 1; min-width: 0; min-height: 44px; padding: 10px 13px; border: 1px solid #d6d8dd; border-radius: 8px; background: #fff; color: var(--studio-ink); font: inherit; font-size: 13px; }
+.landing-page .landing-beta-button { position: relative; isolation: isolate; overflow: hidden; padding-right: 36px; color: #242522; border: 1px solid #d8d9d8; background: #fff; }
+.landing-page .landing-beta-button > span, .landing-page .landing-beta-button > svg { position: relative; z-index: 1; }
+.landing-page .landing-beta-button::before { content: ''; position: absolute; inset: 0; background: linear-gradient(105deg, #fff 8%, #fff 42%, #fff9e9 62%, #f8cc27 100%); background-size: 160% 100%; animation: landing-beta-glow 7s ease-in-out infinite alternate; }
+.landing-page .landing-beta-button::after { content: ''; position: absolute; inset: 0; opacity: .48; background: url('./grain.svg') repeat; background-size: 192px 192px; mix-blend-mode: soft-light; animation: landing-beta-grain 11s ease-in-out infinite alternate; }
+.landing-page .landing-beta-button:hover { border-color: #d8b64d; }
+@keyframes landing-beta-glow { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
+@keyframes landing-beta-grain { from { background-position: 0 0; } to { background-position: 42px 0; } }
+@media (prefers-reduced-motion: reduce) { .landing-page .landing-beta-button::before, .landing-page .landing-beta-button::after { animation: none; } }
+.landing-page .landing-waitlist-dialog { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; background: var(--studio-paper); color: var(--studio-ink); overflow: auto; }
+.landing-page .landing-waitlist-dialog::backdrop { background: #18191e99; }
+.landing-page .landing-waitlist-screen { position: relative; min-height: 100vh; min-height: 100dvh; padding: 30px max(var(--landing-gutter), calc((100vw - 1240px) / 2)); overflow: hidden; }
+.landing-page .landing-waitlist-top { position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; }
+.landing-page .landing-waitlist-close { display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 42px; border: 1px solid var(--studio-line); border-radius: 50%; background: #fff; }
+.landing-page .landing-waitlist-close:hover { background: var(--bg-hover); }
+.landing-page .landing-waitlist { position: relative; z-index: 1; width: min(100%, 620px); margin-top: clamp(120px, 17vh, 220px); }
+.landing-page .landing-waitlist-eyebrow { display: inline-flex; align-items: center; gap: 9px; margin-bottom: 11px; color: #8d6b26; font-size: 11px; font-weight: 600; letter-spacing: .13em; }
+.landing-page .landing-waitlist-eyebrow::before { content: ''; width: 19px; height: 1px; background: currentColor; }
+.landing-page .landing-waitlist h2 { margin: 0 0 12px; font-size: clamp(36px, 4vw, 58px); line-height: 1.12; font-weight: 600; letter-spacing: -2px; }
+.landing-page .landing-waitlist > p { margin: 0; color: var(--text-secondary); font-size: 16px; line-height: 1.7; }
+.landing-page .landing-waitlist form { display: flex; gap: 10px; max-width: 560px; margin-top: 31px; }
+.landing-page .landing-waitlist input { flex: 1; min-width: 0; min-height: 48px; padding: 11px 15px; border: 1px solid #d6d8dd; border-radius: 7px; background: #fff; color: var(--studio-ink); font: inherit; font-size: 13px; }
 .landing-page .landing-waitlist input:focus-visible { outline: 2px solid #aa7c21; outline-offset: 2px; }
+.landing-page .landing-waitlist-submit { min-height: 48px; padding: 11px 19px; border: 1px solid #252621; border-radius: 7px; background: #252621; color: #fff; white-space: nowrap; }
+.landing-page .landing-waitlist-submit:hover { background: #3b3c36; }
 .landing-page .landing-waitlist button:disabled { opacity: .65; cursor: wait; }
 .landing-page .landing-waitlist .landing-waitlist-note { margin-top: 9px; font-size: 11px; }
-.landing-page .landing-waitlist .landing-waitlist-feedback { min-height: 1.6em; margin-top: 3px; color: #28613e; }
+.landing-page .landing-waitlist .landing-waitlist-feedback { margin-top: 5px; color: #28613e; }
+.landing-page .landing-waitlist .landing-waitlist-feedback:empty { margin-top: 0; }
 .landing-page .landing-waitlist .landing-waitlist-feedback[data-state=error], .landing-page .landing-waitlist .landing-waitlist-feedback[data-state=invalid], .landing-page .landing-waitlist .landing-waitlist-feedback[data-state=rate-limited] { color: #b42318; }
+.landing-page .landing-waitlist-art { position: absolute; right: -3%; top: 8%; width: 46%; height: 95%; pointer-events: none; }
 .landing-page .landing-github-button { color: var(--studio-ink); border: 1px solid var(--studio-line); background: var(--studio-paper); }
 .landing-page .landing-github-button:hover { background: var(--bg-hover); border-color: var(--text-secondary); }
 .landing-page .landing-github-icon { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 36px; flex-shrink: 0; border-radius: 8px; }
@@ -145,16 +167,19 @@
  .landing-page .landing-nav nav { display: none; }
 }
 @media (max-width: 640px) {
- .landing-page .landing-waitlist { margin-top: 27px; padding: 17px 15px 12px; }
- .landing-page .landing-waitlist form { flex-wrap: wrap; }
- .landing-page .landing-waitlist input { flex-basis: 100%; }
- .landing-page .landing-waitlist button { width: 100%; }
+ .landing-page .landing-waitlist-screen { padding: 20px; }
+ .landing-page .landing-waitlist { margin-top: clamp(90px, 16vh, 145px); }
+ .landing-page .landing-waitlist h2 { font-size: clamp(30px, 8vw, 40px); letter-spacing: -1.4px; }
+ .landing-page .landing-waitlist > p { font-size: 14px; }
+ .landing-page .landing-waitlist form { margin-top: 25px; }
+ .landing-page .landing-waitlist-submit { padding-inline: 13px; font-size: 12px; }
+ .landing-page .landing-waitlist-art { top: 58%; right: -12%; width: 100%; height: 60%; opacity: .5; }
  .landing-page { --landing-gutter: 20px; }.landing-page .landing-nav { min-height: 80px; gap: 12px; }.landing-page .landing-nav-actions { gap: 10px; }.landing-page .landing-nav .brand { font-size: 14px; }.landing-page .landing-nav .brand img { width: 26px; height: 26px; }
  .landing-page .landing-nav-actions .studio-button { font-size: 10px; padding: 9px 11px; gap: 8px; }.landing-page .landing-nav-actions .studio-button svg { display: none; }
  .landing-page .landing-hero { padding: 35px 20px 0; min-height: 0; }
  .landing-page .landing-hero-copy { width: 100%; }.landing-page .landing-title-rule { width: 23px; margin-bottom: 15px; }
  .landing-page .landing-hero h1 { font-size: clamp(30px, 7.7vw, 45px); letter-spacing: -1.6px; margin-bottom: 20px; }.landing-page .landing-intro { font-size: 13px; line-height: 1.8; }
- .landing-page .landing-hero-actions { margin-top: 24px; }.landing-page .landing-hero-actions .studio-button { font-size: 12px; padding-inline: 18px; }
+ .landing-page .landing-hero-actions { margin-top: 24px; }.landing-page .landing-hero-actions .studio-button { font-size: 12px; padding-inline: 18px; }.landing-page .landing-hero-actions .landing-beta-button { padding-right: 36px; }
  .landing-page .landing-hero-art { position: relative; width: calc(100% + 20px); height: auto; aspect-ratio: 1.02; margin: 32px -20px 0 0; top: auto; right: auto; }
  .landing-page .landing-art-label { right: 13%; font-size: 8px; }
  .landing-page .landing-strip { position: relative; left: auto; bottom: auto; width: 100%; padding: 28px 0 32px; gap: 16px; }
