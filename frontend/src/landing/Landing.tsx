@@ -108,11 +108,12 @@ export function Landing() {
         <div className="landing-hero-copy"><span className="landing-title-rule" aria-hidden="true" /><h1>{t('title')}<br />{t('title2')}</h1><p className="landing-intro">{t('intro')}</p>
           <div className="landing-hero-actions"><a href="/app" className="studio-button studio-button-dark">{t('start')}<ArrowRight size={17} /></a><a className="studio-button landing-github-button" href={githubUrl} target="_blank" rel="noopener noreferrer"><Github size={18} aria-hidden="true" />GitHub</a></div>
           <div className="landing-waitlist" id="waitlist">
+            <span className="landing-waitlist-eyebrow">{t('waitlistNav')}</span>
             <h2>{t('waitlistTitle')}</h2><p>{t('waitlistIntro')}</p>
             <form onSubmit={event => { void submitWaitlist(event); }}>
               <label className="sr-only" htmlFor="landing-waitlist-email">{t('waitlistPlaceholder')}</label>
               <input id="landing-waitlist-email" type="email" autoComplete="email" required maxLength={254} placeholder={t('waitlistPlaceholder')} value={email} onChange={event => { setEmail(event.target.value); setWaitlistState('idle'); }} disabled={waitlistState === 'submitting'} />
-              <button className="studio-button studio-button-dark" type="submit" disabled={waitlistState === 'submitting'}>{t(waitlistState === 'submitting' ? 'waitlistSubmitting' : 'waitlistSubmit')}</button>
+              <button className="studio-button landing-waitlist-submit" type="submit" disabled={waitlistState === 'submitting'}>{t(waitlistState === 'submitting' ? 'waitlistSubmitting' : 'waitlistSubmit')}</button>
             </form>
             <p className="landing-waitlist-note">{t('waitlistPrivacy')}</p>
             <p className="landing-waitlist-feedback" data-state={waitlistState} role="status" aria-live="polite">{waitlistState === 'success' ? t('waitlistSuccess') : waitlistState === 'error' ? t('waitlistError') : waitlistState === 'invalid' ? t('waitlistInvalid') : waitlistState === 'rate-limited' ? t('waitlistRateLimited') : ''}</p>

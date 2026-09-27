@@ -7,6 +7,23 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('i18nextLng', 'zh'));
 });
 
+test('waitlist sits in the hero without a card on desktop and mobile', async ({ page }) => {
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/');
+    const waitlist = page.locator('.landing-waitlist');
+    await expect(waitlist).toBeVisible();
+    const style = await waitlist.evaluate(element => {
+      const computed = getComputedStyle(element);
+      return { background: computed.backgroundColor, border: computed.borderTopWidth, shadow: computed.boxShadow };
+    });
+    expect(style).toEqual({ background: 'rgba(0, 0, 0, 0)', border: '0px', shadow: 'none' });
+    const input = await page.getByLabel('你的邮箱地址').boundingBox();
+    const button = await page.getByRole('button', { name: '预约内测' }).boundingBox();
+    expect(input && button && Math.abs(input.y - button.y) < 2).toBeTruthy();
+  }
+});
+
 test('signup shows a recoverable error for a failed API request', async ({ page }) => {
   await page.route(url => url.pathname === '/api/waitlist', route => route.fulfill({ status: 500, body: '{}' }));
   await page.goto('/');
