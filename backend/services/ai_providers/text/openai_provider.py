@@ -6,6 +6,7 @@ import logging
 from typing import Generator
 from openai import OpenAI
 from .base import TextProvider, strip_think_tags
+from .stream_control import stream_timeout, stream_stopped
 from config import get_config
 
 logger = logging.getLogger(__name__)
@@ -56,15 +57,24 @@ class OpenAITextProvider(TextProvider):
 
     def generate_text_stream(self, prompt: str, thinking_budget: int = 0) -> Generator[str, None, None]:
         """Stream text using OpenAI SDK with stream=True."""
-        response = self.client.chat.completions.create(
+        timeout = stream_timeout()
+        client = self.client if timeout is None else self.client.with_options(
+            timeout=min(timeout, self.request_timeout_seconds), max_retries=0,
+        )
+        response = client.chat.completions.create(
             model=self.model,
             messages=[{"role": "user", "content": prompt}],
             stream=True,
         )
-        for chunk in response:
-            delta = chunk.choices[0].delta if chunk.choices else None
-            if delta and delta.content:
-                yield delta.content
+        try:
+            for chunk in response:
+                if stream_stopped():
+                    break
+                delta = chunk.choices[0].delta if chunk.choices else None
+                if delta and delta.content:
+                    yield delta.content
+        finally:
+            response.close()
 
     def generate_with_image(self, prompt: str, image_path: str, thinking_budget: int = 0) -> str:
         """Generate text with image input using OpenAI-compatible chat completions."""

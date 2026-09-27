@@ -6,6 +6,7 @@ import logging
 from typing import Generator, Optional
 from anthropic import Anthropic
 from .base import TextProvider, strip_think_tags
+from .stream_control import stream_timeout, stream_stopped
 from config import get_config
 
 logger = logging.getLogger(__name__)
@@ -58,12 +59,18 @@ class AnthropicTextProvider(TextProvider):
 
     def generate_text_stream(self, prompt: str, thinking_budget: int = 0) -> Generator[str, None, None]:
         """Stream text using Anthropic Claude SDK with stream=True."""
-        with self.client.messages.stream(
+        timeout = stream_timeout()
+        client = self.client if timeout is None else self.client.with_options(
+            timeout=min(timeout, self.request_timeout_seconds), max_retries=0,
+        )
+        with client.messages.stream(
             model=self.model,
             max_tokens=self.max_tokens,
             messages=[{"role": "user", "content": prompt}],
         ) as stream:
             for text in stream.text_stream:
+                if stream_stopped():
+                    break
                 yield text
 
     def generate_with_image(self, prompt: str, image_path: str, thinking_budget: int = 0) -> str:
