@@ -75,3 +75,34 @@ def test_signup_remains_public_when_workspace_has_access_code(app, client, monke
     response = client.post('/api/waitlist', json={'email': 'access@example.com'})
     assert response.status_code == 200
     assert response.json == {'data': {'accepted': True}}
+
+
+def test_one_caller_cannot_exhaust_global_signup_quota(tmp_path):
+    app = Flask(__name__)
+    app.config.update(PUBLIC_DEMO=True, TESTING=True,
+                      WAITLIST_CLIENT_HOURLY_LIMIT=2, WAITLIST_HOURLY_LIMIT=10,
+                      SQLALCHEMY_DATABASE_URI='sqlite:///' + str(tmp_path / 'limits.db'))
+    db.init_app(app)
+    install_waitlist(app)
+    with app.app_context():
+        db.create_all()
+    client = app.test_client()
+    edge = '104.16.0.1'
+    for index in range(2):
+        assert client.post('/api/waitlist', json={'email': f'one-{index}@example.com'},
+                           headers={'X-Real-IP': edge,
+                                    'CF-Connecting-IP': '198.51.100.1'}).status_code == 200
+    denied = client.post('/api/waitlist', json={'email': 'one-2@example.com'},
+                         headers={'X-Real-IP': edge, 'CF-Connecting-IP': '198.51.100.1',
+                                  'X-Forwarded-For': '203.0.113.99'})
+    assert denied.status_code == 429
+    assert client.post('/api/waitlist', json={'email': 'two@example.com'},
+                       headers={'X-Real-IP': edge,
+                                'CF-Connecting-IP': '198.51.100.2'}).status_code == 200
+    for index in range(2):
+        assert client.post('/api/waitlist', json={'email': f'direct-{index}@example.com'},
+                           headers={'X-Real-IP': '203.0.113.1',
+                                    'CF-Connecting-IP': f'192.0.2.{index+1}'}).status_code == 200
+    assert client.post('/api/waitlist', json={'email': 'direct-2@example.com'},
+                       headers={'X-Real-IP': '203.0.113.1',
+                                'CF-Connecting-IP': '192.0.2.3'}).status_code == 429

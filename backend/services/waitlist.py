@@ -1,6 +1,7 @@
 """Hosted beta email signup and owner-only CSV export."""
 import csv
 import hmac
+import ipaddress
 import io
 import re
 import time
@@ -16,6 +17,16 @@ from models import db, WaitlistSignup
 
 LOCAL_RE = re.compile(r"[a-z0-9.!#$%&'*+/=?^_`{|}~-]+", re.IGNORECASE)
 DOMAIN_LABEL_RE = re.compile(r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?', re.IGNORECASE)
+CF_EDGE_NETWORKS = tuple(ipaddress.ip_network(cidr) for cidr in (
+    '173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22',
+    '103.31.4.0/22', '141.101.64.0/18', '108.162.192.0/18',
+    '190.93.240.0/20', '188.114.96.0/20', '197.234.240.0/22',
+    '198.41.128.0/17', '162.158.0.0/15', '104.16.0.0/13',
+    '104.24.0.0/14', '172.64.0.0/13', '131.0.72.0/22',
+    '2400:cb00::/32', '2606:4700::/32', '2803:f800::/32',
+    '2405:b500::/32', '2405:8100::/32', '2a06:98c0::/29',
+    '2c0f:f248::/32',
+))
 
 
 def _valid_email(email):
@@ -29,21 +40,52 @@ def _valid_email(email):
     return len(labels) >= 2 and all(DOMAIN_LABEL_RE.fullmatch(label) for label in labels)
 
 
+def _client_address():
+    # The public demo's loopback-only front proxy replaces X-Real-IP with
+    # OpenResty's $remote_addr. Only a verified Cloudflare edge may supply
+    # CF-Connecting-IP; other requests use the actual origin-facing address.
+    address = request.headers.get('X-Real-IP') or request.remote_addr or ''
+    try:
+        edge = ipaddress.ip_address(address)
+    except ValueError:
+        return request.remote_addr or 'unknown'
+    if any(edge in network for network in CF_EDGE_NETWORKS):
+        visitor = request.headers.get('CF-Connecting-IP', '')
+        try:
+            return str(ipaddress.ip_address(visitor))
+        except ValueError:
+            pass
+    return str(edge)
+
+
 def _admit_signup(app):
     state = app.extensions['waitlist_rate_limit']
     now = time.monotonic()
+    client = _client_address()
     with state['lock']:
         events = state['events']
+        callers = state['callers']
         while events and events[0] <= now - 3600:
             events.popleft()
+        for address, attempts in list(callers.items()):
+            while attempts and attempts[0] <= now - 3600:
+                attempts.popleft()
+            if not attempts:
+                del callers[address]
+        own_attempts = callers.setdefault(client, deque())
+        if len(own_attempts) >= dict.get(app.config, 'WAITLIST_CLIENT_HOURLY_LIMIT', 20):
+            return False
         if len(events) >= dict.get(app.config, 'WAITLIST_HOURLY_LIMIT', 300):
             return False
+        own_attempts.append(now)
         events.append(now)
         return True
 
 
 def install(app):
-    app.extensions['waitlist_rate_limit'] = {'lock': Lock(), 'events': deque()}
+    app.extensions['waitlist_rate_limit'] = {
+        'lock': Lock(), 'events': deque(), 'callers': {},
+    }
 
     @app.post('/api/waitlist')
     def join_waitlist():
