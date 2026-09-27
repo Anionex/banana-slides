@@ -14,6 +14,7 @@ def test_signup_deduplicates_and_exports_with_owner_password(tmp_path):
     app.config = PublicConfig(app.root_path, dict(app.config))
     app.config.update(PUBLIC_DEMO=True, TESTING=True,
                       PUBLIC_DEMO_ADMIN_PASSWORD='owner-secret',
+                      WAITLIST_HOURLY_LIMIT=5,
                       SQLALCHEMY_DATABASE_URI='sqlite:///' + str(tmp_path / 'waitlist.db'))
     db.init_app(app)
     install_public_demo(app)
@@ -55,9 +56,9 @@ def test_signup_deduplicates_and_exports_with_owner_password(tmp_path):
         assert client.post('/api/waitlist', json={'email': f'visitor-{index}@example.com'}).status_code == 200
     limited = client.post('/api/waitlist', json={'email': 'visitor-5@example.com'})
     assert limited.status_code == 429
-    assert limited.headers['Retry-After'] == '60'
+    assert limited.headers['Retry-After'] == '3600'
     assert client.post('/api/waitlist', json={'email': 'another-visitor@example.com'},
-                       headers={'X-Forwarded-For': '198.51.100.1, 172.26.0.1'}).status_code == 200
+                       headers={'X-Forwarded-For': '198.51.100.1, 172.26.0.1'}).status_code == 429
 
     app.config['PUBLIC_DEMO'] = False
     assert client.post('/api/waitlist', json={'email': 'new@example.com'}).status_code == 404

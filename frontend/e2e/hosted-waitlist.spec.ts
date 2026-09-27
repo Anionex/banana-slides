@@ -44,7 +44,7 @@ test('real signup persists once and owner exports the CSV', async ({ page }) => 
   await expect(page.getByRole('status')).toContainText('已收到预约');
 
   await page.goto('/admin/history');
-  await page.getByLabel('管理员口令').fill('local-waitlist-test-password');
+  await page.getByLabel('管理员口令').fill(process.env.E2E_WAITLIST_ADMIN_PASSWORD || 'local-waitlist-test-password');
   await page.getByRole('button', { name: '查看历史' }).click();
   await expect(page.getByRole('button', { name: '导出内测邮箱' })).toBeVisible();
   const downloadPromise = page.waitForEvent('download');
