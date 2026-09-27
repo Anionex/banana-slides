@@ -29,7 +29,7 @@ RUN if [ -n "$NPM_REGISTRY" ]; then \
     (npm install --frozen-lockfile || npm install)
 
 COPY frontend/ ./
-RUN npm run build
+RUN npm run build:web
 
 # ── Stage 2: 获取 uv ──────────────────────────────────────────
 FROM ${GHCR_REGISTRY}astral-sh/uv:latest AS uv
