@@ -15,6 +15,7 @@ import { useProjectStore } from './store/useProjectStore';
 import { useToast, AccessCodeGuard, DesktopTitleBar, UpdateChecker } from './components/shared';
 import { getDesktopTopInset } from './components/shared/UpdateChecker';
 import { isDesktop } from '@/utils';
+import { publicLandingEnabled } from '@/utils/publicLanding';
 
 function App() {
   const { currentProject, syncProject, error, setError } = useProjectStore();
@@ -48,7 +49,8 @@ function App() {
               <Router>
                 <DesktopTitleBar />
                 <Routes>
-                  <Route path="/" element={<Home />} />
+                  <Route path="/" element={publicLandingEnabled ? <Navigate to="/app" replace /> : <Home />} />
+                  {publicLandingEnabled && <Route path="/app" element={<Home />} />}
                   <Route path="/landing" element={<Landing />} />
                   <Route path="/history" element={isPublicDemo ? <Navigate to="/" replace /> : <History />} />
                   <Route path="/admin/history" element={isPublicDemo ? <AdminHistory /> : <Navigate to="/" replace />} />
