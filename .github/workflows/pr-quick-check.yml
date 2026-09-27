@@ -2,7 +2,7 @@ name: PR Quick Check
 
 on:
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, develop, production/bananaslides-online ]
 
 # Quick check: lint + unit tests + build + smoke
 env:
