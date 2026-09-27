@@ -112,7 +112,7 @@ export function Landing() {
     <main>
       <section className="landing-hero">
         <div className="landing-hero-copy"><span className="landing-title-rule" aria-hidden="true" /><h1>{t('title')}<br />{t('title2')}</h1><p className="landing-intro">{t('intro')}</p>
-          <div className="landing-hero-actions"><a href="/app" className="studio-button studio-button-dark">{t('start')}<ArrowRight size={17} /></a><button className="studio-button landing-beta-button" type="button" onClick={openWaitlist}>{t('waitlistOpen')}<ArrowUpRight size={16} /></button><a className="studio-button landing-github-button" href={githubUrl} target="_blank" rel="noopener noreferrer"><Github size={18} aria-hidden="true" />GitHub</a></div>
+          <div className="landing-hero-actions"><a href="/app" className="studio-button studio-button-dark">{t('start')}<ArrowRight size={17} /></a><button className="studio-button landing-beta-button" type="button" onClick={openWaitlist}><span>{t('waitlistOpen')}</span><ArrowUpRight size={16} /></button><a className="studio-button landing-github-button" href={githubUrl} target="_blank" rel="noopener noreferrer"><Github size={18} aria-hidden="true" />GitHub</a></div>
         </div>
         <div className="landing-hero-art"><GrainSteps /><span className="landing-art-label">IDEAS<br />PEOPLE<br />PRESENT<br />TOGETHER<span /></span></div>
         <div className="landing-strip"><div>{[FileText, Layers, Sparkles, Download].map((Icon, i) => <span key={i}><Icon size={20} />{t(`strip${i + 1}`)}</span>)}</div></div>

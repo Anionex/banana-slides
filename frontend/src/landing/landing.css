@@ -31,8 +31,14 @@
 .landing-page .landing-hero h1 { font-size: clamp(40px, 4.65vw, 67px); font-weight: 600; line-height: 1.08; letter-spacing: -2.5px; margin: 0 0 23px; text-wrap: balance; }
 .landing-page .landing-intro { max-width: 540px; font-size: clamp(14px, 1.3vw, 18px); line-height: 1.7; color: var(--text-secondary); text-wrap: pretty; }
 .landing-page .landing-hero-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 29px; }
-.landing-page .landing-beta-button { color: #242522; border: 1px solid #ead28c; background: #fff8df; }
-.landing-page .landing-beta-button:hover { background: #ffefb7; border-color: #d6b65d; }
+.landing-page .landing-beta-button { position: relative; isolation: isolate; overflow: hidden; color: #242522; border: 1px solid #d8d9d8; background: #fff; }
+.landing-page .landing-beta-button > span, .landing-page .landing-beta-button > svg { position: relative; z-index: 1; }
+.landing-page .landing-beta-button::before { content: ''; position: absolute; inset: 0; background: linear-gradient(105deg, #fff 12%, #fff 29%, #fff9e9 42%, #ffe69a 57%, #fffdf7 73%, #fff 88%); background-size: 220% 100%; animation: landing-beta-glow 6s ease-in-out infinite alternate; }
+.landing-page .landing-beta-button::after { content: ''; position: absolute; inset: 0; opacity: .4; background-image: radial-gradient(circle at 2px 2px, #d6ae37 0 1px, transparent 1.25px), radial-gradient(circle at 1px 1px, #e8cb70 0 1px, transparent 1.25px), radial-gradient(circle at 2px 2px, #e5c250 0 1px, transparent 1.25px); background-size: 9px 9px, 13px 13px, 17px 17px; background-position: 0 1px, 4px 6px, 8px 3px; -webkit-mask-image: linear-gradient(90deg, transparent 7%, #000 40%, #000 73%, transparent 98%); mask-image: linear-gradient(90deg, transparent 7%, #000 40%, #000 73%, transparent 98%); animation: landing-beta-grain 9s ease-in-out infinite alternate; }
+.landing-page .landing-beta-button:hover { border-color: #b9a665; }
+@keyframes landing-beta-glow { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
+@keyframes landing-beta-grain { from { background-position: 0 0; } to { background-position: 42px 0; } }
+@media (prefers-reduced-motion: reduce) { .landing-page .landing-beta-button::before, .landing-page .landing-beta-button::after { animation: none; } }
 .landing-page .landing-waitlist-dialog { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; background: var(--studio-paper); color: var(--studio-ink); overflow: auto; }
 .landing-page .landing-waitlist-dialog::backdrop { background: #18191e99; }
 .landing-page .landing-waitlist-screen { position: relative; min-height: 100vh; min-height: 100dvh; padding: 30px max(var(--landing-gutter), calc((100vw - 1240px) / 2)); overflow: hidden; }
