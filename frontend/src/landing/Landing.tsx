@@ -109,7 +109,7 @@ export function Landing() {
             <h2>{t('waitlistTitle')}</h2><p>{t('waitlistIntro')}</p>
             <form onSubmit={event => { void submitWaitlist(event); }}>
               <label className="sr-only" htmlFor="landing-waitlist-email">{t('waitlistPlaceholder')}</label>
-              <input id="landing-waitlist-email" type="email" autoComplete="email" required maxLength={254} placeholder={t('waitlistPlaceholder')} value={email} onChange={event => { setEmail(event.target.value); if (waitlistState !== 'success') setWaitlistState('idle'); }} disabled={waitlistState === 'submitting'} />
+              <input id="landing-waitlist-email" type="email" autoComplete="email" required maxLength={254} placeholder={t('waitlistPlaceholder')} value={email} onChange={event => { setEmail(event.target.value); setWaitlistState('idle'); }} disabled={waitlistState === 'submitting'} />
               <button className="studio-button studio-button-dark" type="submit" disabled={waitlistState === 'submitting'}>{t(waitlistState === 'submitting' ? 'waitlistSubmitting' : 'waitlistSubmit')}</button>
             </form>
             <p className="landing-waitlist-note">{t('waitlistPrivacy')}</p>
