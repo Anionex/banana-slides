@@ -63,7 +63,7 @@ test('landing: navigation, bilingual copy, FAQ and workspace entry', async ({ pa
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: '../work/landing/landing-en.png', fullPage: true });
   await page.screenshot({ path: '../work/landing/hero-reference-size-en.png' });
-  await page.getByRole('link', { name: 'Open workspace', exact: true }).click();
+  await page.locator('.landing-nav-actions').getByRole('link', { name: 'Try the demo', exact: true }).click();
   await expect(page).toHaveURL(/\/app$/);
   await expect(page.getByRole('textbox').first()).toBeVisible();
   await expect(page.locator('.landing-page')).toHaveCount(0);
@@ -162,7 +162,7 @@ test('real app: draft, personal settings and visitor identity survive landing na
   await page.addInitScript(value => localStorage.setItem('banana-slides-user-token', value), token);
   try {
     await page.goto('/');
-    await page.getByRole('link', { name: '开始创作', exact: true }).first().click();
+    await page.locator('.landing-hero-actions').getByRole('link', { name: '体验 Demo', exact: true }).click();
     await expect(page).toHaveURL(/\/app$/);
     await expect(page.locator('.landing-page')).toHaveCount(0);
     expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--studio-paper'))).toBe('');
@@ -180,7 +180,7 @@ test('real app: draft, personal settings and visitor identity survive landing na
     await expect(page).toHaveURL(/\/app$/);
     await expect(page.getByRole('textbox').first()).toContainText(draft);
     await page.goto('/');
-    await page.getByRole('link', { name: '进入工作空间', exact: true }).click();
+    await page.locator('.landing-nav-actions').getByRole('link', { name: '体验 Demo', exact: true }).click();
     await expect(page.getByRole('textbox').first()).toContainText(draft);
     expect(await page.evaluate(() => localStorage.getItem('banana-slides-user-token'))).toBe(token);
     const saved = await request.get('/api/settings', { headers });
