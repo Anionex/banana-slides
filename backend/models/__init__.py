@@ -27,7 +27,8 @@ from .settings import Settings
 from .user_style_template import UserStyleTemplate
 from .project_template_asset import ProjectTemplateAsset
 
-__all__ = ['db', 'Project', 'Page', 'Task', 'UserTemplate', 'PageImageVersion', 'Material', 'ReferenceFile', 'Settings', 'UserStyleTemplate', 'ProjectTemplateAsset']
+__all__ = ['db', 'Project', 'Page', 'Task', 'UserTemplate', 'PageImageVersion', 'Material', 'ReferenceFile', 'Settings', 'UserStyleTemplate', 'ProjectTemplateAsset', 'PublicVisitor', 'WaitlistSignup']
 
 
 from .public_visitor import PublicVisitor
+from .waitlist_signup import WaitlistSignup

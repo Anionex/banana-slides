@@ -219,7 +219,7 @@ def install(app):
         if not enabled() or not request.path.startswith('/api/'):
             return None
         path = request.path.rstrip('/')
-        if path in ('/api/public-config', '/api/access-code/check', '/api/access-code/verify') or request.method == 'OPTIONS':
+        if path in ('/api/public-config', '/api/waitlist', '/api/access-code/check', '/api/access-code/verify') or request.method == 'OPTIONS':
             return None
         # Block discovery and destructive project operations at the server too.
         if path == '/api/projects' and request.method == 'GET':
