@@ -14,7 +14,19 @@ from sqlalchemy.exc import IntegrityError
 from models import db, WaitlistSignup
 
 
-EMAIL_RE = re.compile(r'^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$')
+LOCAL_RE = re.compile(r"[a-z0-9.!#$%&'*+/=?^_`{|}~-]+", re.IGNORECASE)
+DOMAIN_LABEL_RE = re.compile(r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?', re.IGNORECASE)
+
+
+def _valid_email(email):
+    if len(email) > 254 or email.startswith(('=', '+', '-', '@')) or email.count('@') != 1:
+        return False
+    local, domain = email.split('@')
+    if (not 1 <= len(local) <= 64 or not LOCAL_RE.fullmatch(local)
+            or local.startswith('.') or local.endswith('.') or '..' in local):
+        return False
+    labels = domain.split('.')
+    return len(labels) >= 2 and all(DOMAIN_LABEL_RE.fullmatch(label) for label in labels)
 
 
 def _admit_signup(app):
@@ -42,7 +54,7 @@ def install(app):
         if not isinstance(email, str):
             return jsonify(error='INVALID_EMAIL'), 400
         email = email.strip().lower()
-        if len(email) > 254 or email.startswith(('=', '+', '-', '@')) or not EMAIL_RE.fullmatch(email):
+        if not _valid_email(email):
             return jsonify(error='INVALID_EMAIL'), 400
         if not _admit_signup(app):
             response = jsonify(error='RATE_LIMITED')

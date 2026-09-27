@@ -26,6 +26,10 @@ def test_signup_deduplicates_and_exports_with_owner_password(tmp_path):
     for invalid in ({}, {'email': 'wrong'}, {'email': 'a@b'}, {'email': 'a@b.com\nOther: x'},
                     {'email': '=formula@example.com'}, {'email': '+formula@example.com'}):
         assert client.post('/api/waitlist', json=invalid).status_code == 400
+    for address in ('user@.example.com', 'user@example..com', '"unterminated@example.com',
+                    'user@-example.com', 'user@example.com-', '.user@example.com',
+                    'user..name@example.com', 'user@example.com!'):
+        assert client.post('/api/waitlist', json={'email': address}).status_code == 400
     for address in ('  Alice@Example.com  ', 'alice@example.com'):
         response = client.post('/api/waitlist', json={'email': address})
         assert response.status_code == 200
