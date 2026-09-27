@@ -1,5 +1,5 @@
-import { ArrowRight, ArrowUpRight, FileText, Layers, Download, Github, Plus, Minus, Sparkles } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
+import { ArrowRight, ArrowUpRight, FileText, Layers, Download, Github, Plus, Minus, Sparkles, X } from 'lucide-react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useT } from '@/hooks/useT';
 import logoUrl from '@/assets/logo.png';
@@ -12,10 +12,10 @@ import { FeedbackWidget } from '@/components/shared/FeedbackWidget';
 
 const copy = {
   zh: {
-    product: '产品能力', scenarios: '使用场景', faq: '常见问题', docs: '文档', enter: '进入工作空间', waitlistNav: '在线版内测',
+    product: '产品能力', scenarios: '使用场景', faq: '常见问题', docs: '文档', enter: '体验 Demo', waitlistNav: '在线版内测',
     title: '让想法落地，', title2: '无需繁琐排版。',
-    intro: '图像生成模型驱动的原生 AI PPT 应用。用自然语言描述想法、调整页面，从内容到视觉，生成完整的演示文稿。', start: '开始创作',
-    waitlistTitle: '在线托管版即将开放', waitlistIntro: '留下邮箱，优先获邀参加内测。', waitlistPlaceholder: '你的邮箱地址', waitlistSubmit: '预约内测', waitlistSubmitting: '提交中…', waitlistSuccess: '已收到预约，内测开放时我们会通过邮件联系你。', waitlistError: '提交失败，请稍后重试。', waitlistInvalid: '请输入有效的邮箱地址。', waitlistRateLimited: '提交较频繁，请稍后再试。', waitlistPrivacy: '邮箱仅用于发送在线托管版内测邀请。',
+    intro: '图像生成模型驱动的原生 AI PPT 应用。用自然语言描述想法、调整页面，从内容到视觉，生成完整的演示文稿。', start: '体验 Demo',
+    waitlistTitle: '在线托管版即将开放', waitlistIntro: '留下邮箱，优先获邀参加内测。', waitlistOpen: '预约在线版内测', waitlistClose: '关闭预约', waitlistPlaceholder: '你的邮箱地址', waitlistSubmit: '预约内测', waitlistSubmitting: '提交中…', waitlistSuccess: '已收到预约，内测开放时我们会通过邮件联系你。', waitlistError: '提交失败，请稍后重试。', waitlistInvalid: '请输入有效的邮箱地址。', waitlistRateLimited: '提交较频繁，请稍后再试。', waitlistPrivacy: '邮箱仅用于发送在线托管版内测邀请。',
     strip1: '想法与大纲', strip2: '参考文档', strip3: '风格与模板', strip4: 'PPTX / PDF',
     featureTitle: '全新的 PPT 制作体验',
     featureIntro: '每一页都由 AI 原生渲染，让内容结构与视觉设计一起成型。',
@@ -36,10 +36,10 @@ const copy = {
     q4: '开始使用前需要配置什么？', a4: '在个人设置中选择 API 提供商并填写自己的 API Key，保存后即可返回创作。模型调用可能产生所选服务商的费用。',
   },
   en: {
-    product: 'Product', scenarios: 'Use cases', faq: 'FAQ', docs: 'Docs', enter: 'Open workspace', waitlistNav: 'Hosted beta',
+    product: 'Product', scenarios: 'Use cases', faq: 'FAQ', docs: 'Docs', enter: 'Try the demo', waitlistNav: 'Hosted beta',
     title: 'Describe it.', title2: 'AI renders it.',
-    intro: 'An AI-native presentation app powered by image-generation models. Describe your ideas, refine slides with natural language, and generate a complete deck with content and visuals together.', start: 'Start creating',
-    waitlistTitle: 'Hosted Banana Slides is coming', waitlistIntro: 'Leave your email for an invitation to the beta.', waitlistPlaceholder: 'Your email address', waitlistSubmit: 'Join the waitlist', waitlistSubmitting: 'Submitting…', waitlistSuccess: 'You are on the list. We will email you when the beta opens.', waitlistError: 'Could not submit. Please try again.', waitlistInvalid: 'Enter a valid email address.', waitlistRateLimited: 'Too many submissions. Please try again later.', waitlistPrivacy: 'Your email will only be used for hosted beta invitations.',
+    intro: 'An AI-native presentation app powered by image-generation models. Describe your ideas, refine slides with natural language, and generate a complete deck with content and visuals together.', start: 'Try the demo',
+    waitlistTitle: 'Hosted Banana Slides is coming', waitlistIntro: 'Leave your email for an invitation to the beta.', waitlistOpen: 'Join the hosted beta', waitlistClose: 'Close signup', waitlistPlaceholder: 'Your email address', waitlistSubmit: 'Join the waitlist', waitlistSubmitting: 'Submitting…', waitlistSuccess: 'You are on the list. We will email you when the beta opens.', waitlistError: 'Could not submit. Please try again.', waitlistInvalid: 'Enter a valid email address.', waitlistRateLimited: 'Too many submissions. Please try again later.', waitlistPrivacy: 'Your email will only be used for hosted beta invitations.',
     strip1: 'Ideas & outlines', strip2: 'Reference files', strip3: 'Styles & templates', strip4: 'PPTX / PDF',
     featureTitle: 'A new way to create presentations',
     featureIntro: 'Every slide is rendered as a unified visual by AI — structure and style, together.',
@@ -71,6 +71,12 @@ export function Landing() {
   const [scenario, setScenario] = useState(1);
   const [email, setEmail] = useState('');
   const [waitlistState, setWaitlistState] = useState<'idle' | 'submitting' | 'success' | 'error' | 'invalid' | 'rate-limited'>('idle');
+  const waitlistDialogRef = useRef<HTMLDialogElement>(null);
+  const waitlistEmailRef = useRef<HTMLInputElement>(null);
+  const openWaitlist = () => {
+    waitlistDialogRef.current?.showModal();
+    waitlistEmailRef.current?.focus();
+  };
   const submitWaitlist = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (waitlistState === 'submitting') return;
@@ -100,24 +106,13 @@ export function Landing() {
     <FeedbackWidget />
     <header className="landing-nav landing-container">
       <a href="/" className="brand" aria-label="Banana Slides"><img src={logoUrl} alt="" width="32" height="32" /><span>Banana Slides</span></a>
-      <nav aria-label={t('product')}><a href="#product">{t('product')}</a><a href="#scenarios">{t('scenarios')}</a><a href="#faq">{t('faq')}</a><a href="#waitlist">{t('waitlistNav')}</a><a href="https://docs.bananaslides.online" target="_blank" rel="noopener noreferrer">{t('docs')}</a></nav>
+      <nav aria-label={t('product')}><a href="#product">{t('product')}</a><a href="#scenarios">{t('scenarios')}</a><a href="#faq">{t('faq')}</a><button type="button" onClick={openWaitlist}>{t('waitlistNav')}</button><a href="https://docs.bananaslides.online" target="_blank" rel="noopener noreferrer">{t('docs')}</a></nav>
       <div className="landing-nav-actions"><a className="landing-github-icon" href={githubUrl} target="_blank" rel="noopener noreferrer" aria-label="GitHub"><Github size={19} aria-hidden="true" /></a><button aria-label={i18n.language?.startsWith('zh') ? 'Switch to English' : '切换为中文'} onClick={() => i18n.changeLanguage(i18n.language?.startsWith('zh') ? 'en' : 'zh')}>{i18n.language?.startsWith('zh') ? 'EN' : '中文'}</button><a className="studio-button studio-button-dark" href="/app">{t('enter')}<ArrowUpRight size={15} /></a></div>
     </header>
     <main>
       <section className="landing-hero">
         <div className="landing-hero-copy"><span className="landing-title-rule" aria-hidden="true" /><h1>{t('title')}<br />{t('title2')}</h1><p className="landing-intro">{t('intro')}</p>
-          <div className="landing-hero-actions"><a href="/app" className="studio-button studio-button-dark">{t('start')}<ArrowRight size={17} /></a><a className="studio-button landing-github-button" href={githubUrl} target="_blank" rel="noopener noreferrer"><Github size={18} aria-hidden="true" />GitHub</a></div>
-          <div className="landing-waitlist" id="waitlist">
-            <span className="landing-waitlist-eyebrow">{t('waitlistNav')}</span>
-            <h2>{t('waitlistTitle')}</h2><p>{t('waitlistIntro')}</p>
-            <form onSubmit={event => { void submitWaitlist(event); }}>
-              <label className="sr-only" htmlFor="landing-waitlist-email">{t('waitlistPlaceholder')}</label>
-              <input id="landing-waitlist-email" type="email" autoComplete="email" required maxLength={254} placeholder={t('waitlistPlaceholder')} value={email} onChange={event => { setEmail(event.target.value); setWaitlistState('idle'); }} disabled={waitlistState === 'submitting'} />
-              <button className="studio-button landing-waitlist-submit" type="submit" disabled={waitlistState === 'submitting'}>{t(waitlistState === 'submitting' ? 'waitlistSubmitting' : 'waitlistSubmit')}</button>
-            </form>
-            <p className="landing-waitlist-note">{t('waitlistPrivacy')}</p>
-            <p className="landing-waitlist-feedback" data-state={waitlistState} role="status" aria-live="polite">{waitlistState === 'success' ? t('waitlistSuccess') : waitlistState === 'error' ? t('waitlistError') : waitlistState === 'invalid' ? t('waitlistInvalid') : waitlistState === 'rate-limited' ? t('waitlistRateLimited') : ''}</p>
-          </div>
+          <div className="landing-hero-actions"><a href="/app" className="studio-button studio-button-dark">{t('start')}<ArrowRight size={17} /></a><button className="studio-button landing-beta-button" type="button" onClick={openWaitlist}>{t('waitlistOpen')}<ArrowUpRight size={16} /></button><a className="studio-button landing-github-button" href={githubUrl} target="_blank" rel="noopener noreferrer"><Github size={18} aria-hidden="true" />GitHub</a></div>
         </div>
         <div className="landing-hero-art"><GrainSteps /><span className="landing-art-label">IDEAS<br />PEOPLE<br />PRESENT<br />TOGETHER<span /></span></div>
         <div className="landing-strip"><div>{[FileText, Layers, Sparkles, Download].map((Icon, i) => <span key={i}><Icon size={20} />{t(`strip${i + 1}`)}</span>)}</div></div>
@@ -136,6 +131,23 @@ export function Landing() {
       </section>
       <section id="faq" className="landing-faq landing-section landing-container"><h2>{t('faq')}</h2><div className="landing-faq-panel">{[0, 1, 2, 3].map(i => <article key={i}><h3><button aria-expanded={expanded === i} aria-controls={`faq-answer-${i}`} onClick={() => setExpanded(expanded === i ? null : i)}>{t(`q${i + 1}`)}{expanded === i ? <Minus size={18} /> : <Plus size={18} />}</button></h3><div id={`faq-answer-${i}`} hidden={expanded !== i}><p>{t(`a${i + 1}`)}</p></div></article>)}</div></section>
     </main>
+    <dialog ref={waitlistDialogRef} className="landing-waitlist-dialog" aria-labelledby="landing-waitlist-title">
+      <div className="landing-waitlist-screen">
+        <div className="landing-waitlist-top"><a href="/" className="brand" aria-label="Banana Slides"><img src={logoUrl} alt="" width="32" height="32" /><span>Banana Slides</span></a><button type="button" className="landing-waitlist-close" aria-label={t('waitlistClose')} onClick={() => waitlistDialogRef.current?.close()}><X size={21} aria-hidden="true" /></button></div>
+        <div className="landing-waitlist" id="waitlist">
+          <span className="landing-waitlist-eyebrow">{t('waitlistNav')}</span>
+          <h2 id="landing-waitlist-title">{t('waitlistTitle')}</h2><p>{t('waitlistIntro')}</p>
+          <form onSubmit={event => { void submitWaitlist(event); }}>
+            <label className="sr-only" htmlFor="landing-waitlist-email">{t('waitlistPlaceholder')}</label>
+            <input ref={waitlistEmailRef} id="landing-waitlist-email" type="email" autoComplete="email" required maxLength={254} placeholder={t('waitlistPlaceholder')} value={email} onChange={event => { setEmail(event.target.value); setWaitlistState('idle'); }} disabled={waitlistState === 'submitting'} />
+            <button className="studio-button landing-waitlist-submit" type="submit" disabled={waitlistState === 'submitting'}>{t(waitlistState === 'submitting' ? 'waitlistSubmitting' : 'waitlistSubmit')}</button>
+          </form>
+          <p className="landing-waitlist-note">{t('waitlistPrivacy')}</p>
+          <p className="landing-waitlist-feedback" data-state={waitlistState} role="status" aria-live="polite">{waitlistState === 'success' ? t('waitlistSuccess') : waitlistState === 'error' ? t('waitlistError') : waitlistState === 'invalid' ? t('waitlistInvalid') : waitlistState === 'rate-limited' ? t('waitlistRateLimited') : ''}</p>
+        </div>
+        <div className="landing-waitlist-art" aria-hidden="true"><GrainSteps /></div>
+      </div>
+    </dialog>
     <Footer />
   </div>;
 }
