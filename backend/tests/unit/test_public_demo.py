@@ -27,6 +27,50 @@ A = {'X-User-Token': 'visitor-a-0000000000000000000000000'}
 B = {'X-User-Token': 'visitor-b-0000000000000000000000000'}
 
 
+def test_inferera_models_use_separate_protocols_with_visitor_key(public_app):
+    client = public_app.test_client()
+    client.put('/api/settings', headers=A, json={'api_key': 'visitor-key'})
+    data = client.get('/api/settings', headers=A).json['data']
+    assert (data['text_model'], data['image_caption_model'], data['image_model']) == (
+        'gemini-3.8-flash', 'gemini-3.8-flash', 'gpt-image-2')
+    for headers, expected_key in ((A, 'visitor-key'), (B, '')):
+        with public_app.test_request_context('/api/settings', headers=headers):
+            public_app.preprocess_request()
+            for role in ('TEXT', 'IMAGE_CAPTION', 'IMAGE'):
+                assert current_app.config[role + '_API_KEY'] == expected_key
+                assert current_app.config[role + '_MODEL_SOURCE'] == ('openai' if role == 'IMAGE' else 'gemini')
+                assert current_app.config[role + '_API_BASE'] == (
+                    'https://api.inferera.com/v1' if role == 'IMAGE' else 'https://api.inferera.com/gemini')
+            assert current_app.config['OPENAI_IMAGE_API_PROTOCOL'] == 'images'
+    for partner, source, base in (
+        ('apimart', 'openai', 'https://api.apimart.ai/v1'),
+        ('volcengine', 'volcengine', 'https://ark.cn-beijing.volces.com/api/plan/v3'),
+    ):
+        client.put('/api/settings', headers=A, json={'partner': partner})
+        with public_app.test_request_context('/api/settings', headers=A):
+            public_app.preprocess_request()
+            assert current_app.config['IMAGE_MODEL_SOURCE'] == source
+            assert current_app.config['IMAGE_API_BASE'] == base
+            assert current_app.config['IMAGE_API_KEY'] == ''
+
+
+def test_existing_visitor_model_snapshot_uses_current_profile(public_app):
+    from models import PublicVisitor
+    client = public_app.test_client()
+    client.put('/api/settings', headers=A, json={'api_key': 'existing-key'})
+    with public_app.app_context():
+        row = db.session.get(PublicVisitor, hashlib.sha256(A['X-User-Token'].encode()).hexdigest())
+        old = json.loads(row.config_json)
+        old.update(text_model='gemini-3-flash-preview', image_model='gemini-3-pro-image-preview',
+                   image_caption_model='gemini-3-flash-preview')
+        row.config_json = json.dumps(old)
+        db.session.commit()
+    data = client.get('/api/settings', headers=A).json['data']
+    assert data['text_model'] == data['image_caption_model'] == 'gemini-3.8-flash'
+    assert data['image_model'] == 'gpt-image-2'
+    assert data['api_key_length'] == len('existing-key')
+
+
 def test_settings_isolation_switch_reset_and_locked_fields(public_app):
     client = public_app.test_client()
     assert client.get('/api/settings').status_code == 401
