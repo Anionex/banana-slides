@@ -180,7 +180,7 @@
  .landing-page .landing-hero { padding: 35px 20px 0; min-height: 0; }
  .landing-page .landing-hero-copy { width: 100%; }.landing-page .landing-title-rule { width: 23px; margin-bottom: 15px; }
  .landing-page .landing-hero h1 { font-size: clamp(30px, 7.7vw, 45px); letter-spacing: -1.6px; margin-bottom: 20px; }.landing-page .landing-intro { font-size: 13px; line-height: 1.8; }
- .landing-page .landing-hero-actions { margin-top: 24px; }.landing-page .landing-hero-actions .studio-button { font-size: 12px; padding-inline: 18px; }
+ .landing-page .landing-hero-actions { margin-top: 24px; }.landing-page .landing-hero-actions .studio-button { font-size: 12px; padding-inline: 18px; }.landing-page .landing-hero-actions .landing-beta-button { padding-right: 36px; }
  .landing-page .landing-hero-art { position: relative; width: calc(100% + 20px); height: auto; aspect-ratio: 1.02; margin: 32px -20px 0 0; top: auto; right: auto; }
  .landing-page .landing-art-label { right: 13%; font-size: 8px; }
  .landing-page .landing-strip { position: relative; left: auto; bottom: auto; width: 100%; padding: 28px 0 32px; gap: 16px; }

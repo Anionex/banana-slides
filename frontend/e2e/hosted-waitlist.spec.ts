@@ -39,6 +39,28 @@ test('beta button opens a full-screen signup on desktop and mobile', async ({ pa
   }
 });
 
+test('English mobile beta button keeps text clear of the light gradient', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Switch to English' }).click();
+  const beta = page.getByRole('button', { name: 'Join the hosted beta' });
+  await expect(beta).toBeVisible();
+  const layout = await beta.evaluate(element => {
+    const button = element.getBoundingClientRect();
+    const label = element.querySelector('span')!.getBoundingClientRect();
+    return {
+      paddingRight: parseFloat(getComputedStyle(element).paddingRight),
+      labelEnd: (label.right - button.left) / button.width,
+      buttonEnd: button.right,
+    };
+  });
+  expect(layout.paddingRight).toBeGreaterThanOrEqual(36);
+  expect(layout.labelEnd).toBeLessThan(0.7);
+  expect(layout.buttonEnd).toBeLessThanOrEqual(390);
+  await beta.click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+});
+
 test('signup shows a recoverable error for a failed API request', async ({ page }) => {
   await page.route(url => url.pathname === '/api/waitlist', route => route.fulfill({ status: 500, body: '{}' }));
   await page.goto('/');
