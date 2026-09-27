@@ -31,15 +31,24 @@
 .landing-page .landing-hero h1 { font-size: clamp(40px, 4.65vw, 67px); font-weight: 600; line-height: 1.08; letter-spacing: -2.5px; margin: 0 0 23px; text-wrap: balance; }
 .landing-page .landing-intro { max-width: 540px; font-size: clamp(14px, 1.3vw, 18px); line-height: 1.7; color: var(--text-secondary); text-wrap: pretty; }
 .landing-page .landing-hero-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 29px; }
-.landing-page .landing-waitlist { width: min(100%, 490px); margin-top: 34px; padding: 19px 21px 14px; border: 1px solid var(--studio-line); border-radius: 12px; background: #fffdf8e8; box-shadow: 0 8px 30px #2425220a; }
-.landing-page .landing-waitlist h2 { margin: 0 0 5px; font-size: 17px; font-weight: 600; letter-spacing: -.25px; }
-.landing-page .landing-waitlist > p { margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.6; }
-.landing-page .landing-waitlist form { display: flex; gap: 8px; margin-top: 13px; }
-.landing-page .landing-waitlist input { flex: 1; min-width: 0; min-height: 44px; padding: 10px 13px; border: 1px solid #d6d8dd; border-radius: 8px; background: #fff; color: var(--studio-ink); font: inherit; font-size: 13px; }
-.landing-page .landing-waitlist input:focus-visible { outline: 2px solid #aa7c21; outline-offset: 2px; }
-.landing-page .landing-waitlist button:disabled { opacity: .65; cursor: wait; }
-.landing-page .landing-waitlist .landing-waitlist-note { margin-top: 9px; font-size: 11px; }
-.landing-page .landing-waitlist .landing-waitlist-feedback { min-height: 1.6em; margin-top: 3px; color: #28613e; }
+.landing-page .landing-waitlist { width: min(100%, 500px); margin-top: 40px; padding-top: 21px; border-top: 1px solid #dcdedc; }
+.landing-page .landing-waitlist-eyebrow { display: flex; align-items: center; gap: 9px; color: #777971; font-size: 10px; font-weight: 650; letter-spacing: .18em; line-height: 1; }
+.landing-page .landing-waitlist-eyebrow::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #e7b724; }
+.landing-page .landing-waitlist h2 { margin: 13px 0 0; font-size: clamp(19px, 1.7vw, 23px); font-weight: 560; line-height: 1.3; letter-spacing: -.65px; }
+.landing-page .landing-waitlist > p { color: var(--text-secondary); line-height: 1.6; }
+.landing-page .landing-waitlist .landing-waitlist-intro { margin: 5px 0 0; font-size: 13px; }
+.landing-page .landing-waitlist form { display: flex; align-items: center; gap: 18px; margin-top: 19px; border-bottom: 1px solid #aeb1ac; transition: border-color .18s, box-shadow .18s; }
+.landing-page .landing-waitlist form:focus-within { border-color: #242522; box-shadow: 0 1px #242522; }
+.landing-page .landing-waitlist input { flex: 1; min-width: 0; height: 49px; padding: 0; border: 0; outline: 0; background: transparent; color: var(--studio-ink); font: inherit; font-size: 14px; }
+.landing-page .landing-waitlist input::placeholder { color: #92948e; }
+.landing-page .landing-waitlist input:focus-visible { outline: 0; }
+.landing-page .landing-waitlist button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 49px; padding: 0 1px; border: 0; background: transparent; color: var(--studio-ink); font: inherit; font-size: 13px; font-weight: 650; white-space: nowrap; cursor: pointer; }
+.landing-page .landing-waitlist button svg { transition: transform .18s; }
+.landing-page .landing-waitlist button:hover svg { transform: translate(2px, -2px); }
+.landing-page .landing-waitlist button:disabled { opacity: .55; cursor: wait; }
+.landing-page .landing-waitlist .landing-waitlist-note { margin: 11px 0 0; font-size: 11px; }
+.landing-page .landing-waitlist .landing-waitlist-feedback { margin: 8px 0 0; font-size: 12px; color: #28613e; }
+.landing-page .landing-waitlist .landing-waitlist-feedback:empty { display: none; }
 .landing-page .landing-waitlist .landing-waitlist-feedback[data-state=error], .landing-page .landing-waitlist .landing-waitlist-feedback[data-state=invalid], .landing-page .landing-waitlist .landing-waitlist-feedback[data-state=rate-limited] { color: #b42318; }
 .landing-page .landing-github-button { color: var(--studio-ink); border: 1px solid var(--studio-line); background: var(--studio-paper); }
 .landing-page .landing-github-button:hover { background: var(--bg-hover); border-color: var(--text-secondary); }
@@ -145,10 +154,9 @@
  .landing-page .landing-nav nav { display: none; }
 }
 @media (max-width: 640px) {
- .landing-page .landing-waitlist { margin-top: 27px; padding: 17px 15px 12px; }
- .landing-page .landing-waitlist form { flex-wrap: wrap; }
- .landing-page .landing-waitlist input { flex-basis: 100%; }
- .landing-page .landing-waitlist button { width: 100%; }
+ .landing-page .landing-waitlist { margin-top: 33px; padding-top: 19px; }
+ .landing-page .landing-waitlist form { gap: 10px; }
+ .landing-page .landing-waitlist button { font-size: 12px; }
  .landing-page { --landing-gutter: 20px; }.landing-page .landing-nav { min-height: 80px; gap: 12px; }.landing-page .landing-nav-actions { gap: 10px; }.landing-page .landing-nav .brand { font-size: 14px; }.landing-page .landing-nav .brand img { width: 26px; height: 26px; }
  .landing-page .landing-nav-actions .studio-button { font-size: 10px; padding: 9px 11px; gap: 8px; }.landing-page .landing-nav-actions .studio-button svg { display: none; }
  .landing-page .landing-hero { padding: 35px 20px 0; min-height: 0; }
