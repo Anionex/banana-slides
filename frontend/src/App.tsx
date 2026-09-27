@@ -1,6 +1,7 @@
 import { isPublicDemo } from '@/utils/publicDemo';
 import { PublicSettings } from './pages/PublicSettings';
 import { AdminHistory } from './pages/AdminHistory';
+import { AdminFeedback } from './pages/AdminFeedback';
 import { useEffect } from 'react';
 import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Home } from './pages/Home';
@@ -16,6 +17,7 @@ import { useToast, AccessCodeGuard, DesktopTitleBar, UpdateChecker } from './com
 import { getDesktopTopInset } from './components/shared/UpdateChecker';
 import { isDesktop } from '@/utils';
 import { publicLandingEnabled } from '@/utils/publicLanding';
+import { FeedbackWidget } from '@/components/shared/FeedbackWidget';
 
 function App() {
   const { currentProject, syncProject, error, setError } = useProjectStore();
@@ -41,6 +43,7 @@ function App() {
   return (
     <>
       {!isPublicDemo && <UpdateChecker />}
+      {isPublicDemo && <FeedbackWidget />}
       <div style={isDesktop ? { paddingTop: `${getDesktopTopInset()}px` } : undefined}>
         <AccessCodeGuard>
           {(() => {
@@ -54,6 +57,7 @@ function App() {
                   <Route path="/landing" element={<Landing />} />
                   <Route path="/history" element={isPublicDemo ? <Navigate to="/" replace /> : <History />} />
                   <Route path="/admin/history" element={isPublicDemo ? <AdminHistory /> : <Navigate to="/" replace />} />
+                  <Route path="/admin/feedback" element={isPublicDemo ? <AdminFeedback /> : <Navigate to="/" replace />} />
                   <Route path="/settings" element={isPublicDemo ? <PublicSettings /> : <SettingsPage />} />
                   <Route path="/project/:projectId/outline" element={<OutlineEditor />} />
                   <Route path="/project/:projectId/detail" element={<DetailEditor />} />

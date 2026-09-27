@@ -7,12 +7,16 @@ import hashlib
 import hmac
 import json
 import re
+import time
+from threading import Lock
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from contextvars import ContextVar
 from threading import Thread
 from flask import current_app, g, has_app_context, has_request_context, request
 from flask.config import Config as FlaskConfig
+_feedback_lock = Lock()
+_feedback_last_sent = {}
 
 _task_visitor = ContextVar('public_demo_visitor', default=None)
 PROFILES = {
@@ -191,7 +195,7 @@ def settings_json():
 
 
 def install(app):
-    from models import db, PublicVisitor
+    from models import db, Feedback, PublicVisitor
     from utils import error_response, success_response
 
     @app.route('/api/public-config')
@@ -211,6 +215,66 @@ def install(app):
             return error_response('UNAUTHORIZED', '管理员口令错误。', 401)
         # Read-only, separate from the publicly blocked history endpoint.
         response = make_response(list_projects())
+        response.headers['Cache-Control'] = 'no-store'
+        return response
+
+    @app.route('/api/feedback', methods=['POST'])
+    def send_feedback():
+        if not enabled():
+            return error_response('NOT_FOUND', '反馈入口未启用。', 404)
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return error_response('INVALID_FEEDBACK', '请填写问题描述。', 400)
+        if data.get('website'):
+            return success_response({'received': True})  # Hidden field catches simple spam bots.
+        message = data.get('message')
+        reply_email = data.get('email', '')
+        page_path = data.get('page', '')
+        if not isinstance(message, str) or not message.strip() or len(message.strip()) > 3000:
+            return error_response('INVALID_FEEDBACK', '请填写 3000 字以内的问题描述。', 400)
+        if not isinstance(reply_email, str) or (reply_email and (len(reply_email) > 254 or not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+', reply_email))):
+            return error_response('INVALID_FEEDBACK', '请检查联系邮箱格式。', 400)
+        if not isinstance(page_path, str) or len(page_path) > 300 or not page_path.startswith('/') or page_path.startswith('//'):
+            page_path = '/'
+        visitor_token = g.public_visitor['token']
+        now = time.monotonic()
+        with _feedback_lock:
+            last_sent = _feedback_last_sent.get(visitor_token)
+            if last_sent is not None and now - last_sent < 60:
+                return error_response('FEEDBACK_RATE_LIMIT', '发送太频繁，请稍后再试。', 429)
+            _feedback_last_sent[visitor_token] = now
+            if len(_feedback_last_sent) > 2000:
+                stale = [token for token, sent_at in _feedback_last_sent.items() if now - sent_at > 60]
+                for token in stale:
+                    _feedback_last_sent.pop(token, None)
+
+        feedback = Feedback(message=message.strip(), reply_email=reply_email.strip() or None,
+                            page_path=page_path)
+        try:
+            db.session.add(feedback)
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            with _feedback_lock:
+                if _feedback_last_sent.get(visitor_token) == now:
+                    _feedback_last_sent.pop(visitor_token, None)
+            return error_response('FEEDBACK_UNAVAILABLE', '暂时无法提交，请稍后重试。', 503)
+        return success_response({'received': True})
+
+    @app.route('/api/admin/feedback', methods=['POST'])
+    def admin_feedback():
+        from flask import make_response
+        password = dict.get(app.config, 'PUBLIC_DEMO_ADMIN_PASSWORD', '')
+        if not enabled() or not password:
+            return error_response('NOT_FOUND', '入口未启用。', 404)
+        data = request.get_json(silent=True)
+        supplied = data.get('password') if isinstance(data, dict) else None
+        if not isinstance(supplied, str) or not hmac.compare_digest(supplied.encode(), password.encode()):
+            return error_response('UNAUTHORIZED', '管理员口令错误。', 401)
+        limit = min(max(request.args.get('limit', 20, type=int), 1), 100)
+        offset = max(request.args.get('offset', 0, type=int), 0)
+        rows = Feedback.query.order_by(Feedback.created_at.desc(), Feedback.id.desc()).limit(limit).offset(offset).all()
+        response = make_response(success_response({'items': [row.to_dict() for row in rows], 'total': Feedback.query.count()}))
         response.headers['Cache-Control'] = 'no-store'
         return response
 

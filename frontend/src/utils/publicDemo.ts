@@ -7,8 +7,8 @@ export interface PublicPartner {
 }
 export let publicPartners: Record<string, PublicPartner> = {};
 let memoryToken = '';
-export function visitorHeaders(): Record<string, string> {
-  if (!isPublicDemo) return {};
+export function visitorHeaders(forcePublic = false): Record<string, string> {
+  if (!isPublicDemo && !forcePublic) return {};
   let token = memoryToken;
   try { token = localStorage.getItem('banana-slides-user-token') || token; } catch { /* private browsing */ }
   if (!/^[a-zA-Z0-9_-]{20,100}$/.test(token)) {
