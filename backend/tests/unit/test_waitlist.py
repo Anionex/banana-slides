@@ -22,7 +22,8 @@ def test_signup_deduplicates_and_exports_with_owner_password(tmp_path):
         db.create_all()
     client = app.test_client()
 
-    for invalid in ({}, {'email': 'wrong'}, {'email': 'a@b'}, {'email': 'a@b.com\nOther: x'}):
+    for invalid in ({}, {'email': 'wrong'}, {'email': 'a@b'}, {'email': 'a@b.com\nOther: x'},
+                    {'email': '=formula@example.com'}, {'email': '+formula@example.com'}):
         assert client.post('/api/waitlist', json=invalid).status_code == 400
     for address in ('  Alice@Example.com  ', 'alice@example.com'):
         response = client.post('/api/waitlist', json={'email': address})
@@ -43,7 +44,29 @@ def test_signup_deduplicates_and_exports_with_owner_password(tmp_path):
     assert len(rows) == 1
     assert rows[0]['email'] == 'alice@example.com'
     assert rows[0]['created_at_utc'].endswith('+00:00')
+    with app.app_context():
+        db.session.add(WaitlistSignup(email='=legacy@example.com'))
+        db.session.commit()
+    rows = list(csv.DictReader(io.StringIO(client.post(export, json={'password': 'owner-secret'},
+        headers={'X-User-Token': 'visitor-a-0000000000000000000000000'}).get_data(as_text=True))))
+    assert rows[1]['email'] == "'=legacy@example.com"
+
+    for index in range(3):
+        assert client.post('/api/waitlist', json={'email': f'visitor-{index}@example.com'}).status_code == 200
+    limited = client.post('/api/waitlist', json={'email': 'visitor-5@example.com'})
+    assert limited.status_code == 429
+    assert limited.headers['Retry-After'] == '60'
+    assert client.post('/api/waitlist', json={'email': 'another-visitor@example.com'},
+                       headers={'X-Forwarded-For': '198.51.100.1, 172.26.0.1'}).status_code == 200
 
     app.config['PUBLIC_DEMO'] = False
     assert client.post('/api/waitlist', json={'email': 'new@example.com'}).status_code == 404
     assert client.post(export, json={'password': 'owner-secret'}).status_code == 404
+
+
+def test_signup_remains_public_when_workspace_has_access_code(app, client, monkeypatch):
+    monkeypatch.setitem(app.config, 'PUBLIC_DEMO', True)
+    monkeypatch.setenv('ACCESS_CODE', 'workspace-only-code')
+    response = client.post('/api/waitlist', json={'email': 'access@example.com'})
+    assert response.status_code == 200
+    assert response.json == {'data': {'accepted': True}}

@@ -16,6 +16,23 @@ test('signup shows a recoverable error for a failed API request', async ({ page 
   await expect(page.getByLabel('你的邮箱地址')).toHaveValue('trial@example.com');
 });
 
+test('signup explains rate limiting without losing the address', async ({ page }) => {
+  await page.route(url => url.pathname === '/api/waitlist', route => route.fulfill({ status: 429, body: '{}' }));
+  await page.goto('/');
+  await page.getByLabel('你的邮箱地址').fill('rate@example.com');
+  await page.getByRole('button', { name: '预约内测' }).click();
+  await expect(page.getByRole('status')).toContainText('提交较频繁，请稍后再试。');
+  await expect(page.getByLabel('你的邮箱地址')).toHaveValue('rate@example.com');
+});
+
+test('signup explains a rejected email address', async ({ page }) => {
+  await page.route(url => url.pathname === '/api/waitlist', route => route.fulfill({ status: 400, body: '{}' }));
+  await page.goto('/');
+  await page.getByLabel('你的邮箱地址').fill('invalid@example.com');
+  await page.getByRole('button', { name: '预约内测' }).click();
+  await expect(page.getByRole('status')).toContainText('请输入有效的邮箱地址。');
+});
+
 test('real signup persists once and owner exports the CSV', async ({ page }) => {
   const email = `waitlist-${Date.now()}@example.com`;
   await page.goto('/');
