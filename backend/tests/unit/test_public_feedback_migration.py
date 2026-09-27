@@ -10,7 +10,7 @@ def test_feedback_migration_preserves_existing_backport_table(tmp_path):
     database = tmp_path / 'feedback.db'
     config = Config(str(Path(__file__).resolve().parents[2] / 'alembic.ini'))
     config.set_main_option('sqlalchemy.url', f'sqlite:///{database}')
-    command.upgrade(config, '9f3c7a1d5e20')
+    command.upgrade(config, 'hosted_beta_waitlist')
     with sqlite3.connect(database) as connection:
         connection.executescript('''
             CREATE TABLE feedback (
