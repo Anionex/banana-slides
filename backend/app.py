@@ -216,6 +216,8 @@ def create_app():
 
     from services.public_demo import install as install_public_demo
     install_public_demo(app)
+    from services.waitlist import install as install_waitlist
+    install_waitlist(app)
 
     # Health check endpoint
     @app.route('/health')
