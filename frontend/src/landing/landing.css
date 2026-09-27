@@ -16,7 +16,7 @@
 .landing-page .grain-steps > span:nth-child(2) { left: 16.6%; top: 11.5%; width: 45%; height: 73%; --grain-field: linear-gradient(90deg, transparent, #000a 25%, #000e 55%, #000 80%); --grain-fade: linear-gradient(180deg, #0009, #000d 38%, #000 70%); }
 .landing-page .grain-steps > span:nth-child(3) { left: 19.8%; top: 45%; width: 60%; height: 66%; --grain-field: linear-gradient(130deg, #000d, #000a 35%, #0002 80%, transparent); }
 .landing-page .grain-steps > span:nth-child(4) { left: 73.5%; top: 64.3%; width: 40%; height: 48%; --grain-field: radial-gradient(ellipse at 100% 80%, #000b, #0006 60%, #0000 110%); }
-.landing-page .landing-hero-art .grain-steps > span, .landing-page .landing-waitlist-art .grain-steps > span { background: linear-gradient(90deg, #29306a 0%, #92727b 48%, #f1af8c 100%); -webkit-mask-image: none; mask-image: none; }
+.landing-page .landing-hero-art .grain-steps > span, .landing-page .landing-waitlist-art .grain-steps > span { background: linear-gradient(90deg, #f8cc27 0%, #ffe271 58%, #fff9e9 100%); -webkit-mask-image: none; mask-image: none; }
 .landing-page .landing-hero-art .grain-steps > span::after, .landing-page .landing-waitlist-art .grain-steps > span::after { opacity: .48; mix-blend-mode: soft-light; }
 .landing-page { --landing-gutter: 6.8vw; background: var(--studio-paper); color: var(--studio-ink); overflow: clip; }
 .landing-page .landing-container { width: min(1240px, calc(100% - 2 * var(--landing-gutter))); margin-inline: auto; }
@@ -33,12 +33,11 @@
 .landing-page .landing-hero h1 { font-size: clamp(40px, 4.65vw, 67px); font-weight: 600; line-height: 1.08; letter-spacing: -2.5px; margin: 0 0 23px; text-wrap: balance; }
 .landing-page .landing-intro { max-width: 540px; font-size: clamp(14px, 1.3vw, 18px); line-height: 1.7; color: var(--text-secondary); text-wrap: pretty; }
 .landing-page .landing-hero-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 29px; }
-.landing-page .landing-beta-button { position: relative; isolation: isolate; overflow: hidden; padding-right: 36px; color: #fff; border: 1px solid #4e4a71; background: #29306a; }
+.landing-page .landing-beta-button { position: relative; isolation: isolate; overflow: hidden; padding-right: 36px; color: #242522; border: 1px solid #d8d9d8; background: #fff; }
 .landing-page .landing-beta-button > span, .landing-page .landing-beta-button > svg { position: relative; z-index: 1; }
-.landing-page .landing-beta-button > svg { color: #fff; }
-.landing-page .landing-beta-button::before { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, #29306a 0%, #66567a 70%, #f1af8c 100%); background-size: 115% 100%; animation: landing-beta-glow 7s ease-in-out infinite alternate; }
+.landing-page .landing-beta-button::before { content: ''; position: absolute; inset: 0; background: linear-gradient(105deg, #fff 8%, #fff 42%, #fff9e9 62%, #f8cc27 100%); background-size: 160% 100%; animation: landing-beta-glow 7s ease-in-out infinite alternate; }
 .landing-page .landing-beta-button::after { content: ''; position: absolute; inset: 0; opacity: .48; background: url('./grain.svg') repeat; background-size: 192px 192px; mix-blend-mode: soft-light; animation: landing-beta-grain 11s ease-in-out infinite alternate; }
-.landing-page .landing-beta-button:hover { border-color: #29306a; }
+.landing-page .landing-beta-button:hover { border-color: #d8b64d; }
 @keyframes landing-beta-glow { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
 @keyframes landing-beta-grain { from { background-position: 0 0; } to { background-position: 42px 0; } }
 @media (prefers-reduced-motion: reduce) { .landing-page .landing-beta-button::before, .landing-page .landing-beta-button::after { animation: none; } }
