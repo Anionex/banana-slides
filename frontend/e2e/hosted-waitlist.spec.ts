@@ -91,6 +91,26 @@ test('reopening during submission keeps the form locked until the request finish
   await expect(page.getByRole('status')).toContainText('已收到预约');
 });
 
+test('reopening after a hidden result still shows the submission outcome', async ({ page }) => {
+  let finishRequest = () => {};
+  const pending = new Promise<void>(resolve => { finishRequest = resolve; });
+  await page.route(url => url.pathname === '/api/waitlist', async route => {
+    await pending;
+    await route.fulfill({ status: 200, body: '{}' });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: '预约在线版内测' }).click();
+  await page.getByLabel('你的邮箱地址').fill('closed@example.com');
+  await page.getByRole('button', { name: '预约内测' }).click();
+  await expect(page.getByRole('button', { name: '提交中…' })).toBeDisabled();
+  await page.keyboard.press('Escape');
+  finishRequest();
+  await expect(page.locator('.landing-waitlist-feedback')).toContainText('已收到预约');
+  await page.getByRole('button', { name: '预约在线版内测' }).click();
+  await expect(page.getByRole('status')).toContainText('已收到预约');
+  await expect(page.getByLabel('你的邮箱地址')).toBeEmpty();
+});
+
 test('real signup persists once and owner exports the CSV', async ({ page }) => {
   const email = `waitlist-${Date.now()}@example.com`;
   await page.goto('/');
