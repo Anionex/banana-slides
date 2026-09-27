@@ -9,6 +9,10 @@ from models import db
 
 @pytest.fixture
 def public_app(tmp_path):
+    from services import public_demo
+    with public_demo._feedback_lock:
+        public_demo._feedback_last_sent.clear()
+        public_demo._feedback_accept_times.clear()
     app = Flask(__name__)
     app.config = PublicConfig(app.root_path, dict(app.config))
     app.config.update(PUBLIC_DEMO=True, TESTING=True,
@@ -21,6 +25,9 @@ def public_app(tmp_path):
     with app.app_context():
         db.create_all()
     yield app
+    with public_demo._feedback_lock:
+        public_demo._feedback_last_sent.clear()
+        public_demo._feedback_accept_times.clear()
 
 
 A = {'X-User-Token': 'visitor-a-0000000000000000000000000'}
@@ -81,6 +88,22 @@ def test_public_feedback_is_saved_and_only_visible_with_admin_password(public_ap
     assert response.json['data']['items'][0]['page_path'] == '/app'
     assert client.post('/api/admin/feedback?limit=20&offset=1', headers=B,
                        json={'password': 'feedback-admin-secret'}).json['data']['items'] == []
+
+
+def test_public_feedback_blocks_rotating_tokens_and_external_page_links(public_app):
+    from models import Feedback
+
+    client = public_app.test_client()
+    for index in range(20):
+        response = client.post('/api/feedback', headers={'X-User-Token': f'feedback-visitor-{index:03d}-token'},
+                               json={'message': f'问题 {index}', 'page': '/\\evil.example/path'})
+        assert response.status_code == 200
+    blocked = client.post('/api/feedback', headers={'X-User-Token': 'feedback-visitor-999-token'},
+                          json={'message': 'should be limited', 'page': '/app'})
+    assert blocked.status_code == 429
+    with public_app.app_context():
+        assert Feedback.query.count() == 20
+        assert {row.page_path for row in Feedback.query.all()} == {'/'}
 
 
 def test_config_isolation_in_nested_workers_and_no_server_fallback(public_app):
