@@ -235,7 +235,7 @@ def install(app):
         page_path = data.get('page', '')
         if not isinstance(message, str) or not message.strip() or len(message.strip()) > 3000:
             return error_response('INVALID_FEEDBACK', '请填写 3000 字以内的问题描述。', 400)
-        if not isinstance(reply_email, str) or (reply_email and (len(reply_email) > 254 or not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+', reply_email))):
+        if not isinstance(reply_email, str) or (reply_email and (len(reply_email) > 254 or not re.fullmatch(r'[A-Za-z0-9._+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,63}', reply_email))):
             return error_response('INVALID_FEEDBACK', '请检查联系邮箱格式。', 400)
         if (not isinstance(page_path, str) or len(page_path) > 300 or not page_path.startswith('/')
                 or page_path.startswith('//') or re.search(r'[\x00-\x1f\\]', page_path)):

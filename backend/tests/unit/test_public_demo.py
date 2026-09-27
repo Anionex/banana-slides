@@ -67,6 +67,9 @@ def test_public_feedback_is_saved_and_only_visible_with_admin_password(public_ap
     client = public_app.test_client()
     assert client.post('/api/feedback', json={'message': '生成卡住了', 'page': '/app'}).status_code == 401
     assert client.post('/api/feedback', headers=A, json={'message': '  ', 'page': '/app'}).status_code == 400
+    assert client.post('/api/feedback', headers=A, json={
+        'message': '恶意邮箱', 'email': 'user@example.com?bcc=attacker%40evil.com', 'page': '/app',
+    }).status_code == 400
     assert client.post('/api/feedback', headers=A, json={'message': '测试机器人', 'website': 'spam.example'}).status_code == 200
     with public_app.app_context():
         assert Feedback.query.count() == 0
