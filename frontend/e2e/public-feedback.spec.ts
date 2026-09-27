@@ -11,10 +11,14 @@ test('real public feedback: submit on landing, inspect in admin inbox, and reaut
   await page.goto('/');
   await expect(page.locator('.landing-page')).toBeVisible();
   await page.getByRole('button', { name: '反馈问题' }).click();
+  await expect(page.getByText('遇到问题？告诉开发者')).toBeVisible();
+  await expect(page.getByText('很抱歉影响了你的使用。写下发生了什么，开发者会认真查看。')).toBeVisible();
+  await expect(page.getByText('方便开发者在需要更多信息时联系你；不留也可以提交。')).toBeVisible();
   await page.getByRole('textbox', { name: '问题描述' }).fill(message);
   await page.getByRole('textbox', { name: /联系邮箱/ }).fill('feedback-check@example.com');
   await page.getByRole('button', { name: '提交反馈' }).click();
-  await expect(page.getByRole('status')).toContainText('已收到');
+  await expect(page.getByRole('status').filter({ hasText: '已收到' })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: '已收到' })).toContainText('谢谢你告诉开发者。开发者会认真查看。');
 
   await page.goto('/app');
   await expect(page.getByRole('button', { name: '反馈问题' })).toBeVisible();

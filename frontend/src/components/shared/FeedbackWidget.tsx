@@ -6,12 +6,12 @@ import { visitorHeaders } from '@/utils/publicDemo';
 
 const copy = {
   zh: {
-    trigger: '反馈问题', title: '遇到问题？告诉我们',
-    intro: '很抱歉影响了你的使用。写下发生了什么，我们会认真查看。',
+    trigger: '反馈问题', title: '遇到问题？告诉开发者',
+    intro: '很抱歉影响了你的使用。写下发生了什么，开发者会认真查看。',
     message: '问题描述', placeholder: '例如：点击生成后一直停在加载中……',
-    email: '联系邮箱（选填）', emailHint: '方便我们需要更多信息时联系你；不留也可以提交。',
+    email: '联系邮箱（选填）', emailHint: '方便开发者在需要更多信息时联系你；不留也可以提交。',
     privacy: '反馈会保存问题描述、选填邮箱和当前页面；不会附带项目内容或 API Key。',
-    submit: '提交反馈', sending: '正在提交…', success: '已收到，谢谢你告诉我们。我们会认真查看。',
+    submit: '提交反馈', sending: '正在提交…', success: '已收到，谢谢你告诉开发者。开发者会认真查看。',
     close: '关闭', failed: '暂时无法提交，请稍后重试。', rateLimit: '提交太频繁，请稍后再试。',
   },
   en: {
