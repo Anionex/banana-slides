@@ -57,7 +57,7 @@ test('real signup persists once and owner exports the CSV', async ({ page }) => 
   await page.getByRole('button', { name: '预约内测' }).click();
   await expect(page.getByRole('status')).toContainText('已收到预约');
   await page.getByLabel('你的邮箱地址').fill(email.toUpperCase());
-  await expect(page.locator('.landing-waitlist-feedback')).toBeEmpty();
+  await expect(page.getByRole('status')).toBeEmpty();
   await page.getByRole('button', { name: '预约内测' }).click();
   await expect(page.getByRole('status')).toContainText('已收到预约');
 

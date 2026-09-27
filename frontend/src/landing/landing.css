@@ -44,7 +44,7 @@
 .landing-page .landing-waitlist button:disabled { opacity: .65; cursor: wait; }
 .landing-page .landing-waitlist .landing-waitlist-note { margin-top: 9px; font-size: 11px; }
 .landing-page .landing-waitlist .landing-waitlist-feedback { margin-top: 5px; color: #28613e; }
-.landing-page .landing-waitlist .landing-waitlist-feedback[data-state=idle] { display: none; }
+.landing-page .landing-waitlist .landing-waitlist-feedback:empty { margin-top: 0; }
 .landing-page .landing-waitlist .landing-waitlist-feedback[data-state=error], .landing-page .landing-waitlist .landing-waitlist-feedback[data-state=invalid], .landing-page .landing-waitlist .landing-waitlist-feedback[data-state=rate-limited] { color: #b42318; }
 .landing-page .landing-github-button { color: var(--studio-ink); border: 1px solid var(--studio-line); background: var(--studio-paper); }
 .landing-page .landing-github-button:hover { background: var(--bg-hover); border-color: var(--text-secondary); }
