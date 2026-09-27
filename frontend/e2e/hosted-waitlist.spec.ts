@@ -7,11 +7,16 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('i18nextLng', 'zh'));
 });
 
-test('waitlist sits in the hero without a card on desktop and mobile', async ({ page }) => {
+test('beta button opens a full-screen signup on desktop and mobile', async ({ page }) => {
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/');
+    await expect(page.locator('.landing-nav-actions a[href="/app"]')).toHaveText('体验 Demo');
+    await expect(page.locator('.landing-hero-actions a[href="/app"]')).toContainText('体验 Demo');
     const waitlist = page.locator('.landing-waitlist');
+    await expect(waitlist).toBeHidden();
+    await page.getByRole('button', { name: '预约在线版内测' }).click();
+    await expect(page.getByRole('dialog', { name: '在线托管版即将开放' })).toBeVisible();
     await expect(waitlist).toBeVisible();
     const style = await waitlist.evaluate(element => {
       const computed = getComputedStyle(element);
@@ -21,12 +26,22 @@ test('waitlist sits in the hero without a card on desktop and mobile', async ({ 
     const input = await page.getByLabel('你的邮箱地址').boundingBox();
     const button = await page.getByRole('button', { name: '预约内测' }).boundingBox();
     expect(input && button && Math.abs(input.y - button.y) < 2).toBeTruthy();
+    await page.keyboard.press('Escape');
+    await expect(waitlist).toBeHidden();
+    if (width === 1440) {
+      await expect(page.locator('.landing-scenario-copy a[href="/app"]')).toContainText('体验 Demo');
+      await page.getByRole('navigation', { name: '产品能力' }).getByRole('button', { name: '在线版内测' }).click();
+      await expect(waitlist).toBeVisible();
+      await page.getByRole('button', { name: '关闭预约' }).click();
+      await expect(waitlist).toBeHidden();
+    }
   }
 });
 
 test('signup shows a recoverable error for a failed API request', async ({ page }) => {
   await page.route(url => url.pathname === '/api/waitlist', route => route.fulfill({ status: 500, body: '{}' }));
   await page.goto('/');
+  await page.getByRole('button', { name: '预约在线版内测' }).click();
   await page.getByLabel('你的邮箱地址').fill('trial@example.com');
   await page.getByRole('button', { name: '预约内测' }).click();
   await expect(page.getByRole('status')).toContainText('提交失败，请稍后重试。');
@@ -36,6 +51,7 @@ test('signup shows a recoverable error for a failed API request', async ({ page 
 test('signup explains rate limiting without losing the address', async ({ page }) => {
   await page.route(url => url.pathname === '/api/waitlist', route => route.fulfill({ status: 429, body: '{}' }));
   await page.goto('/');
+  await page.getByRole('button', { name: '预约在线版内测' }).click();
   await page.getByLabel('你的邮箱地址').fill('rate@example.com');
   await page.getByRole('button', { name: '预约内测' }).click();
   await expect(page.getByRole('status')).toContainText('提交较频繁，请稍后再试。');
@@ -45,6 +61,7 @@ test('signup explains rate limiting without losing the address', async ({ page }
 test('signup explains a rejected email address', async ({ page }) => {
   await page.route(url => url.pathname === '/api/waitlist', route => route.fulfill({ status: 400, body: '{}' }));
   await page.goto('/');
+  await page.getByRole('button', { name: '预约在线版内测' }).click();
   await page.getByLabel('你的邮箱地址').fill('invalid@example.com');
   await page.getByRole('button', { name: '预约内测' }).click();
   await expect(page.getByRole('status')).toContainText('请输入有效的邮箱地址。');
@@ -53,6 +70,7 @@ test('signup explains a rejected email address', async ({ page }) => {
 test('real signup persists once and owner exports the CSV', async ({ page }) => {
   const email = `waitlist-${Date.now()}@example.com`;
   await page.goto('/');
+  await page.getByRole('button', { name: '预约在线版内测' }).click();
   await page.getByLabel('你的邮箱地址').fill(email);
   await page.getByRole('button', { name: '预约内测' }).click();
   await expect(page.getByRole('status')).toContainText('已收到预约');
