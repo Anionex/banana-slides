@@ -5,6 +5,7 @@ never a Flask request context or a SQLAlchemy session.
 """
 import hashlib
 import hmac
+import io
 import json
 import re
 import time
@@ -15,11 +16,17 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from threading import Thread
 from flask import current_app, g, has_app_context, has_request_context, request
+from flask import send_file
 from flask.config import Config as FlaskConfig
+from PIL import Image
 _feedback_lock = Lock()
 _feedback_last_sent = {}
 _feedback_accept_times = deque()
 _feedback_per_minute = 20
+_feedback_max_images = 3
+_feedback_max_image_bytes = 4 * 1024 * 1024
+_feedback_max_request_bytes = _feedback_max_image_bytes + 32 * 1024
+_feedback_image_formats = {'PNG': 'image/png', 'JPEG': 'image/jpeg', 'WEBP': 'image/webp'}
 
 _task_visitor = ContextVar('public_demo_visitor', default=None)
 PROFILES = {
@@ -207,7 +214,7 @@ def settings_json():
 
 
 def install(app):
-    from models import db, Feedback, PublicVisitor
+    from models import db, Feedback, FeedbackImage, PublicVisitor
     from utils import error_response, success_response
 
     @app.route('/api/public-config')
@@ -234,16 +241,39 @@ def install(app):
     def send_feedback():
         if not enabled():
             return error_response('NOT_FOUND', '反馈入口未启用。', 404)
-        data = request.get_json(silent=True)
+        if request.content_length and request.content_length > _feedback_max_request_bytes:
+            return error_response('INVALID_FEEDBACK_IMAGE', '图片总大小不能超过 4 MB。', 413)
+        is_multipart = request.mimetype == 'multipart/form-data'
+        data = request.form if is_multipart else request.get_json(silent=True)
         if not isinstance(data, dict):
-            return error_response('INVALID_FEEDBACK', '请填写问题描述。', 400)
+            if not is_multipart:
+                return error_response('INVALID_FEEDBACK', '请填写问题描述。', 400)
         if data.get('website'):
             return success_response({'received': True})  # Hidden field catches simple spam bots.
-        message = data.get('message')
+        image_files = request.files.getlist('images') if is_multipart else []
+        if len(image_files) > _feedback_max_images:
+            return error_response('INVALID_FEEDBACK_IMAGE', '最多可添加 3 张图片。', 400)
+        images = []
+        total_image_bytes = 0
+        for image_file in image_files:
+            content = image_file.stream.read(_feedback_max_image_bytes + 1)
+            total_image_bytes += len(content)
+            if not content or total_image_bytes > _feedback_max_image_bytes:
+                return error_response('INVALID_FEEDBACK_IMAGE', '图片总大小不能超过 4 MB。', 413)
+            try:
+                with Image.open(io.BytesIO(content)) as image:
+                    if image.format not in _feedback_image_formats or image.width * image.height > 40_000_000:
+                        raise ValueError('Unsupported image')
+                    mime_type = _feedback_image_formats[image.format]
+                    image.load()
+            except (OSError, ValueError, Image.DecompressionBombError):
+                return error_response('INVALID_FEEDBACK_IMAGE', '请粘贴 PNG、JPEG 或 WebP 图片。', 400)
+            images.append(FeedbackImage(mime_type=mime_type, data=content))
+        message = data.get('message', '')
         reply_email = data.get('email', '')
         page_path = data.get('page', '')
-        if not isinstance(message, str) or not message.strip() or len(message.strip()) > 3000:
-            return error_response('INVALID_FEEDBACK', '请填写 3000 字以内的问题描述。', 400)
+        if not isinstance(message, str) or (not message.strip() and not images) or len(message.strip()) > 3000:
+            return error_response('INVALID_FEEDBACK', '请填写 3000 字以内的问题描述，或添加图片。', 400)
         if not isinstance(reply_email, str) or (reply_email and (len(reply_email) > 254 or not re.fullmatch(r'[A-Za-z0-9._+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,63}', reply_email))):
             return error_response('INVALID_FEEDBACK', '请检查联系邮箱格式。', 400)
         if (not isinstance(page_path, str) or len(page_path) > 300 or not page_path.startswith('/')
@@ -266,8 +296,8 @@ def install(app):
                 for token in stale:
                     _feedback_last_sent.pop(token, None)
 
-        feedback = Feedback(message=message.strip(), reply_email=reply_email.strip() or None,
-                            page_path=page_path)
+        feedback = Feedback(message=message.strip() or '（图片反馈）', reply_email=reply_email.strip() or None,
+                            page_path=page_path, images=images)
         try:
             db.session.add(feedback)
             db.session.commit()
@@ -296,6 +326,23 @@ def install(app):
         rows = Feedback.query.order_by(Feedback.created_at.desc(), Feedback.id.desc()).limit(limit).offset(offset).all()
         response = make_response(success_response({'items': [row.to_dict() for row in rows], 'total': Feedback.query.count()}))
         response.headers['Cache-Control'] = 'no-store'
+        return response
+
+    @app.route('/api/admin/feedback/<int:feedback_id>/images/<int:image_id>', methods=['POST'])
+    def admin_feedback_image(feedback_id, image_id):
+        password = dict.get(app.config, 'PUBLIC_DEMO_ADMIN_PASSWORD', '')
+        if not enabled() or not password:
+            return error_response('NOT_FOUND', '入口未启用。', 404)
+        data = request.get_json(silent=True)
+        supplied = data.get('password') if isinstance(data, dict) else None
+        if not isinstance(supplied, str) or not hmac.compare_digest(supplied.encode(), password.encode()):
+            return error_response('UNAUTHORIZED', '管理员口令错误。', 401)
+        image = db.session.get(FeedbackImage, image_id)
+        if image is None or image.feedback_id != feedback_id:
+            return error_response('NOT_FOUND', '图片不存在。', 404)
+        response = send_file(io.BytesIO(image.data), mimetype=image.mime_type)
+        response.headers['Cache-Control'] = 'no-store'
+        response.headers['X-Content-Type-Options'] = 'nosniff'
         return response
 
     @app.before_request

@@ -26,9 +26,9 @@ from .reference_file import ReferenceFile
 from .settings import Settings
 from .user_style_template import UserStyleTemplate
 from .project_template_asset import ProjectTemplateAsset
-from .feedback import Feedback
+from .feedback import Feedback, FeedbackImage
 
-__all__ = ['db', 'Project', 'Page', 'Task', 'UserTemplate', 'PageImageVersion', 'Material', 'ReferenceFile', 'Settings', 'UserStyleTemplate', 'ProjectTemplateAsset', 'PublicVisitor', 'WaitlistSignup', 'Feedback']
+__all__ = ['db', 'Project', 'Page', 'Task', 'UserTemplate', 'PageImageVersion', 'Material', 'ReferenceFile', 'Settings', 'UserStyleTemplate', 'ProjectTemplateAsset', 'PublicVisitor', 'WaitlistSignup', 'Feedback', 'FeedbackImage']
 
 
 from .public_visitor import PublicVisitor

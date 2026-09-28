@@ -1,4 +1,5 @@
 import hashlib
+import io
 import json
 from concurrent.futures import ThreadPoolExecutor
 import pytest
@@ -91,6 +92,59 @@ def test_public_feedback_is_saved_and_only_visible_with_admin_password(public_ap
     assert response.json['data']['items'][0]['page_path'] == '/app'
     assert client.post('/api/admin/feedback?limit=20&offset=1', headers=B,
                        json={'password': 'feedback-admin-secret'}).json['data']['items'] == []
+
+
+def test_public_feedback_pasted_image_is_private_and_readable(public_app):
+    from PIL import Image
+    from models import Feedback
+
+    public_app.config['PUBLIC_DEMO_ADMIN_PASSWORD'] = 'feedback-admin-secret'
+    png = io.BytesIO()
+    Image.new('RGB', (32, 24), 'yellow').save(png, format='PNG')
+    content = png.getvalue()
+    client = public_app.test_client()
+    sent = client.post('/api/feedback', headers=A, data={
+        'message': '', 'page': '/project/example/preview',
+        'images': (io.BytesIO(content), 'screenshot.png'),
+    }, content_type='multipart/form-data')
+    assert sent.status_code == 200
+    with public_app.app_context():
+        assert Feedback.query.one().message == '（图片反馈）'
+    listing = client.post('/api/admin/feedback', headers=B, json={'password': 'feedback-admin-secret'}).json['data']['items']
+    report = listing[0]
+    assert len(report['images']) == 1
+    assert 'data' not in report['images'][0]
+    image_path = f"/api/admin/feedback/{report['id']}/images/{report['images'][0]['id']}"
+    assert client.get(image_path, headers=A).status_code == 405
+    assert client.post(image_path, headers=A, json={'password': 'wrong'}).status_code == 401
+    image_response = client.post(image_path, headers=A, json={'password': 'feedback-admin-secret'})
+    assert image_response.status_code == 200
+    assert image_response.mimetype == 'image/png'
+    assert image_response.data == content
+    assert image_response.headers['Cache-Control'] == 'no-store'
+
+
+def test_public_feedback_text_only_multipart_still_works(public_app):
+    client = public_app.test_client()
+    sent = client.post('/api/feedback', headers=A, data={
+        'message': '只有文字的问题', 'page': '/app', 'email': '',
+    }, content_type='multipart/form-data')
+    assert sent.status_code == 200
+    assert sent.json['data']['received'] is True
+
+
+def test_public_feedback_rejects_invalid_or_oversized_images(public_app):
+    from PIL import Image
+
+    client = public_app.test_client()
+    gif = io.BytesIO()
+    Image.new('RGB', (2, 2)).save(gif, format='GIF')
+    assert client.post('/api/feedback', headers=A, data={
+        'message': '截图', 'page': '/app', 'images': (io.BytesIO(gif.getvalue()), 'image.gif'),
+    }, content_type='multipart/form-data').status_code == 400
+    assert client.post('/api/feedback', headers=A, data={
+        'message': '截图', 'page': '/app', 'images': (io.BytesIO(b'x' * (4 * 1024 * 1024 + 1)), 'huge.png'),
+    }, content_type='multipart/form-data').status_code == 413
 
 
 def test_public_feedback_blocks_rotating_tokens_and_external_page_links(public_app):
