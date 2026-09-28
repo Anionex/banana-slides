@@ -88,9 +88,18 @@ def site_managed_services():
     return [service for service, (field, _) in SITE_MANAGED_FIELDS.items() if field in fields]
 
 
+def normalize_legacy_flags(config):
+    """Older visitor settings stored switches as JSON 0/1 instead of booleans."""
+    normalized = dict(config)
+    for field, default in DEFAULTS.items():
+        if type(default) is bool and type(normalized.get(field)) is int and normalized[field] in (0, 1):
+            normalized[field] = bool(normalized[field])
+    return normalized
+
+
 def values():
     v = visitor()
-    data = {**DEFAULTS, **(v['config'] if v else {}), **site_managed_values()}
+    data = {**DEFAULTS, **normalize_legacy_flags(v['config'] if v else {}), **site_managed_values()}
     profile = PROFILES[data['partner']]
     data.update(ai_provider_format=profile['format'], api_base_url=profile['base'],
                 text_model=profile['text'], image_model=profile['image'], image_caption_model=profile['caption'],
@@ -342,7 +351,7 @@ def update_public_settings(row):
     allowed = set(DEFAULTS) - {'mineru_api_base'} | {'api_key'}
     if set(data) - allowed:
         return bad_request('公开版不允许修改模型、接口地址或描述生成字段配置。')
-    config = dict(visitor()['config'])
+    config = normalize_legacy_flags(visitor()['config'])
     if 'partner' in data and (not isinstance(data['partner'], str) or data['partner'] not in PROFILES):
         return bad_request('请选择有效的 API 提供商')
     enums = {'image_resolution': ('1K', '2K', '4K'), 'image_aspect_ratio': ('16:9', '21:9', '4:3', '3:2', '5:4', '1:1', '4:5', '2:3', '3:4', '9:16'),
