@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { apiClient } from '@/api/client';
@@ -10,7 +10,36 @@ type Feedback = {
   reply_email: string | null;
   page_path: string;
   created_at: string;
+  images: { id: number }[];
 };
+
+function FeedbackImagePreview({ feedbackId, imageId, password, zh }: { feedbackId: number; imageId: number; password: string; zh: boolean | undefined }) {
+  const [url, setUrl] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => () => { if (url) URL.revokeObjectURL(url); }, [url]);
+
+  async function showImage() {
+    if (loading || url) return;
+    setLoading(true);
+    setError('');
+    try {
+      const response = await apiClient.post<Blob>(`/api/admin/feedback/${feedbackId}/images/${imageId}`, { password }, { responseType: 'blob' });
+      setUrl(URL.createObjectURL(response.data));
+    } catch {
+      setError(zh ? '截图加载失败，请重试。' : 'Could not load the image. Try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return <div className="space-y-2">
+    {url ? <a href={url} target="_blank" rel="noopener noreferrer"><img src={url} alt={zh ? '反馈截图' : 'Report screenshot'} className="max-h-64 max-w-full rounded-lg border border-gray-200 object-contain dark:border-border-primary" /></a> :
+      <Button variant="secondary" size="sm" disabled={loading} onClick={() => void showImage()}>{loading ? (zh ? '加载截图中…' : 'Loading image…') : (zh ? '查看截图' : 'View image')}</Button>}
+    {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+  </div>;
+}
 
 const PAGE_SIZE = 20;
 
@@ -78,6 +107,9 @@ export function AdminFeedback() {
             <a href={item.page_path} className="underline">{item.page_path}</a>
           </div>
           <p className="whitespace-pre-wrap break-words leading-relaxed">{item.message}</p>
+          {item.images?.length > 0 && <div className="mt-3 flex flex-wrap gap-3">{item.images.map(image =>
+            <FeedbackImagePreview key={image.id} feedbackId={item.id} imageId={image.id} password={password.current} zh={zh} />
+          )}</div>}
           {item.reply_email && <a className="mt-3 inline-block text-sm text-banana-700 underline dark:text-banana-400" href={`mailto:${item.reply_email}`}>{item.reply_email}</a>}
         </article>)}</div>}
       <nav aria-label={zh ? '反馈分页' : 'Report pages'} className="flex items-center justify-between gap-3">

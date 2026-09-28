@@ -36,7 +36,8 @@ def test_legacy_copy_preserves_project_ids_and_separates_keys(tmp_path):
         assert conn.execute('SELECT count(*) FROM settings').fetchone()[0] == 0
         visitors = [json.loads(row[0]) for row in conn.execute('SELECT config_json FROM public_visitors')]
         assert {v['provider_keys']['inferera'] for v in visitors} == {'first-private-key', 'second-private-key'}
-        assert conn.execute('SELECT version_num FROM alembic_version').fetchone()[0] == 'b82a4ddcb102'
+        assert conn.execute('SELECT version_num FROM alembic_version').fetchone()[0] == 'c62f8e4d19a0'
+        assert conn.execute("SELECT name FROM sqlite_master WHERE name = 'feedback_image'").fetchone()[0] == 'feedback_image'
         assert conn.execute('SELECT count(*) FROM waitlist_signups').fetchone()[0] == 0
         columns = {r[1] for r in conn.execute('PRAGMA table_info(settings)')}
         assert {'text_model_source', 'image_api_key', 'description_extra_fields'} <= columns

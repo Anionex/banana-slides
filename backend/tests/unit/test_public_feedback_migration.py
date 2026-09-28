@@ -27,4 +27,5 @@ def test_feedback_migration_preserves_existing_backport_table(tmp_path):
     command.upgrade(config, 'head')
     with sqlite3.connect(database) as connection:
         assert connection.execute('SELECT message FROM feedback').fetchone()[0] == 'already received'
-        assert connection.execute('SELECT version_num FROM alembic_version').fetchone()[0] == 'b82a4ddcb102'
+        assert connection.execute('SELECT version_num FROM alembic_version').fetchone()[0] == 'c62f8e4d19a0'
+        assert connection.execute("SELECT name FROM sqlite_master WHERE name = 'feedback_image'").fetchone()[0] == 'feedback_image'
