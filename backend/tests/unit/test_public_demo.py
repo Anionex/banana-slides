@@ -152,6 +152,34 @@ def test_invalid_settings_are_atomic(public_app):
     assert client.get('/api/settings', headers=A).json['data']['partner'] == 'inferera'
 
 
+def test_legacy_numeric_switches_can_be_saved_from_settings_page(public_app):
+    from models import PublicVisitor
+
+    token_hash = hashlib.sha256(A['X-User-Token'].encode()).hexdigest()
+    with public_app.app_context():
+        db.session.add(PublicVisitor(token_hash=token_hash, config_json=json.dumps({
+            'enable_text_reasoning': 0, 'enable_image_reasoning': 1,
+            'output_language': 'zh',
+        })))
+        db.session.commit()
+
+    client = public_app.test_client()
+    loaded = client.get('/api/settings', headers=A).json['data']
+    assert loaded['enable_text_reasoning'] is False
+    assert loaded['enable_image_reasoning'] is True
+    saved = client.put('/api/settings', headers=A, json={
+        'enable_text_reasoning': loaded['enable_text_reasoning'],
+        'enable_image_reasoning': loaded['enable_image_reasoning'],
+        'output_language': 'en',
+    })
+    assert saved.status_code == 200
+    assert client.get('/api/settings', headers=A).json['data']['output_language'] == 'en'
+    with public_app.app_context():
+        config = json.loads(db.session.get(PublicVisitor, token_hash).config_json)
+        assert config['enable_text_reasoning'] is False
+        assert config['enable_image_reasoning'] is True
+
+
 def test_public_settings_accept_main_ratios_and_budget_bounds(public_app):
     client = public_app.test_client()
     for ratio in ('16:9', '21:9', '4:3', '3:2', '5:4', '1:1', '4:5', '2:3', '3:4', '9:16'):
