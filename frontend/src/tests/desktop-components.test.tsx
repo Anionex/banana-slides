@@ -112,6 +112,27 @@ describe('DesktopTitleBar', () => {
     render(<DesktopTitleBar />, { wrapper: Wrapper });
     expect(mockElectronAPI.getPlatform).toHaveBeenCalled();
   });
+
+  it('offers Vietnamese and switches the title bar translations', async () => {
+    const { default: i18n } = await import('../i18n');
+    await act(async () => {
+      await i18n.changeLanguage('en');
+    });
+    const { DesktopTitleBar } = await import('../components/shared/DesktopTitleBar');
+    render(<DesktopTitleBar />, { wrapper: Wrapper });
+    await act(() => vi.runAllTimers());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Interface language' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Tiếng Việt' }));
+
+    expect(i18n.language).toBe('vi');
+    expect(screen.getByText('Lịch sử')).toBeInTheDocument();
+    expect(screen.getByText('Cài đặt')).toBeInTheDocument();
+
+    await act(async () => {
+      await i18n.changeLanguage('en');
+    });
+  });
 });
 
 describe('UpdateChecker', () => {

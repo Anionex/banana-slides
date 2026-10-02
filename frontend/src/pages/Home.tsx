@@ -16,6 +16,7 @@ import { useT } from '@/hooks/useT';
 import logoUrl from '@/assets/logo.png';
 import { ASPECT_RATIO_OPTIONS } from '@/config/aspectRatio';
 import { isDesktop } from '@/utils';
+import { nextUiLanguage, uiLanguageShortLabel } from '@/utils/uiLanguage';
 
 type CreationType = 'idea' | 'outline' | 'description' | 'ppt_renovation';
 
@@ -187,6 +188,79 @@ const homeI18n = {
         serviceTestTip: 'Test services in Settings first to avoid issues',
         verifying: 'Verifying API configuration...',
         verifyFailed: 'Please configure a valid API Key in Settings and click "Service Test" at the bottom to verify',
+      },
+    },
+  },
+  vi: {
+    nav: {
+      materialGenerate: 'Tạo tài liệu', materialCenter: 'Thư viện tài liệu',
+      history: 'Lịch sử', settings: 'Cài đặt', help: 'Trợ giúp'
+    },
+    settings: {
+      language: { label: 'Ngôn ngữ giao diện' },
+      theme: { label: 'Giao diện', light: 'Sáng', dark: 'Tối', system: 'Theo hệ thống' }
+    },
+    home: {
+      title: 'Banana Slides',
+      subtitle: 'Vibe your slides like vibe coding',
+      tagline: 'Trình tạo PPT AI-native dựa trên nano banana pro',
+      features: {
+        oneClick: 'Tạo PPT từ một câu',
+        naturalEdit: 'Chỉnh sửa bằng ngôn ngữ tự nhiên',
+        regionEdit: 'Chỉnh sửa theo vùng',
+        export: 'Xuất PPTX/PDF',
+      },
+      tabs: {
+        idea: 'Từ ý tưởng',
+        outline: 'Từ dàn ý',
+        description: 'Từ mô tả',
+        ppt_renovation: 'Làm mới PPT',
+      },
+      tabDescriptions: {
+        idea: 'Nhập ý tưởng và để AI tạo một bài PPT hoàn chỉnh',
+        outline: 'Đã có dàn ý? Dán trực tiếp để AI tách thành cấu trúc slide',
+        description: 'Đã có mô tả chi tiết? AI sẽ phân tích và tạo hình trực tiếp, bỏ qua bước dàn ý',
+        ppt_renovation: 'Tải PDF/PPTX có sẵn để AI phân tích và tạo lại bài trình chiếu',
+      },
+      placeholders: {
+        idea: 'Ví dụ: Tạo bài thuyết trình về lịch sử phát triển của AI',
+        outline: 'Dán dàn ý PPT của bạn...',
+        description: 'Dán mô tả đầy đủ cho các trang...',
+      },
+      template: {
+        title: 'Chọn mẫu phong cách',
+        useTextStyle: 'Mô tả phong cách bằng văn bản',
+        multiMode: 'Mẫu riêng cho từng trang',
+        multiModeHint: 'Mỗi trang có thể dùng một mẫu khác nhau; cấu hình sau khi tạo dự án',
+      },
+      actions: {
+        selectFile: 'Chọn tệp tham khảo',
+        parsing: 'Đang phân tích...',
+        createProject: 'Tạo dự án mới',
+        startBlank: 'Hoặc bắt đầu từ dự án trống',
+        startBlankHint: 'Bỏ qua tạo dàn ý — tự thêm hoặc nhập trang',
+      },
+      renovation: {
+        uploadHint: 'Nhấp hoặc kéo thả tệp PDF / PPTX',
+        formatHint: 'Hỗ trợ .pdf, .pptx, .ppt (khuyến nghị PDF)',
+        keepLayout: 'Giữ bố cục gốc',
+        onlyPdfPptx: 'Chỉ hỗ trợ tệp PDF và PPTX',
+        uploadFile: 'Vui lòng tải tệp PDF hoặc PPTX trước',
+      },
+      messages: {
+        enterContent: 'Vui lòng nhập nội dung',
+        filesParsing: '{{count}} tệp tham khảo vẫn đang được phân tích, vui lòng chờ',
+        projectCreateFailed: 'Không thể tạo dự án',
+        uploadingImage: 'Đang tải và nhận dạng hình ảnh...',
+        imageUploadSuccess: 'Tải ảnh thành công! Đã chèn tại vị trí con trỏ',
+        imageUploadFailed: 'Tải ảnh thất bại',
+        fileUploadSuccess: 'Tải tệp thành công',
+        fileUploadFailed: 'Tải tệp thất bại',
+        fileTooLarge: 'Tệp quá lớn: {{size}}MB, tối đa 200MB',
+        unsupportedFileType: 'Loại tệp không được hỗ trợ: {{type}}',
+        filesAdded: 'Đã thêm {{count}} tệp tham khảo',
+        imageRemoved: 'Đã xóa ảnh',
+        verifying: 'Đang kiểm tra cấu hình API...',
       },
     },
   },
@@ -861,12 +935,12 @@ export const Home: React.FC = () => {
             <div className="h-5 w-px bg-gray-300 dark:bg-border-primary mx-1" />
             {/* 语言切换按钮 */}
             <button
-              onClick={() => i18n.changeLanguage(i18n.language?.startsWith('zh') ? 'en' : 'zh')}
+              onClick={() => i18n.changeLanguage(nextUiLanguage(i18n.language))}
               className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-gray-100 hover:bg-banana-100/60 dark:hover:bg-background-hover rounded-md transition-all"
               title={t('settings.language.label')}
             >
               <Globe size={14} />
-              <span>{i18n.language?.startsWith('zh') ? 'EN' : '中'}</span>
+              <span>{uiLanguageShortLabel(nextUiLanguage(i18n.language))}</span>
             </button>
             {/* 主题切换按钮 */}
             <div className="relative" ref={themeMenuRef}>

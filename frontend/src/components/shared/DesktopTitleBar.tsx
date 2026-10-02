@@ -5,6 +5,7 @@ import { Settings, ImagePlus, FolderOpen, Globe, Sun, Moon, Monitor, ChevronDown
 import { useTheme } from '@/hooks/useTheme';
 import { useT } from '@/hooks/useT';
 import { DESKTOP_TITLEBAR_HEIGHT, isDesktop } from '@/utils';
+import { UI_LANGUAGE_OPTIONS, resolveUiLanguage } from '@/utils/uiLanguage';
 import logoUrl from '@/assets/logo.png';
 
 const titleBarI18n = {
@@ -34,13 +35,28 @@ const titleBarI18n = {
     maximize: 'Maximize',
     close: 'Close',
   },
+  vi: {
+    materialGenerate: 'Tạo tài liệu',
+    materialCenter: 'Thư viện',
+    history: 'Lịch sử',
+    settings: 'Cài đặt',
+    themeLight: 'Sáng',
+    themeDark: 'Tối',
+    themeSystem: 'Theo hệ thống',
+    refresh: 'Làm mới',
+    minimize: 'Thu nhỏ',
+    maximize: 'Phóng to',
+    close: 'Đóng',
+  },
 };
 
 export function DesktopTitleBar() {
   const [platform, setPlatform] = useState<string>('');
   const [hoveredBtn, setHoveredBtn] = useState<string | null>(null);
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
+  const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
   const themeMenuRef = useRef<HTMLDivElement>(null);
+  const languageMenuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { i18n } = useTranslation();
   const t = useT(titleBarI18n);
@@ -57,6 +73,9 @@ export function DesktopTitleBar() {
       if (themeMenuRef.current && !themeMenuRef.current.contains(e.target as Node)) {
         setIsThemeMenuOpen(false);
       }
+      if (languageMenuRef.current && !languageMenuRef.current.contains(e.target as Node)) {
+        setIsLanguageMenuOpen(false);
+      }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -70,6 +89,8 @@ export function DesktopTitleBar() {
   const handleMinimize = () => (window as any).electronAPI.minimizeWindow();
   const handleMaximize = () => (window as any).electronAPI.maximizeWindow();
   const handleClose = () => (window as any).electronAPI.closeWindow();
+  const currentLanguage = resolveUiLanguage(i18n.language);
+  const currentLanguageOption = UI_LANGUAGE_OPTIONS.find((language) => language.code === currentLanguage)!;
 
   const winBtnBase: React.CSSProperties = {
     width: 40,
@@ -170,14 +191,40 @@ export function DesktopTitleBar() {
 
         <div style={{ width: 1, height: 16, backgroundColor: isDark ? '#3f3f46' : '#d1d5db', margin: '0 4px' }} />
 
-        {/* Language toggle */}
-        <button
-          className={navBtnClass}
-          onClick={() => i18n.changeLanguage(i18n.language?.startsWith('zh') ? 'en' : 'zh')}
-        >
-          <Globe size={12} />
-          <span>{i18n.language?.startsWith('zh') ? 'EN' : '中'}</span>
-        </button>
+        {/* Interface language */}
+        <div className="relative" ref={languageMenuRef}>
+          <button
+            className={navBtnClass}
+            type="button"
+            aria-label="Interface language"
+            aria-expanded={isLanguageMenuOpen}
+            onClick={() => setIsLanguageMenuOpen(!isLanguageMenuOpen)}
+          >
+            <Globe size={12} />
+            <span>{currentLanguageOption.shortLabel}</span>
+            <ChevronDown size={10} className={`transition-transform ${isLanguageMenuOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {isLanguageMenuOpen && (
+            <div
+              className="absolute right-0 top-full mt-1 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 min-w-[112px]"
+              style={{ zIndex: 10001 }}
+            >
+              {UI_LANGUAGE_OPTIONS.map((language) => (
+                <button
+                  key={language.code}
+                  type="button"
+                  onClick={() => {
+                    void i18n.changeLanguage(language.code);
+                    setIsLanguageMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-zinc-700 ${currentLanguage === language.code ? 'text-orange-500' : 'text-gray-700 dark:text-zinc-300'}`}
+                >
+                  <span>{language.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Theme switcher */}
         <div className="relative" ref={themeMenuRef}>
