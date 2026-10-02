@@ -81,7 +81,7 @@ jobs:
       - name: Test built web deep links against real backend
         run: |
           cp .env.example .env
-          printf '\nPUBLIC_DEMO=true\nBACKEND_PORT=5011\nFRONTEND_PORT=3488\n' >> .env
+          printf '\nBACKEND_PORT=5011\nFRONTEND_PORT=3488\n' >> .env
           uv run --directory backend alembic upgrade head
           uv run --directory backend python app.py > /tmp/web-build-backend.log 2>&1 &
           BACKEND_PID=$!
@@ -95,11 +95,6 @@ jobs:
           curl -fsS http://127.0.0.1:3488/health > /dev/null
           cd frontend
           if ! npx playwright test e2e/web-build-deep-links.spec.ts --reporter=list; then
-            cat /tmp/web-build-backend.log /tmp/web-build-preview.log
-            exit 1
-          fi
-          VITE_PUBLIC_LANDING=true npm run build:web
-          if ! E2E_PUBLIC_LANDING=1 npx playwright test e2e/public-landing.spec.ts e2e/web-build-deep-links.spec.ts --reporter=list; then
             cat /tmp/web-build-backend.log /tmp/web-build-preview.log
             exit 1
           fi

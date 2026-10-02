@@ -121,9 +121,6 @@ class Settings(db.Model):
 
     def to_dict(self):
         """Convert to dictionary, merging .env defaults for None fields."""
-        from services.public_demo import enabled, settings_json
-        if enabled():
-            return settings_json()
         d = Settings._get_config_defaults()
         effective_provider = self._val('ai_provider_format', d)
         provider_defaults = Settings._get_api_defaults_for_provider(effective_provider)
@@ -381,9 +378,6 @@ class Settings(db.Model):
         defaults for ``None`` fields are merged only at serialisation
         time in ``to_dict()``, so this method has no write side-effects.
         """
-        from services.public_demo import enabled, as_settings
-        if enabled():
-            return as_settings()
         settings = Settings.query.first()
 
         if settings is None:

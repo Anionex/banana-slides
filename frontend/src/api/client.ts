@@ -1,4 +1,3 @@
-import { visitorHeaders } from '@/utils/publicDemo';
 import axios from 'axios';
 import { isDesktop } from '@/utils';
 import i18n from '@/i18n';
@@ -93,10 +92,6 @@ apiClient.interceptors.request.use(
     if (!hasAbsoluteBaseURL && !hasAbsoluteRequestURL) {
       config.baseURL = getBaseURL();
     }
-
-    const requestOrigin = new URL(config.url || '', config.baseURL || window.location.origin).origin;
-    const backendOrigin = new URL(getBaseURL() || window.location.origin).origin;
-    if (config.headers && requestOrigin === backendOrigin) Object.assign(config.headers, visitorHeaders());
 
     // Attach access code header for backend enforcement
     const accessCode = localStorage.getItem('banana-access-code');

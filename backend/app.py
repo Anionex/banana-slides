@@ -62,15 +62,9 @@ def set_sqlite_pragma(dbapi_conn, connection_record):
 def create_app():
     """Application factory"""
     app = Flask(__name__)
-    from services.public_demo import PublicConfig
-    app.config = PublicConfig(app.root_path, dict(app.config))
     
     # Load configuration from Config class
     app.config.from_object(Config)
-    app.config['PUBLIC_DEMO'] = os.getenv('PUBLIC_DEMO', '').lower() == 'true'
-    app.config['PUBLIC_DEMO_ADMIN_PASSWORD'] = os.getenv('PUBLIC_DEMO_ADMIN_PASSWORD', '')
-    app.config['PUBLIC_DEMO_MINERU_TOKEN'] = os.getenv('PUBLIC_DEMO_MINERU_TOKEN', '')
-    app.config['PUBLIC_DEMO_BAIDU_API_KEY'] = os.getenv('PUBLIC_DEMO_BAIDU_API_KEY', '')
 
     # Desktop DATABASE_PATH must win over any DATABASE_URL left in .env.
     db_path_env = os.environ.get('DATABASE_PATH')
@@ -195,8 +189,7 @@ def create_app():
                 from desktop_bootstrap import repair_desktop_settings_schema
                 repair_desktop_settings_schema(db)
         # Load settings from database and sync to app.config
-        if not app.config['PUBLIC_DEMO']:
-            _load_settings_to_config(app)
+        _load_settings_to_config(app)
 
     # Access code enforcement on all /api/ routes
     @app.before_request
@@ -207,17 +200,12 @@ def create_app():
             return  # not enabled
         if not request.path.startswith('/api/'):
             return  # non-API routes (health, static, etc.)
-        if request.path.startswith('/api/access-code/') or request.path in ('/api/public-config', '/api/feedback', '/api/waitlist'):
+        if request.path.startswith('/api/access-code/'):
             return  # allow check/verify endpoints
         code = request.headers.get('X-Access-Code', '')
         if hmac.compare_digest(code, expected):
             return
         return jsonify({'error': 'Access code required'}), 403
-
-    from services.public_demo import install as install_public_demo
-    install_public_demo(app)
-    from services.waitlist import install as install_waitlist
-    install_waitlist(app)
 
     # Health check endpoint
     @app.route('/health')

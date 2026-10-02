@@ -1,4 +1,3 @@
-import { isPublicDemo } from '@/utils/publicDemo';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ArrowLeft, Save, ArrowRight, Plus, FileText, Sparkle, Download, Upload, PanelLeftClose, PanelLeftOpen, ChevronDown, Settings2 } from 'lucide-react';
@@ -529,7 +528,7 @@ export const OutlineEditor: React.FC = () => {
               size="sm"
               icon={<ArrowLeft size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={() => {
-                if (fromHistory && !isPublicDemo) {
+                if (fromHistory) {
                   navigate('/history');
                 } else {
                   navigate('/');
