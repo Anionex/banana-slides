@@ -151,4 +151,26 @@ describe('API client desktop detection', () => {
     expect(getImageUrl('/blob:https://example.com/id', 123)).toBe('blob:https://example.com/id');
     expect(getImageUrl('data:image/png;base64,abc', 123)).toBe('data:image/png;base64,abc');
   });
+
+  it('web mode: triggers download via a synthetic <a download> click, not window.open', async () => {
+    delete (window as any).electronAPI;
+    const clickSpy = vi.fn();
+    const originalCreateElement = document.createElement.bind(document);
+    const createSpy = vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      const el = originalCreateElement(tag) as HTMLElement;
+      if (tag === 'a') {
+        (el as HTMLAnchorElement).click = clickSpy;
+      }
+      return el;
+    });
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+    const { triggerDownload } = await import('../api/client');
+
+    triggerDownload('/files/p1/exports/presentation.pptx');
+
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    expect(openSpy).not.toHaveBeenCalled();
+    createSpy.mockRestore();
+    openSpy.mockRestore();
+  });
 });
