@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { CheckCircle } from "lucide-react";
 import { Button } from "@/components/shared";
 import { ProviderPill } from "./ProviderPill";
@@ -29,7 +28,6 @@ interface Props {
   providerPromotions: ProviderPromotion[];
   selectGlobalProvider: (value: string) => void;
   disabledLabel?: string;
-  dismissPromotionOnSelect?: boolean;
 }
 export function SettingsProviderPicker({
   label,
@@ -38,11 +36,7 @@ export function SettingsProviderPicker({
   providerPromotions,
   selectGlobalProvider,
   disabledLabel,
-  dismissPromotionOnSelect = false,
 }: Props) {
-  const [dismissedPromotion, setDismissedPromotion] = useState<string | null>(
-    null,
-  );
   return (
     <div
       role="radiogroup"
@@ -64,18 +58,7 @@ export function SettingsProviderPicker({
           : null;
 
         return (
-          <div
-            key={option.value}
-            className="group sm:relative"
-            onMouseEnter={() => {
-              if (dismissedPromotion === option.value)
-                setDismissedPromotion(null);
-            }}
-            onFocusCapture={() => {
-              if (dismissedPromotion === option.value)
-                setDismissedPromotion(null);
-            }}
-          >
+          <div key={option.value} className="group sm:relative">
             <ProviderPill
               value={option.value}
               label={option.label}
@@ -84,22 +67,16 @@ export function SettingsProviderPicker({
               hint={hint}
               promotion={hoverPlanKey}
               describedBy={
-                hoverPlan && dismissedPromotion !== option.value
-                  ? `${hoverPlan.testId}-popover`
-                  : undefined
+                hoverPlan ? `${hoverPlan.testId}-popover` : undefined
               }
-              onSelect={() => {
-                selectGlobalProvider(option.value);
-                if (dismissPromotionOnSelect)
-                  setDismissedPromotion(option.value);
-              }}
+              onSelect={() => selectGlobalProvider(option.value)}
             >
               {isDisabled && (
                 <span className="text-[11px]">{disabledLabel}</span>
               )}
             </ProviderPill>
 
-            {hoverPlan && dismissedPromotion !== option.value && (
+            {hoverPlan && (
               <div
                 id={`${hoverPlan.testId}-popover`}
                 data-testid={hoverPlan.testId}
@@ -158,11 +135,7 @@ export function SettingsProviderPicker({
                       variant={hoverPlan.active ? "secondary" : "primary"}
                       size="sm"
                       disabled={hoverPlan.active}
-                      onClick={() => {
-                        hoverPlan.onSelect();
-                        if (dismissPromotionOnSelect)
-                          setDismissedPromotion(option.value);
-                      }}
+                      onClick={hoverPlan.onSelect}
                     >
                       {hoverPlan.active ? hoverPlan.activeLabel : hoverPlan.cta}
                     </Button>

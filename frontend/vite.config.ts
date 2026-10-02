@@ -49,8 +49,7 @@ export default defineConfig(({ mode }) => {
   const gitShortSha = env.VITE_APP_COMMIT_SHORT_SHA || gitSha.slice(0, 7)
   
   return {
-    // The public website serves SPA deep links; desktop builds still need relative assets.
-    base: env.VITE_PUBLIC_LANDING === 'true' ? '/' : './',
+    base: './',
     envDir,
     plugins: [react()],
     define: {

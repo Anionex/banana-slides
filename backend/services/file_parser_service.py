@@ -11,8 +11,7 @@ import requests
 import tempfile
 from typing import Optional, List, Union
 from pathlib import Path
-from concurrent.futures import as_completed
-from services.public_demo import VisitorThreadPoolExecutor as ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from PIL import Image
 from markitdown import MarkItDown
 from services.ai_providers.text import strip_think_tags

@@ -14,7 +14,7 @@ const FRONTEND_DIR = process.cwd().endsWith('frontend')
   ? process.cwd()
   : path.join(process.cwd(), 'frontend')
 const PROJECT_ROOT = path.resolve(FRONTEND_DIR, '..')
-const DB_PATH = path.join(PROJECT_ROOT, 'backend', 'instance', 'database.db')
+const DB_PATH = process.env.DATABASE_PATH || path.join(PROJECT_ROOT, 'backend', 'instance', 'database.db')
 
 function sqlText(value: string): string {
   return `CAST(X'${Buffer.from(value, 'utf8').toString('hex')}' AS TEXT)`

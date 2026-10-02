@@ -8,8 +8,7 @@ import shutil
 import tempfile
 import threading
 import uuid
-from concurrent.futures import as_completed
-from services.public_demo import VisitorThreadPoolExecutor as ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
 from typing import Callable, List, Dict, Any, Optional
 from datetime import datetime

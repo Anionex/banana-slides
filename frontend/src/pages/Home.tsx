@@ -1,5 +1,3 @@
-import { apiClient } from '@/api/client';
-import { isPublicDemo } from '@/utils/publicDemo';
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -8,7 +6,7 @@ import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb,
 import { Button, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, MaterialSelector, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, HelpModal, Footer, GithubRepoCard, TextStyleSelector } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
-import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, createPptRenovationProject, verifyApiKey } from '@/api/endpoints';
+import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, createPptRenovationProject } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
 import { devLog } from '@/utils/logger';
 import { useTheme } from '@/hooks/useTheme';
@@ -202,18 +200,9 @@ export const Home: React.FC = () => {
   const { initializeProject, isGlobalLoading, switchTemplateMode } = useProjectStore();
   const { show, ToastContainer } = useToast();
 
-  const [activeTab, setActiveTab] = useState<CreationType>(() => {
-    if (!isPublicDemo) return 'idea';
-    try {
-      const tab = sessionStorage.getItem('home-draft-tab');
-      return tab === 'outline' || tab === 'description' ? tab : 'idea';
-    } catch { return 'idea'; }
-  });
+  const [activeTab, setActiveTab] = useState<CreationType>('idea');
   const [multiTemplateMode, setMultiTemplateMode] = useState(false);
-  const [content, setContent] = useState(() => {
-    try { return isPublicDemo ? sessionStorage.getItem('home-draft-content') || '' : ''; }
-    catch { return ''; }
-  });
+  const [content, setContent] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<File | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [selectedPresetTemplateId, setSelectedPresetTemplateId] = useState<string | null>(null);
@@ -234,7 +223,6 @@ export const Home: React.FC = () => {
   const [isAspectRatioOpen, setIsAspectRatioOpen] = useState(false);
   const [renovationFile, setRenovationFile] = useState<File | null>(null);
   const [keepLayout, setKeepLayout] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
   const renovationFileInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const themeMenuRef = useRef<HTMLDivElement>(null);
@@ -254,7 +242,7 @@ export const Home: React.FC = () => {
   // 检查是否有当前项目 & 加载用户模板
   useEffect(() => {
     const projectId = localStorage.getItem('currentProjectId');
-    setCurrentProjectId(isPublicDemo ? null : projectId);
+    setCurrentProjectId(projectId);
 
     // 加载用户模板列表（用于按需获取File）
     const loadTemplates = async () => {
@@ -618,26 +606,6 @@ export const Home: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      if (isPublicDemo) {
-        const settingsResponse = await apiClient.get('/api/settings');
-        if (!settingsResponse.data.data?.api_key_length) {
-          navigate('/settings', { state: { needsApiKey: true } });
-          return;
-        }
-        setIsVerifying(true);
-        try {
-          const verification = await verifyApiKey();
-          if (!verification.data?.available) {
-            navigate('/settings', { state: { apiVerificationFailed: true } });
-            return;
-          }
-        } catch {
-          navigate('/settings', { state: { apiVerificationFailed: true } });
-          return;
-        } finally {
-          setIsVerifying(false);
-        }
-      }
       // PPT 翻新模式：走独立的上传+异步解析流程
       if (activeTab === 'ppt_renovation' && renovationFile) {
         const styleDesc = templateStyle.trim() ? templateStyle.trim() : undefined;
@@ -854,7 +822,7 @@ export const Home: React.FC = () => {
               className="sm:hidden hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200"
               title={t('nav.materialCenter')}
             />
-            {!isPublicDemo && (<Button
+            <Button
               variant="ghost"
               size="sm"
               onClick={() => navigate('/history')}
@@ -862,7 +830,7 @@ export const Home: React.FC = () => {
             >
               <span className="hidden sm:inline">{t('nav.history')}</span>
               <span className="sm:hidden">{t('nav.history')}</span>
-            </Button>)}
+            </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -1194,7 +1162,7 @@ export const Home: React.FC = () => {
                 >
                   {referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
                     ? t('home.actions.parsing')
-                    : isVerifying ? t('home.messages.verifying') : t('common.next')}
+                    : t('common.next')}
                 </Button>
               }
             />

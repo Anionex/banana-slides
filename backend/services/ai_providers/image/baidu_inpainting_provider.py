@@ -244,10 +244,9 @@ def create_baidu_inpainting_provider(
         except RuntimeError:
             pass  # 不在 Flask 上下文中
         if not api_key:
-            from services.public_demo import enabled
-            api_key = None if enabled() else Config.BAIDU_API_KEY
+            api_key = Config.BAIDU_API_KEY
         if not api_key:
-            api_key = None if enabled() else os.getenv('BAIDU_API_KEY')
+            api_key = os.getenv('BAIDU_API_KEY')
 
     if not api_key:
         logger.warning("⚠️ 未配置百度API Key (BAIDU_API_KEY), 跳过百度图像修复")
