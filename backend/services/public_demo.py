@@ -38,7 +38,7 @@ PROFILES = {
                     text='gpt-5.6-sol', image='gpt-image-2', caption='gpt-5.6-luna',
                     signup='https://go.apimart.ai/gh-banana-slides', key_hint='使用 APIMart API Key'),
     'volcengine': dict(name='火山 Agent Plan', format='volcengine', base='https://ark.cn-beijing.volces.com/api/plan/v3',
-                       text='doubao-seed-2.1-turbo', image='doubao-seedream-5.0-lite', caption='doubao-seed-2.1-turbo',
+                       text='doubao-seed-2.1-turbo', image='doubao-seedream-5-0-pro', caption='doubao-seed-2.1-turbo',
                        signup='https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides',
                        key_hint='使用 Agent Plan 订阅专属 Key，普通方舟 Key 不适用'),
 

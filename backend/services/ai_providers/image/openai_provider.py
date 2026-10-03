@@ -828,7 +828,18 @@ class OpenAIImageProvider(ImageProvider):
         is_dalle = self.model.lower() in _DALLE_MODELS
         response_format = 'b64_json' if is_dalle else None
 
-        if ref_images and self.model.lower() != 'dall-e-3':
+        if self.model.lower().startswith(_DOUBAO_SEEDREAM_PREFIX):
+            # Seedream accepts reference images as JSON on images/generations;
+            # images/edits is for SeedEdit and chat does not generate images.
+            kwargs = dict(model=self.model, prompt=prompt, size=size,
+                          response_format='b64_json')
+            if ref_images:
+                kwargs['extra_body'] = {'image': [
+                    f'data:image/jpeg;base64,{self._encode_image_to_base64(img)}'
+                    for img in ref_images
+                ]}
+            raw_response = self.client.images.with_raw_response.generate(**kwargs)
+        elif ref_images and self.model.lower() != 'dall-e-3':
             # dall-e-3 does not support images.edit; all other native models do
             model = self.model.lower()
             if model == 'dall-e-2':
@@ -1042,25 +1053,13 @@ class OpenAIImageProvider(ImageProvider):
                     resolution,
                 )
 
-            # Route based on image_api_protocol setting
-            # Doubao Seedream keeps the chat-completions path when reference images are
-            # present: the images.edit endpoint is only for SeedEdit models, while the
-            # legacy chat path still accepts inline base64 references. This exemption
-            # overrides even a forced 'images' protocol: applying the Agent Plans
-            # recommended models sets openai_image_api_protocol=images, and Seedream
-            # with references must still avoid images.edit.
-            is_seedream_with_references = (
-                bool(ref_images)
-                and self.model.lower().startswith(_DOUBAO_SEEDREAM_PREFIX)
-            )
+            # Seedream uses images/generations for both text and reference inputs.
             use_images_api = (
-                not is_seedream_with_references
-                and (
-                    self.image_api_protocol == 'images'
-                    or (
-                        self.image_api_protocol == 'auto'
-                        and self._is_native_images_api_model()
-                    )
+                self.model.lower().startswith(_DOUBAO_SEEDREAM_PREFIX)
+                or self.image_api_protocol == 'images'
+                or (
+                    self.image_api_protocol == 'auto'
+                    and self._is_native_images_api_model()
                 )
             )
             if use_images_api:
