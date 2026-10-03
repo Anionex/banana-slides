@@ -332,7 +332,7 @@ def get_caption_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
         return AnthropicTextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
     elif fmt in ('openai', 'volcengine'):
         logger.info("Caption provider: %s, model=%s", fmt, model)
-        return OpenAITextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
+        return OpenAITextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model, provider_format=fmt)
     elif fmt == 'vertex':
         logger.info("Caption provider: Vertex AI, model=%s", model)
         return GenAITextProvider(
@@ -361,7 +361,7 @@ def get_text_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
         return AnthropicTextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
     elif fmt in ('openai', 'volcengine'):
         logger.info("Text provider: %s, model=%s", fmt, model)
-        return OpenAITextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
+        return OpenAITextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model, provider_format=fmt)
     elif fmt == 'vertex':
         logger.info("Text provider: Vertex AI, model=%s, project=%s", model, config['project_id'])
         return GenAITextProvider(

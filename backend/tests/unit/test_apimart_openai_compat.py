@@ -54,6 +54,7 @@ def test_openai_text_generation_explicitly_requests_non_stream():
     client = MagicMock()
     client.chat.completions.create.return_value = _chat_response("ok")
     provider = OpenAITextProvider.__new__(OpenAITextProvider)
+    provider.provider_format = 'openai'
     provider.client = client
     provider.model = "gpt-5.6-sol"
 
@@ -67,6 +68,7 @@ def test_openai_text_with_image_explicitly_requests_non_stream(tmp_path):
     client = MagicMock()
     client.chat.completions.create.return_value = _chat_response("a red square")
     provider = OpenAITextProvider.__new__(OpenAITextProvider)
+    provider.provider_format = 'openai'
     provider.client = client
     provider.model = "gpt-5.6-luna"
 

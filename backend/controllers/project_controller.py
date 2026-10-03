@@ -918,15 +918,42 @@ def generate_descriptions_stream(project_id):
     if not project.pages:
         return bad_request("Project must have outline generated first")
 
+    # The producer owns a separate session; do not pin the request connection.
+    db.session.remove()
+
     data = request.get_json() or {}
     language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
     detail_level = data.get('detail_level', 'default')
 
     app = current_app._get_current_object()
 
-    def sse_generate():
+    def sse_generate(stopped):
         with app.app_context():
+            started = False
+            error_message = None
+            source = None
+            marked_at = datetime.utcnow()
+
+            def recover_unfinished():
+                # Also runs on GeneratorExit: a disconnected client is not an Exception.
+                db.session.rollback()
+                remaining = Page.query.filter_by(project_id=project_id).all()
+                for page in remaining:
+                    if page.status == 'GENERATING_DESCRIPTION' and page.updated_at == marked_at:
+                        page.status = 'DESCRIPTION_GENERATED' if page.description_content else 'DRAFT'
+                project = db.session.get(Project, project_id)
+                if project and project.status == 'GENERATING_DESCRIPTIONS' and not any(
+                    page.status == 'GENERATING_DESCRIPTION' for page in remaining
+                ):
+                    project.status = ('DESCRIPTIONS_GENERATED' if any(
+                        page.description_content for page in remaining
+                    ) else 'OUTLINE_GENERATED')
+                    project.updated_at = datetime.utcnow()
+                db.session.commit()
+
             try:
+                if stopped.is_set():
+                    return
                 proj = db.session.get(Project, project_id)
                 ai_service = get_ai_service()
                 reference_files_content = _get_project_reference_files_content(project_id)
@@ -943,22 +970,31 @@ def generate_descriptions_stream(project_id):
                 # Set all pages to GENERATING_DESCRIPTION
                 for page in pages:
                     page.status = 'GENERATING_DESCRIPTION'
+                    page.updated_at = marked_at
                 proj.status = 'GENERATING_DESCRIPTIONS'
                 db.session.commit()
+                started = True
+                page_ids = [page.id for page in pages]
+                db.session.remove()
 
                 # Stream descriptions
-                for result in ai_service.generate_descriptions_stream(
+                source = ai_service.generate_descriptions_stream(
                     project_context, outline, flat_pages,
                     language=language, detail_level=detail_level
-                ):
+                )
+                for result in source:
+                    if stopped.is_set():
+                        return
                     if '__stream_complete__' in result:
                         continue
 
                     idx = result.get('page_index', -1)
-                    if idx < 0 or idx >= len(pages):
+                    if idx < 0 or idx >= len(page_ids):
                         continue
 
-                    page = pages[idx]
+                    page = db.session.get(Page, page_ids[idx])
+                    if page is None:
+                        continue
                     desc_content = {
                         'text': result.get('description_text', ''),
                         'generated_at': datetime.utcnow().isoformat(),
@@ -971,13 +1007,19 @@ def generate_descriptions_stream(project_id):
                     page.updated_at = datetime.utcnow()
                     db.session.commit()
 
-                    yield _sse_event('description', {
+                    event = _sse_event('description', {
                         'page_index': idx,
                         'page_id': page.id,
                         'text': desc_content['text'],
                         'extra_fields': result.get('extra_fields'),
                     })
+                    db.session.remove()
+                    yield event
 
+                if stopped.is_set():
+                    return
+                pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+                proj = db.session.get(Project, project_id)
                 # 检查是否所有页面都已生成描述
                 missing = [p for p in pages if p.status == 'GENERATING_DESCRIPTION']
                 if missing:
@@ -987,51 +1029,46 @@ def generate_descriptions_stream(project_id):
                         p.updated_at = datetime.utcnow()
                     logger.warning(f"流式描述生成不完整: {len(missing)}/{len(pages)} 页未生成")
 
-                proj.status = 'DESCRIPTIONS_GENERATED'
+                proj.status = ('DESCRIPTIONS_GENERATED' if any(
+                    p.description_content for p in pages
+                ) else 'OUTLINE_GENERATED')
                 proj.updated_at = datetime.utcnow()
                 db.session.commit()
 
                 # Re-fetch pages for final response
                 pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+                started = False  # Persisted terminal state no longer needs recovery.
                 yield _sse_event('done', {
                     'total': len(pages),
                     'pages': [p.to_dict() for p in pages],
                     **(({'warning': f'{len(missing)} 页描述未生成，请重试'}) if missing else {}),
                 })
 
-            except Exception as e:
+            except Exception:
+                logger.exception("generate_descriptions_stream failed for project %s", project_id)
+                error_message = '生成过程中发生内部错误'
+            finally:
+                # Close the upstream iterator and restore flags even when Werkzeug
+                # closes this generator after a client disconnect or idle timeout.
                 try:
-                    db.session.rollback()
-                except Exception as rollback_exc:
-                    logger.warning(f"Session rollback failed: {rollback_exc}", exc_info=True)
-                logger.error(f"generate_descriptions_stream failed: {str(e)}", exc_info=True)
+                    if source is not None:
+                        source.close()
+                finally:
+                    if started:
+                        try:
+                            recover_unfinished()
+                        except Exception:
+                            logger.exception("Failed to recover description statuses for %s", project_id)
+                    db.session.remove()
 
-                # 恢复未完成页面的状态：已生成描述的保留，未生成的恢复为 DRAFT
-                try:
-                    pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
-                    proj = db.session.get(Project, project_id)
-                    has_any_desc = False
-                    for page in pages:
-                        if page.status == 'GENERATING_DESCRIPTION':
-                            # 如果之前就有描述内容，恢复为 DESCRIPTION_GENERATED
-                            if page.description_content:
-                                page.status = 'DESCRIPTION_GENERATED'
-                                has_any_desc = True
-                            else:
-                                page.status = 'DRAFT'
-                        elif page.status == 'DESCRIPTION_GENERATED':
-                            has_any_desc = True
-                    if proj:
-                        proj.status = 'DESCRIPTIONS_GENERATED' if has_any_desc else 'OUTLINE_GENERATED'
-                        proj.updated_at = datetime.utcnow()
-                    db.session.commit()
-                except Exception as recover_exc:
-                    logger.warning(f"Failed to recover page statuses: {recover_exc}", exc_info=True)
-
-                yield _sse_event('error', {'message': '生成过程中发生内部错误'})
+            if error_message and not stopped.is_set():
+                yield _sse_event('error', {'message': error_message})
 
     return Response(
-        stream_with_context(sse_generate()),
+        stream_with_context(with_heartbeat(
+            sse_generate,
+            timeout_message='模型长时间未返回页面描述，请稍后重试。 / The model timed out. Please try again.',
+        )),
         mimetype='text/event-stream',
         headers={
             'Cache-Control': 'no-cache, no-transform',

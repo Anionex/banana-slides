@@ -137,6 +137,7 @@ def test_volcengine_text_provider_uses_modelark_openai_compatible_base():
         api_key='volcengine-key',
         api_base='https://ark.cn-beijing.volces.com/api/v3',
         model='doubao-seed-2-0',
+        provider_format='volcengine',
     )
 
 
@@ -161,6 +162,7 @@ def test_volcengine_empty_base_string_falls_back_to_default():
         api_key='volcengine-key',
         api_base='https://ark.cn-beijing.volces.com/api/plan/v3',
         model='doubao-seed-2.1-turbo',
+        provider_format='volcengine',
     )
 
 

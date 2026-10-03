@@ -2,12 +2,14 @@
 from queue import Empty, Full, Queue
 from threading import Event
 from time import monotonic
+import json
 
 from services.public_demo import VisitorThread
 from services.ai_providers.text.stream_control import stream_limits
 
 
-def with_heartbeat(generate, *, interval=10, idle_timeout=300):
+def with_heartbeat(generate, *, interval=10, idle_timeout=300,
+                   timeout_message='模型长时间未返回大纲，请稍后重试。 / The model timed out. Please try again.'):
     """Yield immediately and while waiting; stop delivery after disconnect/timeout.
 
     The producer owns its app context and generator. VisitorThread carries only
@@ -41,7 +43,7 @@ def with_heartbeat(generate, *, interval=10, idle_timeout=300):
             source.close()
             send(end)
 
-    worker = VisitorThread(target=produce, daemon=True, name='outline-sse')
+    worker = VisitorThread(target=produce, daemon=True, name='generation-sse')
     worker.start()
     last_event = monotonic()
     try:
@@ -50,7 +52,7 @@ def with_heartbeat(generate, *, interval=10, idle_timeout=300):
             remaining = idle_timeout - (monotonic() - last_event)
             if remaining <= 0:
                 stopped.set()
-                yield 'event: error\ndata: {"message":"模型长时间未返回大纲，请稍后重试。 / The model timed out. Please try again."}\n\n'
+                yield 'event: error\ndata: ' + json.dumps({'message': timeout_message}, ensure_ascii=False) + '\n\n'
                 return
             try:
                 item = queue.get(timeout=min(interval, remaining))
