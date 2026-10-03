@@ -51,8 +51,15 @@ test('built web shared preview loads directly and after refresh', async ({ page,
   await page.goto(`/project/${projectId}/preview`);
   await expect(page.getByRole('heading', { name: '请保存当前 PPT 链接' })).toBeVisible();
   await expect(page.getByLabel('当前 PPT 链接', { exact: true })).toHaveValue(page.url());
+  await expect(page.getByRole('heading', { name: '更换模板', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: '我知道了', exact: true }).click();
+  const templateDialog = page.getByRole('dialog', { name: '更换模板', exact: true });
+  await expect(templateDialog).toBeVisible();
+  await templateDialog.getByRole('button', { name: '关闭', exact: true }).last().click();
+  await expect(templateDialog).toHaveCount(0);
   await page.reload();
+  await expect(page.getByRole('heading', { name: '请保存当前 PPT 链接' })).toHaveCount(0);
+  await expect(templateDialog).toBeVisible();
   await expect(page.getByRole('button', { name: '分享 / 保存链接', exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });

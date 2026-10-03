@@ -595,8 +595,13 @@ export const SlidePreview: React.FC = () => {
   const [useTextStyleMode, setUseTextStyleMode] = useState(false);
   const [draftTemplateStyle, setDraftTemplateStyle] = useState('');
   const templatePromptedProjects = useRef(new Set<string>());
+  const [shareNoticeReadyProject, setShareNoticeReadyProject] = useState<string | null>(null);
+  const handleShareNoticeReady = useCallback(() => {
+    setShareNoticeReadyProject(projectId || null);
+  }, [projectId]);
   useEffect(() => {
     if (!projectId || currentProject?.id !== projectId || !currentProject.pages.length) return;
+    if (isPublicDemo && shareNoticeReadyProject !== projectId) return;
     if (currentProject.template_mode === 'multi' || currentProject.template_image_path
       || currentProject.template_style?.trim()
       || currentProject.pages.some(page => page.generated_image_path)
@@ -605,7 +610,7 @@ export const SlidePreview: React.FC = () => {
     setUseTextStyleMode(false);
     setDraftTemplateStyle('');
     setIsTemplateModalOpen(true);
-  }, [projectId, currentProject]);
+  }, [projectId, currentProject, shareNoticeReadyProject]);
   const [editPrompt, setEditPrompt] = useState('');
   // 大纲和描述编辑状态
   const [editOutlineTitle, setEditOutlineTitle] = useState('');
@@ -2160,7 +2165,7 @@ export const SlidePreview: React.FC = () => {
             <span className="text-sm md:text-lg font-semibold truncate hidden sm:inline">{t('preview.title')}</span>
         </div>
         <div className="flex items-center gap-1 md:gap-3 flex-shrink-0">
-          {isPublicDemo && projectId && <PublicShareNotice projectId={projectId} />}
+          {isPublicDemo && projectId && <PublicShareNotice projectId={projectId} onInitialNoticeComplete={handleShareNoticeReady} />}
             <Button
               variant="ghost"
               size="sm"
