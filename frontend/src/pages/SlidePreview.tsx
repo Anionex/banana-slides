@@ -594,6 +594,23 @@ export const SlidePreview: React.FC = () => {
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [useTextStyleMode, setUseTextStyleMode] = useState(false);
   const [draftTemplateStyle, setDraftTemplateStyle] = useState('');
+  const templatePromptedProjects = useRef(new Set<string>());
+  const [shareNoticeReadyProject, setShareNoticeReadyProject] = useState<string | null>(null);
+  const handleShareNoticeReady = useCallback(() => {
+    setShareNoticeReadyProject(projectId || null);
+  }, [projectId]);
+  useEffect(() => {
+    if (!projectId || currentProject?.id !== projectId || !currentProject.pages.length) return;
+    if (isPublicDemo && shareNoticeReadyProject !== projectId) return;
+    if (currentProject.template_mode === 'multi' || currentProject.template_image_path
+      || currentProject.template_style?.trim()
+      || currentProject.pages.some(page => page.generated_image_path)
+      || templatePromptedProjects.current.has(projectId)) return;
+    templatePromptedProjects.current.add(projectId);
+    setUseTextStyleMode(false);
+    setDraftTemplateStyle('');
+    setIsTemplateModalOpen(true);
+  }, [projectId, currentProject, shareNoticeReadyProject]);
   const [editPrompt, setEditPrompt] = useState('');
   // 大纲和描述编辑状态
   const [editOutlineTitle, setEditOutlineTitle] = useState('');
@@ -2012,23 +2029,18 @@ export const SlidePreview: React.FC = () => {
   const handleTemplateSelect = async (templateFile: File | null, templateId?: string) => {
     if (!projectId) return;
     
-    // 如果有templateId，按需加载File
-    let file = templateFile;
-    if (templateId && !file) {
-      file = await getTemplateFile(templateId, userTemplates);
-      if (!file) {
-        show({ message: t('slidePreview.loadTemplateFailed'), type: 'error' });
-        return;
-      }
-    }
-    
-    if (!file) {
-      // 如果没有文件也没有 ID，可能是取消选择
-      return;
-    }
-    
-    setIsUploadingTemplate(true);
     try {
+      // 下载模板也属于选择过程，期间保持上传提示和操作锁定。
+      let file = templateFile;
+      if (templateId && !file) {
+        file = await getTemplateFile(templateId, userTemplates);
+        if (!file) {
+          show({ message: t('slidePreview.loadTemplateFailed'), type: 'error' });
+          return;
+        }
+      }
+      if (!file) return;
+
       await uploadTemplate(projectId, file);
       await syncProject(projectId);
       setIsTemplateModalOpen(false);
@@ -2050,8 +2062,6 @@ export const SlidePreview: React.FC = () => {
         message: t('slidePreview.templateChangeFailed', { error: error.message || t('slidePreview.unknownError') }),
         type: 'error' 
       });
-    } finally {
-      setIsUploadingTemplate(false);
     }
   };
 
@@ -2155,7 +2165,7 @@ export const SlidePreview: React.FC = () => {
             <span className="text-sm md:text-lg font-semibold truncate hidden sm:inline">{t('preview.title')}</span>
         </div>
         <div className="flex items-center gap-1 md:gap-3 flex-shrink-0">
-          {isPublicDemo && projectId && <PublicShareNotice projectId={projectId} />}
+          {isPublicDemo && projectId && <PublicShareNotice projectId={projectId} onInitialNoticeComplete={handleShareNoticeReady} />}
             <Button
               variant="ghost"
               size="sm"
@@ -3727,7 +3737,14 @@ export const SlidePreview: React.FC = () => {
       {/* 模板选择 Modal */}
       <Modal
         isOpen={isTemplateModalOpen}
-        onClose={() => setIsTemplateModalOpen(false)}
+        onClose={() => { if (!isUploadingTemplate && !isSavingTemplateStyle) setIsTemplateModalOpen(false); }}
+        showCloseButton={!isUploadingTemplate && !isSavingTemplateStyle}
+        headerContent={isUploadingTemplate ? (
+          <div role="status" aria-live="polite" className="mt-3 flex items-center gap-2 rounded-xl bg-banana-50 dark:bg-banana/10 px-3 py-2 text-sm font-medium text-gray-900 dark:text-white">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-banana-500 border-t-transparent" aria-hidden="true" />
+            {t('preview.uploadingTemplate')}
+          </div>
+        ) : undefined}
         title={t('preview.changeTemplate')}
         size="lg"
       >
@@ -3744,6 +3761,7 @@ export const SlidePreview: React.FC = () => {
               <input
                 type="checkbox"
                 checked={useTextStyleMode}
+                disabled={isUploadingTemplate || isSavingTemplateStyle}
                 onChange={(e) => setUseTextStyleMode(e.target.checked)}
                 className="sr-only peer"
               />
@@ -3771,16 +3789,12 @@ export const SlidePreview: React.FC = () => {
             <>
               <TemplateSelector
                 onSelect={handleTemplateSelect}
+                onBusyChange={setIsUploadingTemplate}
                 selectedTemplateId={selectedTemplateId}
                 selectedPresetTemplateId={selectedPresetTemplateId}
                 showUpload={false}
                 projectId={projectId || null}
               />
-              {isUploadingTemplate && (
-                <div className="text-center py-2 text-sm text-gray-500 dark:text-foreground-tertiary">
-                  {t('preview.uploadingTemplate')}
-                </div>
-              )}
             </>
           )}
           <div className="flex justify-end gap-3 pt-4 border-t">
