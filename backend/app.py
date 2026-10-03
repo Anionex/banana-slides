@@ -36,6 +36,7 @@ from controllers.reference_file_controller import reference_file_bp
 from controllers.settings_controller import settings_bp
 from controllers.openai_oauth_controller import openai_oauth_bp
 from controllers import project_bp, page_bp, template_bp, user_template_bp, user_style_template_bp, export_bp, file_bp, style_bp, template_assets_bp, page_template_bp, template_mode_bp
+from controllers.template_controller import system_template_serve_bp
 
 
 # Enable SQLite WAL mode for all connections
@@ -160,6 +161,7 @@ def create_app():
     app.register_blueprint(settings_bp)
     app.register_blueprint(openai_oauth_bp)
     app.register_blueprint(style_bp)
+    app.register_blueprint(system_template_serve_bp)
 
     with app.app_context():
         if db_path_env:
