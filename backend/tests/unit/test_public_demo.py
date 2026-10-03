@@ -54,6 +54,30 @@ def test_settings_isolation_switch_reset_and_locked_fields(public_app):
     assert client.get('/api/settings', headers=B).json['data']['partner'] == 'inferera'
 
 
+def test_existing_volcengine_visitor_uses_current_agent_plan_image_model(public_app):
+    from models import PublicVisitor
+    from services.public_demo import visitor_scope, config_overrides
+
+    token_hash = hashlib.sha256(A['X-User-Token'].encode()).hexdigest()
+    old_config = {'partner': 'volcengine', 'provider_keys': {'volcengine': 'saved-key'},
+                  'image_model': 'doubao-seedream-5.0-lite'}
+    with public_app.app_context():
+        db.session.add(PublicVisitor(token_hash=token_hash, config_json=json.dumps(old_config)))
+        db.session.commit()
+    client = public_app.test_client()
+    settings = client.get('/api/settings', headers=A).json['data']
+    assert settings['image_model'] == 'doubao-seedream-5-0-pro'
+    assert settings['text_model'] == settings['image_caption_model'] == 'doubao-seed-2.1-turbo'
+    assert settings['api_key_length'] == len('saved-key')
+    assert client.get('/api/public-config').json['data']['partners']['volcengine']['image'] == settings['image_model']
+    with public_app.app_context(), visitor_scope({'token': token_hash, 'config': old_config}):
+        overrides = config_overrides()
+        assert overrides['IMAGE_MODEL'] == settings['image_model']
+        assert overrides['IMAGE_API_BASE'] == 'https://ark.cn-beijing.volces.com/api/plan/v3'
+        assert overrides['IMAGE_API_KEY'] == 'saved-key'
+        assert json.loads(db.session.get(PublicVisitor, token_hash).config_json) == old_config
+
+
 def test_history_deletion_and_global_config_blocked(public_app):
     client = public_app.test_client()
     for method, url in [('get', '/api/projects'), ('get', '/api/projects/?limit=1'), ('delete', '/api/projects/a-project'), ('get', '/api/settings/active-config'), ('get', '/api/settings/openai-oauth/authorize'), ('post', '/api/settings/openai-oauth/disconnect')]:

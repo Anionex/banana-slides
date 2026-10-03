@@ -102,7 +102,7 @@ const VOLCENGINE_AGENTPLANS_BASE_URL = 'https://ark.cn-beijing.volces.com/api/pl
 const VOLCENGINE_AGENTPLANS_RECOMMENDED_MODELS = {
   text: 'doubao-seed-2.1-turbo',
   caption: 'doubao-seed-2.1-turbo',
-  image: 'doubao-seedream-5.0-lite',
+  image: 'doubao-seedream-5-0-pro',
 };
 // 火山方舟（标准 ModelArk, LazyLLM Doubao 路径）: 使用端点 ID 格式
 const VOLCENGINE_MODELARK_RECOMMENDED_MODELS = {

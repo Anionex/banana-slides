@@ -229,50 +229,40 @@ def test_doubao_seedream_auto_protocol_uses_native_images_api():
     mock_client.chat.completions.create.assert_not_called()
 
 
-def test_doubao_seedream_forced_images_protocol_keeps_references_on_chat_path():
-    """Seedream + reference images must never call images.edit, even when the
-    images protocol is forced ('images'): images.edit is SeedEdit-only and the
-    Agent Plans recommended models save openai_image_api_protocol=images."""
+@pytest.mark.parametrize('protocol', ['auto', 'images', 'chat'])
+@pytest.mark.parametrize('model', ['doubao-seedream-5-0-pro', 'doubao-seedream-5.0-lite'])
+def test_doubao_seedream_references_use_json_generations(protocol, model):
+    """Templates and edits must keep every reference on Seedream's native API."""
+    import base64
     from io import BytesIO
-
     from PIL import Image
     from services.ai_providers.image.openai_provider import OpenAIImageProvider
 
-    mock_client = MagicMock()
     buf = BytesIO()
-    Image.new('RGB', (8, 8), color='red').save(buf, format='PNG')
-    import base64 as _b64
-    png_data = _b64.b64encode(buf.getvalue()).decode()
-    chat_message = MagicMock()
-    chat_message.images = None
-    chat_message.multi_mod_content = None
-    chat_message.content = [
-        {'type': 'image_url', 'image_url': {'url': f'data:image/png;base64,{png_data}'}}
-    ]
-    mock_response = MagicMock()
-    mock_response.choices = [MagicMock(message=chat_message)]
-    mock_client.chat.completions.create.return_value = mock_response
-
+    Image.new('RGB', (16, 16), color='red').save(buf, format='PNG')
+    mock_client = MagicMock()
+    mock_client.images.with_raw_response.generate.return_value.json.return_value = {
+        'data': [{'b64_json': base64.b64encode(buf.getvalue()).decode()}]
+    }
     with patch('services.ai_providers.image.openai_provider.OpenAI'):
         provider = OpenAIImageProvider(
             api_key='volcengine-key',
             api_base='https://ark.cn-beijing.volces.com/api/plan/v3',
-            model='doubao-seedream-5.0-lite',
-            image_api_protocol='images',
+            model=model, image_api_protocol=protocol,
         )
     provider.client = mock_client
-
-    result = provider.generate_image(
-        prompt='a cat',
-        ref_images=[Image.new('RGB', (8, 8), color='blue')],
-        aspect_ratio='16:9',
-        resolution='2K',
-    )
-
+    refs = [Image.new('RGB', (16, 16), color=c) for c in ('blue', 'red')]
+    result = provider.generate_image('a slide', ref_images=refs, resolution='4K')
     assert isinstance(result, Image.Image)
-    mock_client.chat.completions.create.assert_called_once()
-    mock_client.images.edit.assert_not_called()
-    mock_client.images.generate.assert_not_called()
+    kwargs = mock_client.images.with_raw_response.generate.call_args.kwargs
+    assert kwargs['model'] == model
+    assert kwargs['response_format'] == 'b64_json'
+    assert len(kwargs['extra_body']['image']) == 2
+    assert kwargs['extra_body']['image'][0] != kwargs['extra_body']['image'][1]
+    assert all(x.startswith('data:image/jpeg;base64,') for x in kwargs['extra_body']['image'])
+    assert 'quality' not in kwargs and 'sequential_image_generation' not in kwargs['extra_body']
+    mock_client.chat.completions.create.assert_not_called()
+    mock_client.images.with_raw_response.edit.assert_not_called()
 
 
 def test_doubao_seedream_forced_images_protocol_without_references_uses_images_api():
