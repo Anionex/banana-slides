@@ -219,18 +219,18 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const activeRun = runs.find(run => run.taskId === activeTaskId) || runs[runs.length - 1];
   const isGenerating = activeRun?.status === 'pending' && !activeRun.paused;
-  useEffect(() => {
-    if (activeRun?.status === 'completed' && activeRun.previewUrl) {
-      setPreviewUrl(getImageUrl(activeRun.previewUrl));
-      setIsCompleted(true);
-    }
-  }, [activeRun]);
   const [isCompleted, setIsCompleted] = useState(false);
   useEffect(() => {
     setActiveTaskId(null);
     setPreviewUrl(null);
     setIsCompleted(false);
   }, [projectId]);
+  useEffect(() => {
+    if (activeRun?.status === 'completed' && activeRun.previewUrl) {
+      setPreviewUrl(getImageUrl(activeRun.previewUrl));
+      setIsCompleted(true);
+    }
+  }, [activeRun]);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMaterialSelectorOpen, setIsMaterialSelectorOpen] = useState(false);
   const [selectorTarget, setSelectorTarget] = useState<SelectorTarget>('references');

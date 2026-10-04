@@ -1,10 +1,18 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { getTaskStatus } from '@/api/endpoints';
 
 export type MaterialRun = {
   taskId: string; prompt: string; status: 'pending' | 'completed' | 'failed';
   previewUrl?: string | null; error?: string; paused?: boolean;
 };
+type Poller = { cancelled: boolean; timer?: ReturnType<typeof setTimeout> };
+type RunStore = {
+  scope: string;
+  runs: MaterialRun[];
+  listeners: Set<() => void>;
+  pollers: Map<string, Poller>;
+};
+const stores = new Map<string, RunStore>();
 const storageKey = (scope: string) => `banana-material-runs:${scope}`;
 function readRuns(scope: string): MaterialRun[] {
   try {
@@ -16,55 +24,86 @@ function readRuns(scope: string): MaterialRun[] {
       ? [{ ...legacy, prompt: '' }] : [];
   } catch { return []; }
 }
-
-/** Poll each run independently; a slow or failed task must not lock the toolbox. */
-export function useMaterialRuns(scope: string) {
-  const [state, setState] = useState(() => ({ scope, runs: readRuns(scope) }));
-  const runs = state.scope === scope ? state.runs : [];
-  const attempts = useRef(new Map<string, number>());
-  useEffect(() => { setState({ scope, runs: readRuns(scope) }); attempts.current.clear(); }, [scope]);
-  useEffect(() => {
-    if (state.scope !== scope) return;
-    try { sessionStorage.setItem(storageKey(scope), JSON.stringify(state.runs)); } catch { /* Storage may be unavailable. */ }
-  }, [state, scope]);
-  const update = (taskId: string, patch: Partial<MaterialRun>) => setState(prev => prev.scope !== scope ? prev : ({
-    ...prev, runs: prev.runs.map(run => run.taskId === taskId ? { ...run, ...patch } : run),
-  }));
-  const pending = runs.filter(run => run.status === 'pending' && !run.paused).map(run => run.taskId).join(',');
-  useEffect(() => {
-    if (!pending) return;
-    let cancelled = false;
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    const poll = async (taskId: string) => {
-      const count = (attempts.current.get(taskId) || 0) + 1;
-      attempts.current.set(taskId, count);
+function getStore(scope: string): RunStore {
+  let store = stores.get(scope);
+  if (!store) {
+    store = { scope, runs: readRuns(scope), listeners: new Set(), pollers: new Map() };
+    stores.set(scope, store);
+  } else if (!store.listeners.size) {
+    // A new mount must honor restored or cleared session data as well.
+    store.runs = readRuns(scope);
+  }
+  return store;
+}
+function publish(store: RunStore, runs: MaterialRun[]) {
+  store.runs = runs;
+  try { sessionStorage.setItem(storageKey(store.scope), JSON.stringify(runs)); } catch { /* Storage may be unavailable. */ }
+  store.listeners.forEach(listener => listener());
+  startPendingPolls(store);
+}
+function update(store: RunStore, taskId: string, patch: Partial<MaterialRun>) {
+  publish(store, store.runs.map(run => run.taskId === taskId ? { ...run, ...patch } : run));
+}
+function startPendingPolls(store: RunStore) {
+  if (!store.listeners.size) return;
+  for (const run of store.runs) {
+    if (run.status !== 'pending' || run.paused || store.pollers.has(run.taskId)) continue;
+    const poller: Poller = { cancelled: false };
+    store.pollers.set(run.taskId, poller);
+    let attempts = 0;
+    const finish = (patch: Partial<MaterialRun>) => {
+      store.pollers.delete(run.taskId);
+      update(store, run.taskId, patch);
+    };
+    const poll = async () => {
+      attempts += 1;
       try {
-        const response = await getTaskStatus(scope, taskId);
-        if (cancelled) return;
+        const response = await getTaskStatus(store.scope, run.taskId);
+        if (poller.cancelled) return;
         const task = response.data;
         if (!task) throw new Error('Missing task status');
         if (task.status === 'COMPLETED') {
-          update(taskId, task.progress?.image_url
+          finish(task.progress?.image_url
             ? { status: 'completed', previewUrl: task.progress.image_url }
             : { status: 'failed', error: 'No image returned' });
           return;
         }
         if (task.status === 'FAILED') {
-          update(taskId, { status: 'failed', error: task.error_message || 'Generation failed' });
+          finish({ status: 'failed', error: task.error_message || 'Generation failed' });
           return;
         }
       } catch { /* Keep the backend task until polling can be resumed. */ }
-      if (cancelled) return;
-      if (count >= 90) { update(taskId, { paused: true }); return; }
-      timers.push(setTimeout(() => void poll(taskId), 2000));
+      if (poller.cancelled) return;
+      if (attempts >= 90) { finish({ paused: true }); return; }
+      poller.timer = setTimeout(() => void poll(), 2000);
     };
-    pending.split(',').forEach(taskId => void poll(taskId));
-    return () => { cancelled = true; timers.forEach(clearTimeout); };
-    // A task's identity and scope define its polling lifetime.
-  }, [scope, pending]);
+    void poll();
+  }
+}
+function subscribe(store: RunStore, listener: () => void) {
+  store.listeners.add(listener);
+  startPendingPolls(store);
+  return () => {
+    store.listeners.delete(listener);
+    if (store.listeners.size) return;
+    for (const poller of store.pollers.values()) {
+      poller.cancelled = true;
+      clearTimeout(poller.timer);
+    }
+    store.pollers.clear();
+  };
+}
+
+/** All toolbox instances for a project share one snapshot and one poller per task. */
+export function useMaterialRuns(scope: string) {
+  const store = useMemo(() => getStore(scope), [scope]);
+  const listen = useCallback((listener: () => void) => subscribe(store, listener), [store]);
+  const runs = useSyncExternalStore(listen, () => store.runs);
   return {
     runs,
-    addRun: (run: MaterialRun) => setState(prev => ({ scope, runs: [...(prev.scope === scope ? prev.runs : []), run] })),
-    resume: (taskId: string) => { attempts.current.delete(taskId); update(taskId, { paused: false }); },
+    addRun: (run: MaterialRun) => {
+      if (!store.runs.some(existing => existing.taskId === run.taskId)) publish(store, [...store.runs, run]);
+    },
+    resume: (taskId: string) => update(store, taskId, { paused: false }),
   };
 }

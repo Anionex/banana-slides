@@ -58,3 +58,27 @@ describe('independent material tasks', () => {
     expect(result.current.runs).toEqual([]);
   });
 });
+
+describe('multiple material toolbox instances', () => {
+  it('shares submissions and polling for the same project without overwriting persisted tasks', async () => {
+    const resolvers = new Map<string, (value: any) => void>();
+    vi.mocked(getTaskStatus).mockClear();
+    vi.mocked(getTaskStatus).mockImplementation((_scope, id) => new Promise(resolve => { resolvers.set(id, resolve); }));
+    const first = renderHook(() => useMaterialRuns('shared-project'));
+    const second = renderHook(() => useMaterialRuns('shared-project'));
+    act(() => first.result.current.addRun({ taskId: 'A', prompt: 'direct toolbox', status: 'pending' }));
+    act(() => second.result.current.addRun({ taskId: 'B', prompt: 'nested selector toolbox', status: 'pending' }));
+    expect(first.result.current.runs.map(run => run.taskId)).toEqual(['A', 'B']);
+    expect(second.result.current.runs).toEqual(first.result.current.runs);
+    expect(getTaskStatus).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(sessionStorage.getItem('banana-material-runs:shared-project')!).map((run: any) => run.taskId)).toEqual(['A', 'B']);
+    first.unmount();
+    await act(async () => resolvers.get('A')!({ data: { status: 'COMPLETED', progress: { image_url: '/files/A.png' } } }));
+    expect(second.result.current.runs[0].status).toBe('completed');
+    expect(getTaskStatus).toHaveBeenCalledTimes(2);
+    second.unmount();
+    const reopened = renderHook(() => useMaterialRuns('shared-project'));
+    expect(reopened.result.current.runs.map(run => run.taskId)).toEqual(['A', 'B']);
+    expect(getTaskStatus).toHaveBeenCalledTimes(3);
+  });
+});

@@ -205,3 +205,21 @@ for (const multi of [false, true]) {
     }
   });
 }
+
+test('global Codex login applies the selection and clears the previous APIMart default endpoint', async ({ page }) => {
+  const base = await (await page.request.get('/api/settings')).json();
+  await page.route('**/api/settings', route => route.fulfill({ json: {
+    ...base, data: { ...base.data, ai_provider_format: 'openai', api_base_url: 'https://api.apimart.ai/v1', openai_oauth_connected: false },
+  } }));
+  await page.route('**/api/settings/openai-oauth/manual-callback', route => route.fulfill({ json: { success: true, data: { account_id: 'fixture-user' } } }));
+  await page.goto('/settings');
+  await page.getByRole('radio', { name: 'Codex (OpenAI OAuth)', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: /登录后连接失败|Connection failed/ }).click();
+  await dialog.locator('input').fill('http://localhost:1455/auth/callback?code=fixture&state=fixture');
+  await dialog.getByRole('button', { name: '提交' }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(page.getByRole('radio', { name: 'Codex (OpenAI OAuth)', exact: true })).toHaveAttribute('aria-checked', 'true');
+  await page.getByRole('radio', { name: /^OpenAI/ }).click();
+  await expect(page.getByTestId('global-api-config-section').locator('input[type="text"]').first()).toHaveValue('');
+});
