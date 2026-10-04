@@ -1,5 +1,6 @@
 import { apiClient } from '@/api/client';
 import { isPublicDemo } from '@/utils/publicDemo';
+import { ReportForm, emptyReport, buildReportPrompt } from '@/components/shared/ReportForm';
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -196,6 +197,18 @@ const homeI18n = {
   },
 };
 
+const EMPTY_REPORT_DRAFT = { enabled: false, fields: emptyReport, prompt: '', edited: false };
+
+function readReportDraft() {
+  if (!isPublicDemo) return EMPTY_REPORT_DRAFT;
+  try {
+    const saved = sessionStorage.getItem('home-draft-report');
+    return saved ? { ...EMPTY_REPORT_DRAFT, ...JSON.parse(saved) } as typeof EMPTY_REPORT_DRAFT : EMPTY_REPORT_DRAFT;
+  } catch {
+    return EMPTY_REPORT_DRAFT;
+  }
+}
+
 export const Home: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -215,10 +228,24 @@ export const Home: React.FC = () => {
     } catch { return 'idea'; }
   });
   const [multiTemplateMode, setMultiTemplateMode] = useState(false);
-  const [content, setContent] = useState(() => {
+  const [freeContent, setFreeContent] = useState(() => {
     try { return isPublicDemo ? sessionStorage.getItem('home-draft-content') || '' : ''; }
     catch { return ''; }
   });
+  const [reportDraft, setReportDraft] = useState(readReportDraft);
+  const { enabled: reportMode, fields: reportFields, prompt: reportPrompt } = reportDraft;
+  const structured = activeTab === 'idea' && reportMode;
+  const content = structured ? reportPrompt : freeContent;
+  const setContent = (value: React.SetStateAction<string>) => {
+    if (structured) {
+      setReportDraft(previous => ({
+        ...previous,
+        prompt: typeof value === 'function' ? value(previous.prompt) : value,
+        edited: true,
+      }));
+    }
+    else setFreeContent(value);
+  };
   const [selectedTemplate, setSelectedTemplate] = useState<File | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [selectedPresetTemplateId, setSelectedPresetTemplateId] = useState<string | null>(null);
@@ -247,10 +274,14 @@ export const Home: React.FC = () => {
 
   // 持久化草稿到 sessionStorage，确保跳转设置页后返回时内容不丢失
   useEffect(() => {
-    if (content) {
-      sessionStorage.setItem('home-draft-content', content);
+    if (freeContent) {
+      sessionStorage.setItem('home-draft-content', freeContent);
     }
-  }, [content]);
+  }, [freeContent]);
+
+  useEffect(() => {
+    if (isPublicDemo) sessionStorage.setItem('home-draft-report', JSON.stringify(reportDraft));
+  }, [reportDraft]);
 
   useEffect(() => {
     sessionStorage.setItem('home-draft-tab', activeTab);
@@ -643,6 +674,10 @@ export const Home: React.FC = () => {
   };
 
   const handleSubmit = async () => {
+    if (structured && !reportFields.topic.trim()) {
+      show({ message: i18n.language?.startsWith('zh') ? '请填写主题后继续' : 'Enter a topic to continue', type: 'error' });
+      return;
+    }
     // For ppt_renovation, validate file instead of content
     if (activeTab === 'ppt_renovation') {
       if (!renovationFile) {
@@ -693,6 +728,7 @@ export const Home: React.FC = () => {
         // Clear draft
         sessionStorage.removeItem('home-draft-content');
         sessionStorage.removeItem('home-draft-tab');
+        sessionStorage.removeItem('home-draft-report');
 
         // Navigate to detail editor (will poll for task completion with skeleton UI)
         navigate(`/project/${projectId}/detail`);
@@ -1161,6 +1197,22 @@ export const Home: React.FC = () => {
                 </div>
               </div>
             ) : (
+            <>
+            {activeTab === 'idea' && <div className="flex gap-2 mb-4">
+              {[false, true].map(report => <button type="button" key={String(report)} aria-pressed={reportMode === report}
+                disabled={isSubmitting || isGlobalLoading}
+                onClick={() => setReportDraft(previous => ({ ...previous, enabled: report }))}
+                className={`px-3 py-2 rounded-lg text-sm ${reportMode === report ? 'bg-banana-100 text-gray-900' : 'text-gray-500'}`}>
+                {report ? (i18n.language?.startsWith('zh') ? '日常汇报' : 'Report builder') : (i18n.language?.startsWith('zh') ? '自由输入' : 'Free input')}
+              </button>)}
+            </div>}
+            {structured && <ReportForm fields={reportFields} zh={!!i18n.language?.startsWith('zh')} disabled={isSubmitting || isGlobalLoading}
+              onChange={fields => setReportDraft(previous => ({
+                ...previous, fields, prompt: previous.edited ? previous.prompt : buildReportPrompt(fields, !!i18n.language?.startsWith('zh')),
+              }))}
+              onRebuild={() => setReportDraft(previous => ({
+                ...previous, edited: false, prompt: buildReportPrompt(previous.fields, !!i18n.language?.startsWith('zh')),
+              }))} />}
             <MarkdownTextarea
               ref={textareaRef}
               placeholder={tabConfig[activeTab].placeholder}
@@ -1218,7 +1270,7 @@ export const Home: React.FC = () => {
                   onClick={handleSubmit}
                   loading={isSubmitting || isGlobalLoading}
                   disabled={
-                    !content.trim() ||
+                    !content.trim() || (structured && !reportFields.topic.trim()) ||
                     isUploadingImage ||
                     referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
                   }
@@ -1230,6 +1282,7 @@ export const Home: React.FC = () => {
                 </Button>
               }
             />
+            </>
             )}
           </div>
 
