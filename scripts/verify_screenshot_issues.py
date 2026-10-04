@@ -89,6 +89,8 @@ def main():
                             time.sleep(.3)
                 if not run('browser', ['npx', 'playwright', 'test', 'e2e/screenshot-issues.spec.ts', '--reporter=list,json', '--workers=1'], ROOT / 'frontend', env):
                     return 1
+                if not run('oauth-existing', ['npx', 'playwright', 'test', 'e2e/openai-oauth.spec.ts', '--grep', 'Mock tests', '--reporter=list', '--workers=1'], ROOT / 'frontend', env):
+                    return 1
                 stats = json.loads((evidence / 'browser-results.json').read_text())['stats']
                 assert stats['expected'] > 0 and stats['unexpected'] == 0 and stats['skipped'] == 0, stats
         return 0

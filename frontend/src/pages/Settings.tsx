@@ -648,7 +648,7 @@ export const Settings: React.FC = () => {
   const [serviceTestStates, setServiceTestStates] = useState<Record<string, ServiceTestState>>({});
   const [oauthConnecting, setOauthConnecting] = useState(false);
   const [oauthDialogOpen, setOauthDialogOpen] = useState(false);
-  const pendingCodexField = useRef<string | null>(null);
+  const pendingCodexSelection = useRef<(() => void) | null>(null);
   const oauthPopupRef = useRef<Window | null>(null);
   const [manualCallbackUrl, setManualCallbackUrl] = useState('');
   const [manualCallbackOpen, setManualCallbackOpen] = useState(false);
@@ -704,10 +704,9 @@ export const Settings: React.FC = () => {
   }, [settings]);
 
   const applyOAuthStatus = useCallback((connected: boolean, accountId: string | null) => {
-    if (connected && pendingCodexField.current) {
-      const field = pendingCodexField.current;
-      setFormData(prev => ({ ...prev, [field]: 'codex' }));
-      pendingCodexField.current = null;
+    if (connected && pendingCodexSelection.current) {
+      pendingCodexSelection.current();
+      pendingCodexSelection.current = null;
       setOauthDialogOpen(false);
     }
     setSettings(prev => {
@@ -1102,9 +1101,9 @@ export const Settings: React.FC = () => {
     );
   };
 
-  const handleFieldChange = (key: string, value: any) => {
-    if (value === 'codex' && ['ai_provider_format', 'text_model_source', 'image_model_source', 'image_caption_model_source'].includes(key) && !settings?.openai_oauth_connected) {
-      pendingCodexField.current = key;
+  const handleFieldChange = (key: string, value: any, oauthConnected = settings?.openai_oauth_connected) => {
+    if (value === 'codex' && ['ai_provider_format', 'text_model_source', 'image_model_source', 'image_caption_model_source'].includes(key) && !oauthConnected) {
+      pendingCodexSelection.current = () => handleFieldChange(key, value, true);
       setOauthDialogOpen(true);
       return;
     }
@@ -1199,9 +1198,10 @@ export const Settings: React.FC = () => {
     }));
   };
 
-  const selectGlobalProvider = (provider: string) => {
-    if (provider === 'codex' && !settings?.openai_oauth_connected) {
-      handleFieldChange('ai_provider_format', provider);
+  const selectGlobalProvider = (provider: string, oauthConnected = settings?.openai_oauth_connected) => {
+    if (provider === 'codex' && !oauthConnected) {
+      pendingCodexSelection.current = () => selectGlobalProvider(provider, true);
+      setOauthDialogOpen(true);
       return;
     }
     if (provider === 'apimart') {
@@ -1220,7 +1220,7 @@ export const Settings: React.FC = () => {
       }));
       return;
     }
-    handleFieldChange('ai_provider_format', provider);
+    handleFieldChange('ai_provider_format', provider, oauthConnected);
   };
 
   const isApimartPlanActive = usesApimartProvider;
@@ -1716,7 +1716,7 @@ export const Settings: React.FC = () => {
       <ToastContainer />
       {ConfirmDialog}
       <Modal isOpen={oauthDialogOpen} title={t('settings.openaiOAuth.title')} onClose={() => {
-        pendingCodexField.current = null;
+        pendingCodexSelection.current = null;
         stopOAuthMonitor();
         oauthPopupRef.current?.close();
         setOauthConnecting(false);
