@@ -1,5 +1,9 @@
 import { test, expect } from '@playwright/test';
 
+if (process.env.BANANA_ISSUE_FIXTURES === '1') {
+  test.use({ video: 'off', launchOptions: { channel: 'chrome' } });
+}
+
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3009';
 const DESKTOP_BACKEND_PORT = Number(new URL(process.env.BACKEND_URL || 'http://127.0.0.1:5011').port);
 
@@ -122,7 +126,11 @@ test.describe('OpenAI OAuth Settings Section', () => {
         (window as any).__openedUrl = null;
         window.open = (url: any) => {
           (window as any).__openedUrl = url;
-          return { closed: true } as Window;
+          return {
+            closed: false,
+            location: { set href(value: string) { (window as any).__openedUrl = value; } },
+            close() {},
+          } as unknown as Window;
         };
       });
 
@@ -220,10 +228,15 @@ test.describe('OpenAI OAuth Settings Section', () => {
       await page.goto(`${BASE_URL}/settings`);
       await expandAdvancedSettings(page);
       await page.evaluate(() => {
-        window.open = () => ({ closed: false }) as Window;
+        window.open = () => ({
+          closed: false,
+          location: { set href(value: string) { (window as any).__openedUrl = value; } },
+          close() {},
+        }) as unknown as Window;
       });
       await page.getByRole('button', { name: 'Login with OpenAI' }).click();
 
+      await page.waitForFunction(() => (window as any).__openedUrl?.includes('auth.openai.com'));
       callbackSent = true;
       await page.evaluate(() => {
         window.dispatchEvent(new MessageEvent('message', {
@@ -259,9 +272,14 @@ test.describe('OpenAI OAuth Settings Section', () => {
       await page.goto(`${BASE_URL}/settings`);
       await expandAdvancedSettings(page);
       await page.evaluate(() => {
-        window.open = () => ({ closed: false }) as Window;
+        window.open = () => ({
+          closed: false,
+          location: { set href(value: string) { (window as any).__openedUrl = value; } },
+          close() {},
+        }) as unknown as Window;
       });
       await page.getByRole('button', { name: 'Login with OpenAI' }).click();
+      await page.waitForFunction(() => (window as any).__openedUrl?.includes('auth.openai.com'));
       await page.evaluate(() => {
         window.dispatchEvent(new MessageEvent('message', {
           origin: 'http://localhost:1455',
@@ -364,7 +382,11 @@ test.describe('OpenAI OAuth Settings Section', () => {
         (window as any).__openedUrl = null;
         window.open = (url: any) => {
           (window as any).__openedUrl = url;
-          return { closed: true } as Window;
+          return {
+            closed: false,
+            location: { set href(value: string) { (window as any).__openedUrl = value; } },
+            close() {},
+          } as unknown as Window;
         };
       });
 

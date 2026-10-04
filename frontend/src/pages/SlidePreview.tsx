@@ -1,3 +1,4 @@
+import { generateUuid } from '@/utils/uuid';
 // TODO: split components
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
@@ -1657,9 +1658,10 @@ export const SlidePreview: React.FC = () => {
 
     const pageIds = getSelectedPageIdsForExport();
     const exportTaskId = `export-${Date.now()}`;
-    const backendTaskId = type === 'editable-pptx' ? crypto.randomUUID() : undefined;
 
+    let backendTaskId: string | undefined;
     try {
+      backendTaskId = type === 'editable-pptx' ? generateUuid() : undefined;
       if (type === 'pptx' || type === 'pdf' || type === 'images') {
         // Synchronous export - direct download, create completed task directly
         const response = type === 'pptx'
@@ -1786,7 +1788,7 @@ export const SlidePreview: React.FC = () => {
           || [408, 429, 500, 502, 503, 504].includes(responseStatus)
         );
 
-      if (editableStartMayHaveSucceeded) {
+      if (editableStartMayHaveSucceeded && backendTaskId) {
         addTask({
           id: exportTaskId,
           taskId: backendTaskId,

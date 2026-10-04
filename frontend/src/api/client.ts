@@ -75,7 +75,18 @@ export function triggerDownload(relativeOrAbsoluteUrl: string, filename?: string
     }
     (window as any).electronAPI.downloadFile(url, filename || fallbackFilename);
   } else {
-    window.open(relativeOrAbsoluteUrl, '_blank');
+    // Downloads may start after a long export request, when popup activation has expired.
+    const link = document.createElement('a');
+    link.href = relativeOrAbsoluteUrl;
+    link.rel = 'noopener';
+    link.download = filename || relativeOrAbsoluteUrl.split(/[?#]/)[0].split('/').pop() || '';
+    link.hidden = true;
+    document.body.appendChild(link);
+    try {
+      link.click();
+    } finally {
+      link.remove();
+    }
   }
 }
 
