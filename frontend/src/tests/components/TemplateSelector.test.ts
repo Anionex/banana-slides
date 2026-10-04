@@ -88,4 +88,20 @@ describe('getTemplateFile', () => {
     expect(file).toBeInstanceOf(File);
     expect(file?.type).toBe('image/png');
   });
+  it('does not refresh an already cached template', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(new Blob(['image'], { type: 'image/png' }), { headers: { 'content-type': 'image/png' } }));
+    const file = await getTemplateFile('cached', [{ template_id: 'cached', template_image_url: '/files/cached.png', created_at: '' }]);
+    expect(file).toBeInstanceOf(File);
+    expect(listUserTemplates).not.toHaveBeenCalled();
+  });
+
+  it.each(['missing', 'network'])('returns null when refreshing the template fails: %s', async failure => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const fetch = vi.spyOn(globalThis, 'fetch');
+    if (failure === 'network') vi.mocked(listUserTemplates).mockRejectedValue(new Error('offline'));
+    else vi.mocked(listUserTemplates).mockResolvedValue({ success: true, data: { templates: [] } });
+    expect(await getTemplateFile('missing-template', [])).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
 });

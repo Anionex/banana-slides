@@ -1,3 +1,4 @@
+import { ReportForm, emptyReport, buildReportPrompt } from '@/components/shared/ReportForm';
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -202,7 +203,17 @@ export const Home: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<CreationType>('idea');
   const [multiTemplateMode, setMultiTemplateMode] = useState(false);
-  const [content, setContent] = useState('');
+  const [freeContent, setFreeContent] = useState('');
+  const [reportMode, setReportMode] = useState(false);
+  const [reportFields, setReportFields] = useState({ ...emptyReport });
+  const [reportPrompt, setReportPrompt] = useState('');
+  const [reportEdited, setReportEdited] = useState(false);
+  const structured = activeTab === 'idea' && reportMode;
+  const content = structured ? reportPrompt : freeContent;
+  const setContent = (value: React.SetStateAction<string>) => {
+    if (structured) { setReportPrompt(value); setReportEdited(true); }
+    else setFreeContent(value);
+  };
   const [selectedTemplate, setSelectedTemplate] = useState<File | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [selectedPresetTemplateId, setSelectedPresetTemplateId] = useState<string | null>(null);
@@ -581,6 +592,10 @@ export const Home: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async () => {
+    if (structured && !reportFields.topic.trim()) {
+      show({ message: i18n.language?.startsWith('zh') ? '请填写主题后继续' : 'Enter a topic to continue', type: 'error' });
+      return;
+    }
     // For ppt_renovation, validate file instead of content
     if (activeTab === 'ppt_renovation') {
       if (!renovationFile) {
@@ -1097,6 +1112,17 @@ export const Home: React.FC = () => {
                 </div>
               </div>
             ) : (
+            <>
+            {activeTab === 'idea' && <div className="flex gap-2 mb-4">
+              {[false, true].map(report => <button type="button" key={String(report)} aria-pressed={reportMode === report}
+                disabled={isSubmitting || isGlobalLoading} onClick={() => setReportMode(report)}
+                className={`px-3 py-2 rounded-lg text-sm ${reportMode === report ? 'bg-banana-100 text-gray-900' : 'text-gray-500'}`}>
+                {report ? (i18n.language?.startsWith('zh') ? '日常汇报' : 'Report builder') : (i18n.language?.startsWith('zh') ? '自由输入' : 'Free input')}
+              </button>)}
+            </div>}
+            {structured && <ReportForm fields={reportFields} zh={!!i18n.language?.startsWith('zh')} disabled={isSubmitting || isGlobalLoading}
+              onChange={fields => { setReportFields(fields); if (!reportEdited) setReportPrompt(buildReportPrompt(fields, !!i18n.language?.startsWith('zh'))); }}
+              onRebuild={() => { setReportEdited(false); setReportPrompt(buildReportPrompt(reportFields, !!i18n.language?.startsWith('zh'))); }} />}
             <MarkdownTextarea
               ref={textareaRef}
               placeholder={tabConfig[activeTab].placeholder}
@@ -1154,7 +1180,7 @@ export const Home: React.FC = () => {
                   onClick={handleSubmit}
                   loading={isSubmitting || isGlobalLoading}
                   disabled={
-                    !content.trim() ||
+                    !content.trim() || (structured && !reportFields.topic.trim()) ||
                     isUploadingImage ||
                     referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
                   }
@@ -1166,6 +1192,7 @@ export const Home: React.FC = () => {
                 </Button>
               }
             />
+            </>
             )}
           </div>
 

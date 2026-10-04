@@ -1268,7 +1268,7 @@ class OpenAIImageProvider(ImageProvider):
                     # Try to extract plain URL (not in Markdown format)
                     url_pattern = r'(https?://[^\s\)\]]+\.(?:png|jpg|jpeg|gif|webp|bmp)(?:\?[^\s\)\]]*)?)'
                     url_matches = re.findall(url_pattern, content_str, re.IGNORECASE)
-                    if url_matches:
+                    if url_matches and url_matches[0] not in markdown_matches:
                         image_url = url_matches[0]
                         logger.debug(f"Found plain image URL: {image_url}")
                         try:
@@ -1285,7 +1285,6 @@ class OpenAIImageProvider(ImageProvider):
                     base64_pattern = r'data:image/[^;]+;base64,([A-Za-z0-9+/=]+)'
                     base64_matches = re.findall(base64_pattern, content_str)
                     if base64_matches:
-                        base64_data = base64_matches[0]
                         logger.debug(f"Found base64 image data in string")
                         try:
                             image_data = base64.b64decode(base64_matches[0])
@@ -1300,7 +1299,9 @@ class OpenAIImageProvider(ImageProvider):
                     # If the whole content is a single URL, try downloading it —
                     # Image.open below validates it is actually an image.
                     bare_url = content_str.strip()
-                    if bare_url.startswith(('http://', 'https://')) and not any(c.isspace() for c in bare_url):
+                    if (bare_url.startswith(('http://', 'https://'))
+                            and not any(c.isspace() for c in bare_url)
+                            and bare_url not in markdown_matches + url_matches):
                         try:
                             response = requests.get(bare_url, timeout=60, stream=True)
                             response.raise_for_status()

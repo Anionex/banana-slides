@@ -671,3 +671,9 @@ Special thanks to the following friends for their generous support:
 </a>
 
 <br>
+
+### Report builder and background material tasks
+
+On Home, switch from Free input to Report builder under From Idea. Choose a weekly/monthly report, project update, product introduction, training, or custom scenario. Enter a topic, fill optional fields, and edit the prompt preview before continuing through the existing template, reference-file, aspect-ratio, and per-page template flow. Presets fill only empty fields. After manual prompt edits, use Rebuild prompt from fields to regenerate the preview.
+
+Selecting Codex in Settings opens the OpenAI login dialog when disconnected. Successful login applies the intended selection; cancellation preserves the previous provider. The material toolbox accepts another task as soon as submission succeeds. Each task retains its own status and result, including after a refresh. Use Resume polling if status checks pause; completed images are also saved in the material library.

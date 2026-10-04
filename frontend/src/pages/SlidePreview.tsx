@@ -1,3 +1,4 @@
+import { generateUuid } from '@/utils/uuid';
 // TODO: split components
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
@@ -1657,23 +1658,10 @@ export const SlidePreview: React.FC = () => {
 
     const pageIds = getSelectedPageIdsForExport();
     const exportTaskId = `export-${Date.now()}`;
-    // crypto.randomUUID 仅在安全上下文（HTTPS/localhost）存在；通过公网 IP 的
-    // http:// 访问时为 undefined，直接调用会抛 TypeError 且发生在 try 之前，
-    // 表现为"点导出无反应"。getRandomValues 在所有上下文都可用。
-    const generateUuid = (): string => {
-      if (typeof crypto.randomUUID === 'function') {
-        return crypto.randomUUID();
-      }
-      // RFC 4122 v4 fallback
-      const bytes = crypto.getRandomValues(new Uint8Array(16));
-      bytes[6] = (bytes[6] & 0x0f) | 0x40;
-      bytes[8] = (bytes[8] & 0x3f) | 0x80;
-      const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
-      return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-    };
-    const backendTaskId = type === 'editable-pptx' ? generateUuid() : undefined;
 
+    let backendTaskId: string | undefined;
     try {
+      backendTaskId = type === 'editable-pptx' ? generateUuid() : undefined;
       if (type === 'pptx' || type === 'pdf' || type === 'images') {
         // Synchronous export - direct download, create completed task directly
         const response = type === 'pptx'
@@ -1800,7 +1788,7 @@ export const SlidePreview: React.FC = () => {
           || [408, 429, 500, 502, 503, 504].includes(responseStatus)
         );
 
-      if (editableStartMayHaveSucceeded) {
+      if (editableStartMayHaveSucceeded && backendTaskId) {
         addTask({
           id: exportTaskId,
           taskId: backendTaskId,

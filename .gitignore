@@ -94,3 +94,6 @@ frontend/cap-real.mjs
 /banana-slides-landing.html
 /design-mockup.html
 /design-system-proposal.html
+
+# Isolated issue regression evidence
+/output/issue-verification/
