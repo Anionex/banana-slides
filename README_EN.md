@@ -140,6 +140,7 @@ View more at <a href="https://github.com/Anionex/banana-slides/issues/2" > Use C
 ### 1. Flexible and Diverse Creative Paths
 
 Supports three starting modes—**Ideas**, **Outlines**, and **Page Descriptions**—to accommodate different creative habits.
+- **Clear Page Order Validation**: Manual/API page creation requires a non-negative integer page position, preventing unusual input from leaving page order uncertain.
 - **One-sentence generation**: Enter a topic, and AI automatically generates a well-structured outline and page-by-page content descriptions.
 - **Natural language editing**: Supports modifying outlines or descriptions via Vibe (e.g., "Change the third page to a case study"), with AI responding and adjusting in real-time.
 - **Outline/Description mode**: Allows for both one-click batch generation and manual adjustment of details.
