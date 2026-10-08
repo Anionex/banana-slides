@@ -50,8 +50,8 @@ const baseSettings: SettingsType = {
   image_caption_model: 'gemini-3-flash-preview',
   output_language: 'zh',
   description_generation_mode: 'streaming',
-  description_extra_fields: ['视觉元素', '视觉焦点', '排版布局', '演讲者备注'],
-  image_prompt_extra_fields: ['视觉元素', '视觉焦点', '排版布局'],
+  description_extra_fields: ['配图与素材', '版式与重点', '演讲者备注'],
+  image_prompt_extra_fields: ['配图与素材', '版式与重点'],
   enable_text_reasoning: false,
   text_thinking_budget: 1024,
   enable_image_reasoning: false,
@@ -105,5 +105,40 @@ describe('Settings quality control', () => {
         expect.objectContaining({ enable_image_quality_control: true })
       );
     });
+  });
+
+  it('shows the SenseNova OpenAI-compatible hint for image generation', async () => {
+    getSettings.mockResolvedValueOnce({
+      data: { ...baseSettings, image_model_source: 'sensenova' },
+    });
+    render(
+      <MemoryRouter>
+        <Settings />
+      </MemoryRouter>
+    );
+
+    const imageSource = await screen.findByTestId('image_model_source-select');
+    expect(imageSource).toHaveValue('sensenova');
+
+    expect(screen.getByTestId('sensenova-image-model-hint')).toHaveTextContent(
+      /token\.sensenova\.cn\/v1/
+    );
+  });
+
+  it('shows the SenseNova hint when selected as the global provider', async () => {
+    render(
+      <MemoryRouter>
+        <Settings />
+      </MemoryRouter>
+    );
+
+    const providerPills = await screen.findByTestId('global-provider-pills');
+    const senseNovaButton = providerPills.querySelector('[data-provider="sensenova"]');
+    expect(senseNovaButton).toBeTruthy();
+    await userEvent.click(senseNovaButton!);
+
+    expect(screen.getByTestId('sensenova-global-image-hint')).toHaveTextContent(
+      /token\.sensenova\.cn\/v1/
+    );
   });
 });

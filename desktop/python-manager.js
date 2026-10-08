@@ -46,7 +46,7 @@ function spawnTaskkill(args) {
   return taskkill;
 }
 
-async function startBackend(userDataPath) {
+async function startBackend(dataRoot) {
   if (isDev()) {
     backendPort = parseInt(process.env.BACKEND_PORT || '5000', 10);
     log.info(`[python-manager] Dev mode, assuming backend on port ${backendPort}`);
@@ -56,9 +56,9 @@ async function startBackend(userDataPath) {
   const backendPath = getBackendPath();
   backendPort = null;
 
-  const dataDir = path.join(userDataPath, 'data');
-  const uploadsDir = path.join(userDataPath, 'uploads');
-  const exportsDir = path.join(userDataPath, 'exports');
+  const dataDir = path.join(dataRoot, 'data');
+  const uploadsDir = path.join(dataRoot, 'uploads');
+  const exportsDir = path.join(dataRoot, 'exports');
 
   const ffmpegDir = path.join(process.resourcesPath, 'ffmpeg');
   const ffmpegExe = path.join(ffmpegDir, process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');

@@ -140,6 +140,176 @@ def test_volcengine_text_provider_uses_modelark_openai_compatible_base():
     )
 
 
+def test_volcengine_empty_base_string_falls_back_to_default():
+    """A blank VOLCENGINE_API_BASE (e.g. .env left empty) must not reach the
+    provider as an empty base URL, which previously surfaced as an
+    APIConnectionError 'Connection error.' from httpx UnsupportedProtocol.
+    The fallback is the Agent Plans endpoint, matching the UI prefill."""
+    app = Flask(__name__)
+    app.config.update(
+        AI_PROVIDER_FORMAT='volcengine',
+        VOLCENGINE_API_KEY='volcengine-key',
+        VOLCENGINE_API_BASE='',
+    )
+
+    with app.app_context():
+        with patch('services.ai_providers.OpenAITextProvider') as provider_cls:
+            provider = ai_providers.get_text_provider(model='doubao-seed-2.1-turbo')
+
+    assert provider == provider_cls.return_value
+    provider_cls.assert_called_once_with(
+        api_key='volcengine-key',
+        api_base='https://ark.cn-beijing.volces.com/api/plan/v3',
+        model='doubao-seed-2.1-turbo',
+    )
+
+
+def test_resolve_setting_treats_empty_string_as_unset(monkeypatch):
+    """Empty strings must fall through _resolve_setting instead of being
+    returned verbatim (blank .env values currently poison every provider)."""
+    monkeypatch.delenv('VOLCENGINE_API_BASE', raising=False)
+    monkeypatch.delenv('VOLCENGINE_API_KEY', raising=False)
+    app = Flask(__name__)
+    app.config.update(
+        VOLCENGINE_API_BASE='',
+        VOLCENGINE_API_KEY='',
+    )
+
+    with app.app_context():
+        assert ai_providers._resolve_setting('VOLCENGINE_API_BASE', 'fallback-base') == 'fallback-base'
+        assert ai_providers._resolve_setting('VOLCENGINE_API_KEY', 'fallback-key') == 'fallback-key'
+
+    # Environment level: empty env var must also fall through to the fallback.
+    monkeypatch.setenv('VOLCENGINE_API_BASE', '')
+    assert ai_providers._resolve_setting('VOLCENGINE_API_BASE', 'fallback-base') == 'fallback-base'
+
+
+def test_doubao_seedream_auto_protocol_uses_native_images_api():
+    """Seedream models must route to images.generate under the auto protocol
+    (the Agent Plan chat endpoint has no image modality) and must not send a
+    quality param the Volcengine endpoint rejects."""
+    from services.ai_providers.image.openai_provider import OpenAIImageProvider
+
+    mock_client = MagicMock()
+    mock_result = MagicMock()
+    mock_result.data = [MagicMock(b64_json=None, url='https://example.com/img.png')]
+    raw_response = MagicMock()
+    raw_response.json.return_value = {'data': [{'b64_json': None, 'url': 'https://example.com/img.png'}]}
+    mock_client.images.with_raw_response.generate.return_value = raw_response
+
+    with patch('services.ai_providers.image.openai_provider.OpenAI'):
+        provider = OpenAIImageProvider(
+            api_key='volcengine-key',
+            api_base='https://ark.cn-beijing.volces.com/api/plan/v3',
+            model='doubao-seedream-5.0-lite',
+            image_api_protocol='auto',
+        )
+    # Inject the mock client directly (mirrors test_openai_image_multi_reference)
+    # so the test is robust to module import-path differences in CI.
+    provider.client = mock_client
+    with patch('requests.get') as mock_get:
+        import base64 as _b64
+        png_bytes = _b64.b64decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+        )
+        mock_get.return_value.__enter__.return_value.content = png_bytes
+        provider.generate_image(
+            prompt='a cat',
+            aspect_ratio='16:9',
+            resolution='2K',
+        )
+
+    mock_client.images.with_raw_response.generate.assert_called_once()
+    kwargs = mock_client.images.with_raw_response.generate.call_args.kwargs
+    assert kwargs['model'] == 'doubao-seedream-5.0-lite'
+    assert 'quality' not in kwargs
+    mock_client.images.generate.assert_not_called()
+    mock_client.chat.completions.create.assert_not_called()
+
+
+def test_doubao_seedream_forced_images_protocol_keeps_references_on_chat_path():
+    """Seedream + reference images must never call images.edit, even when the
+    images protocol is forced ('images'): images.edit is SeedEdit-only and the
+    Agent Plans recommended models save openai_image_api_protocol=images."""
+    from io import BytesIO
+
+    from PIL import Image
+    from services.ai_providers.image.openai_provider import OpenAIImageProvider
+
+    mock_client = MagicMock()
+    buf = BytesIO()
+    Image.new('RGB', (8, 8), color='red').save(buf, format='PNG')
+    import base64 as _b64
+    png_data = _b64.b64encode(buf.getvalue()).decode()
+    chat_message = MagicMock()
+    chat_message.images = None
+    chat_message.multi_mod_content = None
+    chat_message.content = [
+        {'type': 'image_url', 'image_url': {'url': f'data:image/png;base64,{png_data}'}}
+    ]
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock(message=chat_message)]
+    mock_client.chat.completions.create.return_value = mock_response
+
+    with patch('services.ai_providers.image.openai_provider.OpenAI'):
+        provider = OpenAIImageProvider(
+            api_key='volcengine-key',
+            api_base='https://ark.cn-beijing.volces.com/api/plan/v3',
+            model='doubao-seedream-5.0-lite',
+            image_api_protocol='images',
+        )
+    provider.client = mock_client
+
+    result = provider.generate_image(
+        prompt='a cat',
+        ref_images=[Image.new('RGB', (8, 8), color='blue')],
+        aspect_ratio='16:9',
+        resolution='2K',
+    )
+
+    assert isinstance(result, Image.Image)
+    mock_client.chat.completions.create.assert_called_once()
+    mock_client.images.edit.assert_not_called()
+    mock_client.images.generate.assert_not_called()
+
+
+def test_doubao_seedream_forced_images_protocol_without_references_uses_images_api():
+    """Seedream without reference images must still use images.generate when the
+    images protocol is forced."""
+    from services.ai_providers.image.openai_provider import OpenAIImageProvider
+
+    mock_client = MagicMock()
+    mock_result = MagicMock()
+    mock_result.data = [MagicMock(b64_json=None, url='https://example.com/img.png')]
+    raw_response = MagicMock()
+    raw_response.json.return_value = {'data': [{'b64_json': None, 'url': 'https://example.com/img.png'}]}
+    mock_client.images.with_raw_response.generate.return_value = raw_response
+
+    with patch('services.ai_providers.image.openai_provider.OpenAI'):
+        provider = OpenAIImageProvider(
+            api_key='volcengine-key',
+            api_base='https://ark.cn-beijing.volces.com/api/plan/v3',
+            model='doubao-seedream-5.0-lite',
+            image_api_protocol='images',
+        )
+    provider.client = mock_client
+    with patch('requests.get') as mock_get:
+        import base64 as _b64
+        png_bytes = _b64.b64decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+        )
+        mock_get.return_value.__enter__.return_value.content = png_bytes
+        provider.generate_image(
+            prompt='a cat',
+            aspect_ratio='16:9',
+            resolution='2K',
+        )
+
+    mock_client.images.with_raw_response.generate.assert_called_once()
+    mock_client.images.generate.assert_not_called()
+    mock_client.chat.completions.create.assert_not_called()
+
+
 def test_volcengine_provider_does_not_fallback_to_gemini_key():
     """Volcengine should not send a Gemini key to an OpenAI-compatible endpoint."""
     app = Flask(__name__)

@@ -19,8 +19,8 @@ const baseSettings = {
   image_caption_model: 'gemini-3-flash-preview',
   output_language: 'zh',
   description_generation_mode: 'streaming',
-  description_extra_fields: ['视觉元素', '视觉焦点', '排版布局', '演讲者备注'],
-  image_prompt_extra_fields: ['视觉元素', '视觉焦点', '排版布局'],
+  description_extra_fields: ['配图与素材', '版式与重点', '演讲者备注'],
+  image_prompt_extra_fields: ['配图与素材', '版式与重点'],
   enable_text_reasoning: false,
   text_thinking_budget: 1024,
   enable_image_reasoning: false,
@@ -133,8 +133,10 @@ test.describe('image quality control setting', () => {
     await mockPreviewProject(page);
 
     await page.goto(`/project/${projectId}/preview`);
-    await expect(page.locator('aside').getByRole('switch', { name: /质量控制|Quality Control/ })).toHaveCount(0);
-    const qualitySwitch = page.locator('main').getByRole('switch', { name: /质量控制|Quality Control/ });
+    // Desktop layout: the switch is a project-level generation setting, so it sits
+    // in the sidebar next to batch generate rather than in the per-page toolbar.
+    await expect(page.getByTestId('preview-floating-toolbar').getByRole('switch')).toHaveCount(0);
+    const qualitySwitch = page.locator('aside').getByRole('switch', { name: /质量控制|Quality Control/ });
     const qualityTooltip = page.getByTestId('quality-control-tooltip');
     await expect(qualityTooltip).toContainText(/看不清的字|unreadable text/);
     await expect(qualityTooltip).toHaveCSS('opacity', '0');

@@ -266,7 +266,7 @@ test.describe('PPTX export panel', () => {
     }).toEqual(['other-project-export'])
   })
 
-  test('shows a failed state when a restored export task no longer exists on the backend', async ({ page }) => {
+  test('keeps a restored export status unknown instead of inventing a backend failure', async ({ page }) => {
     const projectId = 'mock-stale-export-task'
 
     await mockPreviewProject(page, projectId)
@@ -299,9 +299,11 @@ test.describe('PPTX export panel', () => {
     await page.waitForFunction(() => document.body.innerText.length > 50, { timeout: 15000 })
 
     await page.getByLabel('导出任务').click()
-    await expect(page.getByText('导出失败')).toBeVisible()
-    await expect(page.getByText('导出任务已不可用，请重新导出')).toBeVisible()
-    await expect(page.getByText('1 进行中')).toBeHidden()
+    await expect(page.getByText('任务状态响应异常，后台任务状态未知，请手动重新查询')).toBeVisible({ timeout: 15000 })
+    await expect(page.getByText('这不代表后台导出失败')).toBeVisible()
+    await expect(page.getByRole('button', { name: '重新查询' })).toBeVisible()
+    await expect(page.getByText(/^导出失败$/)).toHaveCount(0)
+    await expect(page.getByText('1 进行中')).toBeVisible()
   })
 
   test('real backend exports PPTX with transition query enabled', async ({ request, baseURL }) => {

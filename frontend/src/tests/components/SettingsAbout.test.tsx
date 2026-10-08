@@ -27,6 +27,7 @@ const labels: Record<string, string> = {
   'settings.about.updateAvailable': '有版本更新：{{version}}',
   'settings.about.unknown': '无法判断当前是否为最新版本',
   'settings.about.resultTitle': '检查更新结果',
+  'settings.about.download': '前往下载',
   'settings.about.close': '关闭',
 };
 

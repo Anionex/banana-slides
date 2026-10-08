@@ -19,7 +19,33 @@ Download the installer for your platform from [GitHub Releases](https://github.c
 | macOS | `BananaSlides-<version>.dmg` | Open the DMG and drag Banana Slides into Applications |
 | Linux | `BananaSlides-<version>.AppImage` / `BananaSlides-<version>.deb` | Make the AppImage executable, or install the deb with your package manager |
 
-The desktop app stores its database, uploads, materials, and exports in a user-writable app data directory rather than in packaged resource directories. Back up important local projects before upgrading.
+The desktop app stores its database, uploads, materials, and exports in a user-writable data storage directory rather than in packaged resource directories. Back up important local projects before upgrading.
+
+## Data Storage Location
+
+On Windows, the setup wizard shows separate **Application installation location** and **Data storage location** fields during the first installation. The application location contains only the app itself. The data storage location contains the project database, generated images, uploaded assets, and export cache. macOS and Linux use the system's default app data directory on first launch.
+
+On every desktop platform, you can view and change the data storage location from the full **Settings** page. After the new path passes validation, click **Save and restart** to apply it. This option is not shown in the browser version or in the in-project **Global Settings** dialog.
+
+<Warning>
+  Banana Slides only validates and switches the path. It does not copy or delete data automatically. If you select a directory that does not contain an existing database, the app clearly warns that the location will be used as a new data directory.
+</Warning>
+
+### Move Data to Another Drive Manually
+
+1. Go to **Settings → Data storage location**, click **Open current folder**, and note the old path.
+2. Select **Quit** from the system tray menu. Closing the window only hides the app in the tray, so the backend may still be writing to the database.
+3. Copy the complete `data/`, `uploads/`, and `exports/` directories from the old location to the new one. Copy them first; do not move them directly or delete the old data yet.
+4. Reopen Banana Slides, enter or select the new directory in Settings, and click **Save and restart**.
+5. After confirming that your project history, images, and assets all open correctly, you may delete the old copies yourself.
+
+The data storage location does not include the Chromium cache, application logs, or a small amount of startup configuration, so a few files remain in the system's default app data directory after the change. Version 1 supports local filesystem directories only, not Windows UNC paths or other network shares. If a custom drive is unavailable at startup, the app asks you to choose another directory or quit instead of silently falling back to the default directory.
+
+Desktop installers do not include the project-root `.env` used by source deployments. Configure the API provider, base URL, models, and API key on the in-app **Settings** page instead; these settings persist in the local database under the app data directory. A provider selected for a model takes precedence over the **Default API Configuration** above it; choose **Default configuration** in the provider dropdown to use the settings above. If a service test shows an unexpected provider (for example, MiniMax after you configured Gemini), change that model's provider to **Default configuration**, save, and test again.
+
+When connecting an OpenAI/Codex account, the desktop app opens the OAuth login in the system browser. After the callback page shows `Connected`, the app polls its local backend and updates to **Connected** automatically; no manual refresh is required. It also checks immediately when the app regains focus. In web mode, a failed callback or an early popup close ends the connecting state. Either mode ends with an actionable message after a two-minute timeout. Web deployments continue to use the popup `postMessage` callback and report a blocked popup immediately.
+
+Desktop exports open the system save dialog. After you choose a destination, the app waits for the file to be written and verifies that it is not empty before reporting success. If the download is interrupted, times out, or does not write the destination file, the app displays an error that includes the selected path. Task files and historical exports in the preview page's **Export Tasks** panel use the same desktop save flow.
 
 ## Local Packaging Requirements
 
@@ -129,13 +155,26 @@ macOS verification should cover at least:
 3. Launch the app from Applications; if macOS warns about an unidentified developer, continue only through the per-app approval flow.
 4. After the desktop window loads, confirm the bundled backend `/health` path is healthy and frontend requests use the actual desktop backend port.
 5. Verify at least one real workflow involving image URLs, long-running task polling or SSE, and export/download behavior.
-6. Quit the app and confirm no packaged backend process remains.
+6. Start an OpenAI OAuth login from **Settings** and confirm the app shows the connected account after the system-browser callback without a refresh.
+7. Quit the app and confirm no packaged backend process remains.
 
 ## Troubleshooting
 
 ### The App Says the Backend Is Unavailable
 
 Confirm the installer includes `desktop/backend/`, and check whether security software blocked the bundled backend process. During development or packaging verification, also confirm PyInstaller generated `backend/dist/banana-backend/`.
+
+### Gemini Is Configured but Another Provider Is Shown
+
+The text generation, image generation, and image captioning models can each use their own provider, which takes precedence over the default API. Return to **Settings → Model Configuration**, change the unexpected model provider to **Default configuration**, save, and rerun the service test. The desktop app does not need or create a `.env` file in its installation directory.
+
+### The Browser Says OpenAI Is Connected but the App Is Still Waiting
+
+The desktop app checks local OAuth status every second and checks immediately when it regains focus, so a refresh should not be necessary. After two minutes it ends the connecting state and prompts you to retry. You can also expand **Connection failed after login?** and paste the complete callback URL from the browser address bar. Confirm that the bundled backend is still running and that security software is not blocking local requests.
+
+### No File Appears After Choosing a Desktop Save Location
+
+The desktop app only reports success after the file has actually been written to the selected destination. If the download is interrupted, times out, or the written file is missing or empty, the app displays **File was not saved successfully** together with the selected path; follow the prompt and save again. You can also open the **Export Tasks** panel on the preview page and click **Download** for the relevant task or historical export to choose a new destination.
 
 ### Packaging Cannot Find Frontend or Backend Resources
 

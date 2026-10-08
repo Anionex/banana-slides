@@ -15,7 +15,7 @@ Click **Batch Generate Images** — AI generates all pages in parallel. Each car
 
 ## Quality Control Mode
 
-Enable **Quality Control** from **Settings → Image Generation Configuration** or from the switch below the generation button on the Slide Preview page.
+Enable **Quality Control** from **Settings → Image Generation Configuration** or from the Slide Preview page, where the switch sits below the "Generate All Images" button on wide screens and moves into the bottom toolbar on narrow ones.
 
 When enabled, each generated image is not saved as a version immediately. A vision model first checks whether:
 - the slide contains garbled, unreadable, or clearly incorrect text
@@ -52,6 +52,10 @@ Want to adjust a specific area without touching the rest:
 4. Describe the change in the edit instruction box, then click **Generate Image**
 
 AI redraws the full slide with extra focus on the selected region.
+
+<Note>
+  When using SenseNova image models, choose **OpenAI-Compatible** as the image source in **Settings → Global Settings**, then use `https://token.sensenova.cn/v1` with `sensenova-u1.5-lite`. The legacy SenseNova provider remains available, but `sensenova-u1.5-lite` reference-image editing uses the OpenAI-compatible path.
+</Note>
 
 ## Version History
 

@@ -22,12 +22,14 @@ export const verifyAccessCode = async (code: string): Promise<ApiResponse<{ vali
  * 创建项目
  */
 export const createProject = async (data: CreateProjectRequest): Promise<ApiResponse<Project>> => {
-  // 根据输入类型确定 creation_type
-  let creation_type = 'idea';
-  if (data.description_text) {
-    creation_type = 'descriptions';
-  } else if (data.outline_text) {
-    creation_type = 'outline';
+  // 优先使用显式传入的 creation_type（空白项目没有任何文本内容，无法推断）
+  let creation_type: string = data.creation_type ?? 'idea';
+  if (!data.creation_type) {
+    if (data.description_text) {
+      creation_type = 'descriptions';
+    } else if (data.outline_text) {
+      creation_type = 'outline';
+    }
   }
 
   const response = await apiClient.post<ApiResponse<Project>>('/api/projects', {
@@ -688,6 +690,7 @@ const buildExportQuery = (params: Record<string, string | string[] | boolean | u
  * 导出为PPTX
  * @param projectId 项目ID
  * @param pageIds 可选的页面ID列表，如果不提供则导出所有页面
+ * @param clientTaskId 可选的幂等任务ID，用于创建请求响应丢失后的恢复
  */
 export const exportPPTX = async (
   projectId: string,
@@ -747,13 +750,15 @@ export const exportImages = async (
 export const exportEditablePPTX = async (
   projectId: string,
   filename?: string,
-  pageIds?: string[]
+  pageIds?: string[],
+  clientTaskId?: string,
 ): Promise<ApiResponse<{ task_id: string }>> => {
   const response = await apiClient.post<
     ApiResponse<{ task_id: string }>
   >(`/api/projects/${projectId}/export/editable-pptx`, {
     filename,
-    page_ids: pageIds
+    page_ids: pageIds,
+    client_task_id: clientTaskId,
   });
   return response.data;
 };
@@ -1397,6 +1402,7 @@ export interface TestSettingsOverride {
   baidu_api_key?: string;
   ai_provider_format?: string;
   image_resolution?: string;
+  image_quality?: string;
   enable_text_reasoning?: boolean;
   text_thinking_budget?: number;
   enable_image_reasoning?: boolean;
@@ -1549,6 +1555,20 @@ export const extractStyleFromImage = async (
   const response = await apiClient.post<ApiResponse<{ style_description: string }>>(
     '/api/extract-style',
     formData
+  );
+  return response.data;
+};
+
+/**
+ * 根据内容生成风格描述（通用，不绑定项目）
+ */
+export const generateStyleFromContent = async (
+  content: string,
+  language: string = 'zh'
+): Promise<ApiResponse<{ style_description: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ style_description: string }>>(
+    '/api/generate-style-from-content',
+    { content, language }
   );
   return response.data;
 };

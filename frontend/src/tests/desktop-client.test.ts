@@ -97,7 +97,11 @@ describe('API client desktop detection', () => {
     (window as any).__BACKEND_PORT__ = 15000;
     (window as any).electronAPI = createMockElectronAPI();
     const { getImageUrl } = await import('../api/client');
+    expect(getImageUrl('/files/materials/example.png')).toBe(
+      'http://127.0.0.1:15000/files/materials/example.png',
+    );
     expect(getImageUrl('/uploads/example.png', 123)).toBe('http://127.0.0.1:15000/uploads/example.png?v=123');
+    expect(getImageUrl('https://example.com/image.png')).toBe('https://example.com/image.png');
   });
 
   it('strips query parameters from fallback desktop download filenames', async () => {
@@ -146,5 +150,27 @@ describe('API client desktop detection', () => {
 
     expect(getImageUrl('/blob:https://example.com/id', 123)).toBe('blob:https://example.com/id');
     expect(getImageUrl('data:image/png;base64,abc', 123)).toBe('data:image/png;base64,abc');
+  });
+
+  it('web mode: triggers download via a synthetic <a download> click, not window.open', async () => {
+    delete (window as any).electronAPI;
+    const clickSpy = vi.fn();
+    const originalCreateElement = document.createElement.bind(document);
+    const createSpy = vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      const el = originalCreateElement(tag) as HTMLElement;
+      if (tag === 'a') {
+        (el as HTMLAnchorElement).click = clickSpy;
+      }
+      return el;
+    });
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+    const { triggerDownload } = await import('../api/client');
+
+    triggerDownload('/files/p1/exports/presentation.pptx');
+
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    expect(openSpy).not.toHaveBeenCalled();
+    createSpy.mockRestore();
+    openSpy.mockRestore();
   });
 });

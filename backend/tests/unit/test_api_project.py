@@ -28,14 +28,79 @@ class TestProjectCreate:
         """测试从大纲创建项目"""
         response = client.post('/api/projects', json={
             'creation_type': 'outline',
-            'outline': [
-                {'title': '第一页', 'points': ['要点1']},
-                {'title': '第二页', 'points': ['要点2']}
-            ]
+            'outline_text': '第一页：介绍\n- 要点1\n\n第二页：方案\n- 要点2'
         })
         
         data = assert_success_response(response, 201)
         assert 'project_id' in data['data']
+
+    @pytest.mark.parametrize('payload, expected_message', [
+        (
+            {'creation_type': 'idea', 'idea_prompt': '  \n\t '},
+            'idea_prompt must contain non-whitespace text',
+        ),
+        (
+            {'creation_type': 'outline', 'outline_text': ''},
+            'outline_text must contain non-whitespace text',
+        ),
+        (
+            {'creation_type': 'descriptions', 'description_text': None},
+            'description_text is required',
+        ),
+        (
+            {'creation_type': 'descriptions', 'description_text': ['not text']},
+            'description_text must be a string',
+        ),
+    ])
+    def test_create_project_rejects_missing_blank_or_non_text_content(
+        self, client, payload, expected_message
+    ):
+        response = client.post('/api/projects', json=payload)
+
+        data = assert_error_response(response, 400)
+        assert data['error']['message'] == expected_message
+
+    def test_create_project_normalizes_selected_content_and_template_style(self, client):
+        response = client.post('/api/projects', json={
+            'creation_type': 'idea',
+            'idea_prompt': '  AI 产品发布会  ',
+            'outline_text': '不应写入当前模式',
+            'template_style': '  极简商务风  ',
+        })
+
+        created = assert_success_response(response, 201)['data']
+        project = assert_success_response(
+            client.get(f"/api/projects/{created['project_id']}")
+        )['data']
+        assert project['idea_prompt'] == 'AI 产品发布会'
+        assert project['outline_text'] is None
+        assert project['template_style'] == '极简商务风'
+
+    def test_create_project_rejects_non_text_template_style(self, client):
+        response = client.post('/api/projects', json={
+            'creation_type': 'idea',
+            'idea_prompt': 'AI 产品发布会',
+            'template_style': {'name': 'invalid'},
+        })
+
+        data = assert_error_response(response, 400)
+        assert 'template_style' in data['error']['message']
+
+    @pytest.mark.parametrize('template_style', ['', '   \n\t '])
+    def test_create_project_normalizes_empty_template_style_to_none(
+        self, client, template_style
+    ):
+        response = client.post('/api/projects', json={
+            'creation_type': 'idea',
+            'idea_prompt': 'AI 产品发布会',
+            'template_style': template_style,
+        })
+
+        created = assert_success_response(response, 201)['data']
+        project = assert_success_response(
+            client.get(f"/api/projects/{created['project_id']}")
+        )['data']
+        assert project['template_style'] is None
     
     def test_create_project_missing_type(self, client):
         """测试缺少creation_type参数"""
@@ -359,6 +424,95 @@ class TestResourceConcurrency:
 class TestProjectOutlineStream:
     """流式大纲生成测试"""
 
+    def test_flatten_outline_preserves_falsy_parent_part_values(self):
+        """父级 part 即使是空字符串或 None，也应像旧逻辑一样覆盖子页 part"""
+        from services.ai_service import AIService
+
+        service = AIService.__new__(AIService)
+
+        pages = service.flatten_outline([
+            {'part': '', 'pages': [{'title': '空分组', 'points': []}]},
+            {'part': None, 'pages': [{'title': '无分组', 'points': [], 'part': '子页分组'}]},
+        ])
+
+        assert pages[0]['part'] == ''
+        assert pages[1]['part'] is None
+
+    def test_flatten_outline_strips_title_and_part_whitespace(self):
+        """归一化时应清理标题和分组名首尾空白"""
+        from services.ai_service import AIService
+
+        service = AIService.__new__(AIService)
+
+        pages = service.flatten_outline([
+            {'title': '  直接页面  ', 'points': [], 'part': '  子页分组  '},
+            {'part': '  父级分组  ', 'pages': [{'title': '  分组页面  ', 'points': []}]},
+        ])
+
+        assert pages[0]['title'] == '直接页面'
+        assert pages[0]['part'] == '子页分组'
+        assert pages[1]['title'] == '分组页面'
+        assert pages[1]['part'] == '父级分组'
+
+    def test_flatten_outline_drops_blank_points_from_ai_output(self):
+        """AI 返回的空白/None 要点不应落成空 bullet 或字符串 None"""
+        from services.ai_service import AIService
+
+        service = AIService.__new__(AIService)
+
+        pages = service.flatten_outline([
+            {'title': '清理要点', 'points': ['  有效要点  ', None, '', '   ']},
+            {'title': '字符串要点', 'points': '  单个要点  '},
+            {'title': '空字符串要点', 'points': '   '},
+        ])
+
+        assert pages[0]['points'] == ['有效要点']
+        assert pages[1]['points'] == ['单个要点']
+        assert pages[2]['points'] == []
+
+    def test_from_description_normalizes_string_outline_pages_after_count_mismatch(self, client, app, monkeypatch):
+        """从描述生成应兼容 AI 返回字符串页，并在页数不匹配时不因 page_data.get 崩溃"""
+        response = client.post('/api/projects', json={
+            'creation_type': 'descriptions',
+            'description_text': '第一页：封面。第二页：总结。'
+        })
+        data = assert_success_response(response, 201)
+        project_id = data['data']['project_id']
+
+        class FakeAIService:
+            def parse_description_to_outline(self, project_context, language=None):
+                return ['封面页', '总结页']
+
+            def parse_description_to_page_descriptions(self, project_context, outline, language=None):
+                return [f'页面描述 {index}' for index in range(16)]
+
+            def flatten_outline(self, outline):
+                from services.ai_service import AIService
+                service = AIService.__new__(AIService)
+                return AIService.flatten_outline(service, outline)
+
+        monkeypatch.setattr('controllers.project_controller.get_ai_service', lambda: FakeAIService())
+
+        generate_response = client.post(
+            f'/api/projects/{project_id}/generate/from-description',
+            json={'language': 'zh'},
+        )
+
+        data = assert_success_response(generate_response)
+        assert len(data['data']['pages']) == 2
+        assert data['data']['pages'][0]['outline_content'] == {'title': '封面页', 'points': []}
+        assert data['data']['pages'][0]['description_content']['text'] == '页面描述 0'
+
+        with app.app_context():
+            from models import Page, Project
+            project = Project.query.get(project_id)
+            pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+
+            assert project.status == 'DESCRIPTIONS_GENERATED'
+            assert len(pages) == 2
+            assert pages[1].get_outline_content() == {'title': '总结页', 'points': []}
+            assert pages[1].get_description_content()['text'] == '页面描述 1'
+
     def test_description_stream_prompt_uses_latest_description_format(self):
         """从描述生成的 SSE prompt 应对齐最新页面描述格式，而不是旧版页面标题/页面文字格式"""
         from services.ai_service import ProjectContext
@@ -372,14 +526,15 @@ class TestProjectOutlineStream:
         prompt = get_description_to_outline_prompt_markdown(
             context,
             language='zh',
-            extra_fields=['视觉元素'],
+            extra_fields=['配图与素材'],
         )
 
         assert '<!-- PAGE_DESCRIPTION -->' in prompt
         assert '--- 页面文字 ---' in prompt
         assert '--- 页面文字结束 ---' in prompt
-        assert '图片素材：' in prompt
-        assert '视觉元素：' in prompt
+        # 素材引用并入"配图与素材"字段，不再有独立的"图片素材"段
+        assert '图片素材：' not in prompt
+        assert '配图与素材：' in prompt
         assert '页面标题：' not in prompt
 
     def test_outline_stream_parses_legacy_outline_only_markdown(self):
@@ -402,6 +557,40 @@ class TestProjectOutlineStream:
             {'title': '第一页', 'points': ['要点1', '一句补充'], 'part': '第一章'},
             {'title': '第二页', 'points': ['要点2'], 'part': '第一章'},
         ]
+        assert pages[-1] == {'__stream_complete__': True}
+
+    def test_outline_stream_ignores_deck_title_before_cover(self):
+        """SSE 流式解析：封面前的 deck 级 H1 文档标题不得污染封面 part；
+        封面之后合法的 # Part 分节仍需生效。"""
+        from services.ai_service import AIService, ProjectContext
+
+        class FakeTextProvider:
+            def generate_text_stream(self, prompt, thinking_budget=0):
+                yield (
+                    '# 决策汇报：AI 推理架构的战略选择\n'
+                    '## 决策汇报：AI 推理架构的战略选择\n'
+                    '- 副标题与汇报人信息\n'
+                    '# 第一部分：经济性分析\n'
+                    '## 现有支出呈指数级增长\n'
+                    '- 成本失控风险，亟需替代方案\n'
+                    '<!-- END -->'
+                )
+
+        service = AIService(text_provider=FakeTextProvider(), image_provider=None, caption_provider=None)
+        context = ProjectContext({
+            'creation_type': 'outline',
+            'outline_text': 'x',
+        })
+
+        pages = list(service.generate_outline_stream(context, language='zh'))
+        content = pages[:-1]
+
+        assert len(content) == 2
+        # 封面页：deck 标题被忽略，不产生 part
+        assert content[0]['title'] == '决策汇报：AI 推理架构的战略选择'
+        assert 'part' not in content[0]
+        # 封面之后的合法分节仍然生效
+        assert content[1].get('part') == '第一部分：经济性分析'
         assert pages[-1] == {'__stream_complete__': True}
 
     def test_description_stream_parser_binds_description_to_same_page(self):

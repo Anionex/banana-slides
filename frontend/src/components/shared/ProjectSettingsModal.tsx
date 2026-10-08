@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { X, FileText, Settings as SettingsIcon, Download, Sparkles, AlertTriangle, HelpCircle } from 'lucide-react';
-import { Button, Textarea } from '@/components/shared';
+import { X, FileText, Settings as SettingsIcon, Download, Sparkles, AlertTriangle, HelpCircle, Lightbulb } from 'lucide-react';
+import { Button, Textarea, TextStyleSelector } from '@/components/shared';
 import { useT } from '@/hooks/useT';
 import { Settings } from '@/pages/Settings';
 import type { ExportExtractorMethod, ExportInpaintMethod } from '@/types';
@@ -93,6 +93,7 @@ interface ProjectSettingsModalProps {
   onSaveTemplateStyle: () => void;
   isSavingRequirements: boolean;
   isSavingTemplateStyle: boolean;
+  sourceContent?: string;
   exportExtractorMethod?: ExportExtractorMethod;
   exportInpaintMethod?: ExportInpaintMethod;
   exportAllowPartial?: boolean;
@@ -123,6 +124,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
   onSaveTemplateStyle,
   isSavingRequirements,
   isSavingTemplateStyle,
+  sourceContent,
   exportExtractorMethod = 'hybrid',
   exportInpaintMethod = 'hybrid',
   exportAllowPartial = false,
@@ -169,12 +171,12 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
           </button>
         </div>
 
-        <div className="flex-1 flex overflow-hidden min-h-0">
-          <aside className="w-64 bg-gray-50 dark:bg-background-primary border-r border-gray-200 dark:border-border-primary flex-shrink-0">
-            <nav className="p-4 space-y-2">
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
+          <aside className="w-full md:w-64 bg-gray-50 dark:bg-background-primary border-b md:border-b-0 md:border-r border-gray-200 dark:border-border-primary flex-shrink-0">
+            <nav className="grid grid-cols-3 gap-2 p-2 md:block md:p-4 md:space-y-2">
               <button
                 onClick={() => setActiveTab('project')}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                className={`w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-2 md:px-4 py-3 rounded-lg transition-all ${
                   activeTab === 'project'
                     ? 'bg-banana-500 text-white shadow-md'
                     : 'bg-white dark:bg-background-secondary text-gray-700 dark:text-foreground-secondary hover:bg-gray-100 dark:hover:bg-background-hover'
@@ -185,7 +187,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
               </button>
               <button
                 onClick={() => setActiveTab('export')}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                className={`w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-2 md:px-4 py-3 rounded-lg transition-all ${
                   activeTab === 'export'
                     ? 'bg-banana-500 text-white shadow-md'
                     : 'bg-white dark:bg-background-secondary text-gray-700 dark:text-foreground-secondary hover:bg-gray-100 dark:hover:bg-background-hover'
@@ -196,7 +198,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
               </button>
               <button
                 onClick={() => setActiveTab('global')}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                className={`w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-2 md:px-4 py-3 rounded-lg transition-all ${
                   activeTab === 'global'
                     ? 'bg-banana-500 text-white shadow-md'
                     : 'bg-white dark:bg-background-secondary text-gray-700 dark:text-foreground-secondary hover:bg-gray-100 dark:hover:bg-background-hover'
@@ -208,7 +210,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
             </nav>
           </aside>
 
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="flex-1 min-w-0 min-h-0 overflow-y-auto p-4 md:p-6">
             {activeTab === 'project' ? (
               <div className="max-w-3xl space-y-6">
                 <div>
@@ -298,12 +300,10 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                       {t('projectSettings.styleDescriptionDesc')}
                     </p>
                   </div>
-                  <Textarea
+                  <TextStyleSelector
                     value={templateStyle}
-                    onChange={(e) => onTemplateStyleChange(e.target.value)}
-                    placeholder={t('projectSettings.styleDescriptionPlaceholder')}
-                    rows={5}
-                    className="text-sm"
+                    onChange={onTemplateStyleChange}
+                    sourceContent={sourceContent}
                   />
                   <div className="flex flex-col sm:flex-row gap-3">
                     <Button
@@ -317,8 +317,9 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                     </Button>
                   </div>
                   <div className="pl-4 border-l-4 border-blue-300 dark:border-blue-600">
-                    <p className="text-xs text-gray-700 dark:text-foreground-secondary">
-                      💡 <strong>{t('projectSettings.tip')}：</strong>{t('projectSettings.styleTip')}
+                    <p className="text-xs text-gray-700 dark:text-foreground-secondary flex items-start gap-1.5">
+                      <Lightbulb size={14} className="flex-shrink-0 mt-0.5" />
+                      <span><strong>{t('projectSettings.tip')}：</strong>{t('projectSettings.styleTip')}</span>
                     </p>
                   </div>
                 </div>

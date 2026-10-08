@@ -1,9 +1,27 @@
-const { app, BrowserWindow, Tray, Menu, ipcMain, shell, dialog, nativeImage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, shell, dialog, nativeImage, nativeTheme } = require('electron');
+const { autoUpdater: electronAutoUpdater, CancellationToken } = require('electron-updater');
 const path = require('path');
 const log = require('electron-log');
 const fs = require('fs');
 const pythonManager = require('./python-manager');
-const autoUpdater = require('./auto-updater');
+const { DesktopAutoUpdateManager, detectAutoUpdateSupport } = require('./auto-updater');
+const {
+  copyLocalExportToPath,
+  createUniqueDownloadUrl,
+  downloadToPath,
+  resolveLocalExportPath,
+} = require('./download-manager');
+const {
+  getApplicationIconPath,
+  getTrayIconPath,
+  shouldSetDockIcon,
+} = require('./icon-policy');
+const {
+  initializeDataRoot,
+  inspectDataRoot,
+  prepareDataRoot,
+  writeStorageConfig,
+} = require('./storage-config');
 
 let mainWindow = null;
 let splashWindow = null;
@@ -11,6 +29,13 @@ let tray = null;
 let isQuitting = false;
 let backendStopped = false;
 let backendStopRequested = false;
+let activeDataRoot = null;
+let activeDataRootIsDefault = true;
+let desktopAutoUpdater = null;
+const runtimeIconState = {
+  dockOverrideApplied: false,
+  trayTemplateImage: false,
+};
 
 function isDev() {
   return process.env.NODE_ENV === 'development';
@@ -23,6 +48,14 @@ function isSmokeMode() {
 function getSmokeQuitDelayMs() {
   const delay = Number(process.env.BANANA_DESKTOP_SMOKE_QUIT_DELAY_MS || 10000);
   return Number.isFinite(delay) && delay >= 0 ? delay : 10000;
+}
+
+function configureSmokeUserDataPath() {
+  const smokeUserDataPath = process.env.BANANA_DESKTOP_SMOKE_USER_DATA_DIR;
+  if (!isSmokeMode() || !smokeUserDataPath) return;
+  const resolvedPath = path.resolve(smokeUserDataPath);
+  fs.mkdirSync(resolvedPath, { recursive: true });
+  app.setPath('userData', resolvedPath);
 }
 
 function sleep(ms) {
@@ -54,6 +87,8 @@ async function writeSmokeResult(extra = {}) {
     windowVisible: mainWindow?.isVisible() || false,
     windowTitle: mainWindow?.getTitle() || '',
     url: mainWindow?.webContents?.getURL() || '',
+    dataRoot: activeDataRoot,
+    iconPolicy: runtimeIconState,
     timestamp: new Date().toISOString(),
     ...extra,
   };
@@ -89,11 +124,21 @@ async function writeSmokeResult(extra = {}) {
 }
 
 function getIconPath() {
-  const ext = process.platform === 'win32' ? 'ico' : 'png';
-  if (app.isPackaged) {
-    return path.join(process.resourcesPath, `icon.${ext}`);
-  }
-  return path.join(__dirname, 'resources', `icon.${ext}`);
+  return getApplicationIconPath({
+    platform: process.platform,
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    desktopDir: __dirname,
+  });
+}
+
+function getTrayPath() {
+  return getTrayIconPath({
+    platform: process.platform,
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    desktopDir: __dirname,
+  });
 }
 
 function shouldOpenInExternalBrowser(targetUrl) {
@@ -105,23 +150,6 @@ function shouldOpenInExternalBrowser(targetUrl) {
   }
 }
 
-function createUniqueDownloadUrl(url) {
-  if (isClientSideDownloadUrl(url)) {
-    return url;
-  }
-  try {
-    const parsedUrl = new URL(url);
-    parsedUrl.searchParams.set('__bananaDownloadId', `${Date.now()}-${Math.random().toString(36).slice(2)}`);
-    return parsedUrl.toString();
-  } catch (error) {
-    return url;
-  }
-}
-
-function isClientSideDownloadUrl(url) {
-  return typeof url === 'string' && /^(data|blob):/i.test(url);
-}
-
 function createSplashWindow() {
   splashWindow = new BrowserWindow({
     width: 480,
@@ -129,6 +157,7 @@ function createSplashWindow() {
     frame: false,
     resizable: false,
     transparent: false,
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#111111' : '#ffffff',
     center: true,
     skipTaskbar: true,
     webPreferences: { nodeIntegration: false, contextIsolation: true },
@@ -145,7 +174,6 @@ function createMainWindow() {
     minWidth: 680,
     minHeight: 480,
     show: false,
-    icon: getIconPath(),
     ...(isMac
       ? {
           titleBarStyle: 'hidden',
@@ -154,6 +182,7 @@ function createMainWindow() {
         }
       : {
           frame: false,
+          icon: getIconPath(),
         }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -162,8 +191,9 @@ function createMainWindow() {
     },
   });
 
-  if (isMac) {
+  if (app.dock && shouldSetDockIcon({ platform: process.platform, isPackaged: app.isPackaged })) {
     app.dock.setIcon(getIconPath());
+    runtimeIconState.dockOverrideApplied = true;
   }
 
   mainWindow.on('close', (e) => {
@@ -199,7 +229,28 @@ function createMainWindow() {
 }
 
 function createTray() {
-  const icon = nativeImage.createFromPath(getIconPath()).resize({ width: 16, height: 16 });
+  const trayPath = getTrayPath();
+  let icon = nativeImage.createFromPath(trayPath);
+  let usesTemplateImage = process.platform === 'darwin';
+  let usesFallbackImage = false;
+  if (icon.isEmpty()) {
+    const fallbackPath = path.join(__dirname, 'resources', 'icon.png');
+    log.error('[main] Failed to load tray icon, using app icon fallback:', { trayPath, fallbackPath });
+    icon = nativeImage.createFromPath(fallbackPath);
+    usesTemplateImage = false;
+    usesFallbackImage = true;
+  }
+  if (icon.isEmpty()) {
+    log.error('[main] Failed to load both the Tray icon and its fallback:', trayPath);
+    return;
+  }
+
+  if (usesTemplateImage) {
+    icon.setTemplateImage(true);
+    runtimeIconState.trayTemplateImage = true;
+  } else if (process.platform === 'linux' || usesFallbackImage) {
+    icon = icon.resize({ width: 16, height: 16 });
+  }
   tray = new Tray(icon);
   tray.setToolTip('Banana Slides');
 
@@ -210,6 +261,96 @@ function createTray() {
   ]);
   tray.setContextMenu(contextMenu);
   tray.on('double-click', () => { mainWindow?.show(); mainWindow?.focus(); });
+}
+
+function sendUpdateState(state) {
+  if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return;
+  mainWindow.webContents.send('update-status-changed', state);
+}
+
+async function installDownloadedUpdate() {
+  if (!desktopAutoUpdater?.isUpdateDownloaded()) {
+    return { success: false, error: 'UPDATE_NOT_DOWNLOADED' };
+  }
+
+  isQuitting = true;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.hide();
+  }
+  backendStopRequested = true;
+  try {
+    await pythonManager.stopBackend();
+  } catch (error) {
+    log.error('[main] Failed to stop backend before installing update:', error);
+  }
+  backendStopped = true;
+  const started = desktopAutoUpdater.quitAndInstall();
+  return { success: started };
+}
+
+async function showDownloadedUpdateDialog(checkResult) {
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: 'info',
+    title: '更新已就绪',
+    message: `新版本 v${checkResult.update.version} 已下载完成`,
+    detail: '重启 Banana Slides 即可完成更新。',
+    buttons: ['重启并更新', '稍后重启'],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (result.response === 0) {
+    await installDownloadedUpdate();
+  }
+}
+
+async function showManualUpdateDialog() {
+  try {
+    const checkResult = await desktopAutoUpdater.checkForUpdates();
+    if (checkResult.status === 'update_downloaded') {
+      await showDownloadedUpdateDialog(checkResult);
+      return;
+    }
+
+    if (checkResult.update) {
+      const primaryAction = checkResult.canAutoUpdate ? '下载更新' : '前往下载';
+      const releaseNotes = checkResult.update.notes.trim();
+      const result = await dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: '发现新版本',
+        message: `新版本 v${checkResult.update.version} 可用`,
+        ...(releaseNotes ? { detail: releaseNotes.substring(0, 300) } : {}),
+        buttons: [primaryAction, '查看完整更新日志', '稍后更新'],
+        defaultId: 0,
+        cancelId: 2,
+      });
+      if (result.response === 0) {
+        if (checkResult.canAutoUpdate) {
+          const downloadedState = await desktopAutoUpdater.downloadUpdate();
+          if (downloadedState.status === 'update_downloaded') {
+            await showDownloadedUpdateDialog(downloadedState);
+          }
+        } else {
+          await shell.openExternal(checkResult.update.url);
+        }
+      } else if (result.response === 1) {
+        await shell.openExternal(checkResult.update.url);
+      }
+      return;
+    }
+
+    await dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: '检查更新',
+      message: '当前已是最新版本',
+    });
+  } catch (error) {
+    log.error('[main] Failed to check for updates:', error);
+    await dialog.showMessageBox(mainWindow, {
+      type: 'error',
+      title: '检查更新失败',
+      message: '无法连接更新服务，请检查网络后重试',
+    });
+  }
 }
 
 function createAppMenu() {
@@ -281,27 +422,7 @@ function createAppMenu() {
       submenu: [
         {
           label: '检查更新...',
-          click: async () => {
-            const update = await autoUpdater.checkForUpdates();
-            if (update) {
-              const result = await dialog.showMessageBox(mainWindow, {
-                type: 'info',
-                title: '发现新版本',
-                message: `新版本 v${update.version} 可用`,
-                detail: update.notes.substring(0, 300),
-                buttons: ['前往下载', '稍后'],
-              });
-              if (result.response === 0) {
-                shell.openExternal(update.url);
-              }
-            } else {
-              dialog.showMessageBox(mainWindow, {
-                type: 'info',
-                title: '检查更新',
-                message: '当前已是最新版本',
-              });
-            }
-          },
+          click: showManualUpdateDialog,
         },
         { type: 'separator' },
         {
@@ -325,7 +446,14 @@ function createAppMenu() {
 function setupIPC() {
   ipcMain.handle('get-app-version', () => app.getVersion());
   ipcMain.handle('get-backend-port', () => pythonManager.getPort());
-  ipcMain.handle('check-for-updates', () => autoUpdater.checkForUpdates());
+  ipcMain.handle('check-for-updates', () => desktopAutoUpdater.checkForUpdates());
+  ipcMain.handle('get-update-state', () => desktopAutoUpdater.getState());
+  ipcMain.handle('get-auto-update-settings', () => desktopAutoUpdater.getSettings());
+  ipcMain.handle('set-automatic-updates-enabled', (_, enabled) => (
+    desktopAutoUpdater.setAutomaticUpdatesEnabled(enabled)
+  ));
+  ipcMain.handle('download-update', () => desktopAutoUpdater.downloadUpdate());
+  ipcMain.handle('install-update', () => installDownloadedUpdate());
   ipcMain.handle('open-external', (_, url) => {
     try {
       const parsedUrl = new URL(url);
@@ -362,6 +490,54 @@ function setupIPC() {
     return mainWindow?.webContents?.getZoomLevel() ?? 0;
   });
 
+  ipcMain.handle('get-data-storage-info', async () => {
+    const inspection = await inspectDataRoot(activeDataRoot);
+    return {
+      dataRoot: inspection.dataRoot,
+      isDefault: activeDataRootIsDefault,
+      hasDatabase: inspection.hasDatabase,
+      configurable: !isDev(),
+    };
+  });
+  ipcMain.handle('choose-data-storage-directory', async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: '选择数据存储位置',
+      defaultPath: activeDataRoot,
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    return result.canceled ? null : result.filePaths[0];
+  });
+  ipcMain.handle('inspect-data-storage-directory', (_, dataRoot) => inspectDataRoot(dataRoot));
+  ipcMain.handle('open-data-storage-directory', async () => {
+    const error = await shell.openPath(activeDataRoot);
+    return error ? { success: false, error } : { success: true };
+  });
+  ipcMain.handle('apply-data-storage-directory', async (_, dataRoot, allowInitialize = false) => {
+    if (isDev()) {
+      const error = new Error('DATA_STORAGE_UNAVAILABLE_IN_DEV: Data storage location is managed by the external development backend.');
+      error.code = 'DATA_STORAGE_UNAVAILABLE_IN_DEV';
+      throw error;
+    }
+    const inspection = await prepareDataRoot(dataRoot, allowInitialize);
+    await writeStorageConfig(app.getPath('userData'), inspection.dataRoot);
+    setTimeout(async () => {
+      isQuitting = true;
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.hide();
+      }
+      backendStopRequested = true;
+      try {
+        await pythonManager.stopBackend();
+      } catch (error) {
+        log.error('[main] Failed to stop backend during data storage restart:', error);
+      }
+      backendStopped = true;
+      app.relaunch();
+      app.exit(0);
+    }, 100);
+    return { success: true, restarting: true };
+  });
+
   // 原生下载对话框：前端传入绝对 URL + 建议文件名
   ipcMain.handle('download-file', async (_, { url, filename }) => {
     const currentWindow = mainWindow;
@@ -374,46 +550,130 @@ function setupIPC() {
     });
     if (canceled || !savePath) return { success: false, canceled: true };
     if (currentWindow.isDestroyed()) return { success: false };
-    const downloadSession = currentWindow.webContents.session;
-    let cleanupTimer = null;
-    let cleanedUp = false;
-    const cleanup = () => {
-      if (cleanedUp) return;
-      cleanedUp = true;
-      if (cleanupTimer) {
-        clearTimeout(cleanupTimer);
-        cleanupTimer = null;
+    const localExportPath = await resolveLocalExportPath(downloadUrl, activeDataRoot);
+    if (currentWindow.isDestroyed()) return { success: false };
+    const result = localExportPath
+      ? await copyLocalExportToPath(localExportPath, savePath)
+      : await downloadToPath({
+          downloadSession: currentWindow.webContents.session,
+          downloadUrl,
+          savePath,
+          currentWindow,
+        });
+    if (!result.success) {
+      log.error('[main] Download failed:', { url: downloadUrl, savePath, ...result });
+      if (!currentWindow.isDestroyed()) {
+        const localizedError = {
+          interrupted: '下载被中断，请重试。',
+          timeout: '下载超时，请重试。',
+          missing: '目标文件没有写入。',
+          empty: '目标文件为空。',
+          failed: '文件复制或下载失败。',
+          cancelled: '下载已取消。',
+        }[result.state];
+        await dialog.showMessageBox(currentWindow, {
+          type: 'error',
+          title: '保存失败',
+          message: '文件没有保存成功',
+          detail: `${localizedError || result.error || '下载失败'}\n\n目标位置：${savePath}`,
+        });
       }
-      downloadSession.removeListener('will-download', listener);
-      currentWindow.removeListener('closed', cleanup);
-    };
-    const listener = (_, item) => {
-      const itemUrl = item.getURL();
-      const urlChain = typeof item.getURLChain === 'function' ? item.getURLChain() : [itemUrl];
-      const isMatchingClientSideDownload = isClientSideDownloadUrl(downloadUrl) && itemUrl === downloadUrl;
-      if (!urlChain.includes(downloadUrl) && !isMatchingClientSideDownload) {
-        return;
-      }
-      item.setSavePath(savePath);
-      cleanup();
-    };
-    downloadSession.on('will-download', listener);
-    currentWindow.once('closed', cleanup);
-    cleanupTimer = setTimeout(cleanup, 300000);
-    currentWindow.webContents.downloadURL(downloadUrl);
-    return { success: true };
+    } else {
+      log.info('[main] Download completed:', result.filePath);
+    }
+    return result;
   });
+}
+
+async function selectRecoveryDataRoot(startupError) {
+  let error = startupError;
+  let skipErrorDialog = false;
+  while (true) {
+    const parentWindow = splashWindow && !splashWindow.isDestroyed() ? splashWindow : null;
+    if (!skipErrorDialog) {
+      const choice = await dialog.showMessageBox(parentWindow, {
+        type: 'error',
+        title: '无法访问数据存储位置',
+        message: 'Banana Slides 无法访问已配置的数据存储位置。',
+        detail: error.message,
+        buttons: ['选择其他位置', '退出'],
+        defaultId: 0,
+        cancelId: 1,
+        noLink: true,
+      });
+      if (choice.response !== 0) return null;
+    }
+    skipErrorDialog = false;
+
+    const selection = await dialog.showOpenDialog(parentWindow, {
+      title: '选择数据存储位置',
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    if (selection.canceled || !selection.filePaths[0]) {
+      error = new Error('尚未选择可用的数据存储位置。');
+      continue;
+    }
+    try {
+      const inspection = await inspectDataRoot(selection.filePaths[0]);
+      if (!inspection.hasDatabase) {
+        const confirmation = await dialog.showMessageBox(parentWindow, {
+          type: 'warning',
+          title: '确认使用新的数据位置',
+          message: '所选目录中没有 Banana Slides 数据库。',
+          detail: '继续后将把此位置作为新的空数据目录使用。应用不会移动或删除原目录中的任何数据。',
+          buttons: ['使用此位置', '重新选择'],
+          defaultId: 1,
+          cancelId: 1,
+          noLink: true,
+        });
+        if (confirmation.response !== 0) {
+          skipErrorDialog = true;
+          continue;
+        }
+      }
+      const prepared = await prepareDataRoot(inspection.dataRoot, !inspection.hasDatabase);
+      await writeStorageConfig(app.getPath('userData'), prepared.dataRoot);
+      return { ...prepared, isDefault: false };
+    } catch (nextError) {
+      error = nextError;
+    }
+  }
 }
 
 async function bootstrap() {
   createSplashWindow();
   createMainWindow();
   createTray();
-  createAppMenu();
-  setupIPC();
 
   try {
-    const port = await pythonManager.startBackend(app.getPath('userData'));
+    desktopAutoUpdater = new DesktopAutoUpdateManager({
+      app,
+      updater: electronAutoUpdater,
+      CancellationToken,
+      logger: log,
+      canAutoUpdate: detectAutoUpdateSupport({ app }),
+    });
+    await desktopAutoUpdater.initialize();
+    desktopAutoUpdater.subscribe(sendUpdateState);
+    createAppMenu();
+    setupIPC();
+
+    let storageInfo;
+    try {
+      storageInfo = await initializeDataRoot(app.getPath('userData'));
+    } catch (error) {
+      log.error('[main] Configured data storage location is unavailable:', error);
+      storageInfo = await selectRecoveryDataRoot(error);
+      if (!storageInfo) {
+        isQuitting = true;
+        app.quit();
+        return;
+      }
+    }
+    activeDataRoot = storageInfo.dataRoot;
+    activeDataRootIsDefault = storageInfo.isDefault;
+
+    const port = await pythonManager.startBackend(activeDataRoot);
     await pythonManager.waitForBackend(port);
 
     if (isDev()) {
@@ -423,6 +683,9 @@ async function bootstrap() {
         query: { backendPort: String(port) },
       });
     }
+    if (!isSmokeMode()) {
+      desktopAutoUpdater.startAutomaticChecks();
+    }
   } catch (err) {
     log.error('[main] Startup failed:', err);
     if (splashWindow) splashWindow.close();
@@ -431,6 +694,7 @@ async function bootstrap() {
   }
 }
 
+configureSmokeUserDataPath();
 app.whenReady().then(bootstrap);
 if (process.platform === 'win32') {
   app.setAppUserModelId('com.banana.slides');
@@ -453,7 +717,11 @@ app.on('before-quit', (event) => {
 
   pythonManager.stopBackend().finally(() => {
     backendStopped = true;
-    app.quit();
+    if (desktopAutoUpdater?.shouldInstallOnQuit()) {
+      desktopAutoUpdater.quitAndInstall();
+    } else {
+      app.quit();
+    }
   });
 });
 

@@ -135,7 +135,7 @@ export interface Project {
   template_image_url?: string; // 后端返回 template_image_url
   template_image_path?: string; // 前端使用的别名
   template_style?: string; // 风格描述文本（无模板图模式）
-  template_mode?: TemplateMode; // 单/多模板模式（UI hint，底层始终每页一个模板）
+  template_mode?: TemplateMode; // 统一/每页独立模板模式（UI hint，底层始终每页一个模板）
   // 导出设置
   export_extractor_method?: ExportExtractorMethod; // 组件提取方法
   export_inpaint_method?: ExportInpaintMethod; // 背景图获取方法
@@ -190,6 +190,7 @@ export interface Task {
 
 // 创建项目请求
 export interface CreateProjectRequest {
+  creation_type?: 'idea' | 'outline' | 'descriptions' | 'blank';
   idea_prompt?: string;
   outline_text?: string;
   description_text?: string;
@@ -214,6 +215,7 @@ export interface Settings {
   api_base_url?: string;
   api_key_length: number;
   image_resolution: string;
+  image_quality?: string;
   image_aspect_ratio: string;
   max_description_workers: number;
   max_image_workers: number;
@@ -251,7 +253,7 @@ export interface Settings {
   openai_image_api_protocol?: string;
   // OpenAI Codex OAuth
   openai_oauth_connected: boolean;
-  openai_oauth_account_id?: string;
+  openai_oauth_account_id?: string | null;
   // ElevenLabs TTS
   elevenlabs_enabled: boolean;
   elevenlabs_api_key_length: number;

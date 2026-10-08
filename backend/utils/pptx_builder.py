@@ -294,48 +294,54 @@ class PPTXBuilder:
         
         # Try precise measurement first (check if font file exists)
         use_precise = os.path.exists(self.FONT_PATH)
-        
-        # Binary search: find largest font size that fits
-        best_size = self.MIN_FONT_SIZE
-        
-        for font_size in range(int(self.MAX_FONT_SIZE), int(self.MIN_FONT_SIZE) - 1, -1):
-            font_size = float(font_size)
-            
-            # For text with explicit newlines, calculate each line's width separately
-            lines = text.split('\n')
+
+        # 退化 bbox（宽度不足 1pt）时整数除法会除零；按 1pt 计算，
+        # 让后续的高度判断把字号压到最小值（并给出溢出告警）。
+        usable_width_for_wrap = max(1, int(usable_width_pt))
+        measurement_state = {'precise': use_precise}
+        lines = text.split('\n')
+
+        def required_lines(font_size: float) -> int:
+            """该字号下文本换行后需要的总行数。"""
             total_required_lines = 0
-            
             for line in lines:
                 if not line:
                     total_required_lines += 1
                     continue
-                    
-                # Measure line width (precise or estimated)
-                if use_precise:
+
+                line_width_pt = None
+                if measurement_state['precise']:
                     line_width_pt = self._measure_text_width(line, font_size)
                     if line_width_pt is None:
-                        use_precise = False
-                
-                if not use_precise:
+                        measurement_state['precise'] = False
+
+                if line_width_pt is None:
                     # Fallback: estimate based on character count
                     cjk_count = sum(1 for c in line if '\u4e00' <= c <= '\u9fff' or '\u3040' <= c <= '\u30ff' or '\uac00' <= c <= '\ud7af')
                     non_cjk_count = len(line) - cjk_count
                     line_width_pt = (cjk_count * 1.0 + non_cjk_count * 0.5) * font_size
-                
+
                 # How many lines does this explicit line need (auto-wrap)?
-                lines_needed = max(1, -(-int(line_width_pt) // int(usable_width_pt)))
-                total_required_lines += lines_needed
-            
-            required_lines = total_required_lines
-            
-            # Calculate total height needed
-            line_height_pt = font_size * line_height_ratio
-            total_height_pt = required_lines * line_height_pt
-            
-            # Check if it fits
-            if total_height_pt <= usable_height_pt:
-                best_size = font_size
-                break
+                total_required_lines += max(1, -(-int(line_width_pt) // usable_width_for_wrap))
+            return total_required_lines
+
+        def fits(font_size: float) -> bool:
+            return required_lines(font_size) * font_size * line_height_ratio <= usable_height_pt
+
+        # 二分查找：找最大的能放下的字号。
+        # 原来的做法是从 MAX_FONT_SIZE 逐 pt 往下试，每个文本元素要测 180+ 次字宽
+        # （CJK 字体每次约 0.4ms），单元素约 80ms，密集页面会卡到分钟级。
+        # "放得下"对字号单调，因此二分只需 ~8 次测量。
+        best_size = self.MIN_FONT_SIZE
+        low = int(self.MIN_FONT_SIZE)
+        high = int(self.MAX_FONT_SIZE)
+        while low <= high:
+            mid = (low + high) // 2
+            if fits(float(mid)):
+                best_size = float(mid)
+                low = mid + 1
+            else:
+                high = mid - 1
         
         if best_size == self.MIN_FONT_SIZE and text_length > 3:
             logger.warning(f"Text may overflow: '{text[:50]}...' in bbox {width_px}x{height_px}px")

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { FileText, Upload, X, Loader2, CheckCircle2, XCircle, RefreshCw, ArrowUpDown } from 'lucide-react';
+import { FileText, Upload, X, Loader2, CheckCircle2, XCircle, RefreshCw, ArrowUpDown, AlertTriangle, Lightbulb } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { Button, useToast, Modal } from '@/components/shared';
 
@@ -315,7 +315,7 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
       return fileExt === 'ppt' || fileExt === 'pptx';
     });
     
-    if (hasPptFiles) show({ message: `💡 ${t('shared.pptTip')}`, type: 'info' });
+    if (hasPptFiles) show({ message: t('shared.pptTip'), type: 'info' });
     
 
     setIsUploading(true);
@@ -658,8 +658,9 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
                         {file.parse_status === 'completed' && 
                          typeof file.image_caption_failed_count === 'number' && 
                          file.image_caption_failed_count > 0 && (
-                          <p className="text-xs text-orange-500 mt-1">
-                            ⚠️ {t('referenceFile.imageCaptionFailed', { count: file.image_caption_failed_count })}
+                          <p className="text-xs text-orange-500 mt-1 flex items-center gap-1">
+                            <AlertTriangle size={12} className="flex-shrink-0" />
+                            {t('referenceFile.imageCaptionFailed', { count: file.image_caption_failed_count })}
                           </p>
                         )}
                       </div>
@@ -687,8 +688,9 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
 
         {/* 底部操作栏 */}
         <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-border-primary">
-          <p className="text-xs text-gray-500 dark:text-foreground-tertiary">
-            💡 {t('referenceFile.autoParseHint')}
+          <p className="text-xs text-gray-500 dark:text-foreground-tertiary flex items-center gap-1.5">
+            <Lightbulb size={13} className="flex-shrink-0" />
+            {t('referenceFile.autoParseHint')}
           </p>
           <div className="flex items-center gap-2">
             <Button variant="ghost" onClick={onClose}>

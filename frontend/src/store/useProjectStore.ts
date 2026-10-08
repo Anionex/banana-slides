@@ -101,6 +101,8 @@ interface ProjectState {
   // 状态
   currentProject: Project | null;
   isGlobalLoading: boolean;
+  // 有页面改动正在防抖队列中或写回后端（用于「保存中/已保存」提示）
+  isSavingPages: boolean;
   activeTaskId: string | null;
   taskProgress: { total: number; completed: number } | null;
   error: string | null;
@@ -110,6 +112,8 @@ interface ProjectState {
   warningMessage: string | null;
   // 流式大纲生成中
   isOutlineStreaming: boolean;
+  // 正在流式生成大纲的项目。任务仍可在后台完成，但只能更新自己的项目。
+  outlineStreamingProjectIds: string[];
   // 流式描述生成中
   isDescriptionStreaming: boolean;
   // 项目模板库（per-page template）
@@ -121,7 +125,7 @@ interface ProjectState {
   setError: (error: string | null) => void;
   
   // 项目操作
-  initializeProject: (type: 'idea' | 'outline' | 'description', content: string, templateImage?: File, templateStyle?: string, referenceFileIds?: string[], aspectRatio?: string) => Promise<void>;
+  initializeProject: (type: 'idea' | 'outline' | 'description' | 'blank', content: string, templateImage?: File, templateStyle?: string, referenceFileIds?: string[], aspectRatio?: string) => Promise<void>;
   syncProject: (projectId?: string) => Promise<void>;
   
   // 页面操作
@@ -138,7 +142,7 @@ interface ProjectState {
 
   // 生成操作
   generateOutline: () => Promise<void>;
-  generateOutlineStream: () => Promise<{ complete: boolean } | undefined>;
+  generateOutlineStream: (lockPageCount?: boolean) => Promise<{ complete: boolean; active: boolean } | undefined>;
   generateFromDescription: () => Promise<void>;
   generateDescriptions: (detailLevel?: string) => Promise<void>;
   generatePageDescription: (pageId: string, detailLevel?: string) => Promise<void>;
@@ -176,10 +180,8 @@ interface ProjectState {
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => {
-  // 防抖的API更新函数（在store内部定义，以便访问syncProject）
-const debouncedUpdatePage = debounce(
-  async (projectId: string, pageId: string, data: any) => {
-      try {
+  // 把一页的字段分发到各自的后端端点
+  const savePageFields = async (projectId: string, pageId: string, data: any) => {
     const promises: Promise<any>[] = [];
 
     // 如果更新的是 description_content，使用专门的端点
@@ -190,6 +192,12 @@ const debouncedUpdatePage = debounce(
     // 如果更新的是 outline_content，使用专门的端点
     if (data.outline_content) {
       promises.push(api.updatePageOutline(projectId, pageId, data.outline_content));
+    }
+
+    // 如果更新的是 narration_text，使用专门的端点
+    // （通用端点只接受 part，narration 走这里才能真正落库）
+    if ('narration_text' in data) {
+      promises.push(api.updatePageNarration(projectId, pageId, data.narration_text ?? ''));
     }
 
     // 如果更新的是 part 字段，使用通用端点
@@ -204,32 +212,69 @@ const debouncedUpdatePage = debounce(
       // 并行执行所有更新请求
       await Promise.all(promises);
     }
-        
-        // API调用成功后，同步项目状态以更新updated_at
-        // 图片生成期间 poll 已在 2s 同步，跳过以避免并发竞态
-        const { syncProject, pageGeneratingTasks } = get();
-        if (Object.keys(pageGeneratingTasks).length === 0) {
-          await syncProject(projectId);
-        }
-      } catch (error: any) {
-        console.error('保存页面失败:', error);
-        // 可以在这里添加错误提示，但为了避免频繁提示，暂时只记录日志
-        // 如果需要，可以通过事件系统或toast通知用户
+  };
+
+  // 待写回后端的页面改动：pageId -> 合并后的字段。
+  // 防抖计时器是全局共享的，所以这里必须累积而不是覆盖参数，
+  // 否则 1s 内连续编辑多个字段（或切页后继续编辑）会丢掉先前的改动。
+  const pendingPageUpdates = new Map<string, { projectId: string; data: any }>();
+
+  const flushPageUpdates = async () => {
+    const entries = Array.from(pendingPageUpdates.entries());
+    pendingPageUpdates.clear();
+    if (entries.length === 0) return;
+
+    try {
+      await Promise.all(
+        entries.map(([pageId, { projectId, data }]) => savePageFields(projectId, pageId, data))
+      );
+
+      // API调用成功后，同步项目状态以更新updated_at
+      // 图片生成期间 poll 已在 2s 同步，跳过以避免并发竞态
+      // 用户可能在防抖窗口内切走了项目，此时同步会把当前项目覆盖成旧项目
+      // 队列可能混着多个项目的改动（防抖窗口内切了项目），所以要看整个队列里
+      // 有没有当前项目的写回，而不是只看第一条
+      const { syncProject, pageGeneratingTasks, currentProject } = get();
+      const touchedCurrentProject =
+        !!currentProject && entries.some(([, update]) => update.projectId === currentProject.id);
+      if (touchedCurrentProject && Object.keys(pageGeneratingTasks).length === 0) {
+        await syncProject(currentProject!.id);
+      }
+    } catch (error: any) {
+      console.error('保存页面失败:', error);
+      // 可以在这里添加错误提示，但为了避免频繁提示，暂时只记录日志
+      // 如果需要，可以通过事件系统或toast通知用户
+    } finally {
+      // 队列可能在本次 flush 期间又被写入，只有排空时才算保存结束
+      if (pendingPageUpdates.size === 0) set({ isSavingPages: false });
     }
-  },
-  1000
-);
+  };
+
+  const debouncedFlushPageUpdates = debounce(flushPageUpdates, 1000);
+
+  const debouncedUpdatePage = (projectId: string, pageId: string, data: any) => {
+    const existing = pendingPageUpdates.get(pageId);
+    pendingPageUpdates.set(pageId, {
+      projectId,
+      data: { ...(existing?.data ?? {}), ...data },
+    });
+    // 逐字输入时避免重复 set 触发无谓的重渲染
+    if (!get().isSavingPages) set({ isSavingPages: true });
+    debouncedFlushPageUpdates();
+  };
 
   return {
   // 初始状态
   currentProject: null,
   isGlobalLoading: false,
+  isSavingPages: false,
   activeTaskId: null,
   taskProgress: null,
   error: null,
   pageGeneratingTasks: {},
   warningMessage: null,
   isOutlineStreaming: false,
+  outlineStreamingProjectIds: [],
   isDescriptionStreaming: false,
   templateAssets: [],
 
@@ -243,13 +288,17 @@ const debouncedUpdatePage = debounce(
     set({ isGlobalLoading: true, error: null });
     try {
       const request: any = {};
+      const normalizedContent = typeof content === 'string' ? content.trim() : '';
 
-      if (type === 'idea') {
-        request.idea_prompt = content;
+      if (type === 'blank') {
+        // 空白项目没有任何文本内容，必须显式声明类型
+        request.creation_type = 'blank';
+      } else if (type === 'idea') {
+        request.idea_prompt = normalizedContent;
       } else if (type === 'outline') {
-        request.outline_text = content;
+        request.outline_text = normalizedContent;
       } else if (type === 'description') {
-        request.description_text = content;
+        request.description_text = normalizedContent;
       }
 
       // 添加风格描述（如果有）
@@ -627,14 +676,34 @@ const debouncedUpdatePage = debounce(
   // 流式生成大纲（SSE，逐页渲染）
   generateOutlineStream: async (lockPageCount?: boolean) => {
     const { currentProject } = get();
-    if (!currentProject) return;
+    const projectId = currentProject?.id;
+    if (!currentProject || !projectId) return;
 
-    set({ isOutlineStreaming: true, error: null });
+    if (get().outlineStreamingProjectIds.includes(projectId)) return;
+
+    const finishStream = () => {
+      set((state) => {
+        const outlineStreamingProjectIds = state.outlineStreamingProjectIds.filter((id) => id !== projectId);
+        return {
+          outlineStreamingProjectIds,
+          isOutlineStreaming: outlineStreamingProjectIds.length > 0,
+        };
+      });
+    };
+    const isViewingTargetProject = () => get().currentProject?.id === projectId;
+
+    set((state) => ({
+      outlineStreamingProjectIds: [...state.outlineStreamingProjectIds, projectId],
+      isOutlineStreaming: true,
+      error: null,
+    }));
 
     // Clear existing pages for fresh streaming display
-    set({
-      currentProject: { ...currentProject, pages: [] },
-    });
+    set((state) => ({
+      currentProject: state.currentProject?.id === projectId
+        ? { ...state.currentProject, pages: [] }
+        : state.currentProject,
+    }));
 
     // Concurrent queue: pages are pushed by SSE callbacks, drained by a timer loop
     const pageQueue: any[] = [];
@@ -648,7 +717,7 @@ const debouncedUpdatePage = debounce(
         if (pageQueue.length > 0) {
           const page = pageQueue.shift()!;
           const { currentProject: proj } = get();
-          if (proj) {
+          if (proj?.id === projectId) {
             const tempPage: any = {
               id: `streaming-${page.index}`,
               order_index: page.index,
@@ -675,12 +744,14 @@ const debouncedUpdatePage = debounce(
     });
 
     try {
-      await api.generateOutlineStream(currentProject.id!, {
+      await api.generateOutlineStream(projectId, {
         onPage: (page) => { pageQueue.push(page); },
         onDone: (data) => { doneData = data; },
         onError: (message) => {
           console.error('[流式大纲] 错误:', message);
-          set({ error: normalizeErrorMessage(message), isOutlineStreaming: false });
+          if (isViewingTargetProject()) {
+            set({ error: normalizeErrorMessage(message) });
+          }
           streamDone = true;
         },
       }, undefined /* language */, lockPageCount);
@@ -691,24 +762,26 @@ const debouncedUpdatePage = debounce(
       // Replace temp pages with real persisted pages
       if (doneData) {
         const { currentProject: proj } = get();
-        if (proj) {
+        if (proj?.id === projectId) {
           const normalized = normalizeProject({ ...proj, pages: doneData.pages });
-          set({ currentProject: normalized, isOutlineStreaming: false });
+          set({ currentProject: normalized });
         }
         devLog('[流式大纲] 完成:', doneData.total, '个页面');
-        return { complete: doneData.complete ?? false };
+        return { complete: doneData.complete ?? false, active: isViewingTargetProject() };
       } else {
-        set({ isOutlineStreaming: false });
-        return { complete: false };
+        return { complete: false, active: isViewingTargetProject() };
       }
     } catch (error: any) {
       console.error('[流式大纲] 错误:', error);
       streamDone = true;
-      set({
-        error: normalizeErrorMessage(error.message || t('store.generateOutlineFailed')),
-        isOutlineStreaming: false,
-      });
+      if (!isViewingTargetProject()) {
+        // 已切换离开发起生成的项目：过期失败不再抛出，避免在后来打开的项目中弹提示
+        return { complete: false, active: false };
+      }
+      set({ error: normalizeErrorMessage(error.message || t('store.generateOutlineFailed')) });
       throw error;
+    } finally {
+      finishStream();
     }
   },
 

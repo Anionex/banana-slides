@@ -1,6 +1,7 @@
 import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, FileText, Sparkles, Download, Upload, ChevronDown, Settings2, X, Plus, HelpCircle, ImageIcon, Layers, LayoutTemplate } from 'lucide-react';
+import { ArrowLeft, ArrowRight, FileText, Sparkles, Download, Upload, ChevronDown, Settings2, X, Plus, HelpCircle, ImageIcon, Layers } from 'lucide-react';
+import logoUrl from '@/assets/logo.png';
 import { useT } from '@/hooks/useT';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import PresetCapsules from '@/components/shared/PresetCapsules';
@@ -24,7 +25,7 @@ const detailI18n = {
       generating: "生成中...", page: "第 {{num}} 页", titleLabel: "标题",
       description: "描述", batchGenerate: "批量生成描述", export: "导出描述", exportFull: "导出大纲和描述", import: "导入", importExport: "导入/导出",
       pagesCompleted: "页已完成", noPages: "还没有页面",
-      toMultiTemplate: "转为多模板", toTemplateSetup: "前往模板配置", switchFailed: "切换模板模式失败",
+      toMultiTemplate: "转为每页独立模板", toTemplateSetup: "前往模板配置", switchFailed: "切换模板模式失败",
       noPagesHint: "请先返回大纲编辑页添加页面", backToOutline: "返回大纲编辑",
       aiPlaceholder: "例如：让描述更详细、删除第2页的某个要点、强调XXX的重要性... · Ctrl+Enter提交",
       aiPlaceholderShort: "例如：让描述更详细... · Ctrl+Enter",
@@ -79,7 +80,7 @@ const detailI18n = {
       generating: "Generating...", page: "Page {{num}}", titleLabel: "Title",
       description: "Description", batchGenerate: "Batch Generate Descriptions", export: "Export Descriptions", exportFull: "Export Outline & Descriptions", import: "Import", importExport: "Import/Export",
       pagesCompleted: "pages completed", noPages: "No pages yet",
-      toMultiTemplate: "Switch to multi-template", toTemplateSetup: "Go to template setup", switchFailed: "Failed to switch template mode",
+      toMultiTemplate: "Switch to per-page templates", toTemplateSetup: "Go to template setup", switchFailed: "Failed to switch template mode",
       noPagesHint: "Please go back to outline editor to add pages first", backToOutline: "Back to Outline Editor",
       aiPlaceholder: "e.g., Make descriptions more detailed, remove a point from page 2, emphasize XXX... · Ctrl+Enter to submit",
       aiPlaceholderShort: "e.g., Make descriptions more detailed... · Ctrl+Enter",
@@ -133,6 +134,7 @@ import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal,
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { refineDescriptions, getTaskStatus, addPages, updateProject, getSettings, updateSettings } from '@/api/endpoints';
+import { normalizeRenovationErrorMessage } from '@/utils';
 import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtils';
 
 // 详细程度图标 — 暂时屏蔽，效果不够理想
@@ -143,7 +145,10 @@ import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtil
 // };
 // const DetailLevelIcon: React.FC<{ level: string }> = ({ level }) => ( ... );
 
-const PRESET_EXTRA_FIELDS = new Set(['视觉元素', '视觉焦点', '排版布局', '演讲者备注']);
+// 与后端 Settings.DEFAULT_EXTRA_FIELDS / DEFAULT_IMAGE_PROMPT_FIELDS 保持一致
+const DEFAULT_EXTRA_FIELDS = ['配图与素材', '版式与重点', '演讲者备注'];
+const DEFAULT_IMAGE_PROMPT_FIELDS = ['配图与素材', '版式与重点'];
+const PRESET_EXTRA_FIELDS = new Set(DEFAULT_EXTRA_FIELDS);
 
 // 可拖拽排序的额外字段胶囊
 const SortableFieldPill: React.FC<{
@@ -230,14 +235,19 @@ export const DetailEditor: React.FC = () => {
   const [renovationProgress, setRenovationProgress] = useState<{ total: number; completed: number } | null>(null);
   const [detailLevel, setDetailLevel] = useState<string>('default');
   const [generationMode, setGenerationMode] = useState<'streaming' | 'parallel'>('streaming');
-  const [extraFieldNames, setExtraFieldNames] = useState<string[]>(['视觉元素', '视觉焦点', '排版布局', '演讲者备注']);
-  const [imagePromptFields, setImagePromptFields] = useState<string[]>(['视觉元素', '视觉焦点', '排版布局']);
+  const [extraFieldNames, setExtraFieldNames] = useState<string[]>(DEFAULT_EXTRA_FIELDS);
+  const [imagePromptFields, setImagePromptFields] = useState<string[]>(DEFAULT_IMAGE_PROMPT_FIELDS);
   // 可选字段池（localStorage 持久化，包含所有已知字段名）
   const [availableFields, setAvailableFields] = useState<string[]>(() => {
     try {
       const stored = localStorage.getItem('banana-available-extra-fields');
-      return stored ? JSON.parse(stored) : ['视觉元素', '视觉焦点', '排版布局', '演讲者备注'];
-    } catch { return ['视觉元素', '视觉焦点', '排版布局', '演讲者备注']; }
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        // 缓存结构损坏时回落到默认值，否则后续 map/indexOf 会崩
+        if (Array.isArray(parsed)) return parsed;
+      }
+      return DEFAULT_EXTRA_FIELDS;
+    } catch { return DEFAULT_EXTRA_FIELDS; }
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
@@ -259,7 +269,7 @@ export const DetailEditor: React.FC = () => {
         const storedLevel = sessionStorage.getItem('banana-detail-level');
         if (storedLevel) setDetailLevel(storedLevel);
         setGenerationMode(s.description_generation_mode || 'streaming');
-        const activeFields = s.description_extra_fields || ['视觉元素', '视觉焦点', '排版布局', '演讲者备注'];
+        const activeFields = s.description_extra_fields || DEFAULT_EXTRA_FIELDS;
         setExtraFieldNames(activeFields);
         if (s.image_prompt_extra_fields) setImagePromptFields(s.image_prompt_extra_fields);
         // 合并活跃字段到可选池
@@ -320,10 +330,14 @@ export const DetailEditor: React.FC = () => {
   // 点击外部关闭下拉
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+      const target = e.target;
+      if (!(target instanceof Node)) return;
+      const element = target instanceof Element ? target : target.parentElement;
+      if (element?.closest('[role="dialog"]')) return;
+      if (settingsRef.current && !settingsRef.current.contains(target)) {
         setSettingsOpen(false);
       }
-      if (fileMenuRef.current && !fileMenuRef.current.contains(e.target as Node)) {
+      if (fileMenuRef.current && !fileMenuRef.current.contains(target)) {
         setFileMenuOpen(false);
       }
     };
@@ -373,7 +387,10 @@ export const DetailEditor: React.FC = () => {
           localStorage.removeItem('renovationTaskId');
           setIsRenovationProcessing(false);
           setRenovationProgress(null);
-          show({ message: task.error_message || t('detail.renovationFailed'), type: 'error' });
+          show({
+            message: normalizeRenovationErrorMessage(task.error_message || t('detail.renovationFailed')),
+            type: 'error',
+          });
           return;
         }
 
@@ -629,7 +646,7 @@ export const DetailEditor: React.FC = () => {
               <span className="hidden sm:inline">{t('common.back')}</span>
             </Button>
             <div className="flex items-center gap-1.5 md:gap-2">
-              <span className="text-xl md:text-2xl">🍌</span>
+              <img src={logoUrl} alt="" className="w-6 h-6 md:w-8 md:h-8 object-contain flex-shrink-0" />
               <span className="text-base md:text-xl font-bold">{t('home.title')}</span>
             </div>
             <span className="text-gray-400 hidden lg:inline">|</span>
@@ -660,18 +677,7 @@ export const DetailEditor: React.FC = () => {
             >
               <span className="hidden lg:inline">{t('common.previous')}</span>
             </Button>
-            {currentProject.template_mode === 'multi' ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                icon={<LayoutTemplate size={16} className="md:w-[18px] md:h-[18px]" />}
-                onClick={() => navigate(`/project/${projectId}/template-setup`)}
-                disabled={isRenovationProcessing}
-                className="hidden md:inline-flex"
-              >
-                <span className="hidden lg:inline">{t('detail.toTemplateSetup')}</span>
-              </Button>
-            ) : (
+            {currentProject.template_mode !== 'multi' && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -683,6 +689,7 @@ export const DetailEditor: React.FC = () => {
                 <span className="hidden lg:inline">{t('detail.toMultiTemplate')}</span>
               </Button>
             )}
+            {/* multi 模式下一步是模板配置（生成在预览页发生），文案与去向保持一致 */}
             <Button
               variant="primary"
               size="sm"
@@ -698,7 +705,11 @@ export const DetailEditor: React.FC = () => {
               title={!hasAllDescriptions && !isRenovationProcessing ? t('detail.disabledNextTip', { count: missingDescCount }) : undefined}
               className="text-xs md:text-sm"
             >
-              <span className="hidden sm:inline">{t('detail.generateImages')}</span>
+              <span className="hidden sm:inline">
+                {currentProject.template_mode === 'multi'
+                  ? t('detail.toTemplateSetup')
+                  : t('detail.generateImages')}
+              </span>
             </Button>
           </div>
         </div>
@@ -825,7 +836,7 @@ export const DetailEditor: React.FC = () => {
                                     ? extraFieldNames.filter(f => f !== name)
                                     : [...extraFieldNames, name];
                                   setExtraFieldNames(next);
-                                  saveSettingsDebounced({ description_extra_fields: next.length > 0 ? next : ['视觉元素', '视觉焦点', '排版布局', '演讲者备注'] });
+                                  saveSettingsDebounced({ description_extra_fields: next.length > 0 ? next : DEFAULT_EXTRA_FIELDS });
                                 }}
                                 inImagePrompt={imagePromptFields.includes(name)}
                                 imagePromptTooltip={imagePromptFields.includes(name) ? t('detail.imagePromptOn') : t('detail.imagePromptOff')}

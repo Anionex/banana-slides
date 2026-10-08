@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Download, X, Trash2, FileText, Clock, CheckCircle, XCircle, Loader2, AlertTriangle, HelpCircle, Settings, Film, FileSpreadsheet, Image } from 'lucide-react';
+import { Download, X, Trash2, FileText, Clock, CheckCircle, XCircle, Loader2, AlertTriangle, HelpCircle, Settings, Film, FileSpreadsheet, Image, RefreshCw, WifiOff } from 'lucide-react';
 import { useExportTasksStore, type ExportTask, type ExportTaskType } from '@/store/useExportTasksStore';
 import { useT } from '@/hooks/useT';
 import type { Page } from '@/types';
@@ -7,6 +7,7 @@ import { Button } from './Button';
 import { useConfirm } from './ConfirmDialog';
 import { cn } from '@/utils';
 import * as api from '@/api/endpoints';
+import { triggerDownload } from '@/api/client';
 
 // Export 组件自包含翻译
 const exportI18n = {
@@ -21,6 +22,22 @@ const exportI18n = {
       moreItems: "... 还有 {{count}} 条", exportFailed: "导出失败", preparing: "准备中...",
       settingsTip: "可在「项目设置 → 导出设置」中调整配置或开启「返回半成品」选项",
       codexReconnectTip: "如果是 Codex 登录过期或连接中断，也可以前往设置重新登录 OpenAI 账号后再试",
+      monitoringInterrupted: "状态查询暂时中断",
+      backendNotFailed: "这不代表后台导出失败",
+      retryStatus: "重新查询",
+      retryCount: "已自动重连 {{count}} 次",
+      failureStage: "失败阶段",
+      errorCode: "错误代码",
+      provider: "服务通道",
+      model: "模型",
+      retryPolicy: "单次最长 {{seconds}} 秒，最多 {{attempts}} 次",
+      technicalReason: "技术原因",
+      styleExtractionStage: "文本样式提取",
+      queueSubmissionStage: "后台任务提交",
+      textRenderStage: "内容写入",
+      taskWatchdogStage: "任务状态对账",
+      taskInterruptedHelp: "点任务右侧的 × 移除这条记录，然后重新发起即可。",
+      taskStalledHelp: "可以点右侧的 × 移除该任务后重新导出；若反复出现，请把应用日志发给开发者。",
       exportedFiles: "已导出文件",
       deleteExportTitle: "删除导出文件",
       deleteExportMessage: "确定要删除「{{filename}}」吗？此操作会移除服务器上的文件。",
@@ -41,6 +58,22 @@ const exportI18n = {
       moreItems: "... {{count}} more", exportFailed: "Export Failed", preparing: "Preparing...",
       settingsTip: "Adjust settings in \"Project Settings → Export Settings\" or enable \"Allow Partial Results\"",
       codexReconnectTip: "If Codex login expired or the connection was interrupted, reconnect your OpenAI account in Settings and try again.",
+      monitoringInterrupted: "Status checks interrupted",
+      backendNotFailed: "This does not mean the backend export failed",
+      retryStatus: "Check Again",
+      retryCount: "{{count}} automatic reconnect attempts",
+      failureStage: "Failed stage",
+      errorCode: "Error code",
+      provider: "Provider",
+      model: "Model",
+      retryPolicy: "Up to {{seconds}}s per request, {{attempts}} attempts",
+      technicalReason: "Technical reason",
+      styleExtractionStage: "Text style extraction",
+      queueSubmissionStage: "Background task submission",
+      textRenderStage: "Content rendering",
+      taskWatchdogStage: "Task status reconciliation",
+      taskInterruptedHelp: "Remove the entry with the × button, then start the export again.",
+      taskStalledHelp: "Remove the task with the × button and export again. If it keeps happening, send the app log to the developer.",
       exportedFiles: "Exported Files",
       deleteExportTitle: "Delete Exported File",
       deleteExportMessage: "Delete \"{{filename}}\" from the server?",
@@ -136,7 +169,7 @@ const WarningsModal: React.FC<{
                 key={idx}
                 className="flex items-start gap-2 p-2 bg-amber-50 border border-amber-200 rounded text-sm text-amber-800"
               >
-                <span className="text-amber-500 mt-0.5">•</span>
+                <AlertTriangle size={14} className="text-amber-500 mt-0.5 flex-shrink-0" />
                 <span className="break-words">{warning}</span>
               </div>
             ))}
@@ -197,7 +230,12 @@ const WarningsModal: React.FC<{
   );
 };
 
-const TaskItem: React.FC<{ task: ExportTask; pages: Page[]; onRemove: () => void }> = ({ task, pages, onRemove }) => {
+const TaskItem: React.FC<{
+  task: ExportTask;
+  pages: Page[];
+  onRemove: () => void;
+  onRetryMonitoring?: () => void;
+}> = ({ task, pages, onRemove, onRetryMonitoring }) => {
   const t = useT(exportI18n);
   const [showWarningsModal, setShowWarningsModal] = useState(false);
   
@@ -227,6 +265,22 @@ const TaskItem: React.FC<{ task: ExportTask; pages: Page[]; onRemove: () => void
 
   const progressPercent = getProgressPercent();
   const isProcessing = task.status === 'PROCESSING' || task.status === 'RUNNING' || task.status === 'PENDING';
+  const errorDetails = task.progress?.error_details;
+  const errorStage = task.progress?.error_stage || errorDetails?.stage;
+  const errorStageLabels: Record<string, string> = {
+    style_extraction: t('export.styleExtractionStage'),
+    queue_submission: t('export.queueSubmissionStage'),
+    text_render: t('export.textRenderStage'),
+    task_watchdog: t('export.taskWatchdogStage'),
+  };
+  const errorStageLabel = errorStage ? (errorStageLabels[errorStage] || errorStage) : undefined;
+  // 看门狗失败的帮助文案由前端本地化，避免英文界面下混排中文
+  const watchdogHelpKey = task.progress?.error_code === 'TASK_INTERRUPTED'
+    ? 'export.taskInterruptedHelp'
+    : task.progress?.error_code === 'TASK_STALLED'
+      ? 'export.taskStalledHelp'
+      : undefined;
+  const helpText = watchdogHelpKey ? t(watchdogHelpKey) : task.progress?.help_text;
   
   const hasWarnings = task.status === 'COMPLETED' && task.progress?.warnings && task.progress.warnings.length > 0;
 
@@ -291,6 +345,38 @@ const TaskItem: React.FC<{ task: ExportTask; pages: Page[]; onRemove: () => void
             )}
           </div>
         )}
+
+        {isProcessing && task.monitoring && (
+          <div className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 dark:border-amber-700 dark:bg-amber-900/20">
+            <div className="flex items-start gap-2">
+              {task.monitoring.state === 'retrying' ? (
+                <RefreshCw size={14} className="mt-0.5 flex-shrink-0 animate-spin text-amber-600" />
+              ) : (
+                <WifiOff size={14} className="mt-0.5 flex-shrink-0 text-amber-600" />
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-amber-800">{t('export.monitoringInterrupted')}</p>
+                <p className="mt-0.5 text-xs text-amber-700">{task.monitoring.message}</p>
+                <p className="mt-1 text-[11px] font-medium text-amber-700">{t('export.backendNotFailed')}</p>
+                <div className="mt-1.5 flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-amber-600">
+                    {t('export.retryCount', { count: task.monitoring.consecutiveErrors })}
+                  </span>
+                  {task.monitoring.state === 'paused' && onRetryMonitoring && (
+                    <button
+                      type="button"
+                      onClick={onRetryMonitoring}
+                      className="inline-flex items-center gap-1 rounded border border-amber-300 bg-white px-2 py-1 text-[11px] font-medium text-amber-800 transition-colors hover:bg-amber-100"
+                    >
+                      <RefreshCw size={11} />
+                      {t('export.retryStatus')}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         
         {task.status === 'FAILED' && task.errorMessage && (
           <div className="mt-2 space-y-2">
@@ -302,16 +388,58 @@ const TaskItem: React.FC<{ task: ExportTask; pages: Page[]; onRemove: () => void
                   <p className="text-xs text-red-600 mt-1 whitespace-pre-wrap break-words">
                     {task.errorMessage}
                   </p>
+                  {(task.progress?.error_code || errorStageLabel || errorDetails?.provider || errorDetails?.model) && (
+                    <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 text-[11px] text-red-700">
+                      {task.progress?.error_code && (
+                        <>
+                          <dt className="font-medium">{t('export.errorCode')}</dt>
+                          <dd className="break-all font-mono">{task.progress.error_code}</dd>
+                        </>
+                      )}
+                      {errorStageLabel && (
+                        <>
+                          <dt className="font-medium">{t('export.failureStage')}</dt>
+                          <dd>{errorStageLabel}</dd>
+                        </>
+                      )}
+                      {errorDetails?.provider && (
+                        <>
+                          <dt className="font-medium">{t('export.provider')}</dt>
+                          <dd className="break-all">{errorDetails.provider}</dd>
+                        </>
+                      )}
+                      {errorDetails?.model && (
+                        <>
+                          <dt className="font-medium">{t('export.model')}</dt>
+                          <dd className="break-all">{errorDetails.model}</dd>
+                        </>
+                      )}
+                    </dl>
+                  )}
+                  {errorDetails?.request_timeout_seconds && errorDetails?.max_attempts && (
+                    <p className="mt-1.5 text-[11px] text-red-600">
+                      {t('export.retryPolicy', {
+                        seconds: errorDetails.request_timeout_seconds,
+                        attempts: errorDetails.max_attempts,
+                      })}
+                    </p>
+                  )}
+                  {errorDetails?.technical_message && (
+                    <details className="mt-1.5 text-[11px] text-red-600">
+                      <summary className="cursor-pointer font-medium">{t('export.technicalReason')}</summary>
+                      <p className="mt-1 break-words font-mono">{errorDetails.technical_message}</p>
+                    </details>
+                  )}
                 </div>
               </div>
             </div>
 
-            {task.progress?.help_text && (
+            {helpText && (
               <div className="p-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded">
                 <div className="flex items-start gap-2">
                   <HelpCircle size={14} className="text-blue-500 flex-shrink-0 mt-0.5" />
                   <p className="text-xs text-blue-700">
-                    {task.progress.help_text}
+                    {helpText}
                   </p>
                 </div>
               </div>
@@ -322,7 +450,7 @@ const TaskItem: React.FC<{ task: ExportTask; pages: Page[]; onRemove: () => void
               <span>{t('export.settingsTip')}</span>
             </div>
 
-            {task.errorMessage.toLowerCase().includes('codex') && (
+            {(task.errorMessage.toLowerCase().includes('codex') || errorDetails?.provider?.toLowerCase().includes('codex')) && (
               <div className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-foreground-tertiary">
                 <Settings size={12} />
                 <span>{t('export.codexReconnectTip')}</span>
@@ -364,14 +492,7 @@ const TaskItem: React.FC<{ task: ExportTask; pages: Page[]; onRemove: () => void
             variant="primary"
             size="sm"
             icon={<Download size={14} />}
-            onClick={() => {
-              const a = document.createElement('a');
-              a.href = task.downloadUrl!;
-              a.download = task.filename || '';
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-            }}
+            onClick={() => triggerDownload(task.downloadUrl!, task.filename)}
             className="text-xs px-2 py-1"
           >
             {t('common.download')}
@@ -423,7 +544,7 @@ const formatFileSize = (bytes: number): string => {
 export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, pages = [], className }) => {
   const t = useT(exportI18n);
   const [isExpanded, setIsExpanded] = useState(true);
-  const { tasks, removeTask, clearCompleted, restoreActiveTasks } = useExportTasksStore();
+  const { tasks, removeTask, clearCompleted, restoreActiveTasks, pollTask } = useExportTasksStore();
   const [exportedFiles, setExportedFiles] = useState<ExportedFile[]>([]);
   const [deletingFilename, setDeletingFilename] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -520,7 +641,7 @@ export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, p
       </button>
       
       {isExpanded && (
-        <div className="max-h-96 overflow-y-auto">
+        <div className="max-h-96 overflow-y-auto" data-testid="export-tasks-list">
           {activeTasks.length > 0 && (
             <div className="p-2 border-b border-gray-100 dark:border-border-primary">
               {activeTasks.map(task => (
@@ -529,6 +650,7 @@ export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, p
                   task={task}
                   pages={pages}
                   onRemove={() => removeTask(task.id)}
+                  onRetryMonitoring={() => pollTask(task.id, task.projectId, task.taskId)}
                 />
               ))}
             </div>
@@ -592,14 +714,7 @@ export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, p
                     variant="primary"
                     size="sm"
                     icon={<Download size={14} />}
-                    onClick={() => {
-                      const a = document.createElement('a');
-                      a.href = file.download_url;
-                      a.download = file.filename;
-                      document.body.appendChild(a);
-                      a.click();
-                      document.body.removeChild(a);
-                    }}
+                    onClick={() => triggerDownload(file.download_url, file.filename)}
                     className="text-xs px-2 py-1"
                   >
                     {t('common.download')}

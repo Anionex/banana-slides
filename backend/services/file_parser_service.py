@@ -9,7 +9,8 @@ import zipfile
 import io
 import requests
 import tempfile
-from typing import Optional, List
+from typing import Optional, List, Union
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from PIL import Image
 from markitdown import MarkItDown
@@ -48,6 +49,48 @@ def _get_ai_provider_format(provider_format: str = None) -> str:
     return os.getenv('AI_PROVIDER_FORMAT', 'gemini').lower()
 
 
+def _default_project_root() -> Path:
+    current_file = Path(__file__).resolve()
+    backend_dir = current_file.parent.parent
+    return backend_dir.parent
+
+
+def _resolve_upload_folder(upload_folder: Optional[Union[os.PathLike, str]] = None) -> Path:
+    if upload_folder:
+        upload_path = Path(upload_folder)
+    else:
+        upload_path = None
+        try:
+            from flask import current_app, has_app_context
+            if has_app_context() and hasattr(current_app, 'config'):
+                configured_upload_folder = current_app.config.get('UPLOAD_FOLDER')
+                if (
+                    isinstance(configured_upload_folder, (str, os.PathLike))
+                    and str(configured_upload_folder)
+                ):
+                    upload_path = Path(configured_upload_folder)
+        except (RuntimeError, ImportError, TypeError, AttributeError):
+            pass
+
+        if upload_path is None:
+            env_upload_folder = os.getenv('UPLOAD_FOLDER')
+            if env_upload_folder:
+                upload_path = Path(env_upload_folder)
+
+        if upload_path is None:
+            upload_path = _default_project_root() / 'uploads'
+
+    if not upload_path.is_absolute():
+        project_root = _default_project_root()
+        upload_path = (project_root / upload_path).resolve()
+        try:
+            upload_path.relative_to(project_root)
+        except ValueError as exc:
+            raise ValueError("Relative UPLOAD_FOLDER must stay within the project root") from exc
+
+    return upload_path.resolve()
+
+
 class FileParserService:
     """Service for parsing files using MinerU and enhancing with image captions"""
     
@@ -57,6 +100,8 @@ class FileParserService:
                  image_caption_model: str = "gemini-3-flash-preview",
                  lazyllm_image_caption_source: str = "", 
                  provider_format: str = None,
+                 ai_provider_format: str = None,
+                 upload_folder: Optional[Union[os.PathLike, str]] = None,
                  mineru_model_version: str = "vlm",
                  ):
         """
@@ -72,6 +117,8 @@ class FileParserService:
             image_caption_model: Model to use for image captioning
             lazyllm_image_caption_source: image caption model provider for lazyllm
             provider_format: AI provider format ('gemini' or 'openai'). If not provided, reads from environment variable.
+            ai_provider_format: Backward-compatible alias for provider_format.
+            upload_folder: Upload root for persisted MinerU result files.
             mineru_model_version: MinerU model version ('vlm' or 'pipeline'). Default is 'vlm'.
         """
         self.mineru_token = mineru_token
@@ -81,8 +128,15 @@ class FileParserService:
         self.get_result_api_template = f"{mineru_api_base}/api/v4/extract-results/batch/{{}}"
         
         self._image_caption_model = image_caption_model
-        self._provider_format = _get_ai_provider_format(provider_format)
+        self._provider_format = _get_ai_provider_format(provider_format or ai_provider_format)
         self._caption_provider = None
+        if upload_folder:
+            _resolve_upload_folder(upload_folder)
+        self._upload_folder_param = upload_folder
+
+    @property
+    def upload_folder(self) -> Path:
+        return _resolve_upload_folder(self._upload_folder_param)
     
     def _get_caption_provider(self):
         """Lazily initialize caption provider via the provider factory"""
@@ -361,6 +415,17 @@ class FileParserService:
                     logger.debug(f"Current task status: {task_status}, waiting...")
                     time.sleep(2)  # Wait 2 seconds before next poll
                     
+            except requests.exceptions.HTTPError as e:
+                status_code = getattr(e.response, 'status_code', None)
+                if status_code in (401, 403):
+                    error_msg = (
+                        f"MinerU task status request unauthorized (HTTP {status_code}) "
+                        f"at {result_url}: {e}"
+                    )
+                    logger.error(error_msg)
+                    return None, None, error_msg
+                logger.warning(f"HTTP error while polling result: {str(e)}, retrying...")
+                time.sleep(2)
             except requests.exceptions.RequestException as e:
                 logger.warning(f"Network error while polling result: {str(e)}, retrying...")
                 time.sleep(2)
@@ -379,18 +444,8 @@ class FileParserService:
             import uuid
             extract_id = str(uuid.uuid4())[:8]
             
-            # Get upload folder from Flask config (we'll need to pass this)
-            # For now, use a hardcoded path relative to project root
-            import os
-            from pathlib import Path
-            
-            # Navigate to project root (assuming this file is in backend/services/)
-            current_file = Path(__file__).resolve()
-            backend_dir = current_file.parent.parent
-            project_root = backend_dir.parent
-            
             # Create directory for mineru extracts
-            mineru_storage = project_root / 'uploads' / 'mineru_files' / extract_id
+            mineru_storage = self.upload_folder / 'mineru_files' / extract_id
             mineru_storage.mkdir(parents=True, exist_ok=True)
             
             logger.info(f"Extracting ZIP to: {mineru_storage}")
@@ -441,22 +496,31 @@ class FileParserService:
             return None, None, error_msg
     
     @staticmethod
-    def extract_header_footer_from_layout(extract_id: str) -> str:
+    def extract_header_footer_from_layout(
+        extract_id: str,
+        upload_folder: Optional[Union[os.PathLike, str]] = None
+    ) -> str:
         """
         从 MinerU layout.json 的 discarded_blocks 中提取页眉页脚文本。
 
         Args:
             extract_id: MinerU 解析结果的 extract_id
+            upload_folder: 上传根目录，未传入时使用 Flask UPLOAD_FOLDER/环境变量/默认 uploads
 
         Returns:
             提取到的页眉页脚文本，如无则返回空字符串
         """
         import json
-        from pathlib import Path
 
-        current_file = Path(__file__).resolve()
-        project_root = current_file.parent.parent.parent
-        mineru_dir = project_root / 'uploads' / 'mineru_files' / extract_id
+        if not extract_id:
+            return ''
+
+        mineru_root = (_resolve_upload_folder(upload_folder) / 'mineru_files').resolve()
+        mineru_dir = (mineru_root / extract_id).resolve()
+        try:
+            mineru_dir.relative_to(mineru_root)
+        except ValueError:
+            return ''
         layout_file = mineru_dir / 'layout.json'
 
         if not layout_file.exists():
@@ -543,11 +607,7 @@ class FileParserService:
         Returns:
             Tuple of (enhanced_markdown, failed_image_count)
         """
-        if not self._can_generate_captions():
-            return markdown_content, 0
-        
         # Extract all image URLs from markdown (both with and without alt text)
-        # Support both http/https URLs and relative paths
         image_pattern = r'!\[(.*?)\]\(([^\)]+)\)'
         matches = list(re.finditer(image_pattern, markdown_content))
         
@@ -564,11 +624,18 @@ class FileParserService:
             image_url = match.group(2).strip()
             logger.debug(f"Image found: alt='{alt_text}', url='{image_url}'")
             
-            if not alt_text:  # Only process images with empty alt text
+            if not alt_text and image_url.startswith('/files/mineru/'):
                 images_to_caption.append(match)
         
         if not images_to_caption:
-            logger.info(f"Found {len(matches)} images in markdown, but all have descriptions. Skipping caption generation.")
+            logger.info(
+                "Found %s markdown images, but none are captionable local MinerU files. "
+                "Skipping caption generation.",
+                len(matches),
+            )
+            return markdown_content, 0
+
+        if not self._can_generate_captions():
             return markdown_content, 0
         
         logger.info(f"Found {len(images_to_caption)} images without descriptions out of {len(matches)} total, generating captions...")
@@ -648,27 +715,24 @@ class FileParserService:
     
     def _generate_single_caption(self, image_url: str) -> str:
         """
-        Generate caption for a single image (supports both HTTP URLs and local paths)
+        Generate caption for a single local MinerU image.
         
         Args:
-            image_url: URL or local path of the image
+            image_url: Local /files/mineru/ path of the image
             
         Returns:
             Generated caption
         """
         try:
-            # Load image based on URL type
-            if image_url.startswith('http://') or image_url.startswith('https://'):
-                # Download from HTTP(S) URL
-                response = requests.get(image_url, timeout=30)
-                response.raise_for_status()
-                image = Image.open(io.BytesIO(response.content))
-            elif image_url.startswith('/files/mineru/'):
+            if image_url.startswith('/files/mineru/'):
                 # Local MinerU extracted file with prefix matching support
                 from utils.path_utils import find_mineru_file_with_prefix
                 
                 # Find file with prefix matching
-                img_path = find_mineru_file_with_prefix(image_url)
+                img_path = find_mineru_file_with_prefix(
+                    image_url,
+                    upload_folder=self.upload_folder
+                )
                 
                 if img_path is None or not img_path.exists():
                     logger.warning(f"Local image file not found (with prefix matching): {image_url}")

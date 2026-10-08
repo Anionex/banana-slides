@@ -48,7 +48,7 @@ export const TemplateMatchProgress: React.FC<TemplateMatchProgressProps> = ({ ta
     s.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ''));
 
   return (
-    <div className="space-y-2 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+    <div data-testid="template-match-progress" className="space-y-1.5">
       <div className="flex items-center gap-2 text-sm font-medium">
         {isRunning && <Loader2 size={16} className="animate-spin text-banana-600" />}
         {isDone && <CheckCircle2 size={16} className="text-green-600" />}

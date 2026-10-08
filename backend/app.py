@@ -277,19 +277,27 @@ def _load_settings_to_config(app):
         # Load API configuration
         # Note: We load even if value is None/empty to allow clearing settings
         # But we only log if there's an actual value
+        # 与保存时 _sync_settings_to_config 保持一致: 只把 DB 中的统一 key/base 同步到
+        # 当前 provider, 避免污染其他 provider 的 per-model 配置（如 volcengine 设置
+        # 下 per-model openai 调用不得命中 plan/v3 端点）
+        active_format = (settings.ai_provider_format or Config.AI_PROVIDER_FORMAT or '').lower()
+        active_api_keys = {
+            'gemini': ('GOOGLE_API_KEY', 'GOOGLE_API_BASE'),
+            'openai': ('OPENAI_API_KEY', 'OPENAI_API_BASE'),
+            'volcengine': ('VOLCENGINE_API_KEY', 'VOLCENGINE_API_BASE'),
+        }.get(active_format)
+
         if settings.api_base_url is not None:
-            # 将数据库中的统一 API Base 同步到 Google/OpenAI 两个配置，确保覆盖环境变量
-            app.config['GOOGLE_API_BASE'] = settings.api_base_url
-            app.config['OPENAI_API_BASE'] = settings.api_base_url
+            if active_api_keys:
+                app.config[active_api_keys[1]] = settings.api_base_url
             if settings.api_base_url:
                 logging.info(f"Loaded API_BASE from settings: {settings.api_base_url}")
             else:
                 logging.info("API_BASE is empty in settings, using env var or default")
 
         if settings.api_key is not None:
-            # 同步到两个提供商的 key，数据库优先于环境变量
-            app.config['GOOGLE_API_KEY'] = settings.api_key
-            app.config['OPENAI_API_KEY'] = settings.api_key
+            if active_api_keys:
+                app.config[active_api_keys[0]] = settings.api_key
             if settings.api_key:
                 logging.info("Loaded API key from settings")
             else:
@@ -300,7 +308,9 @@ def _load_settings_to_config(app):
         aspect_ratio = settings.image_aspect_ratio or Config.DEFAULT_ASPECT_RATIO
         app.config['DEFAULT_RESOLUTION'] = resolution
         app.config['DEFAULT_ASPECT_RATIO'] = aspect_ratio
-        logging.info(f"Loaded image settings: {resolution}, {aspect_ratio}")
+        image_quality = getattr(settings, 'image_quality', None) or Config.IMAGE_QUALITY
+        app.config['IMAGE_QUALITY'] = image_quality
+        logging.info(f"Loaded image settings: {resolution}, {aspect_ratio}, quality={image_quality}")
 
         # Load worker settings (fall back to .env/Config when NULL)
         desc_workers = settings.max_description_workers or Config.MAX_DESCRIPTION_WORKERS
@@ -319,6 +329,12 @@ def _load_settings_to_config(app):
         if settings.image_model:
             app.config['IMAGE_MODEL'] = settings.image_model
             logging.info(f"Loaded IMAGE_MODEL from settings: {settings.image_model}")
+
+        # Load OpenAI image API protocol (与保存时 settings_controller 的同步保持一致,
+        # 否则重启后回落 'auto', gpt-image-2-high 等带后缀模型会误走 chat 路径)
+        if settings.openai_image_api_protocol:
+            app.config['OPENAI_IMAGE_API_PROTOCOL'] = settings.openai_image_api_protocol
+            logging.info(f"Loaded OPENAI_IMAGE_API_PROTOCOL from settings: {settings.openai_image_api_protocol}")
         
         # Load MinerU settings
         if settings.mineru_api_base:
@@ -415,6 +431,100 @@ def _compute_worktree_port(base_port: int) -> int:
     return base_port + offset
 
 
+def _reconcile_orphaned_tasks_on_startup() -> None:
+    """清理上一个进程遗留的后台任务。
+
+    后台任务只存在于进程内，重启后数据库里的 PENDING/PROCESSING 记录
+    永远不会再推进，前端却会一直显示"进行中"。这里在服务真正启动前
+    统一标记为中断（只在启动入口调用，不在 create_app/import 时调用，
+    避免测试、脚本或第二个实例误判其它进程正在跑的任务）。
+    """
+    try:
+        from services.task_watchdog import reconcile_orphaned_tasks
+        # 需要应用上下文才能查询数据库
+        with app.app_context():
+            reconciled = reconcile_orphaned_tasks()
+        if reconciled:
+            logging.getLogger(__name__).info(
+                f"Reconciled {reconciled} orphaned background task(s) at startup"
+            )
+    except Exception as reconcile_error:  # pragma: no cover - never block startup
+        logging.getLogger(__name__).warning(
+            f"Orphaned task reconciliation failed: {reconcile_error}"
+        )
+
+
+def _port_available(port: int) -> bool:
+    """检查端口是否可绑定。
+
+    如果端口已被占用（例如另一个实例正在跑），启动会在 app.run 处失败；
+    此时不应该执行任务对账，否则会把那个实例正在跑的任务误判为中断。
+    探测选项与 werkzeug 服务器保持一致（SO_REUSEADDR），
+    否则 TIME_WAIT 会被误判为"端口被占用"，导致刚重启时跳过对账。
+    """
+    import socket
+
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        probe.bind(('0.0.0.0', port))
+        return True
+    except OSError:
+        return False
+    finally:
+        probe.close()
+
+
+_instance_lock_handle = None
+
+
+def _acquire_instance_lock(target_app=None) -> bool:
+    """独占当前数据根，防止第二个实例把第一个实例的任务判为中断。
+
+    返回 True 表示本进程拿到了锁（可以执行启动对账）。锁文件随进程存活，
+    无法创建/加锁时返回 True（退回原来的行为，不影响启动）。
+    """
+    global _instance_lock_handle
+    if _instance_lock_handle is not None:
+        return True
+
+    target_app = target_app or app
+    root = target_app.config.get('UPLOAD_FOLDER') or os.path.dirname(os.path.abspath(__file__))
+    lock_path = os.path.join(root, '.backend-instance.lock')
+    try:
+        handle = open(lock_path, 'a+')
+    except OSError as lock_error:
+        logging.getLogger(__name__).warning(
+            f"Could not open instance lock {lock_path}: {lock_error}"
+        )
+        return True
+
+    try:
+        if os.name == 'nt':  # pragma: no cover - Windows
+            import msvcrt
+
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        handle.close()
+        return False
+
+    try:
+        handle.seek(0)
+        handle.truncate()
+        handle.write(f"{os.getpid()}\n")
+        handle.flush()
+    except OSError:  # pragma: no cover - 写 pid 失败不影响锁
+        pass
+
+    _instance_lock_handle = handle  # 保持打开：锁随进程存在
+    return True
+
+
 if __name__ == '__main__':
     # Run development server
     if os.getenv("IN_DOCKER", "0") == "1":
@@ -431,6 +541,13 @@ if __name__ == '__main__':
         server = make_server('127.0.0.1', 0, app, threaded=True)
         port = server.server_port
         print(f"LISTENING_ON:{port}", flush=True)
+
+        if _acquire_instance_lock(app):
+            _reconcile_orphaned_tasks_on_startup()
+        else:
+            logging.getLogger(__name__).warning(
+                "Another backend instance owns this data root; skipped task reconciliation"
+            )
 
         logging.info(
             "\n"
@@ -469,4 +586,11 @@ if __name__ == '__main__':
     )
 
     # Using absolute paths for database, so WSL path issues should not occur
+    if _acquire_instance_lock(app) and _port_available(port):
+        _reconcile_orphaned_tasks_on_startup()
+    else:
+        logging.getLogger(__name__).warning(
+            f"Port {port} busy or another instance owns the data root; "
+            "skipped orphaned task reconciliation"
+        )
     app.run(host='0.0.0.0', port=port, debug=debug, use_reloader=debug)

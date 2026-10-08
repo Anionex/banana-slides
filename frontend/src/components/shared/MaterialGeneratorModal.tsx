@@ -1,3 +1,4 @@
+import { useMaterialRuns } from '@/hooks/useMaterialRuns';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Crop,
@@ -23,18 +24,19 @@ import { ASPECT_RATIO_OPTIONS } from '@/config/aspectRatio';
 import { useProjectStore } from '@/store/useProjectStore';
 import { Skeleton } from './Loading';
 import {
-  getTaskStatus,
   processMaterialImage,
   type Material,
   type MaterialProcessOperation,
   type MaterialSelectionRect,
 } from '@/api/endpoints';
 import { getImageUrl } from '@/api/client';
-import type { Task } from '@/types';
 
 const materialGeneratorI18n = {
   zh: {
     material: {
+      backgroundHint: '任务在后台继续，可立即生成下一张素材；点击任务查看结果。',
+      resumePolling: '继续查询',
+      runStatus: { pending: '生成中', completed: '已完成', failed: '失败', paused: '后台处理中，查询已暂停' },
       title: '素材工具箱',
       saveToLibraryNote: '所有处理结果都会作为新素材保存到素材库，原图不会被覆盖。',
       generatedResult: '处理结果',
@@ -95,6 +97,9 @@ const materialGeneratorI18n = {
   },
   en: {
     material: {
+      backgroundHint: 'Tasks continue in the background. Start another material or select a task to view its result.',
+      resumePolling: 'Resume polling',
+      runStatus: { pending: 'Generating', completed: 'Completed', failed: 'Failed', paused: 'Running in background; polling paused' },
       title: 'Material Toolbox',
       saveToLibraryNote: 'Every processed result is saved as a new material. The original image stays untouched.',
       generatedResult: 'Result',
@@ -163,12 +168,6 @@ interface MaterialGeneratorModalProps {
 
 type SelectorTarget = 'source' | 'references';
 type DisplayRect = { left: number; top: number; width: number; height: number };
-type PersistedMaterialRun = {
-  taskId: string | null;
-  previewUrl: string | null;
-  status: 'idle' | 'pending' | 'completed' | 'failed';
-  updatedAt: number;
-};
 type ToolCard = {
   value: MaterialProcessOperation;
   icon: React.ReactNode;
@@ -194,13 +193,6 @@ const TOOL_CARDS: ToolCard[] = [
   { value: 'erase_region', icon: <Eraser size={16} />, labelKey: 'material.toolEraseRegion', descKey: 'material.toolEraseRegionDesc' },
 ];
 
-const MATERIAL_POLL_INTERVAL_MS = 2000;
-const MATERIAL_MAX_POLL_ATTEMPTS = 90;
-
-function getMaterialRunStorageKey(projectId?: string | null) {
-  return `banana-material-toolbox:${projectId || 'global'}`;
-}
-
 export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
   projectId,
   isOpen,
@@ -221,8 +213,24 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
   const [refImageUrl, setRefImageUrl] = useState<string | null>(null);
   const [extraImageUrls, setExtraImageUrls] = useState<string[]>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+  const { runs, addRun, resume } = useMaterialRuns(projectId || 'global');
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const activeRun = runs.find(run => run.taskId === activeTaskId) || runs[runs.length - 1];
+  const isGenerating = activeRun?.status === 'pending' && !activeRun.paused;
   const [isCompleted, setIsCompleted] = useState(false);
+  useEffect(() => {
+    setActiveTaskId(null);
+    setPreviewUrl(null);
+    setIsCompleted(false);
+  }, [projectId]);
+  useEffect(() => {
+    if (activeRun?.status === 'completed' && activeRun.previewUrl) {
+      setPreviewUrl(getImageUrl(activeRun.previewUrl));
+      setIsCompleted(true);
+    }
+  }, [activeRun]);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMaterialSelectorOpen, setIsMaterialSelectorOpen] = useState(false);
   const [selectorTarget, setSelectorTarget] = useState<SelectorTarget>('references');
@@ -235,48 +243,7 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
   const sourceInputRef = useRef<HTMLInputElement | null>(null);
   const refInputRef = useRef<HTMLInputElement | null>(null);
   const extraInputRef = useRef<HTMLInputElement | null>(null);
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isSelectingRegionRef = useRef(false);
-
-  const persistRunState = (next: Partial<PersistedMaterialRun>) => {
-    const key = getMaterialRunStorageKey(projectId);
-    const current: PersistedMaterialRun = (() => {
-      try {
-        const raw = sessionStorage.getItem(key);
-        if (!raw) {
-          return { taskId: null, previewUrl: null, status: 'idle', updatedAt: Date.now() };
-        }
-        return JSON.parse(raw);
-      } catch {
-        return { taskId: null, previewUrl: null, status: 'idle', updatedAt: Date.now() };
-      }
-    })();
-
-    sessionStorage.setItem(
-      key,
-      JSON.stringify({
-        ...current,
-        ...next,
-        updatedAt: Date.now(),
-      } satisfies PersistedMaterialRun)
-    );
-  };
-
-  const readPersistedRunState = (): PersistedMaterialRun | null => {
-    try {
-      const raw = sessionStorage.getItem(getMaterialRunStorageKey(projectId));
-      return raw ? JSON.parse(raw) : null;
-    } catch {
-      return null;
-    }
-  };
-
-  const stopPolling = () => {
-    if (pollingIntervalRef.current) {
-      clearTimeout(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
-  };
 
   useEffect(() => {
     if (isOpen) {
@@ -312,12 +279,6 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
   }, [extraImages]);
 
   useEffect(() => {
-    return () => {
-      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-    };
-  }, []);
-
-  useEffect(() => {
     if (toolMode === 'generate') {
       setIsSelectionMode(false);
       setSelectionStart(null);
@@ -331,23 +292,6 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
       setIsFullscreen(false);
     }
   }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const persisted = readPersistedRunState();
-    if (!persisted) return;
-
-    if (persisted.previewUrl) {
-      setPreviewUrl(persisted.previewUrl);
-      setIsCompleted(persisted.status === 'completed');
-    }
-
-    if (persisted.taskId && persisted.status === 'pending') {
-      setIsGenerating(true);
-      void pollMaterialTask(persisted.taskId);
-    }
-  }, [isOpen, projectId]);
 
   const handleSourceImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = (e.target.files && e.target.files[0]) || null;
@@ -417,64 +361,6 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
     }
   };
 
-  const pollMaterialTask = async (taskId: string) => {
-    const targetProjectId = projectId || 'global';
-    let attempts = 0;
-    stopPolling();
-
-    const poll = async () => {
-      try {
-        attempts += 1;
-        const response = await getTaskStatus(targetProjectId, taskId);
-        const task: Task = response.data;
-
-        if (task.status === 'COMPLETED') {
-          const progress = task.progress || {};
-          const imageUrl = progress.image_url;
-          if (imageUrl) {
-            const nextPreviewUrl = getImageUrl(imageUrl);
-            setPreviewUrl(nextPreviewUrl);
-            const message = projectId
-              ? t('material.messages.generateSuccess')
-              : t('material.messages.generateSuccessGlobal');
-            show({ message, type: 'success' });
-            setIsCompleted(true);
-            persistRunState({ taskId, previewUrl: nextPreviewUrl, status: 'completed' });
-          } else {
-            show({ message: t('material.messages.generateComplete'), type: 'error' });
-            persistRunState({ taskId, status: 'failed' });
-          }
-          setIsGenerating(false);
-          return;
-        } else if (task.status === 'FAILED') {
-          show({
-            message: task.error_message || t('material.messages.generateFailed'),
-            type: 'error',
-          });
-          setIsGenerating(false);
-          persistRunState({ taskId, status: 'failed' });
-          return;
-        } else if (attempts >= MATERIAL_MAX_POLL_ATTEMPTS) {
-          show({ message: t('material.messages.generateTimeout'), type: 'warning' });
-          setIsGenerating(false);
-          persistRunState({ taskId, status: 'pending' });
-          return;
-        }
-      } catch (error) {
-        console.error('Failed to poll task status:', error);
-        if (attempts >= MATERIAL_MAX_POLL_ATTEMPTS) {
-          show({ message: t('material.messages.pollingFailed'), type: 'error' });
-          setIsGenerating(false);
-          persistRunState({ taskId, status: 'pending' });
-          return;
-        }
-      }
-      pollingIntervalRef.current = setTimeout(poll, MATERIAL_POLL_INTERVAL_MS);
-    };
-
-    await poll();
-  };
-
   const handleUseResultAsSource = async () => {
     if (!previewUrl) return;
     try {
@@ -520,9 +406,10 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
   };
 
   const handleGenerate = async () => {
-    if (!validateBeforeSubmit()) return;
+    if (submittingRef.current || !validateBeforeSubmit()) return;
 
-    setIsGenerating(true);
+    submittingRef.current = true;
+    setIsSubmitting(true);
     setIsCompleted(false);
     try {
       const targetProjectId = projectId || 'none';
@@ -538,20 +425,20 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
       });
       const taskId = resp.data?.task_id;
       if (taskId) {
-        persistRunState({ taskId, status: 'pending' });
-        await pollMaterialTask(taskId);
+        addRun({ taskId, prompt: prompt.trim(), status: 'pending' });
+        setActiveTaskId(taskId);
+        setPreviewUrl(null);
       } else {
         show({ message: t('material.messages.noTaskId'), type: 'error' });
-        setIsGenerating(false);
-        persistRunState({ taskId: null, status: 'failed' });
       }
     } catch (error: any) {
       show({
         message: error?.response?.data?.error?.message || error.message || t('material.messages.generateFailed'),
         type: 'error',
       });
-      setIsGenerating(false);
-      persistRunState({ taskId: null, status: 'failed' });
+    } finally {
+      submittingRef.current = false;
+      setIsSubmitting(false);
     }
   };
 
@@ -875,21 +762,34 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
           </section>
 
           <div className="flex justify-end gap-3 pt-2">
-            <Button variant="ghost" onClick={handleClose} disabled={isGenerating}>
+            <Button variant="ghost" onClick={handleClose}>
               {t('common.close')}
             </Button>
             <Button
               variant="primary"
               onClick={handleGenerate}
-              disabled={isGenerating || isCompleted || (toolMode !== 'erase_region' && !prompt.trim())}
+              disabled={isSubmitting || (toolMode !== 'erase_region' && !prompt.trim())}
               className="shadow-lg shadow-banana-500/20"
             >
-              {isGenerating ? t('common.generating') : isCompleted ? t('common.completed') : t('material.runTool')}
+              {isSubmitting ? t('common.loading') : t('material.runTool')}
             </Button>
           </div>
         </aside>
 
         <section className="min-w-0 flex flex-col">
+          {runs.length > 0 && <div className="mb-3 max-h-40 overflow-auto space-y-2" data-testid="material-runs">
+            <p className="text-sm text-gray-500">{t('material.backgroundHint')}</p>
+            {runs.map((run, index) => <div key={run.taskId} className="flex gap-2 items-center text-sm">
+              <button type="button" aria-pressed={activeRun?.taskId === run.taskId} onClick={() => {
+                setActiveTaskId(run.taskId); setPreviewUrl(run.previewUrl ? getImageUrl(run.previewUrl) : null);
+              }} className="text-left truncate flex-1 p-2 rounded border dark:border-border-primary">
+                #{index + 1} {run.prompt || t('material.runTool')} · {t(`material.runStatus.${run.paused ? 'paused' : run.status}`)}
+              </button>
+              {run.error && <span role="alert" className="text-red-600">{run.error}</span>}
+              {run.paused && <button type="button" onClick={() => resume(run.taskId)}>{t('material.resumePolling')}</button>}
+            </div>)}
+          </div>}
+
           <div className="grid grid-cols-2 gap-4 flex-1">
             <div className="rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary p-4 flex flex-col">
               <div className="flex items-center justify-between gap-3 mb-3">
@@ -1001,7 +901,6 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
                       onClick={() => {
                         setPreviewUrl(null);
                         setIsCompleted(false);
-                        persistRunState({ previewUrl: null, status: 'idle', taskId: null });
                       }}
                     />
                   </div>

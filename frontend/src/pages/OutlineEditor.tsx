@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ArrowLeft, Save, ArrowRight, Plus, FileText, Sparkle, Download, Upload, PanelLeftClose, PanelLeftOpen, ChevronDown, Settings2 } from 'lucide-react';
+import logoUrl from '@/assets/logo.png';
 import { useT } from '@/hooks/useT';
 import PresetCapsules from '@/components/shared/PresetCapsules';
 
@@ -173,8 +174,12 @@ export const OutlineEditor: React.FC = () => {
     addNewPage,
     generateOutlineStream,
     isGlobalLoading,
-    isOutlineStreaming,
+    outlineStreamingProjectIds,
   } = useProjectStore();
+
+  const isOutlineStreaming = Boolean(
+    currentProject?.id && outlineStreamingProjectIds.includes(currentProject.id)
+  );
 
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [isAiRefining, setIsAiRefining] = useState(false);
@@ -241,10 +246,14 @@ export const OutlineEditor: React.FC = () => {
   useEffect(() => {
     if (!fileMenuOpen && !settingsOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
-      if (fileMenuRef.current && !fileMenuRef.current.contains(e.target as Node)) {
+      const target = e.target;
+      if (!(target instanceof Node)) return;
+      const element = target instanceof Element ? target : target.parentElement;
+      if (element?.closest('[role="dialog"]')) return;
+      if (fileMenuRef.current && !fileMenuRef.current.contains(target)) {
         setFileMenuOpen(false);
       }
-      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+      if (settingsRef.current && !settingsRef.current.contains(target)) {
         setSettingsOpen(false);
       }
     };
@@ -339,6 +348,9 @@ export const OutlineEditor: React.FC = () => {
     insertAtCursor: insertAtReqCursor,
   });
 
+  // 空白项目没有 AI 生成的来源文本，来源输入区和"自动生成大纲"都不适用
+  const isBlankProject = currentProject?.creation_type === 'blank';
+
   const inputLabel = useMemo(() => {
     const type = currentProject?.creation_type || 'idea';
     const key = type === 'descriptions' ? 'description' : type;
@@ -386,7 +398,7 @@ export const OutlineEditor: React.FC = () => {
         const result = await generateOutlineStream(lockPageCount);
         const { currentProject: updatedProject } = useProjectStore.getState();
         const pageCount = updatedProject?.pages.length ?? 0;
-        if (result && (!result.complete || pageCount === 0)) {
+        if (result?.active && (!result.complete || pageCount === 0)) {
           show({ message: t('outline.messages.generateIncomplete'), type: 'warning' });
         }
       } catch (error: any) {
@@ -424,7 +436,7 @@ export const OutlineEditor: React.FC = () => {
         const result = await generateOutlineStream();
         const { currentProject: updatedProject } = useProjectStore.getState();
         const pageCount = updatedProject?.pages.length ?? 0;
-        if (result && (!result.complete || pageCount === 0)) {
+        if (result?.active && (!result.complete || pageCount === 0)) {
           show({ message: t('outline.messages.generateIncomplete'), type: 'warning' });
         }
       } catch (error: any) {
@@ -527,7 +539,7 @@ export const OutlineEditor: React.FC = () => {
               <span className="hidden sm:inline">{t('common.back')}</span>
             </Button>
             <div className="flex items-center gap-1.5 md:gap-2">
-              <span className="text-xl md:text-2xl">🍌</span>
+              <img src={logoUrl} alt="" className="w-6 h-6 md:w-8 md:h-8 object-contain flex-shrink-0" />
               <span className="text-base md:text-xl font-bold">{t('home.title')}</span>
             </div>
             <span className="text-gray-400 hidden lg:inline">|</span>
@@ -553,7 +565,7 @@ export const OutlineEditor: React.FC = () => {
               size="sm"
               icon={<ArrowRight size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={async () => {
-                if (isInputDirty && projectId && currentProject) {
+                if (isInputDirty && projectId && currentProject && !isBlankProject) {
                   const field = currentProject.creation_type === 'outline'
                     ? 'outline_text'
                     : currentProject.creation_type === 'descriptions'
@@ -599,7 +611,7 @@ export const OutlineEditor: React.FC = () => {
             >
               {t('outline.addPage')}
             </Button>
-            {currentProject.pages.length === 0 && !isOutlineStreaming ? (
+            {isBlankProject ? null : currentProject.pages.length === 0 && !isOutlineStreaming ? (
               <Button
                 variant="secondary"
                 onClick={handleGenerateOutline}
@@ -710,9 +722,9 @@ export const OutlineEditor: React.FC = () => {
 
       {/* 主内容区 */}
       <main className="flex-1 flex flex-col md:flex-row gap-3 md:gap-6 p-3 md:p-6 overflow-y-auto min-h-0 relative">
-        {/* 左侧：可编辑文本区域（可收起） */}
+        {/* 左侧：可编辑文本区域（可收起）—— 空白项目无来源文本，不显示 */}
         <div
-          className="flex-shrink-0 transition-[width] duration-300 ease-in-out hidden md:block"
+          className={`flex-shrink-0 transition-[width] duration-300 ease-in-out ${isBlankProject ? 'hidden' : 'hidden md:block'}`}
           style={{ width: isPanelOpen ? undefined : 0 }}
         >
           <div
@@ -762,7 +774,7 @@ export const OutlineEditor: React.FC = () => {
         </div>
 
         {/* 收起时的把手 - 绝对定位贴左边缘 */}
-        {!isPanelOpen && (
+        {!isPanelOpen && !isBlankProject && (
           <button
             type="button"
             onClick={() => setIsPanelOpen(true)}
@@ -772,8 +784,8 @@ export const OutlineEditor: React.FC = () => {
           </button>
         )}
 
-        {/* 移动端：始终显示卡片 */}
-        <div className="md:hidden w-full flex-shrink-0">
+        {/* 移动端：始终显示卡片（空白项目无来源文本，不显示） */}
+        <div className={`${isBlankProject ? 'hidden' : 'md:hidden'} w-full flex-shrink-0`}>
           <div className="bg-white dark:bg-background-secondary rounded-card shadow-md border border-gray-100 dark:border-border-primary overflow-hidden">
             <div className="px-4 py-2.5 flex items-center gap-2 border-b border-gray-100 dark:border-border-secondary">
               {currentProject.creation_type === 'idea'

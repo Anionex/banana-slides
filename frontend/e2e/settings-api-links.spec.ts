@@ -31,8 +31,9 @@ test.describe('Settings page API key labels and links', () => {
   });
 
   test('AIHubMix has apply link', async ({ page }) => {
-    const targetUrl = 'https://aihubmix.com/?aff=17EC';
+    const targetUrl = 'https://api.inferera.com/?aff=17EC';
     const legacyUrl = targetUrl.replace('/?', '/token?');
+    const blockedHost = ['aihubmix', 'com'].join('.');
 
     const aihubLinks = page.locator(`a[href="${targetUrl}"]`);
     await expect(aihubLinks).toHaveCount(2);
@@ -41,6 +42,7 @@ test.describe('Settings page API key labels and links', () => {
     await expect(aihubLinks.last()).toBeVisible();
     await expect(aihubLinks.last()).toHaveAttribute('target', '_blank');
     await expect(page.locator(`a[href="${legacyUrl}"]`)).toHaveCount(0);
+    await expect(page.locator(`a[href*="${blockedHost}"]`)).toHaveCount(0);
   });
 
   test('AIHubMix API key guide uses current Console flow', async ({ page }) => {

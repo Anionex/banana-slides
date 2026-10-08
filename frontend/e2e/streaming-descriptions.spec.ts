@@ -247,8 +247,8 @@ test.describe('Streaming Descriptions - Integration Tests', () => {
 
     // Check extra fields section
     await expect(page.locator('text=额外字段').or(page.locator('text=Extra Fields'))).toBeVisible();
-    // Default field "排版建议" should be shown
-    await expect(page.locator('text=排版布局')).toBeVisible();
+    // Default field "版式与重点" should be shown
+    await expect(page.locator('text=版式与重点')).toBeVisible();
   });
 
   test('should persist generation mode via settings API', async ({ page }) => {
@@ -303,7 +303,7 @@ test.describe('Streaming Descriptions - Integration Tests', () => {
     const settingsResp = await page.request.get(`${BASE_URL}/api/settings`);
     const settingsData = await settingsResp.json();
     expect(settingsData.data?.description_extra_fields).toContain('配图建议');
-    expect(settingsData.data?.description_extra_fields).toContain('排版布局');
+    expect(settingsData.data?.description_extra_fields).toContain('版式与重点');
 
     // Toggle off 配图建议 by clicking the pill
     await newPill.click();
@@ -317,7 +317,7 @@ test.describe('Streaming Descriptions - Integration Tests', () => {
 
     // Clean up: reset extra fields
     await page.request.put(`${BASE_URL}/api/settings`, {
-      data: { description_extra_fields: ['视觉元素', '视觉焦点', '排版布局', '演讲者备注'] },
+      data: { description_extra_fields: ['配图与素材', '版式与重点', '演讲者备注'] },
     });
     // Clean up localStorage pool
     await page.evaluate(() => localStorage.removeItem('banana-available-extra-fields'));

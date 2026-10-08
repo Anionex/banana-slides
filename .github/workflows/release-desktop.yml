@@ -26,7 +26,7 @@ jobs:
         include:
           - os: windows-latest
             platform: win
-          - os: macos-latest
+          - os: macos-26
             platform: mac
           - os: ubuntu-latest
             platform: linux
@@ -91,15 +91,39 @@ jobs:
       - name: Package backend
         run: cd backend && uv run pyinstaller banana-slides.spec --noconfirm
 
-      - name: Install Electron dependencies
-        run: cd desktop && npm ci
-
       - name: Cache Windows FFmpeg download
         if: matrix.os == 'windows-latest'
         uses: actions/cache@v4
         with:
           path: desktop/.cache/ffmpeg
-          key: windows-ffmpeg-btbn-7.1-d08d3c08dc2b84b3cb59ea110ac8b188684768fc77a5f0f288e13d0258ef1660
+          key: windows-ffmpeg-btbn-7.1-907ae59ae94d39561b9e03f6d5b0ec4a2778df1e75c763c9a0ddbae266415860
+
+      - name: Install Electron dependencies
+        run: cd desktop && npm ci
+
+      - name: Enable Icon Composer toolchain
+        if: matrix.platform == 'mac'
+        shell: bash
+        run: |
+          actool_path="$(xcrun --find actool)"
+          echo "$(dirname "$actool_path")" >> "$GITHUB_PATH"
+          "$actool_path" --version
+
+      - name: Configure optional macOS signing
+        if: matrix.platform == 'mac'
+        shell: bash
+        env:
+          MACOS_CSC_LINK: ${{ secrets.MACOS_CSC_LINK }}
+          MACOS_CSC_KEY_PASSWORD: ${{ secrets.MACOS_CSC_KEY_PASSWORD }}
+        run: |
+          if [ -n "$MACOS_CSC_LINK" ]; then
+            printf 'CSC_LINK=%s\n' "$MACOS_CSC_LINK" >> "$GITHUB_ENV"
+            if [ -n "$MACOS_CSC_KEY_PASSWORD" ]; then
+              printf 'CSC_KEY_PASSWORD=%s\n' "$MACOS_CSC_KEY_PASSWORD" >> "$GITHUB_ENV"
+            fi
+          else
+            echo "macOS signing credentials are not configured; building without a stable signing identity."
+          fi
 
       - name: Build desktop app
         run: cd desktop && npm run build:${{ matrix.platform }} -- --publish never
@@ -134,6 +158,9 @@ jobs:
             exit 1
           fi
           desktop/scripts/smoke-macos-dmg.sh "$dmg" "$RUNNER_TEMP/banana-desktop-smoke-mac"
+          node desktop/scripts/test-markdown-image-macos.js \
+            "$RUNNER_TEMP/banana-desktop-smoke-mac/Applications/Banana Slides.app" \
+            "$RUNNER_TEMP/banana-desktop-markdown-image-mac"
 
       - name: Upload macOS smoke artifacts
         if: always() && matrix.platform == 'mac'
@@ -141,7 +168,34 @@ jobs:
         with:
           name: banana-slides-desktop-mac-smoke
           if-no-files-found: ignore
-          path: ${{ runner.temp }}/banana-desktop-smoke-mac/**
+          path: |
+            ${{ runner.temp }}/banana-desktop-smoke-mac/**
+            ${{ runner.temp }}/banana-desktop-markdown-image-mac/**
+
+      - name: Install Linux smoke dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb xauth
+
+      - name: Smoke test Linux AppImage
+        if: matrix.platform == 'linux'
+        run: |
+          chmod +x desktop/scripts/smoke-linux-appimage.sh
+          appimage="$(find desktop/dist -maxdepth 1 -name '*.AppImage' | head -1)"
+          if [ -z "$appimage" ]; then
+            echo "No Linux AppImage was produced" >&2
+            exit 1
+          fi
+          desktop/scripts/smoke-linux-appimage.sh "$appimage" "$RUNNER_TEMP/banana-desktop-smoke-linux"
+
+      - name: Upload Linux smoke artifacts
+        if: always() && matrix.platform == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: banana-slides-desktop-linux-smoke
+          if-no-files-found: ignore
+          path: ${{ runner.temp }}/banana-desktop-smoke-linux/**
 
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
@@ -150,7 +204,10 @@ jobs:
           if-no-files-found: error
           path: |
             desktop/dist/*.dmg
+            desktop/dist/*.zip
             desktop/dist/*.exe
+            desktop/dist/*.blockmap
+            desktop/dist/latest*.yml
             desktop/dist/*.AppImage
             desktop/dist/*.deb
 
@@ -161,7 +218,10 @@ jobs:
           tag_name: ${{ inputs.tag_name || github.ref_name }}
           files: |
             desktop/dist/*.dmg
+            desktop/dist/*.zip
             desktop/dist/*.exe
+            desktop/dist/*.blockmap
+            desktop/dist/latest*.yml
             desktop/dist/*.AppImage
             desktop/dist/*.deb
           draft: true

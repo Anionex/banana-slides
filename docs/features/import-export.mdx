@@ -31,7 +31,7 @@ April 2026
 
 --- 页面文字结束 ---
 
-Layout: centered title, large typography, subtitle and date below
+Layout & Emphasis: large centered title, subtitle and date below; the title is the visual emphasis
 
 ---
 
@@ -52,7 +52,7 @@ This slide summarizes industry growth, key market segments, and the main opportu
 
 --- 页面文字结束 ---
 
-Visual Elements: growth bar chart, key metric cards, market segmentation diagram
+Visuals & Assets: growth bar chart, key metric cards, market segmentation diagram
 
 ---
 ```
@@ -66,7 +66,7 @@ Visual Elements: growth bar chart, key metric cards, market segmentation diagram
 | Outline summary | One plain sentence after the page header | No |
 | Description | `**页面描述：**` or `**Page Description:**`, with the slide body wrapped in `--- 页面文字 ---` / `--- 页面文字结束 ---` | No |
 
-If the description ends with short extra-field lines such as `Visual Focus: ...` or `排版布局：...`, Banana Slides will preserve them on import.
+If the description ends with short extra-field lines such as `Visuals & Assets: ...` or `Layout & Emphasis: ...`, Banana Slides will preserve them on import (the older `Visual Elements: ...` and `Layout: ...` fields from existing projects are still supported).
 
 Pages are separated by `---`.
 
@@ -86,7 +86,7 @@ You can export from both the Outline Editor and Detail Editor:
 - The current recommended format is one concise outline sentence after the page title. Older `**Outline Points:**` / `- point` blocks are still accepted.
 - Both Chinese and English markers are supported: `第 N 页` / `Page N`, `章节` / `Chapter`, `大纲要点` / `Outline Points`, `页面描述` / `Page Description`.
 - HTML tags in imported content are automatically stripped.
-- Short trailing field lines in the description section, such as `视觉焦点：...` or `Visual Focus: ...`, are parsed as extra fields and preserved.
+- Short trailing field lines in the description section, such as `Layout & Emphasis: ...`, are parsed as extra fields and preserved.
 - Accepts `.md`, `.markdown`, and `.txt` files. Non-text files such as PDF, Word, or images are rejected before reading, with a clear file-format message.
 
 ## Minimal Example
@@ -115,7 +115,7 @@ Copy the prompt into any AI assistant such as ChatGPT or Claude, replace the pla
 
 <Tip>
   Here, “page description” is not just a short visual note. In practice it is a combination of the page's actual Markdown content plus optional design fields. A good pattern is:
-  write the slide's display content under `**Page Description:**`, then optionally append short trailing fields such as `Visual Elements: ...`, `Visual Focus: ...`, `Layout: ...`, or `Speaker Notes: ...`.
+  write the slide's display content under `**Page Description:**` (it is rendered onto the slide verbatim), then optionally append short trailing fields such as `Visuals & Assets: ...`, `Layout & Emphasis: ...`, or `Speaker Notes: ...`.
 </Tip>
 
 <Tip>
@@ -157,9 +157,8 @@ This slide explains market growth, fragmented competition, and why enterprise de
 
 --- 页面文字结束 ---
 
-Visual Elements: growth curve, comparison stat cards, subsegment diagram
-Visual Focus: $3.2B by 2028, enterprise growth, fragmented competition
-Layout: title on top, bullets on the left, stat cards on the right, table at the bottom
+Visuals & Assets: growth curve, comparison stat cards, subsegment diagram
+Layout & Emphasis: title on top, bullets on the left, stat cards on the right, table at the bottom; $3.2B by 2028 is the visual emphasis
 ```
 
 <Accordion title="AI Prompt Template">
@@ -183,9 +182,8 @@ Rules:
    [slide body in Markdown]
    --- 页面文字结束 ---
 6. If needed, append short one-line fields at the end of the page description, for example:
-   Visual Elements: ...
-   Visual Focus: ...
-   Layout: ...
+   Visuals & Assets: ...
+   Layout & Emphasis: ...
    Speaker Notes: ...
 7. Separate pages with "---"
 8. First page should be a cover, last page should be a closing/thank-you page

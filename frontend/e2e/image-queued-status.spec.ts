@@ -3,6 +3,10 @@ import { test, expect, Page } from '@playwright/test'
 const PROJECT_ID = 'queued-status-mock'
 const PAGE_IDS = ['p-1', 'p-2', 'p-3', 'p-4']
 
+/** Page status badges rendered by the left slide rail (the properties drawer also has one). */
+const sidebarBadges = (page: Page) =>
+  page.locator('aside').first().locator('[data-testid="status-badge"]')
+
 function makePage(id: string, idx: number, status: string, hasImage: boolean) {
   return {
     page_id: id,
@@ -69,7 +73,7 @@ test.describe('QUEUED status during batch image generation (mock)', () => {
     })
 
     await page.goto(`/project/${PROJECT_ID}/preview`)
-    const badges = page.locator('[data-testid="status-badge"]')
+    const badges = sidebarBadges(page)
     await expect(badges.first()).toBeVisible({ timeout: 10000 })
 
     // First page should be GENERATING
@@ -108,7 +112,7 @@ test.describe('QUEUED status during batch image generation (mock)', () => {
     })
 
     await page.goto(`/project/${PROJECT_ID}/preview`)
-    const badges = page.locator('[data-testid="status-badge"]')
+    const badges = sidebarBadges(page)
     await expect(badges.first()).toBeVisible({ timeout: 10000 })
 
     // Phase 1: all QUEUED

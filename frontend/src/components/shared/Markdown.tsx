@@ -7,6 +7,7 @@ import rehypeRaw from 'rehype-raw';
 import rehypeKatex from 'rehype-katex';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import 'katex/dist/katex.min.css';
+import { getImageUrl } from '@/api/client';
 
 interface MarkdownProps {
   children: string;
@@ -59,7 +60,7 @@ export const Markdown: React.FC<MarkdownProps> = ({ children, className = '' }) 
         ),
         img: ({ src, alt }) => (
           <img
-            src={src}
+            src={src ? getImageUrl(src) : undefined}
             alt={alt || ''}
             className="max-w-48 max-h-36 w-auto h-auto rounded-lg my-2"
             loading="lazy"

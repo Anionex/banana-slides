@@ -10,15 +10,18 @@ afterPack: scripts/adhoc-sign-macos.js
 
 files:
   - "main.js"
+  - "icon-policy.js"
+  - "download-manager.js"
   - "python-manager.js"
+  - "storage-config.js"
+  - "update-settings.js"
   - "preload.js"
   - "auto-updater.js"
+  - "github-release-client.js"
   - "update-policy.js"
   - "build-meta.json"
   - "splash.html"
-  - "logo.png"
-  - "resources/icon.icns"
-  - "resources/icon.ico"
+  - "resources/BananaSlides.icon/Assets/brand-logo.png"
   - "resources/icon.png"
   - "package.json"
   - "node_modules/**/*"
@@ -28,6 +31,10 @@ extraResources:
     to: "icon.ico"
   - from: "resources/icon.png"
     to: "icon.png"
+  - from: "resources/trayTemplate.png"
+    to: "trayTemplate.png"
+  - from: "resources/trayTemplate@2x.png"
+    to: "trayTemplate@2x.png"
   - from: "backend/"
     to: "backend"
     filter:
@@ -55,10 +62,13 @@ win:
   artifactName: "BananaSlides-${version}-win-${arch}-Setup.${ext}"
 
 mac:
-  icon: resources/icon.icns
-  identity: null
+  icon: resources/BananaSlides.icon
+  darkModeSupport: true
   target:
     - target: dmg
+      arch:
+        - arm64
+    - target: zip
       arch:
         - arm64
   artifactName: "BananaSlides-${version}-mac-${arch}.${ext}"
@@ -80,6 +90,10 @@ nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
+  include: resources/installer.nsh
+  installerLanguages:
+    - en_US
+    - zh_CN
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: "Banana Slides"
@@ -89,3 +103,8 @@ nsis:
   installerHeader: resources/installerHeader.bmp
 
 compression: normal
+
+publish:
+  provider: github
+  owner: Anionex
+  repo: banana-slides

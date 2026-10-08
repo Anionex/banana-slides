@@ -4,6 +4,10 @@ import { seedProjectWithImages } from './helpers/seed-project'
 const PROJECT_ID = 'badge-race-mock'
 const PAGE_IDS = ['p-1', 'p-2', 'p-3']
 
+/** Page status badges rendered by the left slide rail (the properties drawer also has one). */
+const sidebarBadges = (page: Page) =>
+  page.locator('aside').first().locator('[data-testid="status-badge"]')
+
 function makePage(id: string, idx: number, status: string, hasImage: boolean) {
   return {
     page_id: id,
@@ -64,7 +68,7 @@ test.describe('Badge status after image generation (mock)', () => {
     })
 
     await page.goto(`/project/${PROJECT_ID}/preview`)
-    const badges = page.locator('[data-testid="status-badge"]')
+    const badges = sidebarBadges(page)
     await expect(badges.first()).toBeVisible({ timeout: 10000 })
 
     const count = await badges.count()
@@ -91,7 +95,7 @@ test.describe('Badge status after image generation (mock)', () => {
     })
 
     await page.goto(`/project/${PROJECT_ID}/preview`)
-    const badges = page.locator('[data-testid="status-badge"]')
+    const badges = sidebarBadges(page)
     await expect(badges.first()).toBeVisible({ timeout: 10000 })
 
     // Verify initial state: GENERATING
@@ -122,7 +126,7 @@ test.describe('Badge status (integration)', () => {
     const { projectId } = await seedProjectWithImages(baseURL!, 3)
 
     await page.goto(`/project/${projectId}/preview`)
-    const badges = page.locator('[data-testid="status-badge"]')
+    const badges = sidebarBadges(page)
     await expect(badges.first()).toBeVisible({ timeout: 10000 })
 
     const count = await badges.count()
