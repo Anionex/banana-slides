@@ -1,0 +1,67 @@
+/* Reconstructed from https://waymark-template.vercel.app/ with user approval.
+ * Desktop: 1152px content, 768px heading, 48px heading/grid gap.
+ * Workflow: 128px padding, 24px gap, 18px radius; visual shortened to 16:10 on request.
+ * Audience section retains the centered heading and uses Flexnative Feature01.
+ * Existing five-item content wraps naturally; artwork and copy remain local.
+ */
+.landing-page .landing-waymark { display: block; padding: 128px 64px; }
+.landing-page .landing-waymark-features { padding: 112px 48px; }
+.landing-waymark-container { max-width: 1152px; margin-inline: auto; }
+.landing-waymark-heading { max-width: 768px; margin-inline: auto; text-align: center; }
+.landing-page .landing-waymark-heading h2 { margin: 0; font-size: 36px; line-height: 1.15; font-weight: 600; letter-spacing: -.9px; text-wrap: balance; }
+.landing-waymark-intro { max-width: 672px; margin: 20px auto 0; font-size: 16px; line-height: 28px; color: var(--text-secondary); }
+.landing-waymark-workflow-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-top: 48px; }
+.landing-waymark-workflow-visual { aspect-ratio: 16 / 10; overflow: hidden; border: 1px solid #e5e5e54d; border-radius: 18px; background: #fff5df; }
+.landing-page .landing-waymark-workflow-visual .feature-artwork { height: 100%; background: transparent; }
+.landing-waymark-caption { padding-top: 20px; }
+.landing-waymark h3 { margin: 0; font-size: 20px; line-height: 25px; font-weight: 500; letter-spacing: -.3px; }
+.landing-waymark-caption > p { margin: 12px 0 0; color: var(--text-secondary); font-size: 14px; line-height: 24px; }
+/* Keep the original Feature01 selection and crossfade; adapt its theme and media slot. */
+.landing-audience-selector { max-width: 920px; margin: 48px auto 0; }
+.landing-audience-selector > section > div { max-width: none; padding: 0; }
+.landing-audience-selector > section > div > .grid,
+.landing-audience-selector > section > div > div > .grid { grid-template-columns: minmax(0, 1.18fr) minmax(0, 1fr); gap: 48px; align-items: center; }
+.landing-audience-selector nav { gap: 4px; }
+.landing-audience-selector [data-slot="button"] { height: auto; padding: 16px 22px; border: 0; border-radius: 10px; white-space: normal; color: var(--text-secondary); transition: background-color 200ms, color 200ms; }
+.landing-audience-selector [data-slot="button"] > span { width: 100%; gap: 0; }
+.landing-audience-selector [data-slot="button"] > span > span:first-child { font-size: 20px; line-height: 28px; }
+.landing-audience-selector [data-slot="button"]:hover { background: #fafaf8; color: var(--text-primary); }
+.landing-audience-selector [data-slot="button"][aria-current="true"] { background: #f7f7f5; color: var(--text-primary); }
+.landing-audience-selector [data-slot="button"]:focus-visible { outline: 2px solid #b49543; outline-offset: 3px; }
+.landing-audience-selector [data-slot="button"] .text-muted-foreground { padding-top: 10px; color: var(--text-secondary); white-space: pre-line; font-size: 15px; line-height: 26px; }
+.landing-audience-selector .relative.w-full.overflow-hidden { min-height: 0; height: auto; max-width: 400px; aspect-ratio: 4 / 5; justify-self: end; outline: none; border: 1px solid var(--studio-line); border-radius: 18px; background: #fafaf8; }
+.landing-audience-selector .relative.w-full.overflow-hidden > [aria-hidden="true"] { pointer-events: none; }
+.landing-page .landing-audience-selector .scenario-artwork { display: flex; justify-content: center; align-items: center; max-width: none; height: 100%; padding: 16px; }
+.landing-page .landing-audience-selector .scenario-artwork > svg { width: 100%; height: 100%; max-width: 560px; }
+@media (max-width: 1023px) {
+  .landing-page .landing-waymark { padding: 96px 32px; }
+  .landing-waymark-workflow-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 639px) {
+  .landing-page .landing-waymark { padding: 80px 20px; }
+  .landing-waymark-workflow-grid { grid-template-columns: minmax(0, 1fr); }
+  .landing-waymark-workflow-grid { gap: 40px; }
+}
+@media (max-width: 374px) {
+  .landing-waymark-workflow-visual .art-document-stack,
+  .landing-waymark-workflow-visual .art-style-deck,
+  .landing-waymark-workflow-visual .art-edit-scene,
+  .landing-waymark-workflow-visual .art-export-scene { transform: translate(-50%, -50%) scale(.82); }
+}
+
+@media (max-width: 767px) {
+  .landing-audience-selector > section > div > .grid,
+.landing-audience-selector > section > div > div > .grid { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .landing-audience-selector [data-slot="button"] { padding: 12px 16px; }
+  .landing-audience-selector [data-slot="button"] > span > span:first-child { font-size: 18px; }
+  .landing-audience-selector .relative.w-full.overflow-hidden { max-width: 320px; justify-self: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-audience-selector * { transition: none !important; }
+}
+
+/* Feature01 subtle mode adds a media wrapper; retain the approved portrait sizing. */
+.landing-audience-selector .grid > .relative.min-w-0 { width: 100%; max-width: 400px; justify-self: end; }
+@media (max-width: 767px) {
+  .landing-audience-selector .grid > .relative.min-w-0 { max-width: 320px; justify-self: center; }
+}
