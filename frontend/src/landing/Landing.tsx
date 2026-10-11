@@ -1,18 +1,26 @@
-import { ArrowRight, ArrowUpRight, FileText, Layers, Download, Github, Plus, Minus, Sparkles, X } from 'lucide-react';
-import { useRef, useState, type FormEvent } from 'react';
+import { ArrowRight, ArrowUpRight, FileText, Layers, Download, Github, ChevronDown, Sparkles, X } from 'lucide-react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useT } from '@/hooks/useT';
 import logoUrl from '@/assets/logo.png';
 import './landing.css';
 import { GrainSteps } from './GrainSteps';
-import { FeatureArtwork } from './FeatureArtwork';
-import { ScenarioArtwork } from './ScenarioArtwork';
+import { BetaRibbon } from './BetaRibbon';
+import { ProductShowcase, AudienceShowcase } from './TemplateSections';
 import { Footer } from './Footer';
+import { FooterRibbon } from './FooterRibbon';
 import { FeedbackWidget } from '@/components/shared/FeedbackWidget';
+import CallToAction from './vendor/tailark/CallToAction';
+import './landing-cta.css';
+import './desktop-layout.css';
+import './mobile-layout.css';
+import Reveal from './vendor/asanshay/Reveal';
 
 const copy = {
   zh: {
     product: '产品能力', scenarios: '使用场景', faq: '常见问题', docs: '文档', enter: '体验 Demo', waitlistNav: '在线版内测',
+    faqIntro: '关于创作、素材与导出',
+    ctaTitle: '让 PPT 创作，回归直觉', ctaAlternative: '或留下邮箱, 优先获得在线托管版内测邀请。',
     title: '让想法落地，', title2: '无需繁琐排版。',
     intro: '图像生成模型驱动的原生 AI PPT 应用。用自然语言描述想法、调整页面，从内容到视觉，生成完整的演示文稿。', start: '体验 Demo',
     waitlistTitle: '在线托管版即将开放', waitlistIntro: '留下邮箱，优先获邀参加内测。', waitlistOpen: '预约在线版内测', waitlistClose: '关闭预约', waitlistPlaceholder: '你的邮箱地址', waitlistSubmit: '预约内测', waitlistSubmitting: '提交中…', waitlistSuccess: '已收到预约，内测开放时我们会通过邮件联系你。', waitlistError: '提交失败，请稍后重试。', waitlistInvalid: '请输入有效的邮箱地址。', waitlistRateLimited: '提交较频繁，请稍后再试。', waitlistPrivacy: '邮箱仅用于发送在线托管版内测邀请。',
@@ -37,6 +45,8 @@ const copy = {
   },
   en: {
     product: 'Product', scenarios: 'Use cases', faq: 'FAQ', docs: 'Docs', enter: 'Try the demo', waitlistNav: 'Hosted beta',
+    faqIntro: 'Answers to common questions about creating, using your materials, and exporting.',
+    ctaTitle: 'Make creating presentations feel intuitive.', ctaAlternative: 'Or leave your email for an early invitation to the hosted beta.',
     title: 'Describe it.', title2: 'AI renders it.',
     intro: 'An AI-native presentation app powered by image-generation models. Describe your ideas, refine slides with natural language, and generate a complete deck with content and visuals together.', start: 'Try the demo',
     waitlistTitle: 'Hosted Banana Slides is coming', waitlistIntro: 'Leave your email for an invitation to the beta.', waitlistOpen: 'Join the hosted beta', waitlistClose: 'Close signup', waitlistPlaceholder: 'Your email address', waitlistSubmit: 'Join the waitlist', waitlistSubmitting: 'Submitting…', waitlistSuccess: 'You are on the list. We will email you when the beta opens.', waitlistError: 'Could not submit. Please try again.', waitlistInvalid: 'Enter a valid email address.', waitlistRateLimited: 'Too many submissions. Please try again later.', waitlistPrivacy: 'Your email will only be used for hosted beta invitations.',
@@ -61,14 +71,20 @@ const copy = {
   },
 };
 
-const featureArt = [1, 0, 4, 2, 3];
 const githubUrl = 'https://github.com/Anionex/banana-slides';
 
 export function Landing() {
   const t = useT(copy);
   const { i18n } = useTranslation();
-  const [expanded, setExpanded] = useState<number | null>(0);
-  const [scenario, setScenario] = useState(1);
+  const [expanded, setExpanded] = useState<number | null>(null);
+  const [footerVisible, setFooterVisible] = useState(false);
+  useEffect(() => {
+    const footer = document.getElementById('landing-ribbon');
+    if (!footer) return;
+    const observer = new IntersectionObserver(([entry]) => setFooterVisible(entry.isIntersecting));
+    observer.observe(footer);
+    return () => observer.disconnect();
+  }, []);
   const [email, setEmail] = useState('');
   const [waitlistState, setWaitlistState] = useState<'idle' | 'submitting' | 'success' | 'error' | 'invalid' | 'rate-limited'>('idle');
   const waitlistDialogRef = useRef<HTMLDialogElement>(null);
@@ -102,8 +118,9 @@ export function Landing() {
       setWaitlistState('error');
     }
   };
+  const waitlistFeedback = waitlistState === 'success' ? t('waitlistSuccess') : waitlistState === 'error' ? t('waitlistError') : waitlistState === 'invalid' ? t('waitlistInvalid') : waitlistState === 'rate-limited' ? t('waitlistRateLimited') : '';
   return <div className="landing-page">
-    <FeedbackWidget />
+    <div className="landing-feedback" data-hidden={footerVisible}><FeedbackWidget /></div>
     <header className="landing-nav landing-container">
       <a href="/" className="brand" aria-label="Banana Slides"><img src={logoUrl} alt="" width="32" height="32" /><span>Banana Slides</span></a>
       <nav aria-label={t('product')}><a href="#product">{t('product')}</a><a href="#scenarios">{t('scenarios')}</a><a href="#faq">{t('faq')}</a><button type="button" onClick={openWaitlist}>{t('waitlistNav')}</button><a href="https://docs.bananaslides.online" target="_blank" rel="noopener noreferrer">{t('docs')}</a></nav>
@@ -111,25 +128,49 @@ export function Landing() {
     </header>
     <main>
       <section className="landing-hero">
-        <div className="landing-hero-copy"><span className="landing-title-rule" aria-hidden="true" /><h1>{t('title')}<br />{t('title2')}</h1><p className="landing-intro">{t('intro')}</p>
-          <div className="landing-hero-actions"><a href="/app" className="studio-button studio-button-dark">{t('start')}<ArrowRight size={17} /></a><button className="studio-button landing-beta-button" type="button" onClick={openWaitlist}><span>{t('waitlistOpen')}</span><ArrowUpRight size={16} /></button><a className="studio-button landing-github-button" href={githubUrl} target="_blank" rel="noopener noreferrer"><Github size={18} aria-hidden="true" />GitHub</a></div>
-        </div>
-        <div className="landing-hero-art"><GrainSteps /><span className="landing-art-label">IDEAS<br />PEOPLE<br />PRESENT<br />TOGETHER<span /></span></div>
+        <Reveal className="landing-hero-copy"><h1>{t('title')}<br />{t('title2')}</h1><p className="landing-intro">{t('intro')}</p>
+          <div className="landing-hero-actions"><a href="/app" className="studio-button studio-button-dark">{t('start')}<ArrowRight size={17} /></a><button className="studio-button landing-beta-button" type="button" onClick={openWaitlist}><BetaRibbon /><span>{t('waitlistOpen')}</span><ArrowUpRight size={16} /></button><a className="studio-button landing-github-button" href={githubUrl} target="_blank" rel="noopener noreferrer"><Github size={18} aria-hidden="true" />GitHub</a></div>
+        </Reveal>
+        <Reveal className="landing-hero-art" index={1}><GrainSteps bitmapGrain /><span className="landing-art-label">IDEAS<br />PEOPLE<br />PRESENT<br />TOGETHER<span /></span></Reveal>
         <div className="landing-strip"><div>{[FileText, Layers, Sparkles, Download].map((Icon, i) => <span key={i}><Icon size={20} />{t(`strip${i + 1}`)}</span>)}</div></div>
       </section>
-      <section id="product" className="landing-section landing-container">
-        <div className="landing-section-heading"><h2>{t('featureTitle')}</h2><p>{t('featureIntro')}</p></div>
-        <div className="landing-feature-grid">{featureArt.map((kind, i) => <article className={`landing-feature${i === 0 ? ' landing-feature-lead' : ''}`} key={i}><FeatureArtwork kind={kind} /><div className="landing-feature-copy"><h3>{t(`f${i + 1}`)}</h3><p>{t(`f${i + 1}Text`)}</p></div></article>)}</div>
+      <ProductShowcase t={t} />
+      <AudienceShowcase t={t} />
+      <section id="faq" className="landing-faq landing-section landing-container">
+        <Reveal className="landing-section-heading landing-faq-heading"><h2>{t('faq')}</h2><p>{t('faqIntro')}</p></Reveal>
+        <Reveal className="landing-faq-panel">
+          {[0, 1, 2, 3].map(i => <article key={i}>
+            <h3><button type="button" aria-expanded={expanded === i} aria-controls={`faq-answer-${i}`} onClick={() => setExpanded(expanded === i ? null : i)}>{t(`q${i + 1}`)}<ChevronDown size={16} aria-hidden="true" /></button></h3>
+            <div id={`faq-answer-${i}`} className="landing-faq-answer" data-expanded={expanded === i} aria-hidden={expanded !== i}>
+              <div><p>{t(`a${i + 1}`)}</p></div>
+            </div>
+          </article>)}
+        </Reveal>
       </section>
-      <section id="scenarios" className="landing-section landing-container">
-        <h2>{t('scenarioTitle')}</h2>
-        <div className="landing-audiences" role="group" aria-label={t('scenarios')}>{[1, 2, 3, 4, 5].map(n => <button key={n} aria-pressed={scenario === n} aria-controls="landing-scenario-content" onClick={() => setScenario(n)}>{t(`s${n}`)}</button>)}</div>
-        <div className="landing-scenario" id="landing-scenario-content" aria-live="polite">
-          <div className="landing-scenario-copy"><h3>{t(`s${scenario}Title`)}</h3><p>{t(`s${scenario}Text`)}</p><a href="/app" className="studio-button studio-button-dark">{t('start')}<ArrowRight size={17} /></a></div>
-          <ScenarioArtwork scenario={scenario} />
-        </div>
-      </section>
-      <section id="faq" className="landing-faq landing-section landing-container"><h2>{t('faq')}</h2><div className="landing-faq-panel">{[0, 1, 2, 3].map(i => <article key={i}><h3><button aria-expanded={expanded === i} aria-controls={`faq-answer-${i}`} onClick={() => setExpanded(expanded === i ? null : i)}>{t(`q${i + 1}`)}{expanded === i ? <Minus size={18} /> : <Plus size={18} />}</button></h3><div id={`faq-answer-${i}`} hidden={expanded !== i}><p>{t(`a${i + 1}`)}</p></div></article>)}</div></section>
+      <Reveal><CallToAction
+        id="landing-cta"
+        className="landing-cta"
+        title={t('ctaTitle')}
+        beforeForm={<>
+          <a href="/app" className="studio-button studio-button-dark landing-cta-primary">{t('start')}<ArrowRight size={18} aria-hidden="true" /></a>
+          <p id="landing-cta-alternative" className="landing-cta-alternative">{t('ctaAlternative')}</p>
+        </>}
+        submitLabel={t(waitlistState === 'submitting' ? 'waitlistSubmitting' : 'waitlistSubmit')}
+        submitting={waitlistState === 'submitting'}
+        onSubmit={event => { void submitWaitlist(event); }}
+        inputProps={{
+          id: 'landing-cta-email', 'aria-label': t('waitlistPlaceholder'),
+          'aria-describedby': 'landing-cta-alternative landing-cta-status',
+          'aria-invalid': waitlistState === 'invalid',
+          autoComplete: 'email', required: true, maxLength: 254,
+          placeholder: t('waitlistPlaceholder'), value: email,
+          onChange: event => { setEmail(event.target.value); setWaitlistState('idle'); },
+          disabled: waitlistState === 'submitting',
+        }}
+        footer={<>
+          <p id="landing-cta-status" className="landing-cta-status" data-state={waitlistState} role="status" aria-live="polite">{waitlistFeedback}</p>
+        </>}
+      /></Reveal>
     </main>
     <dialog ref={waitlistDialogRef} className="landing-waitlist-dialog" aria-labelledby="landing-waitlist-title">
       <div className="landing-waitlist-screen">
@@ -143,9 +184,9 @@ export function Landing() {
             <button className="studio-button landing-waitlist-submit" type="submit" disabled={waitlistState === 'submitting'}>{t(waitlistState === 'submitting' ? 'waitlistSubmitting' : 'waitlistSubmit')}</button>
           </form>
           <p className="landing-waitlist-note">{t('waitlistPrivacy')}</p>
-          <p className="landing-waitlist-feedback" data-state={waitlistState} role="status" aria-live="polite">{waitlistState === 'success' ? t('waitlistSuccess') : waitlistState === 'error' ? t('waitlistError') : waitlistState === 'invalid' ? t('waitlistInvalid') : waitlistState === 'rate-limited' ? t('waitlistRateLimited') : ''}</p>
+          <p className="landing-waitlist-feedback" data-state={waitlistState} role="status" aria-live="polite">{waitlistFeedback}</p>
         </div>
-        <div className="landing-waitlist-art" aria-hidden="true"><GrainSteps /></div>
+        <div className="landing-waitlist-ribbon"><FooterRibbon /></div>
       </div>
     </dialog>
     <Footer />

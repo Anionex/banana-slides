@@ -1,0 +1,25 @@
+/* Theme the original Tailark Call To Action 3 and tighten its footer spacing. */
+.landing-page .landing-cta { --radius: .5rem; scroll-margin-top: 24px; padding-bottom: 0; }
+.landing-page .landing-cta h2 { max-width: 760px; margin-inline: auto; line-height: 1.2; letter-spacing: -.035em; text-wrap: balance; }
+.landing-page .landing-cta h2 + p { color: var(--text-secondary); line-height: 1.8; text-wrap: balance; }
+.landing-page .landing-cta form > div { border-color: #e4e4e7; background: #fff; box-shadow: none; }
+.landing-page .landing-cta form > div:focus-within { border-color: #e7c650; box-shadow: 0 0 0 3px #ffe27133; }
+.landing-page .landing-cta form svg { color: var(--text-secondary); }
+.landing-page .landing-cta input { min-width: 0; color: var(--studio-ink); font-size: 14px; padding-right: 10px; }
+.landing-page .landing-cta input:focus-visible { outline: none; }
+.landing-page .landing-cta button { background: #f4f4f5; color: var(--studio-ink); box-shadow: none; }
+.landing-page .landing-cta button:hover { background: #e4e4e7; }
+.landing-page .landing-cta button svg { color: inherit; }
+.landing-page .landing-cta button:disabled { cursor: wait; }
+.landing-page .landing-cta .landing-cta-privacy { margin-top: 12px; color: var(--text-secondary); font-size: 11px; line-height: 1.6; }
+.landing-page .landing-cta-status { margin: 8px auto 0; max-width: 480px; color: #28613e; font-size: 13px; line-height: 1.7; }
+.landing-page .landing-cta-status:empty { margin-top: 0; }
+.landing-page .landing-cta-status[data-state="error"], .landing-page .landing-cta-status[data-state="invalid"], .landing-page .landing-cta-status[data-state="rate-limited"] { color: #b42318; }
+.landing-page .landing-cta .landing-cta-primary { margin-top: 28px; min-height: 52px; padding: 14px 32px; font-size: 16px; }
+.landing-page .landing-cta .landing-cta-alternative { margin: 24px 0 12px; font-size: 14px; line-height: 1.7; color: var(--text-secondary); }
+.landing-page .landing-cta .landing-cta-alternative + form { margin-top: 0; }
+.landing-page .landing-cta .landing-cta-note { max-width: 384px; margin: 12px auto 0; font-size: 13px; line-height: 1.7; color: var(--text-secondary); text-wrap: balance; }
+@media (max-width: 640px) {
+  .landing-page .landing-cta h2 { font-size: 30px; }
+  .landing-page .landing-cta h2 + p { font-size: 14px; }
+}
