@@ -87,7 +87,7 @@ export default function ScrollHeader({ brand, navigation, actions, label }: {
         onFocusCapture={event => moveHighlight(event.target, true)}
         onPointerLeave={clearHighlight}
         onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) clearHighlight(); }}>
-        <motion.span aria-hidden="true" className="landing-nav-highlight" initial={false}
+        <motion.span aria-hidden="true" className="landing-nav-highlight" data-active={Boolean(highlight)} initial={false}
           animate={{ transform: `translate(${highlight?.x ?? 0}px, ${highlight?.y ?? 0}px)`, width: highlight?.width ?? 0, height: highlight?.height ?? 0, opacity: Number(Boolean(highlight)) }}
           transition={reduce || !highlight || highlight.instant ? { duration: 0 } : { type: 'spring', stiffness: 360, damping: 32, mass: .6 }} />
         {navigation}
