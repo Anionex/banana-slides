@@ -1,0 +1,67 @@
+.landing-page .landing-header {
+  --header-height: 96px;
+  position: sticky; top: 0; z-index: 50;
+  height: var(--header-height); pointer-events: none;
+}
+.landing-page .landing-header .landing-nav {
+  min-height: 0; pointer-events: auto; justify-content: space-between;
+  border: 1px solid transparent;
+  background: transparent;
+  transition: none;
+}
+.landing-page .landing-header[data-glass="true"] .landing-nav {
+  background: rgb(255 255 255 / .85);
+  border-color: rgb(229 229 229 / .6);
+  -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px);
+  transition: background-color .24s ease-out, border-color .24s ease-out, backdrop-filter .24s ease-out;
+}
+.landing-page .landing-header .landing-nav-brand { display: flex; align-items: center; flex-shrink: 0; }
+.landing-page .landing-header .landing-nav-actions { margin-left: 0; }
+.landing-page .landing-header[data-scrolled="true"] .landing-nav-brand { padding-left: 10px; }
+.landing-page .landing-header[data-scrolled="true"] .landing-nav-actions { padding-right: 10px; }
+.landing-page .landing-header .landing-nav nav { position: relative; isolation: isolate; align-items: center; flex-shrink: 0; }
+.landing-page .landing-header .landing-nav-highlight {
+  position: absolute; left: 0; top: 0; z-index: 0;
+  border-radius: 999px; background: #f5f5f5; pointer-events: none;
+  transition: box-shadow .18s ease;
+}
+.landing-page .landing-header[data-scrolled="true"] .landing-nav-highlight {
+  box-shadow: 0 0 0 7px #f5f5f5;
+}
+.landing-page .landing-header nav > :is(a, button) {
+  position: relative; z-index: 1; padding: 6px 8px; margin-inline: -8px;
+}
+.landing-page .landing-header nav > :is(a, button),
+.landing-page .landing-header .landing-nav-actions > :is(a:not(.landing-github-icon), button) {
+  display: inline-flex; align-items: center; justify-content: center; line-height: 20px;
+}
+.landing-page .landing-header .studio-button { transition: border-radius .3s ease, background .18s ease; }
+.landing-page .landing-header[data-scrolled="true"] .studio-button { border-radius: 24px; min-height: 36px; padding-block: 7px; }
+.landing-page .landing-header nav > :is(a, button),
+.landing-page .landing-header .landing-nav-actions > :is(button, .landing-github-icon) {
+  border-radius: 999px;
+  transition: background-color .18s ease, box-shadow .18s ease, color .18s ease;
+}
+@media (hover: hover) {
+  .landing-page .landing-header nav > :is(a, button):hover { color: var(--studio-ink); }
+  .landing-page .landing-header[data-scrolled="true"] .landing-nav-actions > :is(button, .landing-github-icon):hover {
+    background: #f5f5f5; box-shadow: 0 0 0 7px #f5f5f5; color: var(--studio-ink);
+  }
+}
+.landing-page :is(#product, #scenarios, #faq, #landing-cta) { scroll-margin-top: 96px; }
+@media (max-width: 1023px) {
+  .landing-page .landing-header { --header-height: 80px; }
+}
+@media (max-width: 767px) {
+  .landing-page .landing-header { --header-height: 72px; }
+  .landing-page .landing-header[data-scrolled="true"] .landing-nav-brand { padding-left: 4px; }
+  .landing-page .landing-header[data-scrolled="true"] .landing-nav-actions { padding-right: 4px; }
+}
+@media (max-width: 1023px) {
+  .landing-page .landing-header[data-scrolled="true"] .studio-button { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-page .landing-header .landing-nav,
+  .landing-page .landing-header .landing-nav-highlight,
+  .landing-page .landing-header .studio-button { transition: none; }
+}

@@ -1,0 +1,51 @@
+/* Rounded headings in both languages; humanist Latin for body and controls. */
+@font-face {
+  font-family: 'Banana Rounded';
+  src: url('../assets/landing/fonts/landing-rounded.woff2') format('woff2');
+  font-weight: 200 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Banana Latin';
+  src: url('../assets/landing/fonts/landing-nunito-sans.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+.landing-page.landing-page {
+  --landing-type: 'Banana Latin', 'Banana Rounded', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--landing-type);
+  font-variation-settings: 'ROND' 55;
+  font-weight: 400;
+}
+.landing-page :is(button,input,textarea,select,svg text) {
+  font-family: var(--landing-type);
+  font-variation-settings: inherit;
+}
+.landing-page :is(h1,h2,h3) {
+  --landing-type: 'Banana Rounded', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--landing-type);
+  font-variation-settings: 'ROND' 85;
+}
+.landing-page .landing-hero h1,
+.landing-page .landing-section h2,
+.landing-page .landing-cta h2 { font-weight: 650; }
+.landing-page h3 { font-weight: 600; }
+.landing-page :is(.brand,.studio-button,header nav,.landing-cta button,.landing-feedback > button) {
+  font-variation-settings: 'ROND' 70;
+}
+.landing-page .brand { font-weight: 700; letter-spacing: -.35px; }
+.landing-page .studio-button { font-weight: 600; }
+.landing-page .landing-faq h3 button { font-weight: 550; font-variation-settings: 'ROND' 65; }
+.landing-page :is(input,textarea,input::placeholder,textarea::placeholder) { font-weight: 400; }
+.landing-page :is(.landing-art-label,.landing-footer) { font-variation-settings: 'ROND' 45; }
+
+/* Feedback is rendered into a body portal. Scope it to the Landing route. */
+body:has(.landing-page) [role='dialog'] {
+  font-family: 'Banana Latin', 'Banana Rounded', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-variation-settings: 'ROND' 55;
+}
+body:has(.landing-page) [role='dialog'] :is(button,input,textarea,select) { font-family: inherit; font-variation-settings: inherit; }
+body:has(.landing-page) [role='dialog'] :is(h2,h3) { font-family: 'Banana Rounded', sans-serif; font-weight: 600; font-variation-settings: 'ROND' 75; }

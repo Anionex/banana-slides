@@ -14,7 +14,7 @@ export const Footer: React.FC = () => {
 
   return (
     <footer id="landing-ribbon" className="landing-footer relative w-full py-6 px-4 mt-auto">
-      <div className="landing-footer-art" aria-hidden="true"><FooterRibbon speed={2} /></div>
+      <div className="landing-footer-art" aria-hidden="true"><FooterRibbon speed={2} grain={65} /></div>
       <div className="landing-footer-content max-w-5xl mx-auto">
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-6 text-sm text-gray-500">
           {/* Copyright */}

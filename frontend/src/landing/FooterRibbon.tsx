@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react';
-import { getHeroGrainUrl, HERO_GRAIN_OPACITY } from './heroGrain';
+import { getHeroGrainUrl, grainOpacity, LANDING_GRAIN } from './heroGrain';
 import { createRibbonRenderer, ribbonDimensions } from './ribbonField';
 import './footer-ribbon.css';
 
-export function FooterRibbon({ speed = 1 }: { speed?: number }) {
+export function FooterRibbon({ speed = 1, grain = LANDING_GRAIN }: { speed?: number; grain?: number }) {
   const root = useRef<HTMLDivElement>(null);
   const surface = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
@@ -12,7 +12,7 @@ export function FooterRibbon({ speed = 1 }: { speed?: number }) {
     const context = canvas?.getContext('2d');
     if (!element || !canvas || !context) return;
     element.style.setProperty('--ribbon-grain', `url("${getHeroGrainUrl()}")`);
-    element.style.setProperty('--ribbon-grain-opacity', String(HERO_GRAIN_OPACITY));
+    element.style.setProperty('--ribbon-grain-opacity', String(grainOpacity(grain)));
     const render = createRibbonRenderer(context);
     const reduced = matchMedia('(prefers-reduced-motion: reduce)');
     let frame = 0;
@@ -55,6 +55,6 @@ export function FooterRibbon({ speed = 1 }: { speed?: number }) {
       document.removeEventListener('visibilitychange', playback);
       reduced.removeEventListener('change', motionPreference);
     };
-  }, [speed]);
+  }, [speed, grain]);
   return <div ref={root} className="footer-ribbon" aria-hidden="true"><canvas ref={surface} /></div>;
 }

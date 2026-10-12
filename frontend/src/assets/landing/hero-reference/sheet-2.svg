@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1" preserveAspectRatio="none">
+  <!-- Full-sheet colour field, measured against the supplied reference. -->
+  <defs>
+    <radialGradient id="field" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="3.5" gradientTransform="matrix(0.49917660 0.06177675 0 0.34652232 0.99689938 0.63305752)">
+      <stop offset="0.000000" stop-color="white" stop-opacity="0.992173"/>
+      <stop offset="0.031250" stop-color="white" stop-opacity="0.986256"/>
+      <stop offset="0.062500" stop-color="white" stop-opacity="0.968716"/>
+      <stop offset="0.093750" stop-color="white" stop-opacity="0.940173"/>
+      <stop offset="0.125000" stop-color="white" stop-opacity="0.901621"/>
+      <stop offset="0.156250" stop-color="white" stop-opacity="0.854367"/>
+      <stop offset="0.187500" stop-color="white" stop-opacity="0.799963"/>
+      <stop offset="0.218750" stop-color="white" stop-opacity="0.740116"/>
+      <stop offset="0.250000" stop-color="white" stop-opacity="0.676603"/>
+      <stop offset="0.281250" stop-color="white" stop-opacity="0.611185"/>
+      <stop offset="0.312500" stop-color="white" stop-opacity="0.545527"/>
+      <stop offset="0.343750" stop-color="white" stop-opacity="0.481132"/>
+      <stop offset="0.375000" stop-color="white" stop-opacity="0.419293"/>
+      <stop offset="0.406250" stop-color="white" stop-opacity="0.361056"/>
+      <stop offset="0.437500" stop-color="white" stop-opacity="0.307211"/>
+      <stop offset="0.468750" stop-color="white" stop-opacity="0.258287"/>
+      <stop offset="0.500000" stop-color="white" stop-opacity="0.214572"/>
+      <stop offset="0.531250" stop-color="white" stop-opacity="0.176137"/>
+      <stop offset="0.562500" stop-color="white" stop-opacity="0.142866"/>
+      <stop offset="0.593750" stop-color="white" stop-opacity="0.114502"/>
+      <stop offset="0.625000" stop-color="white" stop-opacity="0.090678"/>
+      <stop offset="0.656250" stop-color="white" stop-opacity="0.070957"/>
+      <stop offset="0.687500" stop-color="white" stop-opacity="0.054865"/>
+      <stop offset="0.718750" stop-color="white" stop-opacity="0.041918"/>
+      <stop offset="0.750000" stop-color="white" stop-opacity="0.031645"/>
+      <stop offset="0.781250" stop-color="white" stop-opacity="0.023606"/>
+      <stop offset="0.812500" stop-color="white" stop-opacity="0.017399"/>
+      <stop offset="0.843750" stop-color="white" stop-opacity="0.012672"/>
+      <stop offset="0.875000" stop-color="white" stop-opacity="0.009120"/>
+      <stop offset="0.906250" stop-color="white" stop-opacity="0.006485"/>
+      <stop offset="0.937500" stop-color="white" stop-opacity="0.004557"/>
+      <stop offset="0.968750" stop-color="white" stop-opacity="0.003164"/>
+      <stop offset="1.000000" stop-color="white" stop-opacity="0.002170"/>
+    </radialGradient>
+  </defs>
+  <path fill="url(#field)" d="M0 0h1v1H0z"/>
+</svg>

@@ -19,13 +19,24 @@
 
   .landing-page .landing-hero {
     --hero-inset: max(var(--landing-gutter), calc((100vw - var(--landing-content-width)) / 2));
+    min-height: max(clamp(556px, 44.1vw, 665px), calc(100vh - 96px));
+    min-height: max(clamp(556px, 44.1vw, 665px), calc(100svh - 96px));
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    row-gap: 80px;
     padding-top: 56px;
+    padding-bottom: 104px;
   }
   .landing-page .landing-hero-copy { width: min(58%, calc(55vw - var(--hero-inset) - 32px)); }
   .landing-page .landing-hero h1 { font-size: clamp(48px, 4.45vw, 64px); line-height: 1.15; }
   .landing-page .landing-intro { font-size: 18px; line-height: 1.75; }
   .landing-page .landing-hero-actions { margin-top: 32px; }
   .landing-page .landing-hero-actions .studio-button { min-height: 48px; padding: 12px 20px; font-size: 14px; }
+  .landing-page .landing-strip {
+    position: relative; left: auto; bottom: auto;
+    width: min(100%, 51vw);
+  }
   .landing-page .landing-strip > div > span { font-size: 13px; }
 
   .landing-page .landing-waymark,
@@ -40,7 +51,12 @@
   }
   .landing-page .landing-waymark-intro,
   .landing-page .landing-section-heading > p { margin-top: 16px; font-size: 16px; line-height: 1.75; }
-  .landing-page .landing-waymark-workflow-grid { margin-top: 40px; gap: 40px 24px; }
+  .landing-page .landing-waymark-workflow { padding-block: 56px; }
+  .landing-page .landing-waymark-workflow-grid { margin-top: 40px; gap: 28px 24px; }
+  .landing-page .landing-waymark-workflow-visual { aspect-ratio: auto; height: 190px; }
+  .landing-page .landing-waymark-workflow-visual :is(.art-document-stack, .art-style-deck, .art-edit-scene, .art-export-scene) {
+    transform: translate(-50%, -50%) scale(.86);
+  }
   .landing-page .landing-waymark-caption { padding-top: 20px; }
   .landing-page .landing-waymark h3 { font-size: 20px; line-height: 1.4; font-weight: 600; }
   .landing-page .landing-waymark-caption > p { margin-top: 12px; font-size: 15px; line-height: 1.75; }
@@ -67,7 +83,4 @@
   .landing-page .landing-hero-actions { gap: 10px; }
   .landing-page .landing-hero-actions .studio-button { padding-inline: 16px; font-size: 13px; }
   .landing-page .landing-strip > div { display: grid; grid-template-columns: repeat(2, max-content); gap: 12px 32px; }
-  .landing-page .landing-waymark-workflow-visual :is(.art-document-stack, .art-style-deck, .art-edit-scene, .art-export-scene) {
-    transform: translate(-50%, -50%) scale(.88);
-  }
 }

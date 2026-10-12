@@ -1,6 +1,8 @@
 // Matches 21st.dev's gradient editor bitmap grain (modules 750302 / 504690).
 // Its grain is random per session; the recipe seed does not control this layer.
-export const HERO_GRAIN_OPACITY = Math.max(0.03, 42 / 100 * 0.5);
+export const LANDING_GRAIN = 65;
+export const grainOpacity = (grain = LANDING_GRAIN) => Math.max(0.03, grain / 100 * 0.5);
+export const HERO_GRAIN_OPACITY = grainOpacity();
 
 export function createHeroGrain(random = Math.random): HTMLCanvasElement {
   const canvas = document.createElement('canvas');

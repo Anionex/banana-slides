@@ -25,11 +25,9 @@
   .landing-page .landing-cta h2 { font-size: 32px; line-height: 1.3; letter-spacing: -.025em; }
   .landing-page .landing-cta h2 + p { font-size: 15px; line-height: 1.75; margin-top: 14px; }
   .landing-page .landing-cta form { margin-top: 28px; }
-  .landing-page .landing-cta input,
-  .landing-page .landing-waitlist input { font-size: 16px; }
+  .landing-page .landing-cta input { font-size: 16px; }
   .landing-page .landing-cta button { min-width: 44px; min-height: 44px; padding-inline: 12px; }
-  .landing-page .landing-cta .landing-cta-privacy,
-  .landing-page .landing-waitlist .landing-waitlist-note { font-size: 12px; line-height: 1.7; }
+  .landing-page .landing-cta .landing-cta-privacy { font-size: 12px; line-height: 1.7; }
   .landing-page .landing-footer-content a { min-height: 44px; }
 }
 
@@ -53,9 +51,11 @@
   .landing-page .landing-hero-copy { width: 100%; }
   .landing-page .landing-hero h1 { font-size: clamp(32px, 8.8vw, 42px); line-height: 1.2; letter-spacing: -.035em; margin-bottom: 20px; }
   .landing-page .landing-intro { max-width: 540px; font-size: 15px; line-height: 1.75; }
-  .landing-page .landing-hero-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 480px; gap: 10px; margin-top: 24px; }
+  .landing-page .landing-hero-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; max-width: none; gap: 10px; margin-top: 24px; }
   .landing-page .landing-hero-actions .studio-button { width: 100%; min-width: 0; min-height: 48px; padding: 10px 12px; gap: 8px; font-size: 13px; line-height: 1.4; white-space: normal; }
-  .landing-page .landing-hero-actions .landing-github-button { grid-column: 1 / -1; }
+  .landing-page .landing-hero-actions .landing-beta-button { grid-column: 1 / -1; }
+  .landing-page .landing-hero-actions .landing-github-button { gap: 6px; }
+  .landing-page .landing-github-stars { padding-left: 6px; font-size: 11px; }
   .landing-page .landing-hero-art { position: relative; width: calc(100% + 20px); height: auto; max-height: 320px; aspect-ratio: 1.5; margin: 28px -20px 0 0; top: auto; right: auto; }
   .landing-page .landing-art-label { right: 13%; font-size: 8px; }
   .landing-page .landing-strip { position: relative; left: auto; bottom: auto; width: 100%; padding: 24px 0; }
@@ -64,27 +64,25 @@
   .landing-page .landing-strip svg { flex-shrink: 0; }
   .landing-page .landing-section h2,
   .landing-page .landing-waymark-heading h2 { font-size: 28px; }
-  .landing-page .landing-waymark-workflow-grid { grid-template-columns: minmax(0, 1fr); max-width: 520px; margin-inline: auto; }
-  .landing-page .landing-waymark-workflow-visual { aspect-ratio: 16 / 9; max-height: 200px; }
+  .landing-page .landing-waymark-workflow-grid { grid-template-columns: minmax(0, 1fr); width: 100%; max-width: none; margin-inline: auto; }
+  .landing-page .landing-waymark-workflow-visual { width: 100%; aspect-ratio: 16 / 9; max-height: none; }
   .landing-page .landing-waymark-workflow-visual :is(.art-document-stack, .art-style-deck, .art-edit-scene, .art-export-scene) { transform: translate(-50%, -50%) scale(.88); }
   .landing-page .landing-audience-selector [data-slot="button"] { padding: 12px 16px; min-height: 48px; }
   .landing-page .landing-audience-selector [data-slot="button"] > span > span:first-child { font-size: 18px; line-height: 1.4; }
   .landing-page .landing-audience-selector [data-slot="button"] .text-muted-foreground { font-size: 15px; line-height: 1.7; }
-  .landing-page .landing-audience-selector .relative.w-full.overflow-hidden { width: 100%; max-width: 400px; aspect-ratio: 4 / 3; }
-  .landing-page .landing-audience-selector .grid > .relative.min-w-0 { max-width: 400px; }
+  .landing-page .landing-audience-selector .relative.w-full.overflow-hidden { width: 100%; max-width: none; aspect-ratio: 4 / 3; }
+  .landing-page .landing-audience-selector .grid > .relative.min-w-0 { width: 100%; max-width: none; }
   .landing-page .landing-cta h2 { font-size: 30px; }
   .landing-page .landing-cta form > div { padding-right: 6px; }
   .landing-page .landing-cta form > div > svg { left: 16px; }
   .landing-page .landing-cta input { padding-left: 44px; }
   .landing-page .landing-feedback > button { right: 16px; bottom: 16px; min-height: 44px; padding: 10px 14px; font-size: 12px; }
-  .landing-page .landing-footer-content > div { flex-flow: row wrap; gap: 8px 24px; }
-  .landing-page .landing-footer-content > div > div:first-child { width: 100%; margin: 0; }
+  .landing-page .landing-footer-content > div { flex-flow: row wrap; gap: 8px 16px; }
+  .landing-page .landing-footer-content > div > div:first-child { width: auto; margin: 0 auto 0 0; }
+  .landing-page .landing-footer-content > div > :is(div, a) { flex-shrink: 0; white-space: nowrap; }
 }
 
 @media (max-width: 479px) {
-  .landing-page .landing-waitlist { margin-top: 64px; }
-  .landing-page .landing-waitlist form { flex-direction: column; }
-  .landing-page .landing-waitlist-submit { width: 100%; min-height: 48px; font-size: 14px; }
 }
 
 @media (max-width: 359px) {

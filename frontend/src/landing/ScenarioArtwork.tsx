@@ -1,5 +1,5 @@
-import { useId } from 'react';
-import grainTexture from './grain.svg';
+import { useEffect, useId, useState } from 'react';
+import { getHeroGrainUrl, HERO_GRAIN_OPACITY } from './heroGrain';
 import './scenario-motion.css';
 
 type Paint = { gradient: string; noise: string };
@@ -7,7 +7,7 @@ type Paint = { gradient: string; noise: string };
 function Grain({ x, y, width, height, paint, radius = 12, className }: {
   x: number; y: number; width: number; height: number; paint: Paint; radius?: number; className?: string;
 }) {
-  return <g className={className} style={{ isolation: 'isolate' }}><rect x={x} y={y} width={width} height={height} rx={radius} fill="var(--studio-paper)" /><rect x={x} y={y} width={width} height={height} rx={radius} fill={paint.gradient} /><rect x={x} y={y} width={width} height={height} rx={radius} fill={paint.noise} opacity=".62" style={{ mixBlendMode: 'screen' }} /></g>;
+  return <g className={className} style={{ isolation: 'isolate' }}><rect x={x} y={y} width={width} height={height} rx={radius} fill="var(--studio-paper)" /><rect x={x} y={y} width={width} height={height} rx={radius} fill={paint.gradient} /><rect x={x} y={y} width={width} height={height} rx={radius} fill={paint.noise} opacity={HERO_GRAIN_OPACITY} style={{ mixBlendMode: 'overlay' }} /></g>;
 }
 
 function Paper({ x, y, width, height }: { x: number; y: number; width: number; height: number }) {
@@ -105,7 +105,7 @@ function Professionals({ paint }: { paint: Paint }) {
     <path className="scene-motion scene-draw scene-delay-2" pathLength="1" d="M110 145l49-29 48-13" fill="none" stroke="var(--studio-ink)" strokeWidth="1.3" opacity=".6" />
     <path d="M200 100l8 3-5 7" fill="none" stroke="var(--studio-ink)" strokeWidth="1.3" opacity=".6" />
     <circle cx="300" cy="143" r="32" fill="none" stroke="var(--studio-line)" strokeWidth="13" />
-    <g className="scene-motion scene-ring" style={{ isolation: 'isolate' }}><circle cx="300" cy="143" r="32" fill="none" stroke="var(--studio-paper)" strokeWidth="13" strokeDasharray="139 202" transform="rotate(-90 300 143)" /><circle cx="300" cy="143" r="32" fill="none" stroke={paint.gradient} strokeWidth="13" strokeDasharray="139 202" transform="rotate(-90 300 143)" /><circle cx="300" cy="143" r="32" fill="none" stroke={paint.noise} strokeWidth="13" strokeDasharray="139 202" transform="rotate(-90 300 143)" opacity=".5" style={{ mixBlendMode: 'screen' }} /></g>
+    <g className="scene-motion scene-ring" style={{ isolation: 'isolate' }}><circle cx="300" cy="143" r="32" fill="none" stroke="var(--studio-paper)" strokeWidth="13" strokeDasharray="139 202" transform="rotate(-90 300 143)" /><circle cx="300" cy="143" r="32" fill="none" stroke={paint.gradient} strokeWidth="13" strokeDasharray="139 202" transform="rotate(-90 300 143)" /><circle cx="300" cy="143" r="32" fill="none" stroke={paint.noise} strokeWidth="13" strokeDasharray="139 202" transform="rotate(-90 300 143)" opacity={HERO_GRAIN_OPACITY} style={{ mixBlendMode: 'overlay' }} /></g>
     <path d="M230 230v20M141 267v-17h178v17" fill="none" stroke="var(--studio-line)" strokeWidth="1.3" />
     {[141, 230, 319].map(x => <g key={x}><rect x={x - 22} y="260" width="44" height="25" rx="7" fill="var(--studio-paper)" stroke="var(--studio-line)" /><circle cx={x - 7} cy="272" r="4" fill="#e6cb79" /><path d={`M${x + 2} 272h10`} stroke="var(--studio-line)" strokeWidth="2" /></g>)}
   </>;
@@ -116,13 +116,15 @@ const scenes = [Beginners, Designers, Educators, Students, Professionals];
 /** Five native vector illustrations share the landing page's gradient and grain texture. */
 export function ScenarioArtwork({ scenario }: { scenario: number }) {
   const id = useId().replace(/:/g, '');
+  const [grainTexture, setGrainTexture] = useState<string>();
+  useEffect(() => { setGrainTexture(getHeroGrainUrl()); }, []);
   const paint = { gradient: `url(#${id}-color)`, noise: `url(#${id}-grain)` };
   const Scene = scenes[scenario - 1] ?? Beginners;
   return <div className="scenario-artwork" data-scenario={scenario} aria-hidden="true">
     <svg viewBox="0 0 480 310" fill="none" focusable="false">
       <defs>
         <linearGradient id={`${id}-color`} x1="0" y1="0" x2="1" y2=".8"><stop stopColor="#fffdf4" stopOpacity=".4" /><stop offset=".5" stopColor="#f9df7a" stopOpacity=".75" /><stop offset="1" stopColor="#f3ca43" /></linearGradient>
-        <pattern id={`${id}-grain`} width="144" height="144" patternUnits="userSpaceOnUse"><image href={grainTexture} width="144" height="144" /></pattern>
+        <pattern id={`${id}-grain`} width="256" height="256" patternUnits="userSpaceOnUse"><image href={grainTexture} width="256" height="256" /></pattern>
       </defs>
       <Scene paint={paint} />
     </svg>
