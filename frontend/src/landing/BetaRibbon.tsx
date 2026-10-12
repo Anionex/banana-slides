@@ -13,6 +13,8 @@ export function BetaRibbon() {
     const button = canvas?.parentElement;
     const context = canvas?.getContext('2d');
     if (!canvas || !button || !context) return;
+    button.style.setProperty('--hero-grain-image', `url("${getHeroGrainUrl()}")`);
+    button.style.setProperty('--hero-grain-opacity', String(HERO_GRAIN_OPACITY));
 
     const render = createRibbonRenderer(context, RIBBON_COLORS, {
       softness: 40, wave: 20, waveFrequency: 0.85, flow: 'horizontal',

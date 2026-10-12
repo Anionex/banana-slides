@@ -1,12 +1,11 @@
 .landing-page footer.landing-footer {
   display: flex;
   align-items: flex-end;
-  min-height: clamp(320px, 32vw, 460px);
+  min-height: clamp(260px, 26.4vw, 380px);
   overflow: hidden;
   isolation: isolate;
 }
-.landing-page .landing-footer-art,
-.landing-page .landing-waitlist-ribbon {
+.landing-page .landing-footer-art {
   position: absolute;
   right: 0;
   bottom: 0;
@@ -19,7 +18,6 @@
 }
 .landing-page .landing-footer-art { z-index: -1; height: 100%; }
 .landing-page .landing-footer-art .footer-ribbon { height: 100%; aspect-ratio: auto; }
-.landing-page .landing-waitlist-ribbon { z-index: 0; }
 .landing-page .footer-ribbon {
   position: relative;
   isolation: isolate;
@@ -37,10 +35,9 @@
   background-image: var(--ribbon-grain);
   background-size: 256px 256px;
   mix-blend-mode: overlay;
-  opacity: var(--ribbon-grain-opacity, .21);
+  opacity: var(--ribbon-grain-opacity, .325);
 }
 @media (max-width: 640px) {
-  .landing-page footer.landing-footer { min-height: 300px; }
-  .landing-page .landing-footer-art,
-  .landing-page .landing-waitlist-ribbon { width: 100%; }
+  .landing-page footer.landing-footer { min-height: 252px; }
+  .landing-page .landing-footer-art { width: 100%; }
 }
