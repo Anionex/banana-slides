@@ -1,12 +1,12 @@
 import { ArrowRight, ArrowUpRight, FileText, Layers, Download, Github, ChevronDown, Sparkles } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
-import { useTranslation } from 'react-i18next';
 import { useT } from '@/hooks/useT';
 import logoUrl from '@/assets/logo.png';
 import './landing.css';
 import { GrainSteps } from './GrainSteps';
 import { BetaRibbon } from './BetaRibbon';
 import { GithubStars } from './GithubStars';
+import { LanguageMenu } from './LanguageMenu';
 import { ProductShowcase, AudienceShowcase } from './TemplateSections';
 import { Footer } from './Footer';
 import { FeedbackWidget } from '@/components/shared/FeedbackWidget';
@@ -77,7 +77,6 @@ const githubUrl = 'https://github.com/Anionex/banana-slides';
 
 export function Landing() {
   const t = useT(copy);
-  const { i18n } = useTranslation();
   const [expanded, setExpanded] = useState<number | null>(null);
   const [footerVisible, setFooterVisible] = useState(false);
   useEffect(() => {
@@ -120,7 +119,7 @@ export function Landing() {
     <ScrollHeader label={t('product')}
       brand={<a href="/" className="brand" aria-label="Banana Slides"><img src={logoUrl} alt="" width="32" height="32" /><span>Banana Slides</span></a>}
       navigation={<><a href="#product">{t('product')}</a><a href="#scenarios">{t('scenarios')}</a><a href="#faq">{t('faq')}</a><a href="#landing-cta">{t('waitlistNav')}</a><a href="https://docs.bananaslides.online" target="_blank" rel="noopener noreferrer">{t('docs')}</a></>}
-      actions={<><a className="landing-github-icon" href={githubUrl} target="_blank" rel="noopener noreferrer" aria-label="GitHub"><Github size={19} aria-hidden="true" /></a><button aria-label={i18n.language?.startsWith('zh') ? 'Switch to English' : '切换为中文'} onClick={() => i18n.changeLanguage(i18n.language?.startsWith('zh') ? 'en' : 'zh')}>{i18n.language?.startsWith('zh') ? 'EN' : '中文'}</button><a className="studio-button studio-button-dark" href="/app">{t('enter')}<ArrowUpRight size={15} /></a></>}
+      actions={<><a className="landing-github-icon" href={githubUrl} target="_blank" rel="noopener noreferrer" aria-label="GitHub"><Github size={19} aria-hidden="true" /></a><LanguageMenu /><a className="studio-button studio-button-dark" href="/app">{t('enter')}<ArrowUpRight size={15} /></a></>}
     />
     <main>
       <section className="landing-hero">
