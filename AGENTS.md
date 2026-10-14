@@ -1,5 +1,7 @@
 # Project notes
 
+- 补发历史版本 Docker 镜像时，先解析发布标签的完整 SHA，并核对 `build-sha-image.yml` 是否覆盖 `main` 的打包文件；精确补发应关闭该覆盖，避免引用目标版本没有的构建命令。发布后核对 all-in-one、backend、frontend 的双架构清单、构建来源与版本标签；RC 标签不自动提升为 `latest`。
+
 - 同一项目的素材工具箱会从多个入口同时挂载；任务列表和轮询必须按项目共享，验收跨入口提交、关闭其中一个入口及重新挂载，避免覆盖任务或重复轮询。
 
 - `main` 只承载通用开源功能。`bananaslides.online` 专属的 Landing、内测预约、站内反馈、公开 Demo、访客隔离、管理员入口及其配置/迁移只能进入 `production/bananaslides-online`；默认关闭的开关不等于分支隔离。官网任务创建分支和 PR 前必须核对基线与目标分支，未经用户明确要求不得“同步主线”。
