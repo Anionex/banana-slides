@@ -4,7 +4,7 @@
  * Audience section retains the centered heading and uses Flexnative Feature01.
  * Existing five-item content wraps naturally; artwork and copy remain local.
  */
-.landing-page .landing-waymark { --landing-art-surface: #fffdfa; display: block; padding: 128px 64px; }
+.landing-page .landing-waymark { --landing-art-surface: #f4f2e9; display: block; padding: 128px 64px; }
 .landing-page .landing-waymark-workflow { --landing-art-surface: #fff5df; }
 .landing-page .landing-waymark-features { padding: 112px 48px; }
 .landing-waymark-container { max-width: 1152px; margin-inline: auto; }
