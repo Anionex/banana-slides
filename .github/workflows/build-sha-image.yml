@@ -25,6 +25,11 @@ on:
         required: false
         type: boolean
         default: false
+      overlay_main_dockerfiles:
+        description: 'Use Docker packaging from main instead of the target SHA'
+        required: false
+        type: boolean
+        default: true
 
 concurrency:
   group: build-sha-${{ inputs.sha }}
@@ -34,6 +39,7 @@ jobs:
   build-and-push:
     name: Build ${{ inputs.image_type }} image(s) at SHA
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,6 +56,7 @@ jobs:
           echo "build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
 
       - name: Overlay Dockerfiles from main
+        if: ${{ inputs.overlay_main_dockerfiles }}
         run: |
           git fetch origin main
           if [[ "${{ inputs.image_type }}" != "split" ]]; then
