@@ -58,7 +58,7 @@
 }
 @keyframes landing-hero-grain-flow {
  from { background-position: 0 0; }
- to { background-position: 256px 0; }
+ to { background-position: 0 256px; }
 }
 .landing-page .landing-hero-art .grain-wash { position: absolute; inset: 0; pointer-events: none; }
 .landing-page .landing-hero-art .grain-wash::before {

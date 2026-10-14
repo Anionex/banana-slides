@@ -37,6 +37,7 @@ export function AudienceShowcase({ t }: SectionProps) {
     <div className="landing-waymark-container">
       <Reveal><header className="landing-waymark-heading">
         <h2 id="landing-audience-title">{t('scenarioTitle')}</h2>
+        <p className="landing-waymark-intro">{t('scenarioIntro')}</p>
       </header></Reveal>
       <div className="landing-audience-selector">
         <Feature01 animation="subtle" label={t('scenarios')} items={[1, 2, 3, 4, 5].map(scenario => ({

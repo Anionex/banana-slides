@@ -4,14 +4,15 @@
  * Audience section retains the centered heading and uses Flexnative Feature01.
  * Existing five-item content wraps naturally; artwork and copy remain local.
  */
-.landing-page .landing-waymark { display: block; padding: 128px 64px; }
+.landing-page .landing-waymark { --landing-art-surface: #f4f2e9; display: block; padding: 128px 64px; }
+.landing-page .landing-waymark-workflow { --landing-art-surface: #fff5df; }
 .landing-page .landing-waymark-features { padding: 112px 48px; }
 .landing-waymark-container { max-width: 1152px; margin-inline: auto; }
 .landing-waymark-heading { max-width: 768px; margin-inline: auto; text-align: center; }
 .landing-page .landing-waymark-heading h2 { margin: 0; font-size: 36px; line-height: 1.15; font-weight: 600; letter-spacing: -.9px; text-wrap: balance; }
 .landing-waymark-intro { max-width: 672px; margin: 20px auto 0; font-size: 16px; line-height: 28px; color: var(--text-secondary); }
 .landing-waymark-workflow-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-top: 48px; }
-.landing-waymark-workflow-visual { aspect-ratio: 16 / 10; overflow: hidden; border: 1px solid #e5e5e54d; border-radius: 18px; background: #fff5df; }
+.landing-waymark-workflow-visual { aspect-ratio: 16 / 10; overflow: hidden; border: 1px solid #e5e5e54d; border-radius: 18px; background: var(--landing-art-surface); }
 .landing-page .landing-waymark-workflow-visual .feature-artwork { height: 100%; background: transparent; }
 .landing-waymark-caption { padding-top: 20px; }
 .landing-waymark h3 { margin: 0; font-size: 20px; line-height: 25px; font-weight: 500; letter-spacing: -.3px; }
@@ -29,7 +30,7 @@
 .landing-audience-selector [data-slot="button"][aria-current="true"] { background: #f7f7f5; color: var(--text-primary); }
 .landing-audience-selector [data-slot="button"]:focus-visible { outline: 2px solid #b49543; outline-offset: 3px; }
 .landing-audience-selector [data-slot="button"] .text-muted-foreground { padding-top: 10px; color: var(--text-secondary); white-space: pre-line; font-size: 15px; line-height: 26px; }
-.landing-audience-selector .relative.w-full.overflow-hidden { min-height: 0; height: auto; max-width: 400px; aspect-ratio: 4 / 5; justify-self: end; outline: none; border: 1px solid var(--studio-line); border-radius: 18px; background: #fafaf8; }
+.landing-audience-selector .relative.w-full.overflow-hidden { min-height: 0; height: auto; max-width: 400px; aspect-ratio: 4 / 5; justify-self: end; outline: none; border: 1px solid var(--studio-line); border-radius: 18px; background: var(--landing-art-surface); }
 .landing-audience-selector .relative.w-full.overflow-hidden > [aria-hidden="true"] { pointer-events: none; }
 .landing-page .landing-audience-selector .scenario-artwork { display: flex; justify-content: center; align-items: center; max-width: none; height: 100%; padding: 16px; }
 .landing-page .landing-audience-selector .scenario-artwork > svg { width: 100%; height: 100%; max-width: 560px; }
