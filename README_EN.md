@@ -2,7 +2,7 @@
 <div align="center">
 
 <p>
-  <img src="https://github.com/user-attachments/assets/81fe6816-44cc-4c61-97c7-f3c099650966" alt="Banana Slides" width="860">
+  <img src="./assets/hero.png" alt="Banana Slides — Vibe your way to great slides." width="860">
 </p>
 <p>
   <a href="https://trendshift.io/repositories/22056" target="_blank">
