@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="145" height="46" viewBox="0 0 145 46" role="img" aria-label="在线 Demo">
+<svg xmlns="http://www.w3.org/2000/svg" width="170" height="46" viewBox="0 0 170 46" role="img" aria-label="在线 Demo">
   <title>在线 Demo</title>
-  <rect x="0.5" y="3.5" width="144" height="39" rx="8" fill="#FFD52C" stroke="#EBC327"/>
-  <g transform="translate(12 15) scale(.666667)" fill="none" stroke="#29270D" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></g>
-  <text x="84.5" y="27" text-anchor="middle" fill="#29270D" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="12" font-weight="600">在线 Demo</text>
+  <rect x="0.5" y="3.5" width="169" height="39" rx="8" fill="#FFD52C" stroke="#EBC327"/>
+  <g transform="translate(45 15) scale(.666667)" fill="none" stroke="#29270D" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></g>
+  <text x="97" y="27" text-anchor="middle" fill="#29270D" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="12" font-weight="600">在线 Demo</text>
 </svg>
