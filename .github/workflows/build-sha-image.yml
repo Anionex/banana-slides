@@ -25,6 +25,16 @@ on:
         required: false
         type: boolean
         default: false
+      overlay_main_dockerfiles:
+        description: 'Use Docker packaging from main instead of the target SHA'
+        required: false
+        type: boolean
+        default: true
+      verify_only:
+        description: 'Verify already published images without rebuilding (requires tag)'
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: build-sha-${{ inputs.sha }}
@@ -32,8 +42,10 @@ concurrency:
 
 jobs:
   build-and-push:
+    if: ${{ !inputs.verify_only }}
     name: Build ${{ inputs.image_type }} image(s) at SHA
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,6 +62,7 @@ jobs:
           echo "build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
 
       - name: Overlay Dockerfiles from main
+        if: ${{ inputs.overlay_main_dockerfiles }}
         run: |
           git fetch origin main
           if [[ "${{ inputs.image_type }}" != "split" ]]; then
@@ -137,6 +150,7 @@ jobs:
             APP_COMMIT_SHA=${{ steps.resolve.outputs.full_sha }}
             APP_COMMIT_SHORT_SHA=${{ steps.resolve.outputs.short_sha }}
             APP_VERSION_TAG=${{ inputs.tag }}
+
             APP_BUILD_DATE=${{ steps.resolve.outputs.build_date }}
 
       - name: Build and push backend image
@@ -178,3 +192,39 @@ jobs:
             APP_COMMIT_SHA=${{ steps.resolve.outputs.full_sha }}
             APP_COMMIT_SHORT_SHA=${{ steps.resolve.outputs.short_sha }}
             APP_VERSION_TAG=${{ inputs.tag }}
+
+  verify-published:
+    name: Verify published Docker release
+    if: ${{ inputs.verify_only }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Verify source, version and multi-platform manifests
+        env:
+          VERSION: ${{ inputs.tag }}
+          SOURCE_SHA: ${{ inputs.sha }}
+        run: >-
+          python3 scripts/docker-release/verify_release.py
+          --version "$VERSION" --sha "$SOURCE_SHA"
+          --output scripts/docker-release/verification.json
+      - name: Smoke-test all-in-one and split containers
+        env:
+          VERSION: ${{ inputs.tag }}
+        run: python3 scripts/docker-release/smoke_release.py --version "$VERSION"
+      - name: Upload verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-release-verification
+          path: |
+            scripts/docker-release/verification.json
+            scripts/docker-release/smoke-both.json
+            scripts/docker-release/banana-rc-smoke-*.log
+          retention-days: 30
