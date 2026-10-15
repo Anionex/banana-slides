@@ -65,7 +65,7 @@ export function SettingsProviderPicker({
               selected={isSelected}
               disabled={isDisabled}
               hint={hint}
-              promotion={hoverPlanKey}
+              promotion={hoverPlan ? hoverPlanKey : null}
               describedBy={
                 hoverPlan ? `${hoverPlan.testId}-popover` : undefined
               }
