@@ -1,12 +1,12 @@
-These OFL-licensed fonts are used only to generate the README hero, not loaded by the app.
+The README hero is a transparent PNG, 1920 × 480 pixels, with light and dark
+lettering variants. Its lettering comes from the approved image-generation draft;
+the logo is composited directly from
+`desktop/resources/BananaSlides.icon/Assets/brand-logo.png` without redrawing.
+The two variants have identical alpha channels and logo pixels.
 
-- Fredoka: https://fonts.google.com/specimen/Fredoka — `fonts/Fredoka-OFL.txt`
-- Nunito: https://fonts.google.com/specimen/Nunito — `fonts/Nunito-OFL.txt`
-
-The variable TTF files come from Google Fonts' `ofl/fredoka` and `ofl/nunito` directories.
-Run `uv run scripts/generate_readme_hero.py` from the repository root to regenerate
-both transparent SVGs. The script embeds the existing desktop logo and outlines
-the text, so GitHub needs no external fonts or image dependencies.
+The AIHubMix sponsor logo retains its original icon and letter shapes. Its white
+rectangle is removed, with a thin white outline around the black lettering for
+contrast on dark backgrounds.
 
 The README uses `<picture>` to select a light or dark hero. HelloGitHub also
 supports `theme=dark` (light fallback: `theme=neutral`). Trendshift's official

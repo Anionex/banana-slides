@@ -3,9 +3,9 @@
 
 <p>
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./assets/hero-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="./assets/hero-light.svg">
-    <img src="./assets/hero-light.svg" alt="Banana Slides — Vibe your way to great slides." width="860">
+    <source media="(prefers-color-scheme: dark)" srcset="./assets/hero-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="./assets/hero-light.png">
+    <img src="./assets/hero-light.png" alt="Banana Slides — Vibe your way to great slides." width="860">
   </picture>
 </p>
 <p>
