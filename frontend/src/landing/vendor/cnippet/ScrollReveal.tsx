@@ -44,7 +44,7 @@ export function ScrollReveal({
     as as keyof typeof motion
   ] as typeof motion.div;
 
-  if (reduce) {
+  if (reduce || typeof window === 'undefined') {
     const Component = as;
     return <Component>{children}</Component>;
   }

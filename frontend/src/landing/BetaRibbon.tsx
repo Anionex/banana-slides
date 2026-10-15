@@ -1,3 +1,4 @@
+import { useLandingTheme } from './LandingTheme';
 import { useEffect, useRef } from 'react';
 import { getHeroGrainUrl, HERO_GRAIN_OPACITY } from './heroGrain';
 import { createRibbonRenderer, RIBBON_COLORS } from './ribbonField';
@@ -7,6 +8,7 @@ import './beta-ribbon.css';
 const flowSpeed = 0.55;
 
 export function BetaRibbon() {
+  const { dark } = useLandingTheme();
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const canvas = ref.current;
@@ -16,7 +18,7 @@ export function BetaRibbon() {
     button.style.setProperty('--hero-grain-image', `url("${getHeroGrainUrl()}")`);
     button.style.setProperty('--hero-grain-opacity', String(HERO_GRAIN_OPACITY));
 
-    const render = createRibbonRenderer(context, RIBBON_COLORS, {
+    const render = createRibbonRenderer(context, dark ? ['#242424', '#33302a', '#4e422d', '#63532c'] : RIBBON_COLORS, {
       softness: 40, wave: 20, waveFrequency: 0.85, flow: 'horizontal',
     });
     let ratio = 1;
@@ -32,7 +34,7 @@ export function BetaRibbon() {
         context.save();
         context.scale(ratio, ratio);
         context.globalCompositeOperation = 'overlay';
-        context.globalAlpha = HERO_GRAIN_OPACITY;
+        context.globalAlpha = HERO_GRAIN_OPACITY * (dark ? .65 : 1);
         context.fillStyle = texture;
         context.fillRect(0, 0, canvas.width / ratio, canvas.height / ratio);
         context.restore();
@@ -75,6 +77,6 @@ export function BetaRibbon() {
       grain.onload = null;
       delete button.dataset.betaRibbon;
     };
-  }, []);
+  }, [dark]);
   return <canvas ref={ref} className="beta-ribbon" aria-hidden="true" />;
 }
