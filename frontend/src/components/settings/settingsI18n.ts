@@ -159,19 +159,6 @@ export const settingsI18n = {
       },
       apimartApiKeyTip: { before: "当前已选择 APIMart，请前往 ", linkLabel: "APIMart 获取 API Key", after: "" },
       providerComparison: {
-        apimart: {
-          name: "APIMart",
-          providerHint: "仅需 $0.006/张",
-          tagline: "低价生图 · 按量付费",
-          suitedFor: "适合：高频图片生成、批量出图或关注使用成本",
-          point1: "GPT-Image-2 低至 $0.006/张",
-          point2: "1 美元可生成 160+ 张图片",
-          point3: "按量付费、无月费",
-          cta: "使用 APIMart",
-          active: "当前方案",
-          link: "注册并获取 API Key →",
-          note: "自动填入 APIMart 端点和推荐模型",
-        },
         volcengine: {
           name: "火山 Agent Plan",
           tagline: "国内直连 · 高性价比",
@@ -412,19 +399,6 @@ export const settingsI18n = {
       },
       apimartApiKeyTip: { before: "APIMart is selected. Get an API key from ", linkLabel: "APIMart", after: "" },
       providerComparison: {
-        apimart: {
-          name: "APIMart",
-          providerHint: "Only $0.006/image",
-          tagline: "Low-cost images · Pay as you go",
-          suitedFor: "Best for: frequent image generation, batch workloads, or cost-conscious usage",
-          point1: "GPT-Image-2 from $0.006 per image",
-          point2: "Generate 160+ images per dollar",
-          point3: "Pay as you go with no monthly fee",
-          cta: "Use APIMart",
-          active: "Current plan",
-          link: "Sign up and get an API key →",
-          note: "Fills the APIMart endpoint and recommended models automatically",
-        },
         volcengine: {
           name: "Volcengine Agent Plan",
           tagline: "Direct access · Cost-effective",

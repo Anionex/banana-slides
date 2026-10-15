@@ -57,7 +57,7 @@ interface ServiceTestState {
 }
 
 const INFERERA_AFFILIATE_URL = 'https://api.inferera.com/?aff=17EC';
-const APIMART_SIGNUP_URL = 'https://go.apimart.ai/gh-banana-slides';
+const APIMART_SIGNUP_URL = 'https://apimart.ai/';
 const OPENAI_BASE_URL = 'https://api.openai.com/v1';
 const APIMART_BASE_URL = 'https://api.apimart.ai/v1';
 const VOLCENGINE_AGENTPLANS_CN_URL = 'https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides';
@@ -1223,29 +1223,9 @@ export const Settings: React.FC = () => {
     handleFieldChange('ai_provider_format', provider, oauthConnected);
   };
 
-  const isApimartPlanActive = usesApimartProvider;
   const isVolcenginePlanActive = formData.ai_provider_format === 'volcengine';
 
   const providerPromotions = [
-    {
-      key: 'apimart',
-      testId: 'provider-plan-apimart',
-      active: isApimartPlanActive,
-      name: t('settings.providerComparison.apimart.name'),
-      tagline: t('settings.providerComparison.apimart.tagline'),
-      suitedFor: t('settings.providerComparison.apimart.suitedFor'),
-      points: [
-        t('settings.providerComparison.apimart.point1'),
-        t('settings.providerComparison.apimart.point2'),
-        t('settings.providerComparison.apimart.point3'),
-      ],
-      cta: t('settings.providerComparison.apimart.cta'),
-      activeLabel: t('settings.providerComparison.apimart.active'),
-      note: t('settings.providerComparison.apimart.note'),
-      onSelect: selectApimartProvider,
-      href: APIMART_SIGNUP_URL,
-      linkLabel: t('settings.providerComparison.apimart.link'),
-    },
     {
       key: 'volcengine',
       testId: 'provider-plan-volcengine',
@@ -1742,7 +1722,7 @@ export const Settings: React.FC = () => {
                 label={t('settings.fields.aiProviderFormat')}
                 globalProviderSources={globalProviderSources.map(option => ({ ...option,
                   hint: option.value === 'volcengine' ? t('settings.volcenginePromo.providerHint')
-                    : option.value === 'apimart' ? t('settings.providerComparison.apimart.providerHint') : null,
+                    : null,
                 }))}
                 selectedGlobalProvider={selectedGlobalProvider}
                 providerPromotions={providerPromotions}

@@ -50,6 +50,12 @@ test.describe('Settings: promoted provider pills', () => {
   test.use({ locale: 'zh-CN' });
 
   test.beforeEach(async ({ page }) => {
+    await page.route('**/api/access-code/check', route =>
+      route.fulfill({ json: { success: true, data: { enabled: false } } })
+    );
+  });
+
+  test.beforeEach(async ({ page }) => {
     await page.route(url => url.pathname === '/api/settings', route =>
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockSettings()) })
     );
@@ -70,7 +76,8 @@ test.describe('Settings: promoted provider pills', () => {
     const doubao = page.locator('[data-provider="doubao"]');
 
     await expect(gemini).not.toHaveAttribute('aria-describedby', /.+/);
-    await expect(apimart).toContainText('仅需 $0.006/张');
+    await expect(apimart).toHaveText('APIMart');
+    await expect(apimart).not.toHaveAttribute('aria-describedby', /.+/);
     await expect(volcengine).toContainText('国内直连');
     await expect(volcengine).not.toContainText('高性价比');
     await expect(doubao).not.toContainText('国内直连');
@@ -83,11 +90,7 @@ test.describe('Settings: promoted provider pills', () => {
     await expect(volcenginePromo).not.toBeVisible();
 
     await apimart.hover();
-    await expect(apimartPromo).toBeVisible();
-    await expect(apimartPromo.getByText('GPT-Image-2 低至 $0.006/张')).toBeVisible();
-    await expect(apimartPromo.getByText('1 美元可生成 160+ 张图片')).toBeVisible();
-    await expect(apimartPromo.getByRole('link', { name: '注册并获取 API Key →' }))
-      .toHaveAttribute('href', 'https://go.apimart.ai/gh-banana-slides');
+    await expect(apimartPromo).toHaveCount(0);
 
     await volcengine.hover();
     await expect(apimartPromo).not.toBeVisible();
@@ -96,10 +99,11 @@ test.describe('Settings: promoted provider pills', () => {
     await expect(volcenginePromo.getByText('国内直连，无需特殊网络环境')).toBeVisible();
   });
 
-  test('applies APIMart from its hover panel', async ({ page }) => {
+  test('keeps APIMart available without sponsorship promotion', async ({ page }) => {
     const apimart = page.locator('[data-provider="apimart"]');
     await apimart.hover();
-    await page.getByTestId('provider-plan-apimart').getByRole('button', { name: '使用 APIMart' }).click();
+    await expect(page.getByTestId('provider-plan-apimart')).toHaveCount(0);
+    await apimart.click();
 
     await expect(apimart).toHaveAttribute('aria-checked', 'true');
     await expect(page.getByTestId('global-api-config-section').locator('input').first())
