@@ -2,7 +2,11 @@
 <div align="center">
 
 <p>
-  <img src="./assets/hero.png" alt="Banana Slides — Vibe your way to great slides." width="860">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./assets/hero-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="./assets/hero-light.svg">
+    <img src="./assets/hero-light.svg" alt="Banana Slides — Vibe your way to great slides." width="860">
+  </picture>
 </p>
 <p>
   <a href="https://trendshift.io/repositories/22056" target="_blank">
@@ -10,7 +14,11 @@
   </a>
   <br>
   <a href="https://hellogithub.com/repository/Anionex/banana-slides" target="_blank">
-    <img src="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=c8a0ee51918e4353af08012b8472b85e&claim_uid=CtDTm2jbUHhVGBr&theme=neutral" alt="Featured｜HelloGitHub" width="265" height="58">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=c8a0ee51918e4353af08012b8472b85e&amp;claim_uid=CtDTm2jbUHhVGBr&amp;theme=dark">
+      <source media="(prefers-color-scheme: light)" srcset="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=c8a0ee51918e4353af08012b8472b85e&amp;claim_uid=CtDTm2jbUHhVGBr&amp;theme=neutral">
+      <img src="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=c8a0ee51918e4353af08012b8472b85e&amp;claim_uid=CtDTm2jbUHhVGBr&amp;theme=neutral" alt="Featured｜HelloGitHub" width="265" height="58">
+    </picture>
   </a>
 </p>
 <p>
