@@ -120,7 +120,10 @@ export function PublicSettings({ embedded = false }: { embedded?: boolean }) {
   }, []);
   const set = (key: string, value: string | number | boolean) =>
     setData((prev) => ({ ...prev, [key]: value }));
-  const partner = publicPartners[String(data.partner)];
+  const selectedPartner = publicPartners[String(data.partner)];
+  const partner = selectedPartner && data.partner === "apimart"
+    ? { ...selectedPartner, signup: "https://apimart.ai/" }
+    : selectedPartner;
   const copyProviderLink = async (url = partner?.signup) => {
     if (!url) return;
     try {
@@ -313,7 +316,7 @@ export function PublicSettings({ embedded = false }: { embedded?: boolean }) {
   );
   const description = (key: string) => t(`settings.fields.${key}`);
   const providerId = String(data.partner);
-  const promotions = ["apimart", "volcengine"].map((id) => ({
+  const promotions = ["volcengine"].map((id) => ({
     key: id,
     testId: `provider-plan-${id}`,
     active: providerId === id,
@@ -405,13 +408,9 @@ export function PublicSettings({ embedded = false }: { embedded?: boolean }) {
                           value: id,
                           label: publicPartners[id].name,
                           hint:
-                            id === "apimart"
-                              ? t(
-                                  "settings.providerComparison.apimart.providerHint",
-                                )
-                              : id === "volcengine"
-                                ? t("settings.volcenginePromo.providerHint")
-                                : undefined,
+                            id === "volcengine"
+                              ? t("settings.volcenginePromo.providerHint")
+                              : undefined,
                         }))}
                     />
                     <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">

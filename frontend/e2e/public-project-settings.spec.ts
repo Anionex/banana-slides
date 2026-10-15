@@ -51,7 +51,7 @@ for (const partner of ['inferera', 'apimart', 'volcengine']) {
     const select = page.getByRole('radiogroup', { name: 'API 提供商', exact: true });
     await expect(select).toBeVisible();
     await expect(select.getByRole('radio')).toHaveCount(3);
-    await expect(select).toContainText('仅需 $0.006/张');
+    await expect(select).not.toContainText('$0.006');
     await expect(select).toContainText('国内直连');
     await expect(page.getByRole('heading', { name: '个人设置', exact: true })).toBeVisible();
     await expect(page.getByText('这些设置仅应用于你的请求，其他访客不受影响。')).toBeVisible();
@@ -122,7 +122,7 @@ test('mock non-demo: project modal retains the full global settings', async ({ p
   await expect(page.getByRole('radio', { name: 'Gemini', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: '个人设置', exact: true })).toHaveCount(0);
   await page.getByRole('radio', { name: /APIMart/ }).hover();
-  await expect(page.getByText('按量付费、无月费', { exact: true })).toBeVisible();
+  await expect(page.getByTestId('provider-plan-apimart')).toHaveCount(0);
 });
 
 for (const width of [1440, 390]) {
@@ -133,10 +133,10 @@ for (const width of [1440, 390]) {
       await publicProvider(page, provider).click();
       await expect(publicProvider(page, provider)).toHaveAttribute('aria-checked', 'true');
       await expectFixedSettingsHidden(page);
-      if (provider !== 'inferera') {
+      if (provider === 'volcengine') {
         await page.getByRole('heading', { name: '个人设置', exact: true }).hover();
         await publicProvider(page, provider).hover();
-        await expect(page.getByTestId(`provider-plan-${provider}`)).toContainText(provider === 'apimart' ? '按量付费' : '国内直连');
+        await expect(page.getByTestId(`provider-plan-${provider}`)).toContainText('国内直连');
       }
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
@@ -195,12 +195,11 @@ test('modal presentation matches full settings fields and provider details', asy
   const personal = await styles();
   await page.locator('[data-provider="apimart"]').hover();
   const promo = page.getByTestId('provider-plan-apimart');
-  await expect(promo).toHaveCSS('opacity', '1');
-  await expect(promo).toContainText('1 美元可生成 160+ 张图片');
-  await promo.getByRole('button').click();
+  await expect(promo).toHaveCount(0);
+  await publicProvider(page, 'apimart').click();
   await expect(promo).toHaveCount(0);
   await publicProvider(page, 'apimart').focus();
-  await expect(promo).toBeVisible();
+  await expect(promo).toHaveCount(0);
   await publicProvider(page, 'apimart').press('Enter');
   await expect(promo).toHaveCount(0);
   await expect(publicProvider(page, 'apimart')).toHaveAttribute('aria-checked', 'true');
@@ -218,6 +217,5 @@ test('modal presentation matches full settings fields and provider details', asy
   expect(await styles()).toEqual(personal);
   await page.screenshot({ path: test.info().outputPath('original-modal.png'), animations: 'disabled' });
   await page.locator('[data-provider="apimart"]').hover();
-  await expect(promo).toHaveCSS('opacity', '1');
-  await expect(promo).toContainText('1 美元可生成 160+ 张图片');
+  await expect(promo).toHaveCount(0);
 });

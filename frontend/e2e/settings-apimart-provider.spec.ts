@@ -61,8 +61,8 @@ test.describe('Settings APIMart provider pill', () => {
     await expect(apimartPill).toHaveAttribute('aria-checked', 'true');
     await expect(page.getByText('如何获取 APIMart API Key')).toBeVisible();
     await expect(page.getByRole('link', { name: '打开 APIMart →' }))
-      .toHaveAttribute('href', 'https://go.apimart.ai/gh-banana-slides');
-    await expect(apimartPill).toContainText('仅需 $0.006/张');
+      .toHaveAttribute('href', 'https://apimart.ai/');
+    await expect(apimartPill).toHaveText('APIMart');
 
     const modelProviderOptions = page.locator('select').filter({ has: page.locator('option[value=""]') });
     await expect(modelProviderOptions.first().locator('option[value="apimart"]')).toHaveCount(0);

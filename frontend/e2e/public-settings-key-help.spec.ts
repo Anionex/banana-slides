@@ -7,7 +7,7 @@ test.describe.configure({ mode: 'serial' });
 
 const providers = [
   { id: 'inferera', name: 'Inferera', url: 'https://inferera.com/?aff=17EC' },
-  { id: 'apimart', name: 'APIMart', url: 'https://go.apimart.ai/gh-banana-slides' },
+  { id: 'apimart', name: 'APIMart', url: 'https://apimart.ai/' },
   { id: 'volcengine', name: '火山 Agent Plan', url: 'https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides' },
 ];
 
