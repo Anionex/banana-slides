@@ -44,6 +44,9 @@
 # 忽略临时文档，但保留项目文档
 *.md
 !README.md
+!README_*.md
+!docs/readme-i18n.md
+/.cache/readme-i18n/
 !skills/**/*.md
 # !docs/**/*.md
 !docs/specs/cli-spec.md
@@ -66,6 +69,10 @@ generate-example.py
 .cursor/worktrees.json
 uploads/
 !assets/*
+!assets/buttons/*.svg
+!assets/readme/*.svg
+!assets/readme/lucide-icons.json
+!assets/readme/LUCIDE-LICENSE.txt
 
 # 镜像源配置脚本的备份文件
 *.orig
