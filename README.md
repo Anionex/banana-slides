@@ -1,56 +1,73 @@
+<!-- i18n:hero -->
 [//]: # "Banana Slides is an AI-native PPT generation app for creating editable presentations from ideas, outlines, documents, images, and custom templates. Features: prompt-to-slide generation, template control, material parsing, conversational editing, PPTX export, project history, and reproducible workflows. Quick Start / Install / Usage / Demo / API / Deploy / Architecture / Test / Screenshot guides are provided for local Docker deployment and online use."
 <div align="center">
 
 <p>
-  <a href="./assets/hero-dark.png#gh-dark-mode-only"><img src="./assets/hero-dark.png#gh-dark-mode-only" alt="Banana Slides — Vibe your way to great slides." width="860"></a>
-  <a href="./assets/hero-light.png#gh-light-mode-only"><img src="./assets/hero-light.png#gh-light-mode-only" alt="Banana Slides — Vibe your way to great slides." width="860"></a>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="./assets/hero-dark.png"><source media="(prefers-color-scheme: light)" srcset="./assets/hero-light.png"><img src="./assets/hero-light.png" alt="Banana Slides — Vibe your way to great slides." width="520" height="130"></picture>
 </p>
+
+<!-- readme:languages -->
+<p><a href="README.md"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/language-zh-selected-zh-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/language-zh-selected-zh-light.svg"><img src="./assets/buttons/language-zh-selected-zh-light.svg" alt="简体中文" width="86" height="24"></picture></a><a href="README_EN.md"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/language-en-selected-zh-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/language-en-selected-zh-light.svg"><img src="./assets/buttons/language-en-selected-zh-light.svg" alt="English" width="82" height="24"></picture></a><a href="README_PT-BR.md"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/language-pt-br-selected-zh-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/language-pt-br-selected-zh-light.svg"><img src="./assets/buttons/language-pt-br-selected-zh-light.svg" alt="Português" width="98" height="24"></picture></a><a href="README_JA.md"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/language-ja-selected-zh-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/language-ja-selected-zh-light.svg"><img src="./assets/buttons/language-ja-selected-zh-light.svg" alt="日本語" width="72" height="24"></picture></a><a href="README_KO.md"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/language-ko-selected-zh-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/language-ko-selected-zh-light.svg"><img src="./assets/buttons/language-ko-selected-zh-light.svg" alt="한국어" width="72" height="24"></picture></a></p>
+<!-- /readme:languages -->
+
+<!-- readme:intro -->
 <p>
-  <a href="https://trendshift.io/repositories/22056#gh-dark-mode-only" target="_blank"><img src="./assets/badge-trendshift-dark.svg#gh-dark-mode-only" alt="Anionex%2Fbanana-slides | Trendshift" width="265" height="58"></a>
-  <a href="https://trendshift.io/repositories/22056#gh-light-mode-only" target="_blank"><img src="https://trendshift.io/api/badge/repositories/22056#gh-light-mode-only" alt="Anionex%2Fbanana-slides | Trendshift" width="265" height="58"></a>
-  <br>
-  <a href="https://hellogithub.com/repository/Anionex/banana-slides#gh-dark-mode-only" target="_blank"><img src="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=c8a0ee51918e4353af08012b8472b85e&amp;claim_uid=CtDTm2jbUHhVGBr&amp;theme=dark#gh-dark-mode-only" alt="Featured｜HelloGitHub" width="265" height="58"></a>
-  <a href="https://hellogithub.com/repository/Anionex/banana-slides#gh-light-mode-only" target="_blank"><img src="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=c8a0ee51918e4353af08012b8472b85e&amp;claim_uid=CtDTm2jbUHhVGBr&amp;theme=neutral#gh-light-mode-only" alt="Featured｜HelloGitHub" width="265" height="58"></a>
+  基于图像生成模型的原生 AI PPT 应用，几分钟内将想法变成演示文稿，<br>
+  无需繁琐排版，用自然语言修改，体验真正的「Vibe PPT」。
 </p>
+<!-- /readme:intro -->
+
+<!-- readme:actions -->
 <p>
-  <a href="#-项目缘起"><b>简体中文</b></a>
-  &nbsp;•&nbsp;
-  <a href="README_EN.md"><b>English</b></a>
+  <a href="https://bananaslides.online/"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/demo-zh-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/demo-zh.svg"><img src="./assets/buttons/demo-zh.svg" alt="在线 Demo" width="145" height="46"></picture></a>
+  &nbsp;
+  <a href="https://docs.bananaslides.online/"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/docs-zh-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/docs-zh.svg"><img src="./assets/buttons/docs-zh.svg" alt="文档" width="80" height="46"></picture></a>
+  &nbsp;
+  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.7"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/desktop-zh-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/desktop-zh.svg"><img src="./assets/buttons/desktop-zh.svg" alt="桌面版 RC7" width="120" height="46"></picture></a>
+  &nbsp;
+  <a href="https://github.com/Anionex/banana-slides#-%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/deploy-zh-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/deploy-zh.svg"><img src="./assets/buttons/deploy-zh.svg" alt="部署方法" width="105" height="46"></picture></a>
 </p>
+<!-- /readme:actions -->
+
 <p>
-  <a href="https://github.com/Anionex/banana-slides/stargazers"><img src="https://img.shields.io/github/stars/Anionex/banana-slides?style=flat-square&color=FFD700" alt="GitHub Stars"></a>
-  <a href="https://github.com/Anionex/banana-slides/network"><img src="https://img.shields.io/github/forks/Anionex/banana-slides?style=flat-square&color=FFD700" alt="GitHub Forks"></a>
-  <a href="https://github.com/Anionex/banana-slides/watchers"><img src="https://img.shields.io/github/watchers/Anionex/banana-slides?style=flat-square&color=FFD700" alt="GitHub Watchers"></a>
-  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.7"><img src="https://img.shields.io/badge/version-v0.9.0--rc.7-44cc11?style=flat-square" alt="Version"></a>
-  <a href="https://github.com/Anionex/banana-slides/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Anionex/banana-slides?color=0055aa&style=flat-square" alt="License"></a>
-  <br>
-  <img src="https://img.shields.io/badge/Docker-Build-4A90D9?logo=docker&logoColor=white&style=flat-square" alt="Docker Build">
-  <a href="https://deepwiki.com/Anionex/banana-slides"><img src="./assets/badge-deepwiki-flat.svg" alt="Ask DeepWiki"></a>
+  <a href="https://github.com/Anionex/banana-slides/stargazers"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/icon-star-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/icon-star-light.svg"><img src="./assets/readme/icon-star-light.svg" alt="" width="24" height="32"></picture><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/github/stars/Anionex/banana-slides?style=flat-square&amp;label=Stars&amp;labelColor=0d1117&amp;color=0d1117"><source media="(prefers-color-scheme: light)" srcset="https://img.shields.io/github/stars/Anionex/banana-slides?style=flat-square&amp;label=Stars&amp;labelColor=ffffff&amp;color=ffffff"><img src="https://img.shields.io/github/stars/Anionex/banana-slides?style=flat-square&amp;label=Stars&amp;labelColor=ffffff&amp;color=ffffff" alt="GitHub Stars" width="91" height="26"></picture></a>
+  &nbsp;&nbsp;&nbsp;
+  <a href="https://github.com/Anionex/banana-slides/forks"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/icon-fork-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/icon-fork-light.svg"><img src="./assets/readme/icon-fork-light.svg" alt="" width="24" height="32"></picture><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/github/forks/Anionex/banana-slides?style=flat-square&amp;label=Forks&amp;labelColor=0d1117&amp;color=0d1117"><source media="(prefers-color-scheme: light)" srcset="https://img.shields.io/github/forks/Anionex/banana-slides?style=flat-square&amp;label=Forks&amp;labelColor=ffffff&amp;color=ffffff"><img src="https://img.shields.io/github/forks/Anionex/banana-slides?style=flat-square&amp;label=Forks&amp;labelColor=ffffff&amp;color=ffffff" alt="GitHub Forks" width="96" height="26"></picture></a>
+  &nbsp;&nbsp;&nbsp;
+  <a href="https://github.com/Anionex/banana-slides/watchers"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/icon-eye-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/icon-eye-light.svg"><img src="./assets/readme/icon-eye-light.svg" alt="" width="24" height="32"></picture><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/github/watchers/Anionex/banana-slides?style=flat-square&amp;label=Watchers&amp;labelColor=0d1117&amp;color=0d1117"><source media="(prefers-color-scheme: light)" srcset="https://img.shields.io/github/watchers/Anionex/banana-slides?style=flat-square&amp;label=Watchers&amp;labelColor=ffffff&amp;color=ffffff"><img src="https://img.shields.io/github/watchers/Anionex/banana-slides?style=flat-square&amp;label=Watchers&amp;labelColor=ffffff&amp;color=ffffff" alt="GitHub Watchers" width="109" height="26"></picture></a>
 </p>
 
 <p>
-  <b>一个基于 nano banana pro 🍌 的原生 AI PPT 生成应用</b><br>
-  <b>在几分钟内从想法到演示文稿，无需繁琐排版、口头提出修改，迈向真正的 "Vibe PPT"</b>
+  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.7"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/version-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/version-light.svg"><img src="./assets/readme/version-light.svg" alt="v0.9.0-rc.7" width="125" height="26"></picture></a>
+  &nbsp;&nbsp;
+  <a href="https://github.com/Anionex/banana-slides/blob/main/LICENSE"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/icon-license-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/icon-license-light.svg"><img src="./assets/readme/icon-license-light.svg" alt="" width="24" height="32"></picture><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/github/license/Anionex/banana-slides?style=flat-square&amp;label=&amp;labelColor=0d1117&amp;color=0d1117"><source media="(prefers-color-scheme: light)" srcset="https://img.shields.io/github/license/Anionex/banana-slides?style=flat-square&amp;label=&amp;labelColor=ffffff&amp;color=ffffff"><img src="https://img.shields.io/github/license/Anionex/banana-slides?style=flat-square&amp;label=&amp;labelColor=ffffff&amp;color=ffffff" alt="AGPL-3.0" width="92" height="26"></picture></a>
+  &nbsp;&nbsp;
+  <picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/docker-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/docker-light.svg"><img src="./assets/readme/docker-light.svg" alt="Docker Build" width="129" height="26"></picture>
+  &nbsp;&nbsp;
+  <a href="https://deepwiki.com/Anionex/banana-slides"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/deepwiki-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/deepwiki-light.svg"><img src="./assets/readme/deepwiki-light.svg" alt="Ask DeepWiki" width="146" height="26"></picture></a>
 </p>
+
 <p>
-  <a href="https://bananaslides.online/"><b>🚀 在线 Demo</b></a>
-  &nbsp;|&nbsp;
-  <a href="https://docs.bananaslides.online/"><b>📖 文档</b></a>
-  &nbsp;|&nbsp;
-  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.7"><b>💻 桌面版 RC7</b></a>
-  &nbsp;|&nbsp;
- <a href="https://github.com/Anionex/banana-slides#-%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95"><b>部署方法</b></a>
+  <a href="https://trendshift.io/repositories/22056"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/badge-trendshift-dark.svg"><source media="(prefers-color-scheme: light)" srcset="https://trendshift.io/api/badge/repositories/22056"><img src="https://trendshift.io/api/badge/repositories/22056" alt="Anionex%2Fbanana-slides | Trendshift" width="235" height="52"></picture></a>
+  &nbsp;
+  <a href="https://hellogithub.com/repository/Anionex/banana-slides"><picture><source media="(prefers-color-scheme: dark)" srcset="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=c8a0ee51918e4353af08012b8472b85e&amp;claim_uid=CtDTm2jbUHhVGBr&amp;theme=dark"><source media="(prefers-color-scheme: light)" srcset="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=c8a0ee51918e4353af08012b8472b85e&amp;claim_uid=CtDTm2jbUHhVGBr&amp;theme=neutral"><img src="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=c8a0ee51918e4353af08012b8472b85e&amp;claim_uid=CtDTm2jbUHhVGBr&amp;theme=neutral" alt="Featured｜HelloGitHub" width="235" height="52"></picture></a>
 </p>
+
+<!-- readme:support -->
 <p>
-  如果该项目对你有用，欢迎 <b>Star 🌟</b> & <b>Fork 🍴</b>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/support-rule-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/support-rule-light.svg"><img src="./assets/readme/support-rule-light.svg" alt="" width="64" height="26"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/support-zh-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/support-zh-light.svg"><img src="./assets/readme/support-zh-light.svg" alt="如果这个项目对你有用，欢迎" width="188" height="26"></picture>
+  <a href="https://github.com/Anionex/banana-slides/stargazers"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/star-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/star-light.svg"><img src="./assets/readme/star-light.svg" alt="Star" width="64" height="26"></picture></a>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/amp-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/amp-light.svg"><img src="./assets/readme/amp-light.svg" alt="&amp;" width="16" height="26"></picture>
+  <a href="https://github.com/Anionex/banana-slides/forks"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/fork-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/fork-light.svg"><img src="./assets/readme/fork-light.svg" alt="Fork" width="64" height="26"></picture></a>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/support-rule-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/support-rule-light.svg"><img src="./assets/readme/support-rule-light.svg" alt="" width="64" height="26"></picture>
 </p>
+<!-- /readme:support -->
 
 </div>
 
-
+<!-- i18n:sponsors -->
 ## ❤️ 赞助
-
-> 想赞助本项目？请发送邮件至 davidyang042@gmail.com。
 
 <details open>
 <summary>点击折叠</summary>
@@ -66,9 +83,14 @@
 </tr>
 </table>
 
+> 想赞助本项目？请发送邮件至 davidyang042@gmail.com。
 </details>
 
+<!-- i18n:updates -->
 ## 🔥 最新动态
+<details open>
+<summary>点击折叠</summary>
+
 - **[2026-09-05]**：0.9.0 候选版本 7 发布，修复 Codex（OpenAI OAuth）已连接但生图返回 400 的问题：内部调用主模型从 `gpt-5.4` 更新为 `gpt-5.6-terra`，图片模型仍保留 `gpt-image-2`，无需把图片模型改成文本模型。此版本还包含 RC6 之后的内容驱动风格描述与 SenseNova U1 生图支持；[查看下载与安装说明](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.7)
 - **[2026-08-30]**：0.9.0 候选版本 6 发布，新增可开关的桌面启动更新检查、包含更新摘要与完整日志链接的更新卡片，以及下载进度、失败重试和重启安装；同时修复 APIMart OpenAI-compatible 异步图片任务、非流式请求及 1K/2K/4K 分辨率传递；[查看下载与安装说明](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.6)
 - **[2026-08-29]**：0.9.0 候选版本 5 发布，新增沉浸式在线幻灯片播放器与 APIMart OpenAI-compatible Provider 预设，桌面版更新检查现可正确跟随 RC 通道；同时改进 PPT 改造的 MinerU 凭据错误提示、修复参考文档远程图片 SSRF 风险，并让图片编辑默认进入框选状态；[查看下载与安装说明](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.5)
@@ -85,9 +107,10 @@
 - **[2026-04-25]**：支持保存自定义文字风格描述模板，可命名、标色、持久化复用，无需每次重新输入
 - **[2026-04-23]**：支持了gpt-image-2模型，同时导出可编辑背景效果也因模型能力升级得到了提升（在 设置-导出选项-背景获取 选择 生成式获取）
 - **[2026-04-11]**：支持了[cli操作并加入了agent skills](https://docs.bananaslides.online/cli)
-- **[2026-03]**：加入了若干功能和优化，如额外字段、多比例设定等
+</details>
 
-## ✨ 项目缘起
+<!-- i18n:origin -->
+## 项目缘起
 你是否也曾陷入这样的困境：明天就要汇报，但PPT还是一片空白；脑中有无数精彩的想法，却被繁琐的排版和设计消磨掉所有热情？
 
 我(们)渴望能快速创作出既专业又具设计感的演示文稿，传统的AI PPT生成app，虽然大体满足“快”这一需求，却还存在以下问题：
@@ -102,6 +125,7 @@
 
 但是，nano banana🍌模型的出现让一切有了转机。我尝试使用🍌pro进行ppt页面生成，发现生成的结果无论是质量、美感还是一致性，都做的非常好，且几乎能精确渲染prompt要求的所有文字+遵循参考图的风格。那为什么不基于🍌pro，做一个原生的"Vibe PPT"应用呢？
 
+<!-- i18n:audience -->
 ## 👨‍💻 适用场景
 
 
@@ -116,7 +140,8 @@
 </p>
 
 
-## 🎨 结果案例
+<!-- i18n:examples -->
+## 结果案例
 
 
 <div align="center">
@@ -133,8 +158,10 @@
 更多可见<a href="https://github.com/Anionex/banana-slides/issues/2" > 使用案例 </a>
 
 
+<!-- i18n:features -->
 ## 🎯 功能介绍
 
+<!-- i18n:creation -->
 ### 1. 灵活多样的创作路径
 支持**想法**、**大纲**、**页面描述**三种起步方式，满足不同创作习惯。
 - **一句话生成**：输入一个主题，AI 自动生成结构清晰的大纲和逐页内容描述。
@@ -144,6 +171,7 @@
 <img width="2000" height="1125" alt="image" src="https://github.com/user-attachments/assets/7fc1ecc6-433d-4157-b4ca-95fcebac66ba" />
 
 
+<!-- i18n:assets -->
 ### 2. 强大的素材解析能力
 - **多格式支持**：上传 PDF/Docx/MD/Txt 等文件，后台自动解析内容。
 - **智能提取**：自动识别文本中的关键点、图片链接和图表信息，为生成提供丰富素材。
@@ -152,6 +180,7 @@
 
 <img width="1920" height="1080" alt="文件解析与素材处理" src="https://github.com/user-attachments/assets/8cda1fd2-2369-4028-b310-ea6604183936" />
 
+<!-- i18n:editing -->
 ### 3. "Vibe" 式自然语言修改
 不再受限于复杂的菜单按钮，直接通过**自然语言**下达修改指令。
 - **局部重绘**：对不满意的区域进行口头式修改（如"把这个图换成饼图"）。
@@ -160,6 +189,7 @@
 <img width="2000" height="1125" alt="image" src="https://github.com/user-attachments/assets/929ba24a-996c-4f6d-9ec6-818be6b08ea3" />
 
 
+<!-- i18n:export -->
 ### 4. 开箱即用的格式导出
 - **多格式支持**：一键导出标准 **PPTX** 或 **PDF** 文件。
 - **播放设置**：导出 PPTX 前可开启页面切换动画，支持淡入淡出等经典效果
@@ -168,11 +198,13 @@
 <img width="1000" alt="image" src="https://github.com/user-attachments/assets/3e54bbba-88be-4f69-90a1-02e875c25420" />
 <img width="1748" height="538" alt="PPT与PDF导出" src="https://github.com/user-attachments/assets/647eb9b1-d0b6-42cb-a898-378ebe06c984" />
 
+<!-- i18n:editable-pptx -->
 ### 5. 可自由编辑的pptx导出（Beta迭代中）
 - **导出图像为高还原度、背景干净的、可自由编辑图像和文字的PPT页面**
 - 相关更新见 https://github.com/Anionex/banana-slides/issues/121
 <img width="1000"  alt="image" src="https://github.com/user-attachments/assets/a85d2d48-1966-4800-a4bf-73d17f914062" />
 
+<!-- i18n:video-export -->
 ### 6. 一键导出讲解视频
 - **一键将幻灯片转换为带 AI 语音旁白和字幕的讲解视频（MP4）**
 - AI 自动根据页面描述和内容生成口语化旁白
@@ -193,6 +225,7 @@
 
 
 
+<!-- i18n:roadmap -->
 ## 🗺️ 开发计划
 
 | 状态 | 里程碑 |
@@ -209,8 +242,10 @@
 | ✅ 已完成 | TTS 讲解视频导出（中/英/日多音色、字幕） |
 
 
+<!-- i18n:usage -->
 ## 📦 使用方法
 
+<!-- i18n:one-click -->
 ### （新）使用应用模板一键部署
 这是最简单的方式，无需安装docker或下载项目，创建后可直接进入应用
 
@@ -223,6 +258,7 @@
 2. 敬请期待
 
 
+<!-- i18n:docker -->
 ### 使用 Docker Compose🐳
 通过docker compose快速启动前后端服务。
 
@@ -425,8 +461,10 @@ docker compose up -d
 
 **注：感谢优秀开发者朋友 [@ShellMonster](https://github.com/ShellMonster/) 提供了[新人部署教程](https://github.com/ShellMonster/banana-slides/blob/docs-deploy-tutorial/docs/NEWBIE_DEPLOYMENT.md)，专为没有任何服务器部署经验的新手设计，可[点击链接](https://github.com/ShellMonster/banana-slides/blob/docs-deploy-tutorial/docs/NEWBIE_DEPLOYMENT.md)查看。**
 
+<!-- i18n:source-deploy -->
 ### 从源码部署
 
+<!-- i18n:requirements -->
 #### 环境要求
 - Python 3.10 或更高版本
 - [uv](https://github.com/astral-sh/uv) - Python 包管理器
@@ -439,6 +477,7 @@ docker compose up -d
   ```
   > 注意：此方式安装的 LibreOffice 在容器重建后会丢失，需重新安装。
 
+<!-- i18n:backend -->
 #### 后端安装
 
 0. **克隆代码仓库**
@@ -479,6 +518,7 @@ cp .env.example .env
 # 然后按照前述方法，打开编辑 `.env` 文件，配置你的 API 密钥
 ```
 
+<!-- i18n:frontend -->
 #### 前端安装
 
 1. **进入前端目录**
@@ -496,6 +536,7 @@ npm install
 前端会通过 Vite proxy 自动连接到 `BACKEND_PORT` 指定的后端服务（默认 `http://localhost:5011`）。如需修改，请在项目根目录的 `.env` 中设置 `BACKEND_PORT`。
 
 
+<!-- i18n:start-backend -->
 #### 启动后端服务
 > （可选）如果本地已有重要数据，升级前建议先备份数据库：  
 > `cp backend/instance/database.db backend/instance/database.db.bak`
@@ -510,6 +551,7 @@ uv run alembic upgrade head && uv run python app.py
 
 访问 `http://localhost:5011/health` 验证服务是否正常运行。
 
+<!-- i18n:start-frontend -->
 #### 启动前端开发服务器
 
 ```bash
@@ -522,6 +564,7 @@ npm run dev
 打开浏览器访问即可使用应用。
 
 
+<!-- i18n:community -->
 ## 交流群
 
 欢迎在群中提出新功能建议或反馈～
@@ -543,6 +586,7 @@ npm run dev
 
 
 
+<!-- i18n:faq -->
 ## **🔧 常见问题**
 可见[官网文档](https://docs.bananaslides.online/zh/faq)
 
@@ -551,6 +595,7 @@ npm run dev
 
 
 
+<!-- i18n:contributing -->
 ## 🤝 贡献指南
 
 欢迎通过
@@ -561,6 +606,7 @@ npm run dev
 
 > **重要：** 贡献前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)
 
+<!-- i18n:license -->
 ## 📄 许可证
 
 本项目采用 **GNU Affero General Public License v3.0（AGPL-3.0）** 开源，
@@ -570,6 +616,7 @@ npm run dev
 
 
 
+<!-- i18n:thanks -->
 ## 致谢
 
 - 项目贡献者们：
@@ -578,6 +625,7 @@ npm run dev
 
 - [Linux.do](https://linux.do/): 新的理想型社区
   
+<!-- i18n:donate -->
 ## 赞赏
 
 开源不易🙏如果本项目对你有价值，欢迎请开发者喝杯咖啡☕️
@@ -588,6 +636,7 @@ npm run dev
 > @雅俗共赏、@曹峥、@以年观日、@John、@胡yun星Ethan, @azazo1、@刘聪NLP、@🍟、@苍何、@万瑾、@biubiu、@law、@方源、@寒松Falcon、@刘星宇&小陀螺AIGC
 > 如对赞助列表有疑问，可<a href="mailto:davidyang042@gmail.com">联系作者</a>
  
+<!-- i18n:statistics -->
 ## 📈 项目统计
 
 <a href="https://www.star-history.com/?type=timeline&legend=top-left&repos=Anionex%2Fbanana-slides">
@@ -602,6 +651,7 @@ npm run dev
 
 <br>
 
+<!-- i18n:daily-reports -->
 ### 日常汇报与后台素材任务
 
 首页「一句话生成」中可切换到「日常汇报」，选择周报/月报、项目汇报、产品介绍、培训课件或自定义场景。填写主题和可选字段后，可编辑 Prompt 预览，再沿用原来的模板、参考文件、比例与每页模板流程。预设只填空字段；手动编辑后的预览仅在点击「从表单更新 Prompt」时重建。

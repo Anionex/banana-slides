@@ -1,0 +1,170 @@
+{
+  "source": "zh-CN",
+  "languages": [
+    {
+      "code": "zh-CN",
+      "name": "简体中文",
+      "english_name": "Simplified Chinese",
+      "file": "README.md",
+      "asset": "zh",
+      "width": 86,
+      "buttons": {
+        "demo": [
+          "在线 Demo",
+          145
+        ],
+        "docs": [
+          "文档",
+          80
+        ],
+        "desktop": [
+          "桌面版 RC7",
+          120
+        ],
+        "deploy": [
+          "部署方法",
+          105
+        ]
+      },
+      "hero": {
+        "eyebrow": "图像生成模型驱动 · 原生 AI PPT 应用",
+        "title": "从想法到演示文稿，只需几分钟。",
+        "description": "无需繁琐排版，口头提出修改。迈向真正的「Vibe PPT」。",
+        "support": "如果这个项目对你有用，欢迎",
+        "paragraph": "基于图像生成模型的原生 AI PPT 应用，几分钟内将想法变成演示文稿，\n无需繁琐排版，用自然语言修改，体验真正的「Vibe PPT」。"
+      }
+    },
+    {
+      "code": "en",
+      "name": "English",
+      "english_name": "English",
+      "file": "README_EN.md",
+      "asset": "en",
+      "width": 82,
+      "buttons": {
+        "demo": [
+          "Online Demo",
+          122
+        ],
+        "docs": [
+          "Documentation",
+          138
+        ],
+        "desktop": [
+          "Desktop RC7",
+          124
+        ],
+        "deploy": [
+          "Deployment",
+          116
+        ]
+      },
+      "hero": {
+        "eyebrow": "Image-model powered · AI-native presentations",
+        "title": "From an idea to a deck. In just minutes.",
+        "description": "Skip the tedious formatting. Refine with your words. This is Vibe PPT.",
+        "support": "If you find this project helpful, give it a",
+        "paragraph": "An AI-native presentation app powered by image generation models turns ideas into slides in minutes.\nSkip tedious formatting, refine with natural language, and experience true Vibe PPT."
+      }
+    },
+    {
+      "code": "pt-BR",
+      "name": "Português",
+      "english_name": "Brazilian Portuguese",
+      "file": "README_PT-BR.md",
+      "asset": "pt-br",
+      "width": 98,
+      "buttons": {
+        "demo": [
+          "Demo online",
+          128
+        ],
+        "docs": [
+          "Documentação",
+          138
+        ],
+        "desktop": [
+          "Desktop RC7",
+          124
+        ],
+        "deploy": [
+          "Implantação",
+          124
+        ]
+      },
+      "hero": {
+        "eyebrow": "Modelos de geração de imagens · Apresentações nativas de IA",
+        "title": "Da ideia à apresentação em poucos minutos.",
+        "description": "Sem formatação trabalhosa. Edite com suas palavras. Isto é Vibe PPT.",
+        "support": "Se este projeto for útil para você, deixe um",
+        "paragraph": "Um app de apresentações nativo de IA, baseado em modelos de geração de imagens, transforma ideias em slides em minutos.\nSem formatação trabalhosa: edite com linguagem natural e experimente o verdadeiro Vibe PPT."
+      }
+    },
+    {
+      "code": "ja",
+      "name": "日本語",
+      "english_name": "Japanese",
+      "file": "README_JA.md",
+      "asset": "ja",
+      "width": 72,
+      "buttons": {
+        "demo": [
+          "オンラインデモ",
+          134
+        ],
+        "docs": [
+          "ドキュメント",
+          122
+        ],
+        "desktop": [
+          "デスクトップ RC7",
+          156
+        ],
+        "deploy": [
+          "デプロイ",
+          100
+        ]
+      },
+      "hero": {
+        "eyebrow": "画像生成モデルが駆動する AI ネイティブな PPT アプリ",
+        "title": "アイデアからプレゼン資料へ、わずか数分。",
+        "description": "面倒なレイアウトは不要。言葉で修正して、本当の「Vibe PPT」へ。",
+        "support": "このプロジェクトが役に立ったら、ぜひ",
+        "paragraph": "画像生成モデルを活用した AI ネイティブな PPT アプリで、アイデアをわずか数分でプレゼン資料に。\n面倒なレイアウトは不要。自然な言葉で修正し、本当の「Vibe PPT」を体験しましょう。"
+      }
+    },
+    {
+      "code": "ko",
+      "name": "한국어",
+      "english_name": "Korean",
+      "file": "README_KO.md",
+      "asset": "ko",
+      "width": 72,
+      "buttons": {
+        "demo": [
+          "온라인 데모",
+          120
+        ],
+        "docs": [
+          "문서",
+          72
+        ],
+        "desktop": [
+          "데스크톱 RC7",
+          134
+        ],
+        "deploy": [
+          "배포 방법",
+          104
+        ]
+      },
+      "hero": {
+        "eyebrow": "이미지 생성 모델 기반 · AI 네이티브 PPT 앱",
+        "title": "아이디어에서 프레젠테이션까지, 단 몇 분.",
+        "description": "번거로운 편집 없이 말로 수정하세요. 진정한 Vibe PPT를 경험하세요.",
+        "support": "이 프로젝트가 유용하다면",
+        "paragraph": "이미지 생성 모델 기반의 AI 네이티브 PPT 앱으로 아이디어를 단 몇 분 만에 프레젠테이션으로 바꾸세요.\n번거로운 편집 없이 자연어로 수정하며 진정한 Vibe PPT를 경험하세요."
+      }
+    }
+  ]
+}
