@@ -11,19 +11,19 @@
       "buttons": {
         "demo": [
           "在线 Demo",
-          145
+          170
         ],
         "docs": [
           "文档",
-          80
+          110
         ],
         "desktop": [
           "桌面版 RC7",
-          120
+          150
         ],
         "deploy": [
           "部署方法",
-          105
+          135
         ]
       },
       "hero": {
@@ -44,19 +44,19 @@
       "buttons": {
         "demo": [
           "Online Demo",
-          122
+          138
         ],
         "docs": [
           "Documentation",
-          138
+          154
         ],
         "desktop": [
           "Desktop RC7",
-          124
+          140
         ],
         "deploy": [
           "Deployment",
-          116
+          132
         ]
       },
       "hero": {
@@ -77,19 +77,19 @@
       "buttons": {
         "demo": [
           "Demo online",
-          128
+          140
         ],
         "docs": [
           "Documentação",
-          138
+          150
         ],
         "desktop": [
           "Desktop RC7",
-          124
+          136
         ],
         "deploy": [
           "Implantação",
-          124
+          136
         ]
       },
       "hero": {
@@ -110,19 +110,19 @@
       "buttons": {
         "demo": [
           "オンラインデモ",
-          134
+          147
         ],
         "docs": [
           "ドキュメント",
-          122
+          135
         ],
         "desktop": [
           "デスクトップ RC7",
-          156
+          169
         ],
         "deploy": [
           "デプロイ",
-          100
+          113
         ]
       },
       "hero": {
@@ -143,19 +143,19 @@
       "buttons": {
         "demo": [
           "온라인 데모",
-          120
+          153
         ],
         "docs": [
           "문서",
-          72
+          105
         ],
         "desktop": [
           "데스크톱 RC7",
-          134
+          167
         ],
         "deploy": [
           "배포 방법",
-          104
+          137
         ]
       },
       "hero": {

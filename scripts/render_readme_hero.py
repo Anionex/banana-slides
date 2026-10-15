@@ -82,16 +82,16 @@ def template(action_urls):
             local('docker','Docker Build',129,26),
             '<a href="https://deepwiki.com/Anionex/banana-slides">'+local('deepwiki','Ask DeepWiki',146,26)+'</a>']
     recommendations=(
-        '<a href="https://trendshift.io/repositories/22056">'+themed(lambda theme:'./assets/badge-trendshift-dark.svg' if theme=='dark' else 'https://trendshift.io/api/badge/repositories/22056','Anionex%2Fbanana-slides | Trendshift',235,52)+'</a>\n  &nbsp;\n  '+
-        '<a href="https://hellogithub.com/repository/Anionex/banana-slides">'+themed(lambda theme:'https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=c8a0ee51918e4353af08012b8472b85e&claim_uid=CtDTm2jbUHhVGBr&theme='+('dark' if theme=='dark' else 'neutral'),'Featured｜HelloGitHub',235,52)+'</a>')
+        '<a href="https://trendshift.io/repositories/22056">'+themed(lambda theme:'./assets/badge-trendshift-dark.svg' if theme=='dark' else 'https://trendshift.io/api/badge/repositories/22056','Anionex%2Fbanana-slides | Trendshift',294,65)+'</a>\n  &nbsp;\n  '+
+        '<a href="https://hellogithub.com/repository/Anionex/banana-slides">'+themed(lambda theme:'https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=c8a0ee51918e4353af08012b8472b85e&claim_uid=CtDTm2jbUHhVGBr&theme='+('dark' if theme=='dark' else 'neutral'),'Featured｜HelloGitHub',294,65)+'</a>')
     # UI blocks are owned by the existing language renderer, not a second copy of button markup.
     return ('<div align="center">\n\n'
-            '<p>\n  '+themed(lambda theme:f'./assets/hero-{theme}.png','Banana Slides — Vibe your way to great slides.',520,130)+'\n</p>\n\n'
+            '<p>\n  '+themed(lambda theme:f'./assets/hero-{theme}.png','Banana Slides — Vibe your way to great slides.',720,180)+'\n</p>\n\n'
             '<!-- readme:languages -->\n<!-- /readme:languages -->\n\n'
             '<!-- readme:intro -->\n<!-- /readme:intro -->\n\n'
             '<!-- readme:actions -->\n<!-- /readme:actions -->\n\n'
-            '<p>\n  '+'\n  &nbsp;&nbsp;&nbsp;\n  '.join(metrics)+'\n</p>\n\n'
-            '<p>\n  '+'\n  &nbsp;&nbsp;\n  '.join(tech)+'\n</p>\n\n'
+            '<p>\n  '+'\n  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;\n  '.join(metrics)+'<br>\n'
+            '  '+'\n  &nbsp;&nbsp;&nbsp;&nbsp;\n  '.join(tech)+'\n</p>\n\n'
             '<p>\n  '+recommendations+'\n</p>\n\n'
             '<!-- readme:support -->\n<!-- /readme:support -->\n\n</div>\n\n')
 
