@@ -54,7 +54,8 @@
 }
 .landing-page :is(#product, #scenarios, #faq, #landing-cta) { scroll-margin-top: 96px; }
 @media (min-width: 1024px) {
-  .landing-page .landing-header .landing-nav-actions { gap: 12px; }
+  .landing-page .landing-header .landing-nav-actions { gap: 4px; }
+  .landing-page .landing-header .landing-github-icon { width: 36px; }
   .landing-page .landing-header .landing-nav-actions > .studio-button { margin-left: 12px; }
 }
 @media (max-width: 1023px) {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ClipboardEvent, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type ClipboardEvent, type FormEvent, type ComponentType, type ComponentProps } from 'react';
 import { CheckCircle2, ImagePlus, MessageSquare, Send, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Modal } from './Modal';
@@ -36,7 +36,7 @@ const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 type AttachedImage = { id: string; file: File; url: string };
 
-export function FeedbackWidget() {
+export function FeedbackWidget({ DialogComponent = Modal }: { DialogComponent?: ComponentType<ComponentProps<typeof Modal>> } = {}) {
   const { i18n } = useTranslation();
   const t = copy[i18n.language?.startsWith('zh') ? 'zh' : 'en'];
   const [open, setOpen] = useState(false);
@@ -135,7 +135,7 @@ export function FeedbackWidget() {
     >
       <MessageSquare size={18} aria-hidden="true" />{t.trigger}
     </button>
-    <Modal isOpen={open} onClose={() => setOpen(false)} title={t.title} size="md">
+    <DialogComponent isOpen={open} onClose={() => setOpen(false)} title={t.title} size="md">
       {sent ? <div className="space-y-5 text-gray-700 dark:text-gray-200">
         <p role="status" className="flex items-start gap-3 leading-relaxed"><CheckCircle2 className="mt-0.5 shrink-0 text-green-600" size={22} />{t.success}</p>
         <button type="button" onClick={() => setOpen(false)} className="rounded-lg bg-banana-400 px-5 py-2.5 font-semibold text-gray-950 hover:bg-banana-300">{t.close}</button>
@@ -174,6 +174,6 @@ export function FeedbackWidget() {
           <Send size={17} aria-hidden="true" />{sending ? t.sending : t.submit}
         </button>
       </form>}
-    </Modal>
+    </DialogComponent>
   </>;
 }

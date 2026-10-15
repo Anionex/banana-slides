@@ -24,7 +24,7 @@ export default function Reveal({
   index?: number;
 }) {
   const reduce = useReducedMotion();
-  if (reduce) return <div className={cn(className)}>{children}</div>;
+  if (reduce || typeof window === 'undefined') return <div className={cn(className)}>{children}</div>;
 
   return (
     <motion.div

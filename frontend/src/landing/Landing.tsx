@@ -18,6 +18,10 @@ import Reveal from './vendor/asanshay/Reveal';
 import ScrollHeader from './vendor/waymark/ScrollHeader';
 import './landing-header.css';
 import './landing-typography.css';
+import { LandingTheme, ThemeToggle } from './LandingTheme';
+import { FeedbackDialog } from './FeedbackDialog';
+import { useLandingMetadata } from './metadata';
+import './landing-theme.css';
 import { navigateSection } from './sectionNavigation';
 
 const copy = {
@@ -77,7 +81,10 @@ const copy = {
 
 const githubUrl = 'https://github.com/Anionex/banana-slides';
 
-export function Landing() {
+export function Landing() { return <LandingTheme><LandingContent /></LandingTheme>; }
+
+function LandingContent() {
+  const language = useLandingMetadata();
   const t = useT(copy);
   const [expanded, setExpanded] = useState<number | null>(null);
   const [footerVisible, setFooterVisible] = useState(false);
@@ -99,6 +106,7 @@ export function Landing() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim() }),
+        signal: AbortSignal.timeout(15000),
       });
       if (response.status === 400) {
         setWaitlistState('invalid');
@@ -117,13 +125,14 @@ export function Landing() {
   };
   const waitlistFeedback = waitlistState === 'success' ? t('waitlistSuccess') : waitlistState === 'error' ? t('waitlistError') : waitlistState === 'invalid' ? t('waitlistInvalid') : waitlistState === 'rate-limited' ? t('waitlistRateLimited') : '';
   return <div className="landing-page" onClick={navigateSection}>
-    <div className="landing-feedback" data-hidden={footerVisible}><FeedbackWidget /></div>
+    <a className="landing-skip" href="#landing-main">{language === 'zh' ? '跳到主要内容' : 'Skip to content'}</a>
+    <div className="landing-feedback" data-hidden={footerVisible}><FeedbackWidget DialogComponent={FeedbackDialog} /></div>
     <ScrollHeader label={t('product')}
       brand={<a href="/" className="brand" aria-label="Banana Slides"><img src={logoUrl} alt="" width="32" height="32" /><span>Banana Slides</span></a>}
       navigation={<><a href="#product">{t('product')}</a><a href="#scenarios">{t('scenarios')}</a><a href="#faq">{t('faq')}</a><a href="#landing-cta">{t('waitlistNav')}</a><a href="https://docs.bananaslides.online" target="_blank" rel="noopener noreferrer">{t('docs')}</a></>}
-      actions={<><a className="landing-github-icon" href={githubUrl} target="_blank" rel="noopener noreferrer" aria-label="GitHub"><Github size={19} aria-hidden="true" /></a><LanguageMenu /><a className="studio-button studio-button-dark" href="/app">{t('enter')}<ArrowUpRight size={15} /></a></>}
+      actions={<><a className="landing-github-icon" href={githubUrl} target="_blank" rel="noopener noreferrer" aria-label="GitHub"><Github size={19} aria-hidden="true" /></a><LanguageMenu /><ThemeToggle /><a className="studio-button studio-button-dark" href="/app">{t('enter')}<ArrowUpRight size={15} /></a></>}
     />
-    <main>
+    <main id="landing-main" tabIndex={-1}>
       <section className="landing-hero">
         <Reveal className="landing-hero-copy"><h1>{t('title')}<br />{t('title2')}</h1><p className="landing-intro">{t('intro')}</p>
           <div className="landing-hero-actions"><a href="/app" className="studio-button studio-button-dark">{t('start')}<ArrowRight size={17} /></a><a className="studio-button landing-github-button" href={githubUrl} target="_blank" rel="noopener noreferrer"><Github size={18} aria-hidden="true" />GitHub<GithubStars /></a><a className="studio-button landing-beta-button" href="#landing-cta"><BetaRibbon /><span>{t('waitlistOpen')}</span><ArrowUpRight size={16} /></a></div>
@@ -137,8 +146,8 @@ export function Landing() {
         <Reveal className="landing-section-heading landing-faq-heading"><h2>{t('faq')}</h2><p>{t('faqIntro')}</p></Reveal>
         <Reveal className="landing-faq-panel">
           {[0, 1, 2, 3].map(i => <article key={i}>
-            <h3><button type="button" aria-expanded={expanded === i} aria-controls={`faq-answer-${i}`} onClick={() => setExpanded(expanded === i ? null : i)}>{t(`q${i + 1}`)}<ChevronDown size={16} aria-hidden="true" /></button></h3>
-            <div id={`faq-answer-${i}`} className="landing-faq-answer" data-expanded={expanded === i} aria-hidden={expanded !== i}>
+            <h3><button type="button" aria-expanded={typeof window === 'undefined' || expanded === i} aria-controls={`faq-answer-${i}`} onClick={() => setExpanded(expanded === i ? null : i)}>{t(`q${i + 1}`)}<ChevronDown size={16} aria-hidden="true" /></button></h3>
+            <div id={`faq-answer-${i}`} className="landing-faq-answer" data-expanded={expanded === i} aria-hidden={typeof window === 'undefined' ? undefined : expanded !== i}>
               <div><p>{t(`a${i + 1}`)}</p></div>
             </div>
           </article>)}

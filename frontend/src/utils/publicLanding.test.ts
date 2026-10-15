@@ -17,8 +17,8 @@ describe('public landing entry', () => {
     vi.stubEnv('VITE_PUBLIC_LANDING', 'true');
     const { publicLandingEnabled, isLandingPath } = await import('./publicLanding');
     expect(publicLandingEnabled).toBe(true);
-    for (const path of ['/', '/landing', '/landing/']) expect(isLandingPath(path)).toBe(true);
-    for (const path of ['/app', '/settings', '/admin/history', '/project/id/preview', '/landing/other']) {
+    for (const path of ['/', '/en', '/en/', '/landing', '/landing/']) expect(isLandingPath(path)).toBe(true);
+    for (const path of ['/app', '/settings', '/admin/history', '/project/id/preview', '/landing/other', '/en/app', '/english']) {
       expect(isLandingPath(path)).toBe(false);
     }
   });

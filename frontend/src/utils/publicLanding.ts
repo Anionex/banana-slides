@@ -4,5 +4,5 @@ import { isDesktop } from '@/utils';
 export const publicLandingEnabled = import.meta.env.VITE_PUBLIC_LANDING === 'true' && !isDesktop;
 
 export function isLandingPath(pathname: string): boolean {
-  return pathname === '/' || /^\/landing\/?$/.test(pathname);
+  return pathname === '/' || /^\/en\/?$/.test(pathname) || /^\/landing\/?$/.test(pathname);
 }

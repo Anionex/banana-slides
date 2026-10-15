@@ -53,6 +53,7 @@ export default defineConfig(({ mode }) => {
     base: env.VITE_PUBLIC_LANDING === 'true' ? '/' : './',
     envDir,
     plugins: [react()],
+    build: { manifest: true },
     define: {
       'import.meta.env.VITE_APP_VERSION_TAG': JSON.stringify(gitTag),
       'import.meta.env.VITE_APP_COMMIT_SHA': JSON.stringify(gitSha),
