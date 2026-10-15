@@ -10,7 +10,11 @@
 </p>
 <p>
   <a href="https://trendshift.io/repositories/22056" target="_blank">
-    <img src="https://trendshift.io/api/badge/repositories/22056" alt="Anionex%2Fbanana-slides | Trendshift" width="265" height="58">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="./assets/badge-trendshift-dark.svg">
+      <source media="(prefers-color-scheme: light)" srcset="https://trendshift.io/api/badge/repositories/22056">
+      <img src="https://trendshift.io/api/badge/repositories/22056" alt="Anionex%2Fbanana-slides | Trendshift" width="265" height="58">
+    </picture>
   </a>
   <br>
   <a href="https://hellogithub.com/repository/Anionex/banana-slides" target="_blank">
