@@ -2,28 +2,15 @@
 <div align="center">
 
 <p>
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./assets/hero-dark.png">
-    <source media="(prefers-color-scheme: light)" srcset="./assets/hero-light.png">
-    <img src="./assets/hero-light.png" alt="Banana Slides — Vibe your way to great slides." width="860">
-  </picture>
+  <a href="./assets/hero-dark.png#gh-dark-mode-only"><img src="./assets/hero-dark.png#gh-dark-mode-only" alt="Banana Slides — Vibe your way to great slides." width="860"></a>
+  <a href="./assets/hero-light.png#gh-light-mode-only"><img src="./assets/hero-light.png#gh-light-mode-only" alt="Banana Slides — Vibe your way to great slides." width="860"></a>
 </p>
 <p>
-  <a href="https://trendshift.io/repositories/22056" target="_blank">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="./assets/badge-trendshift-dark.svg">
-      <source media="(prefers-color-scheme: light)" srcset="https://trendshift.io/api/badge/repositories/22056">
-      <img src="https://trendshift.io/api/badge/repositories/22056" alt="Anionex%2Fbanana-slides | Trendshift" width="265" height="58">
-    </picture>
-  </a>
+  <a href="https://trendshift.io/repositories/22056#gh-dark-mode-only" target="_blank"><img src="./assets/badge-trendshift-dark.svg#gh-dark-mode-only" alt="Anionex%2Fbanana-slides | Trendshift" width="265" height="58"></a>
+  <a href="https://trendshift.io/repositories/22056#gh-light-mode-only" target="_blank"><img src="https://trendshift.io/api/badge/repositories/22056#gh-light-mode-only" alt="Anionex%2Fbanana-slides | Trendshift" width="265" height="58"></a>
   <br>
-  <a href="https://hellogithub.com/repository/Anionex/banana-slides" target="_blank">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=c8a0ee51918e4353af08012b8472b85e&amp;claim_uid=CtDTm2jbUHhVGBr&amp;theme=dark">
-      <source media="(prefers-color-scheme: light)" srcset="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=c8a0ee51918e4353af08012b8472b85e&amp;claim_uid=CtDTm2jbUHhVGBr&amp;theme=neutral">
-      <img src="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=c8a0ee51918e4353af08012b8472b85e&amp;claim_uid=CtDTm2jbUHhVGBr&amp;theme=neutral" alt="Featured｜HelloGitHub" width="265" height="58">
-    </picture>
-  </a>
+  <a href="https://hellogithub.com/repository/Anionex/banana-slides#gh-dark-mode-only" target="_blank"><img src="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=c8a0ee51918e4353af08012b8472b85e&amp;claim_uid=CtDTm2jbUHhVGBr&amp;theme=dark#gh-dark-mode-only" alt="Featured｜HelloGitHub" width="265" height="58"></a>
+  <a href="https://hellogithub.com/repository/Anionex/banana-slides#gh-light-mode-only" target="_blank"><img src="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=c8a0ee51918e4353af08012b8472b85e&amp;claim_uid=CtDTm2jbUHhVGBr&amp;theme=neutral#gh-light-mode-only" alt="Featured｜HelloGitHub" width="265" height="58"></a>
 </p>
 <p>
   <a href="#-项目缘起"><b>简体中文</b></a>
