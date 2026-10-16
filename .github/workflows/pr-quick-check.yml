@@ -41,6 +41,9 @@ jobs:
       - name: Backend unit tests
         run: uv run pytest backend/tests/unit -v
 
+      - name: Nightly lockfile preparation tests
+        run: python -m unittest discover -s scripts/tests -p 'test_prepare_nightly_lock.py'
+
       # Frontend checks
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -94,7 +97,7 @@ jobs:
           done
           curl -fsS http://127.0.0.1:3488/health > /dev/null
           cd frontend
-          if ! npx playwright test e2e/web-build-deep-links.spec.ts --reporter=list; then
+          if ! npx playwright test e2e/web-build-deep-links.spec.ts e2e/pptx-download.spec.ts --reporter=list; then
             cat /tmp/web-build-backend.log /tmp/web-build-preview.log
             exit 1
           fi
