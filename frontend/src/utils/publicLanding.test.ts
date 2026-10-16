@@ -28,4 +28,13 @@ describe('public landing entry', () => {
     vi.stubGlobal('window', { electronAPI: {} });
     expect((await import('./publicLanding')).publicLandingEnabled).toBe(false);
   });
+
+  it('recognizes gallery deep links without claiming editor or nested paths', async () => {
+    const { isGalleryPath, isLandingPath } = await import('./publicLanding');
+    for (const path of ['/gallery', '/gallery/', '/en/gallery', '/en/gallery/']) {
+      expect(isGalleryPath(path)).toBe(true);
+      expect(isLandingPath(path)).toBe(false);
+    }
+    for (const path of ['/', '/app', '/en', '/gallery/project', '/en/gallery/settings', '/gallery-old']) expect(isGalleryPath(path)).toBe(false);
+  });
 });

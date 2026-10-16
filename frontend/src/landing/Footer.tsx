@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, Github } from 'lucide-react';
+import { BookOpen, Github, Image } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { FooterRibbon } from './FooterRibbon';
 
@@ -27,6 +27,10 @@ export const Footer: React.FC = () => {
 
           {/* Divider - 仅在大屏显示 */}
           <span className="hidden sm:inline text-gray-300">·</span>
+
+          <a href={i18n.language?.startsWith('zh') ? '/gallery/' : '/en/gallery/'} className="inline-flex items-center gap-1.5">
+            <Image size={16} /><span>{i18n.language?.startsWith('zh') ? '作品画廊' : 'Gallery'}</span>
+          </a>
 
           {/* GitHub Link */}
           <a

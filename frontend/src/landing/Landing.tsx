@@ -129,13 +129,14 @@ function LandingContent() {
     <div className="landing-feedback" data-hidden={footerVisible}><FeedbackWidget DialogComponent={FeedbackDialog} /></div>
     <ScrollHeader label={t('product')}
       brand={<a href="/" className="brand" aria-label="Banana Slides"><img src={logoUrl} alt="" width="32" height="32" /><span>Banana Slides</span></a>}
-      navigation={<><a href="#product">{t('product')}</a><a href="#scenarios">{t('scenarios')}</a><a href="#faq">{t('faq')}</a><a href="#landing-cta">{t('waitlistNav')}</a><a href="https://docs.bananaslides.online" target="_blank" rel="noopener noreferrer">{t('docs')}</a></>}
+      navigation={<><a href="#product">{t('product')}</a><a href={language === 'zh' ? '/gallery/' : '/en/gallery/'}>{language === 'zh' ? '作品画廊' : 'Gallery'}</a><a href="#scenarios">{t('scenarios')}</a><a href="#faq">{t('faq')}</a><a href="#landing-cta">{t('waitlistNav')}</a><a href="https://docs.bananaslides.online" target="_blank" rel="noopener noreferrer">{t('docs')}</a></>}
       actions={<><a className="landing-github-icon" href={githubUrl} target="_blank" rel="noopener noreferrer" aria-label="GitHub"><Github size={19} aria-hidden="true" /></a><LanguageMenu /><ThemeToggle /><a className="studio-button studio-button-dark" href="/app">{t('enter')}<ArrowUpRight size={15} /></a></>}
     />
     <main id="landing-main" tabIndex={-1}>
       <section className="landing-hero">
         <Reveal className="landing-hero-copy"><h1>{t('title')}<br />{t('title2')}</h1><p className="landing-intro">{t('intro')}</p>
           <div className="landing-hero-actions"><a href="/app" className="studio-button studio-button-dark">{t('start')}<ArrowRight size={17} /></a><a className="studio-button landing-github-button" href={githubUrl} target="_blank" rel="noopener noreferrer"><Github size={18} aria-hidden="true" />GitHub<GithubStars /></a><a className="studio-button landing-beta-button" href="#landing-cta"><BetaRibbon /><span>{t('waitlistOpen')}</span><ArrowUpRight size={16} /></a></div>
+          <a className="landing-gallery-link" href={language === 'zh' ? '/gallery/' : '/en/gallery/'}>{language === 'zh' ? '先逛逛作品画廊' : 'Explore the gallery'}<ArrowRight size={16} /></a>
         </Reveal>
         <Reveal className="landing-hero-art" index={1}><GrainSteps bitmapGrain interactive /><span className="landing-art-label">IDEA<br />OUTLINE<br />DESIGN<br />PRESENT<span /></span></Reveal>
         <Reveal className="landing-strip" index={6}><div>{[FileText, Layers, Sparkles, Download].map((Icon, i) => <span key={i}><Icon size={20} />{t(`strip${i + 1}`)}</span>)}</div></Reveal>
