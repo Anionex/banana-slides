@@ -41,6 +41,9 @@ jobs:
       - name: Backend unit tests
         run: uv run pytest backend/tests/unit -v
 
+      - name: Nightly lockfile preparation tests
+        run: python -m unittest discover -s scripts/tests -p 'test_prepare_nightly_lock.py'
+
       # Frontend checks
       - name: Setup Node.js
         uses: actions/setup-node@v4
