@@ -87,6 +87,16 @@ jobs:
           chmod +x scripts/test_docker_environment.sh
           AUTO_CLEANUP=false ./scripts/test_docker_environment.sh
 
+      - name: Prepare E2E fixture storage
+        run: |
+          # Docker creates these bind mounts and SQLite files as root. The host
+          # runner seeds images and DB rows after the environment test restarts it.
+          sudo chown -R "$(id -u):$(id -g)" uploads backend/instance
+          test -w uploads
+          test -w backend/instance
+          test -w backend/instance/database.db
+          sqlite3 backend/instance/database.db 'BEGIN IMMEDIATE; ROLLBACK;'
+
       - name: Setup Node.js
         if: env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
         uses: actions/setup-node@v4
@@ -104,7 +114,7 @@ jobs:
 
       - name: Run E2E tests
         if: env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
-        run: cd frontend && npx playwright test ui-full-flow.spec.ts page-properties-drawer.spec.ts --workers=1
+        run: cd frontend && npx playwright test ui-full-flow.spec.ts page-properties-drawer.spec.ts pptx-download.spec.ts --workers=1
         env:
           CI: true
         # ui-full-flow（含真实生成等待）与 drawer 回归同 job 串行，留足余量

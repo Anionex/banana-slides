@@ -1,5 +1,7 @@
 # Project notes
 
+- Docker E2E 在环境测试重建容器后，须让宿主 runner 可写 `uploads`、`backend/instance` 及 SQLite 文件，并验证实际写事务；PPTX 下载须在点击前监听 Page 的 `download`，保存文件验收，不能用接口 200 代替。
+
 - README 翻译以 `docs/i18n/readme-state.json` 的成功同步快照为基线；保留 `i18n` 章节 ID，译文与状态一起提交。不可用干净 CI 工作区的 `git diff HEAD` 判断增量，也不可用中英文标题文字匹配章节。维护说明见 `docs/readme-i18n.md`。
 
 - 同一项目的素材工具箱会从多个入口同时挂载；任务列表和轮询必须按项目共享，验收跨入口提交、关闭其中一个入口及重新挂载，避免覆盖任务或重复轮询。
