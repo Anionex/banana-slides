@@ -25,15 +25,20 @@ Run `node scripts/generate_readme_buttons.mjs` then
 `python3 scripts/render_readme_hero.py`; both support `--check`.
 The renderer updates hero sections, the text fallback footer and their translation snapshots.
 
-GitHub wraps native `<picture>` markup in its `themed-picture` component and
-selects sources using the GitHub page theme. This keeps section anchor URLs intact.
-When verifying injected Markdown on GitHub, set the page theme BEFORE inserting
-the fragment; changing the root attribute afterwards does not trigger the native
-component's theme event. Verify system/page themes both matching and opposite,
-as well as automatic mode, and inspect actual image `currentSrc`.
+The hero uses paired links ending in `#gh-light-mode-only` and
+`#gh-dark-mode-only`. GitHub's own CSS selects the visible link from the page's
+`data-color-mode`, including automatic mode. This does not depend on the
+`themed-picture` JavaScript component initializing after the page theme.
+The original picture markup remains an intermediate format for the renderer.
+
+A destination with a fragment needs a matching theme-specific anchor, not just
+an appended suffix. Deployment and community sections include these aliases;
+unsupported external fragments retain their original picture/link markup.
+Verify initial dark loads, subsequent theme changes, opposite system/page themes,
+and reloads with page scripts disabled. Check actual link targets as well as pixels.
 
 Do not rely on themed images' `alt` text as a network-error fallback: GitHub's
-`themed-picture` may keep failed images hidden. The end of each README includes a collapsed,
+`themed-picture` may keep failed images hidden, and plain image alt text is not a full navigation fallback. The end of each README includes a collapsed,
 image-free text version with native navigation, project links and sponsor copy.
 The renderer derives sponsor text and destinations from the corresponding
 localized sponsor section; the disclosure must remain usable with all images

@@ -147,7 +147,7 @@ class SyncTests(unittest.TestCase):
         self.assertEqual(syncer.action_destinations(rendered)['deploy'],
                          'https://example.com/readme#installation')
         self.assertIn('<source media="(prefers-color-scheme: dark)"', rendered)
-        self.assertNotIn('#gh-dark-mode-only', rendered)
+        self.assertNotIn('#installation#gh-dark-mode-only', rendered)
         self.assertEqual(self.run_sync()['calls'], 0)
 
     def test_missing_dark_source_is_detected_before_writing(self):

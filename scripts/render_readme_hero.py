@@ -67,7 +67,7 @@ def local(name, alt, width, height):
 
 
 def badge(endpoint, label):
-    return lambda theme: 'https://img.shields.io/'+endpoint+'?'+urlencode({'style':'flat-square','label':label,'labelColor':'ffffff' if theme=='light' else '0d1117','color':'ffffff' if theme=='light' else '0d1117'})
+    return lambda theme: 'https://img.shields.io/'+endpoint+'?'+urlencode({'style':'flat-square','cacheSeconds':'300','label':label,'labelColor':'ffffff' if theme=='light' else '0d1117','color':'ffffff' if theme=='light' else '0d1117'})
 
 
 def template(action_urls):

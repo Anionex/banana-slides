@@ -183,8 +183,54 @@ def action_destinations(block):
     for url, content in re.findall(r'<a href="([^"]+)">([\s\S]*?)</a>', block):
         asset = re.search(r'assets/buttons/(demo|docs|desktop|deploy)-', content)
         if asset:
-            urls[asset[1]] = html.unescape(url)
+            destination = re.sub(r'#gh-(light|dark)-mode-only$', '', html.unescape(url))
+            if destination.startswith('https://github.com/Anionex/banana-slides#user-content-'):
+                destination = destination.replace('#user-content-', '#', 1)
+            urls[asset[1]] = destination
     return urls
+
+
+def css_themed_images(body):
+    """Use GitHub's page-theme CSS, without themed-picture initialization timing."""
+    def variant(picture, theme):
+        source = re.search(r'<source media="\(prefers-color-scheme: '+theme+r'\)" srcset="([^"]+)"', picture)
+        img = re.search(r'<img\b[^>]*>', picture)[0]
+        return re.sub(r'\bsrc="[^"]*"', lambda _: 'src="'+source[1]+'"', img)
+
+    def target(url, theme):
+        base, separator, fragment = url.partition('#')
+        if separator and not fragment.startswith('user-content-'):
+            fragment = 'user-content-'+fragment
+        return base + (separator+fragment if separator else '') + '#gh-'+theme+'-mode-only'
+
+    def linked(match):
+        anchor = match[0]
+        if '<picture>' not in anchor:
+            return anchor
+        url = re.search(r'href="([^"]+)"', anchor)[1]
+        # Only our README sections have matching aliases for an existing fragment.
+        if '#' in url and not (url.startswith('#') or url.startswith('https://github.com/Anionex/banana-slides#')):
+            return anchor
+        content = anchor[anchor.index('>')+1:-4]
+        return ''.join('<a href="'+target(url, theme)+'">'
+                       +re.sub(r'<picture>.*?</picture>', lambda m: variant(m[0], theme), content, flags=re.S)
+                       +'</a>' for theme in ('light', 'dark'))
+
+    # Keep unsupported fragment links intact rather than changing their targets.
+    anchors = []
+    def hold(match):
+        anchors.append(linked(match))
+        return f'<!-- theme-link:{len(anchors)-1} -->'
+    body = re.sub(r'<a\b[^>]*>.*?</a>', hold, body, flags=re.S)
+    def unlinked(match):
+        images = []
+        for theme in ('light', 'dark'):
+            img = variant(match[0], theme)
+            url = re.search(r'\bsrc="([^"]+)"', img)[1]
+            images.append('<a href="'+url+'#gh-'+theme+'-mode-only">'+img+'</a>')
+        return ''.join(images)
+    body = re.sub(r'<picture>.*?</picture>', unlinked, body, flags=re.S)
+    return re.sub(r'<!-- theme-link:(\d+) -->', lambda m: anchors[int(m[1])], body)
 
 
 def render_ui(body, language, languages, action_urls):
@@ -240,7 +286,8 @@ def render_ui(body, language, languages, action_urls):
                        + themed('support-rule', '', 32) + '\n</p>')
         return f"<!-- readme:{match[1]} -->\n{content}\n<!-- /readme:{match[1]} -->"
 
-    return MANAGED.sub(replacement, body)
+    rendered = MANAGED.sub(replacement, body)
+    return css_themed_images(rendered) if MANAGED.search(body) else rendered
 
 
 def atomic_write(path, text):

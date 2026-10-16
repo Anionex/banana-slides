@@ -32,5 +32,22 @@ class TextFallbackTests(unittest.TestCase):
         self.assertNotIn('<details open', result)
 
 
+class PageThemeTests(unittest.TestCase):
+    def test_grouped_images_keep_one_link_per_theme_and_round_trip_destination(self):
+        url = hero.REPO+'#-%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95'
+        body = '<a href="'+url+'">'+hero.i18n.theme_picture('icon-light.svg', 'icon-dark.svg', '')+hero.i18n.theme_picture('./assets/buttons/deploy-zh.svg', './assets/buttons/deploy-zh-dark.svg', '部署方法')+'</a>'
+        result = hero.i18n.css_themed_images(body)
+        self.assertNotIn('<picture>', result)
+        self.assertEqual(result.count('<a '), 2)
+        self.assertEqual(result.count('<img '), 4)
+        self.assertIn('#user-content--%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95#gh-dark-mode-only', result)
+        self.assertEqual(hero.i18n.action_destinations(result)['deploy'], url)
+        self.assertEqual(hero.i18n.css_themed_images(result), result)
+
+    def test_unsupported_external_fragment_is_unchanged(self):
+        body = '<a href="https://example.com/#existing">'+hero.i18n.theme_picture('light.svg', 'dark.svg', 'External')+'</a>'
+        self.assertEqual(hero.i18n.css_themed_images(body), body)
+
+
 if __name__ == '__main__':
     unittest.main()
