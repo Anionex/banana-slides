@@ -37,18 +37,21 @@ export function CurvedGallery({ decks, active, onSelect, label, reading, expande
     const ctx = surface?.getContext('2d');
     if (!el || !surface || !ctx) return;
     const width = el.clientWidth, height = el.clientHeight;
+    // Share the layout's artwork anchor instead of centering in the preview belt.
+    const anchor = el.querySelector<HTMLButtonElement>('.gallery-cover');
+    const centerY = anchor ? anchor.offsetTop + anchor.offsetHeight / 2 : height / 2;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     if (surface.width !== Math.round(width * dpr) || surface.height !== Math.round(height * dpr)) {
       surface.width = Math.round(width * dpr); surface.height = Math.round(height * dpr);
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
-    const drawCard = (img: HTMLImageElement, x: number, w: number, shift = 0, alpha = 1) => {
+    const drawCard = (img: HTMLImageElement, x: number, w: number, shift = 0, alpha = 1, curvature = 1) => {
       const base = w * 9 / 16;
-      const bend = width < 768 ? .2 : .55;
+      const bend = (width < 768 ? .2 : .55) * curvature;
       const sizeAt = (px: number) => base * (1 + bend * Math.pow((px - width / 2) / (width / 2), 2));
-      const top = (px: number) => (height - sizeAt(px)) / 2 + shift;
-      const bottom = (px: number) => (height + sizeAt(px)) / 2 + shift;
+      const top = (px: number) => centerY - sizeAt(px) / 2 + shift;
+      const bottom = (px: number) => centerY + sizeAt(px) / 2 + shift;
       const radius = 12, steps = Math.ceil(w / 2);
       ctx.save();
       ctx.globalAlpha = alpha;
@@ -78,7 +81,7 @@ export function CurvedGallery({ decks, active, onSelect, label, reading, expande
         const px = x + (w - imageWidth) / 2 + imageWidth * s / steps;
         const h = sizeAt(px + imageWidth / steps / 2) * imageHeight / base;
         ctx.drawImage(img, img.naturalWidth * s / steps, 0, img.naturalWidth / steps, img.naturalHeight,
-          px, (height - h) / 2 + shift, imageWidth / steps + .6, h);
+          px, centerY - h / 2 + shift, imageWidth / steps + .6, h);
       }
       ctx.restore();
     };
@@ -89,6 +92,23 @@ export function CurvedGallery({ decks, active, onSelect, label, reading, expande
       if (reading && slot === active + 1) {
         const departure = Math.min(1, Math.abs(x - (width - w) / 2) / (w * .6));
         const base = w * 9 / 16;
+        const horizontal = stage.current!.dataset.horizontal === 'true';
+        ctx.save();
+        if (horizontal) {
+          // Hide the adjacent pages as soon as horizontal intent is established.
+          // Keep the central aperture curved so the card can still return smoothly.
+          const edge = (px: number) => base * (1 + (width < 768 ? .2 : .55) * departure * Math.pow((px - width / 2) / (width / 2), 2));
+          ctx.beginPath();
+          for (let i = 0; i <= 40; i++) {
+            const px = x + w * i / 40, py = centerY - edge(px) / 2;
+            if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+          }
+          for (let i = 40; i >= 0; i--) {
+            const px = x + w * i / 40;
+            ctx.lineTo(px, centerY + edge(px) / 2);
+          }
+          ctx.closePath(); ctx.clip();
+        }
         const figures = stage.current!.querySelectorAll<HTMLElement>('.gallery-wheel-page');
         figures.forEach(figure => {
           const virtual = Number(figure.dataset.slot);
@@ -96,16 +116,17 @@ export function CurvedGallery({ decks, active, onSelect, label, reading, expande
           const isCover = ((virtual % decks[active].pages.length) + decks[active].pages.length) % decks[active].pages.length === 0;
           const source = img?.complete && img.naturalWidth ? img : isCover ? cover : null;
           if (!source) return;
-          drawCard(source, x, w, (virtual - progress.get()) * (base + 16), isCover ? 1 : 1 - departure);
+          drawCard(source, x, w, (virtual - progress.get()) * (base + 16), isCover ? 1 : 1 - departure, isCover ? departure : 0);
           figure.dataset.painted = 'true';
         });
         // Mask only this card's column; neighboring presentations keep their curvature.
         ctx.save(); ctx.beginPath(); ctx.rect(x, 0, w, height); ctx.clip();
         ctx.globalCompositeOperation = 'destination-in';
         const fade = ctx.createLinearGradient(0, 0, 0, height);
-        fade.addColorStop(0, 'transparent'); fade.addColorStop(.25, '#000');
-        fade.addColorStop(.75, '#000'); fade.addColorStop(1, 'transparent');
+        fade.addColorStop(0, 'transparent'); fade.addColorStop((centerY - base / 2) / height, '#000');
+        fade.addColorStop((centerY + base / 2) / height, '#000'); fade.addColorStop(1, 'transparent');
         ctx.fillStyle = fade; ctx.fillRect(x, 0, w, height); ctx.restore();
+        ctx.restore();
       } else drawCard(cover, x, w);
       button.dataset.painted = 'true';
     });
@@ -173,12 +194,14 @@ export function CurvedGallery({ decks, active, onSelect, label, reading, expande
       const index = (nearest - 1 + decks.length) % decks.length;
       el.style.scrollSnapType = '';
       if (nearest === 0 || nearest === decks.length + 1) center(index, true);
-      onSelect(index);
+      stage.current!.dataset.horizontal = 'false';
+      onSelect(index); schedulePaint();
     }, 180);
   };
   pan.current = {
     paint: schedulePaint,
     start(x) {
+      stage.current!.dataset.horizontal = 'true';
       const el = track.current!;
       window.clearTimeout(pending.current);
       manual.current = { x, scroll: el.scrollLeft };
@@ -205,7 +228,7 @@ export function CurvedGallery({ decks, active, onSelect, label, reading, expande
       el.scrollTo({ left: button.offsetLeft - (el.clientWidth - button.offsetWidth) / 2, behavior: reduced() ? 'instant' : 'smooth' });
       finishScroll();
     },
-    select(index) { center(index); finishScroll(); },
+    select(index) { stage.current!.dataset.horizontal = 'true'; center(index); finishScroll(); },
   };
 
   useEffect(() => {

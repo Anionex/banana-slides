@@ -28,7 +28,7 @@ async (page) => {
     assert(await p.locator('.gallery-wheel').getAttribute('data-page')==='1','First gesture rearranges without skipping cover');
     const titleAfter = await p.locator('#gallery-title').boundingBox();
     assert(Math.abs(titleAfter.y-titleBefore.y)<1,'Website heading stays visible and stable');
-    assert(await p.locator('.gallery-wheel-page[data-painted="true"]').count()>=3,'Reading pages share the curved canvas projection');
+    assert(await p.locator('.gallery-wheel-page[data-painted="true"]').count()>=3,'Reading pages share the cover canvas');
     await capture('wheel-read');
     const restingBelt = await p.locator('.gallery-wheel-viewport').evaluate(el => {
       const next=el.querySelector('[data-slot="1"]').getBoundingClientRect(), viewport=el.getBoundingClientRect();
@@ -36,6 +36,9 @@ async (page) => {
     });
     assert(Math.abs(restingBelt.nextVisible-.5)<.02,'Next half-page remains visible while resting');
     assert(restingBelt.outline==='none','Artwork has no outer frame');
+    const subtitle = await p.locator('.gallery-intro p').boundingBox();
+    const current = await p.locator('.gallery-wheel-page[data-slot="0"]').boundingBox();
+    assert(current.y - subtitle.y - subtitle.height <= 85, 'Main artwork stays close to subtitle');
     const scrollBefore=await p.evaluate(()=>scrollY);
     await p.locator('.gallery-wheel-viewport').hover(); await p.mouse.wheel(0,100);
     await p.waitForTimeout(1500);
@@ -47,7 +50,7 @@ async (page) => {
       const pages=[...el.querySelectorAll('.gallery-wheel-page')];
       return {mask:getComputedStyle(el).maskImage, transforms:pages.map(page=>getComputedStyle(page).transform)};
     });
-    assert(belt.mask.includes('linear-gradient')&&belt.mask.includes('25%')&&belt.mask.includes('75%'),'Belt fades at both edges');
+    assert(belt.mask.includes('linear-gradient')&&belt.mask.includes('rgba(0, 0, 0, 0)'),'Belt fades at both edges');
     assert(belt.transforms.every(value=>value==='none'||value.startsWith('matrix(1, 0, 0, 1,')),'Pages only translate without rotation or scaling');
     await p.screenshot({path:'.impeccable/review/wheel-motion.png'});
     await p.waitForTimeout(1500);
@@ -71,7 +74,7 @@ async (page) => {
     assert(Math.abs(drag120.x-box.x+120)<3,'Reading card follows full drag distance continuously');
     await p.mouse.up();await settle('deepseek-tech');
     assert(await p.locator('.gallery-wheel').count()===0,'Horizontal drag returns to carousel without an exit action');
-    results.interactions.push('stable website heading, curved ring pages, two-edge fade, inertia, keyboard wrap, continuous pointer-following drag and release snap');
+    results.interactions.push('stable website heading and subtitle, flat ring pages, two-edge fade, inertia, keyboard wrap, continuous pointer-following drag and release snap');
     await p.getByRole('button',{name:'Previous presentation',exact:true}).click();await settle('money');
     await p.locator('.gallery-cover[aria-pressed="true"]').click();await p.waitForTimeout(800);
     assert(await p.locator('.gallery-wheel').getAttribute('data-page')==='1','Returning to deck starts at cover');

@@ -50,9 +50,9 @@ export function WheelDeck({ deck, language, enteredAt, onExit, onHorizontal, pan
     cancelAnimationFrame(inertiaFrame.current);
     animation.current?.stop();
   };
-  const go = (value: number, speed = 0) => {
+  const go = (value: number, speed = 0, settling = false) => {
     stop(); phase.current = 'snap';
-    animation.current = animate(progress, value, reduced ? { duration: 0 } : { type: 'spring', stiffness: 130, damping: 23, mass: .8, velocity: speed });
+    animation.current = animate(progress, value, reduced ? { duration: 0 } : { type: 'spring', stiffness: settling ? 35 : 130, damping: settling ? 12 : 23, mass: .8, velocity: speed, restSpeed: .001, restDelta: .001 });
   };
   const coast = () => {
     stop();
@@ -64,10 +64,14 @@ export function WheelDeck({ deck, language, enteredAt, onExit, onHorizontal, pan
       const dt = Math.min(.04, (now - previous) / 1000);
       previous = now;
       // Free motion has no page target. Only slow motion may engage the snap spring.
-      if (Math.abs(speed) <= .16) { go(Math.round(progress.get()), speed); return; }
       const decay = Math.exp(-4.2 * dt);
       progress.set(progress.get() + speed * (1 - decay) / 4.2);
-      speed *= decay;
+      const nextSpeed = speed * decay;
+      const slowingDown = Math.abs(nextSpeed) <= Math.abs(speed);
+      if (element.current) element.current.dataset.speed = Math.abs(nextSpeed).toFixed(5);
+      // Roughly four pixels/second on a desktop slide: effectively at rest.
+      if (slowingDown && Math.abs(nextSpeed) <= .012) { go(Math.round(progress.get()), nextSpeed, true); return; }
+      speed = nextSpeed;
       inertiaFrame.current = requestAnimationFrame(tick);
     };
     inertiaFrame.current = requestAnimationFrame(tick);
