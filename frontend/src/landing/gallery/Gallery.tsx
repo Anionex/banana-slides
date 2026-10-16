@@ -51,7 +51,6 @@ function GalleryContent() {
     document.querySelector<HTMLElement>('.gallery-track')?.focus({ preventScroll: true });
     document.getElementById('gallery-selection')?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
   };
-  const switchDeck = (index: number) => { setActive(index); backToGallery(); };
 
   return <div className="landing-page gallery-page">
     <a className="landing-skip" href="#gallery-reading">{t.skip}</a>
@@ -77,7 +76,7 @@ function GalleryContent() {
           <SlideImage src={`/gallery/${deck.id}/${index + 1}.webp`} {...page} alt={`${deck.title[language]} · ${language === 'zh' ? `第 ${index + 1} 页` : `Slide ${index + 1}`}`} failed={t.failed} retry={t.retry} />
           <figcaption>{String(index + 1).padStart(2, '0')} <span>/ {String(deck.pages.length).padStart(2, '0')}</span></figcaption>
         </figure>)}</div>
-        <div className="gallery-end"><p>{t.end}</p><button className="studio-button studio-button-dark" onClick={() => switchDeck((active + 1) % decks.length)}>{decks[(active + 1) % decks.length].title[language]}<ArrowRight size={18} /></button><button className="gallery-back" onClick={backToGallery}>{t.top}<ArrowUp size={16} /></button></div>
+        <div className="gallery-end"><p>{t.end}</p><button className="studio-button studio-button-dark" onClick={backToGallery}>{t.top}<ArrowUp size={18} /></button></div>
       </section>
     </main>
     <footer className="gallery-footer"><a href={language === 'zh' ? '/' : '/en/'}>Banana Slides</a><p>{t.original}</p><a href="https://github.com/Anionex/banana-slides/issues/2" target="_blank" rel="noopener noreferrer">GitHub <ArrowUpRight size={14} /></a></footer>
