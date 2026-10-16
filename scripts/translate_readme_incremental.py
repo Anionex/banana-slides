@@ -207,10 +207,15 @@ def render_ui(body, language, languages, action_urls):
             buttons = []
             for name, data in language["buttons"].items():
                 label, width = data
+                # The yellow primary button uses identical colors in both themes.
+                visual = (f'<img src="./assets/buttons/{name}-{language["asset"]}.svg" '
+                          f'alt="{html.escape(label, quote=True)}" width="{width}" height="38">'
+                          if name == 'demo' else
+                          theme_picture(f'./assets/buttons/{name}-{language["asset"]}.svg',
+                                        f'./assets/buttons/{name}-{language["asset"]}-dark.svg',label,width,38))
                 buttons.append(
                     f'  <a href="{html.escape(action_urls[name], quote=True)}">'
-                    + theme_picture(f'./assets/buttons/{name}-{language["asset"]}.svg',
-                                    f'./assets/buttons/{name}-{language["asset"]}-dark.svg',label,width,46) + '</a>')
+                    + visual + '</a>')
             content = "<p>\n" + "\n  &nbsp;\n".join(buttons) + "\n</p>"
         elif match[1] == "intro":
             paragraph = html.escape(language['hero']['paragraph']).replace('\n', '<br>\n  ')
@@ -222,12 +227,12 @@ def render_ui(body, language, languages, action_urls):
             # Same text width formula as the SVG generator; CJK glyphs occupy one em.
             width = round(sum(14 if ord(c) > 255 else 7.2 for c in copy)) + 6
             repo = 'https://github.com/Anionex/banana-slides'
-            content = ('<p>\n  ' + themed('support-rule', '', 64) + '\n  '
+            content = ('<p>\n  ' + themed('support-rule', '', 32) + '\n  '
                        + themed('support-'+language['asset'], copy, width) + '\n  '
                        + f'<a href="{repo}/stargazers">' + themed('star', 'Star', 64) + '</a>\n  '
                        + themed('amp', '&', 16) + '\n  '
                        + f'<a href="{repo}/forks">' + themed('fork', 'Fork', 64) + '</a>\n  '
-                       + themed('support-rule', '', 64) + '\n</p>')
+                       + themed('support-rule', '', 32) + '\n</p>')
         return f"<!-- readme:{match[1]} -->\n{content}\n<!-- /readme:{match[1]} -->"
 
     return MANAGED.sub(replacement, body)

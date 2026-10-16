@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="169" height="46" viewBox="0 0 169 46" role="img" aria-label="デスクトップ RC7">
+<svg xmlns="http://www.w3.org/2000/svg" width="169" height="38" viewBox="0 0 169 38" role="img" aria-label="デスクトップ RC7">
   <title>デスクトップ RC7</title>
-  <rect x="0.5" y="3.5" width="168" height="39" rx="8" fill="none" stroke="#DEDFDF"/>
-  <g transform="translate(23.69999999999999 15) scale(.666667)" fill="none" stroke="#24262B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"></rect><line x1="8" x2="16" y1="21" y2="21"></line><line x1="12" x2="12" y1="17" y2="21"></line></g>
-  <text x="96.5" y="27" text-anchor="middle" fill="#24262B" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="12" font-weight="600">デスクトップ RC7</text>
+  <rect x="0.5" y="3.5" width="168" height="31" rx="6" fill="#F3F4F6" stroke="#ECEEF1"/>
+  <g transform="translate(20.599999999999994 11.5) scale(.625)" fill="none" stroke="#24262B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"></rect><line x1="8" x2="16" y1="21" y2="21"></line><line x1="12" x2="12" y1="17" y2="21"></line></g>
+  <text x="96" y="24" text-anchor="middle" fill="#24262B" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="13" font-weight="600">デスクトップ RC7</text>
 </svg>

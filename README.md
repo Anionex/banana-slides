@@ -2,62 +2,70 @@
 [//]: # "Banana Slides is an AI-native PPT generation app for creating editable presentations from ideas, outlines, documents, images, and custom templates. Features: prompt-to-slide generation, template control, material parsing, conversational editing, PPTX export, project history, and reproducible workflows. Quick Start / Install / Usage / Demo / API / Deploy / Architecture / Test / Screenshot guides are provided for local Docker deployment and online use."
 <div align="center">
 
-<p>
+<div>
   <picture><source media="(prefers-color-scheme: dark)" srcset="./assets/hero-dark.png"><source media="(prefers-color-scheme: light)" srcset="./assets/hero-light.png"><img src="./assets/hero-light.png" alt="Banana Slides — Vibe your way to great slides." width="720" height="180"></picture>
+</div>
+
+<!-- readme:intro -->
+<p>
+  基于图像生成模型的原生 AI PPT 应用，<br>
+  几分钟内将想法变成演示文稿，<br>
+  无需繁琐排版，用自然语言修改，迈向真正的「Vibe PPT」。
 </p>
+<!-- /readme:intro -->
 
 <!-- readme:languages -->
 <p><a href="README.md"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/language-zh-selected-zh-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/language-zh-selected-zh-light.svg"><img src="./assets/buttons/language-zh-selected-zh-light.svg" alt="简体中文" width="86" height="24"></picture></a><a href="README_EN.md"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/language-en-selected-zh-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/language-en-selected-zh-light.svg"><img src="./assets/buttons/language-en-selected-zh-light.svg" alt="English" width="82" height="24"></picture></a><a href="README_PT-BR.md"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/language-pt-br-selected-zh-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/language-pt-br-selected-zh-light.svg"><img src="./assets/buttons/language-pt-br-selected-zh-light.svg" alt="Português" width="98" height="24"></picture></a><a href="README_JA.md"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/language-ja-selected-zh-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/language-ja-selected-zh-light.svg"><img src="./assets/buttons/language-ja-selected-zh-light.svg" alt="日本語" width="72" height="24"></picture></a><a href="README_KO.md"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/language-ko-selected-zh-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/language-ko-selected-zh-light.svg"><img src="./assets/buttons/language-ko-selected-zh-light.svg" alt="한국어" width="72" height="24"></picture></a></p>
 <!-- /readme:languages -->
 
-<!-- readme:intro -->
-<p>
-  基于图像生成模型的原生 AI PPT 应用，几分钟内将想法变成演示文稿，<br>
-  无需繁琐排版，用自然语言修改，体验真正的「Vibe PPT」。
-</p>
-<!-- /readme:intro -->
-
 <!-- readme:actions -->
 <p>
-  <a href="https://bananaslides.online/"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/demo-zh-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/demo-zh.svg"><img src="./assets/buttons/demo-zh.svg" alt="在线 Demo" width="170" height="46"></picture></a>
+  <a href="https://bananaslides.online/"><img src="./assets/buttons/demo-zh.svg" alt="在线 Demo" width="122" height="38"></a>
   &nbsp;
-  <a href="https://docs.bananaslides.online/"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/docs-zh-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/docs-zh.svg"><img src="./assets/buttons/docs-zh.svg" alt="文档" width="110" height="46"></picture></a>
+  <a href="https://docs.bananaslides.online/"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/docs-zh-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/docs-zh.svg"><img src="./assets/buttons/docs-zh.svg" alt="文档" width="94" height="38"></picture></a>
   &nbsp;
-  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.7"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/desktop-zh-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/desktop-zh.svg"><img src="./assets/buttons/desktop-zh.svg" alt="桌面版 RC7" width="150" height="46"></picture></a>
+  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.7"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/desktop-zh-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/desktop-zh.svg"><img src="./assets/buttons/desktop-zh.svg" alt="桌面版 RC7" width="132" height="38"></picture></a>
   &nbsp;
-  <a href="https://github.com/Anionex/banana-slides#-%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/deploy-zh-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/deploy-zh.svg"><img src="./assets/buttons/deploy-zh.svg" alt="部署方法" width="135" height="46"></picture></a>
+  <a href="https://github.com/Anionex/banana-slides#-%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/deploy-zh-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/deploy-zh.svg"><img src="./assets/buttons/deploy-zh.svg" alt="部署方法" width="116" height="38"></picture></a>
 </p>
 <!-- /readme:actions -->
 
+<div>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/section-rule-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/section-rule-light.svg"><img src="./assets/readme/section-rule-light.svg" alt="" width="620" height="20"></picture>
+</div>
+
 <p>
   <a href="https://github.com/Anionex/banana-slides/stargazers"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/icon-star-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/icon-star-light.svg"><img src="./assets/readme/icon-star-light.svg" alt="" width="24" height="32"></picture><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/github/stars/Anionex/banana-slides?style=flat-square&amp;label=Stars&amp;labelColor=0d1117&amp;color=0d1117"><source media="(prefers-color-scheme: light)" srcset="https://img.shields.io/github/stars/Anionex/banana-slides?style=flat-square&amp;label=Stars&amp;labelColor=ffffff&amp;color=ffffff"><img src="https://img.shields.io/github/stars/Anionex/banana-slides?style=flat-square&amp;label=Stars&amp;labelColor=ffffff&amp;color=ffffff" alt="GitHub Stars" width="91" height="26"></picture></a>
-  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
   <a href="https://github.com/Anionex/banana-slides/forks"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/icon-fork-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/icon-fork-light.svg"><img src="./assets/readme/icon-fork-light.svg" alt="" width="24" height="32"></picture><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/github/forks/Anionex/banana-slides?style=flat-square&amp;label=Forks&amp;labelColor=0d1117&amp;color=0d1117"><source media="(prefers-color-scheme: light)" srcset="https://img.shields.io/github/forks/Anionex/banana-slides?style=flat-square&amp;label=Forks&amp;labelColor=ffffff&amp;color=ffffff"><img src="https://img.shields.io/github/forks/Anionex/banana-slides?style=flat-square&amp;label=Forks&amp;labelColor=ffffff&amp;color=ffffff" alt="GitHub Forks" width="96" height="26"></picture></a>
-  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="https://github.com/Anionex/banana-slides/watchers"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/icon-eye-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/icon-eye-light.svg"><img src="./assets/readme/icon-eye-light.svg" alt="" width="24" height="32"></picture><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/github/watchers/Anionex/banana-slides?style=flat-square&amp;label=Watchers&amp;labelColor=0d1117&amp;color=0d1117"><source media="(prefers-color-scheme: light)" srcset="https://img.shields.io/github/watchers/Anionex/banana-slides?style=flat-square&amp;label=Watchers&amp;labelColor=ffffff&amp;color=ffffff"><img src="https://img.shields.io/github/watchers/Anionex/banana-slides?style=flat-square&amp;label=Watchers&amp;labelColor=ffffff&amp;color=ffffff" alt="GitHub Watchers" width="109" height="26"></picture></a><br>
-  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.7"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/version-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/version-light.svg"><img src="./assets/readme/version-light.svg" alt="v0.9.0-rc.7" width="125" height="26"></picture></a>
-  &nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="https://github.com/Anionex/banana-slides/blob/main/LICENSE"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/icon-license-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/icon-license-light.svg"><img src="./assets/readme/icon-license-light.svg" alt="" width="24" height="32"></picture><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/github/license/Anionex/banana-slides?style=flat-square&amp;label=&amp;labelColor=0d1117&amp;color=0d1117"><source media="(prefers-color-scheme: light)" srcset="https://img.shields.io/github/license/Anionex/banana-slides?style=flat-square&amp;label=&amp;labelColor=ffffff&amp;color=ffffff"><img src="https://img.shields.io/github/license/Anionex/banana-slides?style=flat-square&amp;label=&amp;labelColor=ffffff&amp;color=ffffff" alt="AGPL-3.0" width="92" height="26"></picture></a>
-  &nbsp;&nbsp;&nbsp;&nbsp;
-  <picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/docker-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/docker-light.svg"><img src="./assets/readme/docker-light.svg" alt="Docker Build" width="129" height="26"></picture>
-  &nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="https://deepwiki.com/Anionex/banana-slides"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/deepwiki-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/deepwiki-light.svg"><img src="./assets/readme/deepwiki-light.svg" alt="Ask DeepWiki" width="146" height="26"></picture></a>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="https://github.com/Anionex/banana-slides/watchers"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/icon-eye-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/icon-eye-light.svg"><img src="./assets/readme/icon-eye-light.svg" alt="" width="24" height="32"></picture><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/github/watchers/Anionex/banana-slides?style=flat-square&amp;label=Watchers&amp;labelColor=0d1117&amp;color=0d1117"><source media="(prefers-color-scheme: light)" srcset="https://img.shields.io/github/watchers/Anionex/banana-slides?style=flat-square&amp;label=Watchers&amp;labelColor=ffffff&amp;color=ffffff"><img src="https://img.shields.io/github/watchers/Anionex/banana-slides?style=flat-square&amp;label=Watchers&amp;labelColor=ffffff&amp;color=ffffff" alt="GitHub Watchers" width="109" height="26"></picture></a>
 </p>
 
 <p>
-  <a href="https://trendshift.io/repositories/22056"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/badge-trendshift-dark.svg"><source media="(prefers-color-scheme: light)" srcset="https://trendshift.io/api/badge/repositories/22056"><img src="https://trendshift.io/api/badge/repositories/22056" alt="Anionex%2Fbanana-slides | Trendshift" width="294" height="65"></picture></a>
+  <a href="https://trendshift.io/repositories/22056"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/badge-trendshift-dark.svg"><source media="(prefers-color-scheme: light)" srcset="https://trendshift.io/api/badge/repositories/22056"><img src="https://trendshift.io/api/badge/repositories/22056" alt="Anionex%2Fbanana-slides | Trendshift" width="244" height="54"></picture></a>
   &nbsp;
-  <a href="https://hellogithub.com/repository/Anionex/banana-slides"><picture><source media="(prefers-color-scheme: dark)" srcset="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=c8a0ee51918e4353af08012b8472b85e&amp;claim_uid=CtDTm2jbUHhVGBr&amp;theme=dark"><source media="(prefers-color-scheme: light)" srcset="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=c8a0ee51918e4353af08012b8472b85e&amp;claim_uid=CtDTm2jbUHhVGBr&amp;theme=neutral"><img src="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=c8a0ee51918e4353af08012b8472b85e&amp;claim_uid=CtDTm2jbUHhVGBr&amp;theme=neutral" alt="Featured｜HelloGitHub" width="294" height="65"></picture></a>
+  <a href="https://hellogithub.com/repository/Anionex/banana-slides"><picture><source media="(prefers-color-scheme: dark)" srcset="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=c8a0ee51918e4353af08012b8472b85e&amp;claim_uid=CtDTm2jbUHhVGBr&amp;theme=dark"><source media="(prefers-color-scheme: light)" srcset="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=c8a0ee51918e4353af08012b8472b85e&amp;claim_uid=CtDTm2jbUHhVGBr&amp;theme=neutral"><img src="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=c8a0ee51918e4353af08012b8472b85e&amp;claim_uid=CtDTm2jbUHhVGBr&amp;theme=neutral" alt="Featured｜HelloGitHub" width="244" height="54"></picture></a>
+</p>
+
+<p>
+  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.7"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/version-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/version-light.svg"><img src="./assets/readme/version-light.svg" alt="v0.9.0-rc.7" width="106" height="22"></picture></a>
+  &nbsp;
+  <a href="https://github.com/Anionex/banana-slides/blob/main/LICENSE"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/icon-license-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/icon-license-light.svg"><img src="./assets/readme/icon-license-light.svg" alt="" width="20" height="27"></picture><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/github/license/Anionex/banana-slides?style=flat-square&amp;label=&amp;labelColor=0d1117&amp;color=0d1117"><source media="(prefers-color-scheme: light)" srcset="https://img.shields.io/github/license/Anionex/banana-slides?style=flat-square&amp;label=&amp;labelColor=ffffff&amp;color=ffffff"><img src="https://img.shields.io/github/license/Anionex/banana-slides?style=flat-square&amp;label=&amp;labelColor=ffffff&amp;color=ffffff" alt="AGPL-3.0" width="78" height="22"></picture></a>
+  &nbsp;
+  <picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/docker-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/docker-light.svg"><img src="./assets/readme/docker-light.svg" alt="Docker Build" width="109" height="22"></picture>
+  &nbsp;
+  <a href="https://deepwiki.com/Anionex/banana-slides"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/deepwiki-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/deepwiki-light.svg"><img src="./assets/readme/deepwiki-light.svg" alt="Ask DeepWiki" width="123" height="22"></picture></a>
 </p>
 
 <!-- readme:support -->
 <p>
-  <picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/support-rule-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/support-rule-light.svg"><img src="./assets/readme/support-rule-light.svg" alt="" width="64" height="26"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/support-rule-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/support-rule-light.svg"><img src="./assets/readme/support-rule-light.svg" alt="" width="32" height="26"></picture>
   <picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/support-zh-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/support-zh-light.svg"><img src="./assets/readme/support-zh-light.svg" alt="如果这个项目对你有用，欢迎" width="188" height="26"></picture>
   <a href="https://github.com/Anionex/banana-slides/stargazers"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/star-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/star-light.svg"><img src="./assets/readme/star-light.svg" alt="Star" width="64" height="26"></picture></a>
   <picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/amp-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/amp-light.svg"><img src="./assets/readme/amp-light.svg" alt="&amp;" width="16" height="26"></picture>
   <a href="https://github.com/Anionex/banana-slides/forks"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/fork-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/fork-light.svg"><img src="./assets/readme/fork-light.svg" alt="Fork" width="64" height="26"></picture></a>
-  <picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/support-rule-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/support-rule-light.svg"><img src="./assets/readme/support-rule-light.svg" alt="" width="64" height="26"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/support-rule-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/support-rule-light.svg"><img src="./assets/readme/support-rule-light.svg" alt="" width="32" height="26"></picture>
 </p>
 <!-- /readme:support -->
 

@@ -151,8 +151,8 @@ class SyncTests(unittest.TestCase):
         self.assertEqual(self.run_sync()['calls'], 0)
 
     def test_missing_dark_source_is_detected_before_writing(self):
-        (self.root / 'assets/buttons/demo-en-dark.svg').unlink()
-        with self.assertRaisesRegex(ValueError, 'Missing asset: assets/buttons/demo-en-dark.svg'):
+        (self.root / 'assets/buttons/docs-en-dark.svg').unlink()
+        with self.assertRaisesRegex(ValueError, 'Missing asset: assets/buttons/docs-en-dark.svg'):
             self.run_sync()
         self.assertFalse((self.root / 'README_EN.md').exists())
         self.assertFalse((self.root / syncer.STATE).exists())

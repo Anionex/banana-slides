@@ -61,16 +61,16 @@ function render({ label, width, icon, primary, compact, active, divider, dark })
 </svg>
 `;
   // Transparent vertical padding keeps wrapped rows apart without README CSS.
-  const height = compact ? 30 : 46;
-  const fill = compact ? (active ? '#24292F' : '#EEF0F3') : primary ? '#FFD52C' : 'none';
-  const stroke = compact ? (active ? '#363D44' : '#EEF0F3') : primary ? '#EBC327' : dark ? '#3E4342' : '#DEDFDF';
+  const height = compact ? 30 : 38;
+  const fill = compact ? (active ? '#24292F' : '#EEF0F3') : primary ? '#FFD52C' : dark ? '#21262D' : '#F3F4F6';
+  const stroke = compact ? (active ? '#363D44' : '#EEF0F3') : primary ? '#EBC327' : dark ? '#30363D' : '#ECEEF1';
   const color = compact ? (active ? '#FFFFFF' : '#445166') : primary ? '#29270D' : dark ? '#EEEDE7' : '#24262B';
-  const labelWidth = [...label].reduce((sum, char) => sum + (char.codePointAt(0) > 255 ? 12 : 6.4), 0);
-  const iconX = (width - labelWidth - 24) / 2;
+  const labelWidth = [...label].reduce((sum, char) => sum + (char.codePointAt(0) > 255 ? 13 : 6.7), 0);
+  const iconX = (width - labelWidth - 23) / 2;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${label}">
   <title>${label}</title>
-  <rect x="0.5" y="${compact ? .5 : 3.5}" width="${width - 1}" height="${compact ? 29 : 39}" rx="${compact ? 15 : 8}" fill="${fill}" stroke="${stroke}"/>
-${icon ? `  <g transform="translate(${iconX} 15) scale(.666667)" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${icons[icon]}</g>\n` : ''}  <text x="${icon ? (width + 24) / 2 : width / 2}" y="${compact ? 20 : 27}" text-anchor="middle" fill="${color}" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="${compact ? 14 : 12}" font-weight="${compact ? 600 : 600}">${label}</text>
+  <rect x="0.5" y="${compact ? .5 : 3.5}" width="${width - 1}" height="${compact ? 29 : 31}" rx="${compact ? 15 : 6}" fill="${fill}" stroke="${stroke}"/>
+${icon ? `  <g transform="translate(${iconX} 11.5) scale(.625)" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${icons[icon]}</g>\n` : ''}  <text x="${icon ? (width + 23) / 2 : width / 2}" y="${compact ? 20 : 24}" text-anchor="middle" fill="${color}" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="${compact ? 14 : 13}" font-weight="600">${label}</text>
 </svg>
 `;
 }

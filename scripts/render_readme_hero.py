@@ -52,6 +52,7 @@ def assets(languages):
             save(name,svg(64,26,text(label,1,18,16,ink,750,'start')+icon(name,'#AD9229',43,4,18),label))
         save('amp',svg(16,26,text('&',8,18,14,muted),'&'))
         save('support-rule',svg(64,26,f'<path d="M8 13H56" fill="none" stroke="{muted}" stroke-opacity="0.35"/>',''))
+        save('section-rule',svg(620,20,f'<path d="M0 10H620" fill="none" stroke="{muted}" stroke-opacity="0.22"/>',''))
         save('docker',svg(99,20,icon('docker',muted,0,2,15)+text('Docker Build',21,14,11,muted,400,'start'),'Docker Build'))
         save('deepwiki',svg(112,20,icon('sparkles',muted,0,2,15)+text('Ask DeepWiki',22,14,11,muted,400,'start'),'Ask DeepWiki'))
         save('version',svg(96,20,icon('tag',muted,0,2,15)+text('v0.9.0-rc.7',21,14,11,muted,400,'start'),'v0.9.0-rc.7'))
@@ -77,22 +78,23 @@ def template(action_urls):
     metrics=[]
     for name, endpoint, label, destination in [('star','stars','Stars','stargazers'),('fork','forks','Forks','forks'),('eye','watchers','Watchers','watchers')]:
         metrics.append(f'<a href="{REPO}/{destination}">'+local('icon-'+name,'',24,32)+themed(badge('github/'+endpoint+'/Anionex/banana-slides',label),'GitHub '+label,width={'star':91,'fork':96,'eye':109}[name],height=26)+'</a>')
-    tech = [f'<a href="{action_urls["desktop"]}">'+local('version','v0.9.0-rc.7',125,26)+'</a>',
-            f'<a href="{REPO}/blob/main/LICENSE">'+local('icon-license','',24,32)+themed(badge('github/license/Anionex/banana-slides',''),'AGPL-3.0',width=92,height=26)+'</a>',
-            local('docker','Docker Build',129,26),
-            '<a href="https://deepwiki.com/Anionex/banana-slides">'+local('deepwiki','Ask DeepWiki',146,26)+'</a>']
+    tech = [f'<a href="{action_urls["desktop"]}">'+local('version','v0.9.0-rc.7',106,22)+'</a>',
+            f'<a href="{REPO}/blob/main/LICENSE">'+local('icon-license','',20,27)+themed(badge('github/license/Anionex/banana-slides',''),'AGPL-3.0',width=78,height=22)+'</a>',
+            local('docker','Docker Build',109,22),
+            '<a href="https://deepwiki.com/Anionex/banana-slides">'+local('deepwiki','Ask DeepWiki',123,22)+'</a>']
     recommendations=(
-        '<a href="https://trendshift.io/repositories/22056">'+themed(lambda theme:'./assets/badge-trendshift-dark.svg' if theme=='dark' else 'https://trendshift.io/api/badge/repositories/22056','Anionex%2Fbanana-slides | Trendshift',294,65)+'</a>\n  &nbsp;\n  '+
-        '<a href="https://hellogithub.com/repository/Anionex/banana-slides">'+themed(lambda theme:'https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=c8a0ee51918e4353af08012b8472b85e&claim_uid=CtDTm2jbUHhVGBr&theme='+('dark' if theme=='dark' else 'neutral'),'Featured｜HelloGitHub',294,65)+'</a>')
+        '<a href="https://trendshift.io/repositories/22056">'+themed(lambda theme:'./assets/badge-trendshift-dark.svg' if theme=='dark' else 'https://trendshift.io/api/badge/repositories/22056','Anionex%2Fbanana-slides | Trendshift',244,54)+'</a>\n  &nbsp;\n  '+
+        '<a href="https://hellogithub.com/repository/Anionex/banana-slides">'+themed(lambda theme:'https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=c8a0ee51918e4353af08012b8472b85e&claim_uid=CtDTm2jbUHhVGBr&theme='+('dark' if theme=='dark' else 'neutral'),'Featured｜HelloGitHub',244,54)+'</a>')
     # UI blocks are owned by the existing language renderer, not a second copy of button markup.
     return ('<div align="center">\n\n'
-            '<p>\n  '+themed(lambda theme:f'./assets/hero-{theme}.png','Banana Slides — Vibe your way to great slides.',720,180)+'\n</p>\n\n'
-            '<!-- readme:languages -->\n<!-- /readme:languages -->\n\n'
+            '<div>\n  '+themed(lambda theme:f'./assets/hero-{theme}.png','Banana Slides — Vibe your way to great slides.',720,180)+'\n</div>\n\n'
             '<!-- readme:intro -->\n<!-- /readme:intro -->\n\n'
+            '<!-- readme:languages -->\n<!-- /readme:languages -->\n\n'
             '<!-- readme:actions -->\n<!-- /readme:actions -->\n\n'
-            '<p>\n  '+'\n  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;\n  '.join(metrics)+'<br>\n'
-            '  '+'\n  &nbsp;&nbsp;&nbsp;&nbsp;\n  '.join(tech)+'\n</p>\n\n'
+            '<div>\n  '+local('section-rule','',620,20)+'\n</div>\n\n'
+            '<p>\n  '+'\n  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;\n  '.join(metrics)+'\n</p>\n\n'
             '<p>\n  '+recommendations+'\n</p>\n\n'
+            '<p>\n  '+'\n  &nbsp;\n  '.join(tech)+'\n</p>\n\n'
             '<!-- readme:support -->\n<!-- /readme:support -->\n\n</div>\n\n')
 
 
