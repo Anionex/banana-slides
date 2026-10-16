@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import type { MutableRefObject, ReactNode } from 'react';
 import type { MotionValue } from 'motion/react';
+import { animate } from 'motion/react';
 import type { GalleryDeck } from './types';
 
 export interface GalleryPan {
@@ -25,6 +26,7 @@ export function CurvedGallery({ decks, active, onSelect, label, reading, expande
   const manual = useRef<{ x: number; scroll: number } | null>(null);
   const pending = useRef<number>();
   const frame = useRef(0);
+  const settling = useRef<ReturnType<typeof animate>>();
   const activeRef = useRef(active);
   activeRef.current = active;
   const drag = useRef<{ x: number; scroll: number; moved: boolean } | null>(null);
@@ -89,6 +91,10 @@ export function CurvedGallery({ decks, active, onSelect, label, reading, expande
       const cover = button.querySelector('img')!;
       const x = button.offsetLeft - el.scrollLeft, w = button.offsetWidth;
       if (x + w < 0 || x > width || !cover.complete || !cover.naturalWidth) return;
+      // The centered work is completely flat, including its cover. Curvature only
+      // develops as a work moves into the side position, with no mode-change jump.
+      const side = Math.min(1, Math.max(0, (Math.abs(x - (width - w) / 2) / w - .2) / .8));
+      const curvature = side * side * (3 - 2 * side);
       if (reading && slot === active + 1) {
         const departure = Math.min(1, Math.abs(x - (width - w) / 2) / (w * .6));
         const base = w * 9 / 16;
@@ -97,7 +103,7 @@ export function CurvedGallery({ decks, active, onSelect, label, reading, expande
         if (horizontal) {
           // Hide the adjacent pages as soon as horizontal intent is established.
           // Keep the central aperture curved so the card can still return smoothly.
-          const edge = (px: number) => base * (1 + (width < 768 ? .2 : .55) * departure * Math.pow((px - width / 2) / (width / 2), 2));
+          const edge = (px: number) => base * (1 + (width < 768 ? .2 : .55) * curvature * Math.pow((px - width / 2) / (width / 2), 2));
           ctx.beginPath();
           for (let i = 0; i <= 40; i++) {
             const px = x + w * i / 40, py = centerY - edge(px) / 2;
@@ -116,7 +122,7 @@ export function CurvedGallery({ decks, active, onSelect, label, reading, expande
           const isCover = ((virtual % decks[active].pages.length) + decks[active].pages.length) % decks[active].pages.length === 0;
           const source = img?.complete && img.naturalWidth ? img : isCover ? cover : null;
           if (!source) return;
-          drawCard(source, x, w, (virtual - progress.get()) * (base + 16), isCover ? 1 : 1 - departure, isCover ? departure : 0);
+          drawCard(source, x, w, (virtual - progress.get()) * (base + 16), isCover ? 1 : 1 - departure, isCover ? curvature : 0);
           figure.dataset.painted = 'true';
         });
         // Mask only this card's column; neighboring presentations keep their curvature.
@@ -127,7 +133,7 @@ export function CurvedGallery({ decks, active, onSelect, label, reading, expande
         fade.addColorStop((centerY + base / 2) / height, '#000'); fade.addColorStop(1, 'transparent');
         ctx.fillStyle = fade; ctx.fillRect(x, 0, w, height); ctx.restore();
         ctx.restore();
-      } else drawCard(cover, x, w);
+      } else drawCard(cover, x, w, 0, 1, curvature);
       button.dataset.painted = 'true';
     });
   }, [reading, active, decks, progress]);
@@ -156,6 +162,21 @@ export function CurvedGallery({ decks, active, onSelect, label, reading, expande
     return () => { images.forEach(image => { image.onload = null; }); };
   }, [active, decks]);
 
+  const settleTo = useCallback((left: number, instant = false) => {
+    const el = track.current!;
+    settling.current?.stop();
+    if (instant || reduced() || Math.abs(left - el.scrollLeft) < 1) {
+      el.scrollTo({ left, behavior: 'instant' });
+      return;
+    }
+    el.style.scrollSnapType = 'none';
+    settling.current = animate(el.scrollLeft, left, {
+      duration: Math.min(.56, .32 + Math.abs(left - el.scrollLeft) / 2400),
+      ease: [.45, 0, .55, 1],
+      onUpdate: value => { el.scrollLeft = value; },
+    });
+  }, []);
+
   const center = useCallback((index: number, instant = false) => {
     const el = track.current;
     let slot = index + 1;
@@ -167,8 +188,8 @@ export function CurvedGallery({ decks, active, onSelect, label, reading, expande
       if (index === 0 && Math.abs(middle - last.offsetLeft - last.offsetWidth / 2) < 2) slot = decks.length + 1;
     }
     const button = el?.children[slot] as HTMLElement | undefined;
-    if (el && button) el.scrollTo({ left: button.offsetLeft - (el.clientWidth - button.offsetWidth) / 2, behavior: instant || reduced() ? 'instant' : 'smooth' });
-  }, [decks.length]);
+    if (el && button) settleTo(button.offsetLeft - (el.clientWidth - button.offsetWidth) / 2, instant);
+  }, [decks.length, settleTo]);
 
   useEffect(() => { center(active); }, [active, center]);
   useEffect(() => {
@@ -180,7 +201,7 @@ export function CurvedGallery({ decks, active, onSelect, label, reading, expande
     });
     resize.observe(el);
     schedulePaint();
-    return () => { resize.disconnect(); cancelAnimationFrame(frame.current); window.clearTimeout(pending.current); };
+    return () => { resize.disconnect(); cancelAnimationFrame(frame.current); settling.current?.stop(); window.clearTimeout(pending.current); };
   }, [center, schedulePaint]);
 
   const finishScroll = () => {
@@ -201,6 +222,7 @@ export function CurvedGallery({ decks, active, onSelect, label, reading, expande
   pan.current = {
     paint: schedulePaint,
     start(x) {
+      settling.current?.stop();
       stage.current!.dataset.horizontal = 'true';
       const el = track.current!;
       window.clearTimeout(pending.current);
@@ -225,7 +247,7 @@ export function CurvedGallery({ decks, active, onSelect, label, reading, expande
       const initialSlot = Math.round((state.scroll + (el.clientWidth - first.offsetWidth) / 2 - first.offsetLeft) / step) + 1;
       const slot = Math.max(0, Math.min(decks.length + 1, initialSlot + (Math.abs(distance) > 60 ? Math.sign(distance) * Math.max(1, Math.round(Math.abs(distance) / step)) : 0)));
       const button = el.children[slot] as HTMLElement;
-      el.scrollTo({ left: button.offsetLeft - (el.clientWidth - button.offsetWidth) / 2, behavior: reduced() ? 'instant' : 'smooth' });
+      settleTo(button.offsetLeft - (el.clientWidth - button.offsetWidth) / 2);
       finishScroll();
     },
     select(index) { stage.current!.dataset.horizontal = 'true'; center(index); finishScroll(); },
@@ -257,6 +279,7 @@ export function CurvedGallery({ decks, active, onSelect, label, reading, expande
       }}
       onScroll={() => { updatePosition(); schedulePaint(); if (!manual.current) finishScroll(); }}
       onPointerDown={event => {
+        settling.current?.stop();
         if (event.pointerType !== 'mouse') { touch.current = { x: event.clientX, y: event.clientY }; return; }
         if (event.button !== 0) return;
         drag.current = { x: event.clientX, scroll: event.currentTarget.scrollLeft, moved: false };
@@ -265,10 +288,10 @@ export function CurvedGallery({ decks, active, onSelect, label, reading, expande
         const state = drag.current;
         if (!state) return;
         if (Math.abs(event.clientX - state.x) > 5) {
+          if (!state.moved) pan.current?.start(state.x);
           state.moved = true;
           event.currentTarget.setPointerCapture(event.pointerId);
-          event.currentTarget.style.scrollSnapType = 'none';
-          event.currentTarget.scrollLeft = state.scroll - (event.clientX - state.x);
+          pan.current?.move(event.clientX);
         }
       }}
       onPointerUp={event => {
@@ -277,12 +300,12 @@ export function CurvedGallery({ decks, active, onSelect, label, reading, expande
           if (dy > 24 && dy > dx) onRead();
           touch.current = null;
         }
-        event.currentTarget.style.scrollSnapType = '';
+        if (drag.current?.moved) pan.current?.end();
         if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
         // Keep moved until click has fired, then allow the next interaction.
         window.setTimeout(() => { drag.current = null; }, 0);
       }}
-      onPointerCancel={event => { event.currentTarget.style.scrollSnapType = ''; drag.current = null; touch.current = null; }}
+      onPointerCancel={() => { if (drag.current?.moved) pan.current?.end(); drag.current = null; touch.current = null; }}
       onPointerLeave={() => { if (!drag.current?.moved) drag.current = null; }}
     >
       {entries.map((deck, slot) => <button key={`${deck.id}-${slot}`} className="gallery-cover" tabIndex={-1} aria-label={deck.title.zh} aria-hidden={slot === 0 || slot === entries.length - 1} aria-pressed={slot - 1 === active}
@@ -290,7 +313,7 @@ export function CurvedGallery({ decks, active, onSelect, label, reading, expande
           if (drag.current?.moved || !track.current) return;
           if (slot - 1 === active) { onRead(); return; }
           const button = event.currentTarget;
-          track.current.scrollTo({ left: button.offsetLeft - (track.current.clientWidth - button.offsetWidth) / 2, behavior: reduced() ? 'instant' : 'smooth' });
+          settleTo(button.offsetLeft - (track.current.clientWidth - button.offsetWidth) / 2);
         }}>
         <img src={`/gallery/${deck.id}/cover.webp`} alt={deck.title.zh} width="800" height="450" draggable={false} onLoad={schedulePaint} />
       </button>)}

@@ -91,7 +91,9 @@ export function WheelDeck({ deck, language, enteredAt, onExit, onHorizontal, pan
     rewinding.current = true;
     window.clearTimeout(timer.current);
     stop();
-    animation.current = animate(progress, Math.round(progress.get() / deck.pages.length) * deck.pages.length, { duration: reduced ? 0 : .22, ease: [.22, 1, .36, 1] });
+    const target = Math.round(progress.get() / deck.pages.length) * deck.pages.length;
+    const duration = Math.min(.6, .34 + Math.abs(target - progress.get()) * .045);
+    animation.current = animate(progress, target, { duration: reduced ? 0 : duration, ease: [.45, 0, .55, 1] });
   };
 
   useEffect(() => {
