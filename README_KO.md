@@ -2,6 +2,8 @@
 [//]: # "Banana Slides는 아이디어, 개요, 문서, 이미지 및 사용자 정의 템플릿에서 편집 가능한 프레젠테이션을 만들기 위한 AI 네이티브 PPT 생성 앱입니다. 주요 기능: 프롬프트 기반 슬라이드 생성, 템플릿 제어, 자료 파싱, 대화형 편집, PPTX 내보내기, 프로젝트 기록 및 재현 가능한 워크플로우. 로컬 Docker 배포 및 온라인 사용을 위한 빠른 시작 / 설치 / 사용법 / 데모 / API / 배포 / 아키텍처 / 테스트 / 스크린샷 가이드가 제공됩니다."
 <div align="center">
 
+<a name="readme-top"></a>
+
 <div>
   <picture><source media="(prefers-color-scheme: dark)" srcset="./assets/hero-dark.png"><source media="(prefers-color-scheme: light)" srcset="./assets/hero-light.png"><img src="./assets/hero-light.png" alt="Banana Slides — Vibe your way to great slides." width="720" height="180"></picture>
 </div>
@@ -26,6 +28,11 @@
   <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.7"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/desktop-ko-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/desktop-ko.svg"><img src="./assets/buttons/desktop-ko.svg" alt="데스크톱 RC7" width="167" height="38"></picture></a>
   &nbsp;
   <a href="https://github.com/Anionex/banana-slides#-%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/deploy-ko-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/deploy-ko.svg"><img src="./assets/buttons/deploy-ko.svg" alt="배포 방법" width="137" height="38"></picture></a>
+</p>
+<p>
+  <a href="https://x.com/anion_ex"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/community-x-ko-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/community-x-ko.svg"><img src="./assets/buttons/community-x-ko.svg" alt="anion_ex" width="118" height="38"></picture></a>
+  &nbsp;
+  <a href="#user-content-community"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/community-wechat-ko-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/community-wechat-ko.svg"><img src="./assets/buttons/community-wechat-ko.svg" alt="WeChat 그룹" width="140" height="38"></picture></a>
 </p>
 <!-- /readme:actions -->
 
@@ -68,24 +75,31 @@
 </p>
 <!-- /readme:support -->
 
+<div><img src="./assets/readme/space.svg" alt="" width="1" height="32"></div>
+
 </div>
 
 <!-- i18n:sponsors -->
-## ❤️ 후원
+## ❤️ 스폰서
 
 <details open>
 <summary>클릭하여 접기</summary>
 
-<table>
-<tr>
-<td width="220" align="center" valign="middle"><a href="https://aihubmix.com/?aff=17EC"><img src="./assets/logo_aihubmix.png" alt="AIHubMix" width="189"></a></td>
-<td valign="middle">본 프로젝트를 후원해 주신 <a href="https://aihubmix.com/?aff=17EC">AIHubMix</a>에 감사드립니다! AIHubMix는 안정적이고 높은 동시 처리를 지원하는 AI 대형 모델 API 통합 플랫폼으로, 하나의 API Key로 Claude, GPT, Gemini, DeepSeek 등 주요 모델을 사용할 수 있으며 다양한 프로토콜과 호환됩니다. 가입 시 해외 사용자는 <a href="https://aihubmix.com/?aff=17EC">AIHubMix 입구</a>를, 중국 본토 사용자는 <a href="https://inferera.com/?aff=17EC">Inferera 입구</a>를 이용해 주세요. </td>
-</tr>
-<tr>
-<td width="220" align="center" valign="middle"><a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides"><img src="./assets/huoshan.png" alt="火山引擎" width="189"></a></td>
-<td valign="middle">본 프로젝트를 후원해 주신 <a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">화산엔진</a>에 감사드립니다! 해외 주요 공식 API와 비교하여 가격이 더 저렴하고 가성비가 높으며, 생성 효과가 비슷합니다. 중국 내에서 직접 연결이 가능하여 특수한 네트워크 환경이 필요하지 않습니다. 구독 후에는 Banana Slides뿐만 아니라 일상적인 용도 및 기타 호환 도구에서도 사용할 수 있습니다. <br><a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">혜택 확인 및 구독하기 →</a></td>
-</tr>
-</table>
+<br>
+
+<p><a href="https://aihubmix.com/?aff=17EC"><img src="./assets/logo_aihubmix.png" alt="AIHubMix" width="160"></a></p>
+
+<p>본 프로젝트를 후원해 주신 <a href="https://aihubmix.com/?aff=17EC">AIHubMix</a>에 감사드립니다! AIHubMix는 안정적이고 높은 동시 처리를 지원하는 AI 대형 모델 API 통합 플랫폼으로, 하나의 API Key로 Claude, GPT, Gemini, DeepSeek 등 주요 모델을 사용할 수 있으며 다양한 프로토콜과 호환됩니다. </p>
+
+<p>가입 시 해외 사용자는 <a href="https://aihubmix.com/?aff=17EC">AIHubMix 입구</a>를, 중국 본토 사용자는 <a href="https://inferera.com/?aff=17EC">Inferera 입구</a>를 이용해 주세요. </p>
+
+<p><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/section-rule-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/section-rule-light.svg"><img src="./assets/readme/section-rule-light.svg" alt="" width="838" height="20"></picture></p>
+
+<p><a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides"><img src="./assets/huoshan.png" alt="火山引擎" width="160"></a></p>
+
+<p>본 프로젝트를 후원해 주신 <a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">화산엔진</a>에 감사드립니다! 해외 주요 공식 API와 비교하여 가격이 더 저렴하고 가성비가 높으며, 생성 효과가 비슷합니다. 중국 내에서 직접 연결이 가능하여 특수한 네트워크 환경이 필요하지 않습니다. 구독 후에는 Banana Slides뿐만 아니라 일상적인 용도 및 기타 호환 도구에서도 사용할 수 있습니다. </p>
+
+<p><a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">혜택 확인 및 구독하기 →</a></p>
 
 > 본 프로젝트를 후원하고 싶으신가요? davidyang042@gmail.com으로 이메일을 보내주세요.
 </details>
@@ -549,6 +563,10 @@ npm run dev
 <!-- i18n:community -->
 ## 소통방
 
+<a name="community"></a>
+
+<p align="right"><a href="#user-content-readme-top">↑ 맨 위로</a></p>
+
 새로운 기능 제안이나 피드백은 언제나 환영합니다~
 
 
@@ -621,9 +639,34 @@ DeepWiki에서 직접 질문하실 수도 있습니다.
 
 <br>
 
-<!-- i18n:daily-reports -->
-### 일상 보고 및 백그라운드 소재 작업
+<!-- i18n:text-fallback -->
+<details align="left">
+<summary>텍스트 버전</summary>
 
-홈 화면의 「한 문장 생성」에서 「일상 보고」로 전환하여 주간/월간 보고, 프로젝트 보고, 제품 소개, 교육 자료 또는 사용자 정의 시나리오를 선택할 수 있습니다. 주제와 선택 필드를 입력한 후 Prompt 미리보기를 편집할 수 있으며, 기존의 템플릿, 참조 파일, 비율 및 페이지별 템플릿 프로세스를 그대로 따릅니다. 프리셋은 빈 필드만 채우며, 수동 편집 후의 미리보기는 「양식에서 Prompt 업데이트」를 클릭할 때만 다시 생성됩니다.
+<p><strong>Banana Slides</strong></p>
 
-설정에서 Codex를 직접 선택하면 연결되지 않았을 때 OpenAI 로그인 창이 나타나며, 연결에 성공하면 이번 선택 사항이 적용됩니다. 취소 시 기존 설정이 유지됩니다. 소재 툴박스에서 작업을 제출한 후 다음 이미지를 계속 생성할 수 있으며, 각 작업의 상태와 결과는 독립적으로 표시되고 새로고침 후 조회를 재개할 수 있습니다. 조회가 일시 중지된 경우 「조회 계속하기」를 클릭할 수 있으며, 결과는 여전히 소재 라이브러리에 저장됩니다.
+<p><a href="README.md">简体中文</a> · <a href="README_EN.md">English</a> · <a href="README_PT-BR.md">Português</a> · <a href="README_JA.md">日本語</a> · <a href="README_KO.md">한국어</a></p>
+
+<p><a href="https://bananaslides.online/">온라인 데모</a> · <a href="https://docs.bananaslides.online/">문서</a> · <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.7">데스크톱 RC7</a> · <a href="https://github.com/Anionex/banana-slides#-%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95">배포 방법</a> · <a href="https://x.com/anion_ex">anion_ex</a> · <a href="#user-content-community">WeChat 그룹</a></p>
+
+<p><a href="https://github.com/Anionex/banana-slides/stargazers">Stars</a> · <a href="https://github.com/Anionex/banana-slides/forks">Forks</a> · <a href="https://github.com/Anionex/banana-slides/watchers">Watchers</a> · <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.7">v0.9.0-rc.7</a> · <a href="https://github.com/Anionex/banana-slides/blob/main/LICENSE">AGPL-3.0</a> · <a href="https://deepwiki.com/Anionex/banana-slides">Ask DeepWiki</a> · <a href="https://trendshift.io/repositories/22056">Trendshift</a> · <a href="https://hellogithub.com/repository/Anionex/banana-slides">HelloGitHub</a></p>
+
+<br>
+
+<p><a href="https://aihubmix.com/?aff=17EC">AIHubMix</a></p>
+
+<p>본 프로젝트를 후원해 주신 <a href="https://aihubmix.com/?aff=17EC">AIHubMix</a>에 감사드립니다! AIHubMix는 안정적이고 높은 동시 처리를 지원하는 AI 대형 모델 API 통합 플랫폼으로, 하나의 API Key로 Claude, GPT, Gemini, DeepSeek 등 주요 모델을 사용할 수 있으며 다양한 프로토콜과 호환됩니다. </p>
+
+<p>가입 시 해외 사용자는 <a href="https://aihubmix.com/?aff=17EC">AIHubMix 입구</a>를, 중국 본토 사용자는 <a href="https://inferera.com/?aff=17EC">Inferera 입구</a>를 이용해 주세요. </p>
+
+
+
+<p><a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">火山引擎</a></p>
+
+<p>본 프로젝트를 후원해 주신 <a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">화산엔진</a>에 감사드립니다! 해외 주요 공식 API와 비교하여 가격이 더 저렴하고 가성비가 높으며, 생성 효과가 비슷합니다. 중국 내에서 직접 연결이 가능하여 특수한 네트워크 환경이 필요하지 않습니다. 구독 후에는 Banana Slides뿐만 아니라 일상적인 용도 및 기타 호환 도구에서도 사용할 수 있습니다. </p>
+
+<p><a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">혜택 확인 및 구독하기 →</a></p>
+
+<blockquote><p>본 프로젝트를 후원하고 싶으신가요? <a href="mailto:davidyang042@gmail.com">davidyang042@gmail.com</a>으로 이메일을 보내주세요.</p></blockquote>
+
+</details>

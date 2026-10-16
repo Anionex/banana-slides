@@ -2,6 +2,8 @@
 [//]: # "Banana Slides é um aplicativo de geração de PPT nativo de IA para criar apresentações editáveis a partir de ideias, esboços, documentos, imagens e modelos personalizados. Recursos: geração de prompt para slide, controle de modelo, análise de material, edição conversacional, exportação PPTX, histórico de projetos e fluxos de trabalho reproduzíveis. Guias de Início Rápido / Instalação / Uso / Demonstração / API / Implantação / Arquitetura / Teste / Captura de tela são fornecidos para implantação local do Docker e uso online."
 <div align="center">
 
+<a name="readme-top"></a>
+
 <div>
   <picture><source media="(prefers-color-scheme: dark)" srcset="./assets/hero-dark.png"><source media="(prefers-color-scheme: light)" srcset="./assets/hero-light.png"><img src="./assets/hero-light.png" alt="Banana Slides — Vibe your way to great slides." width="720" height="180"></picture>
 </div>
@@ -26,6 +28,11 @@
   <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.7"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/desktop-pt-br-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/desktop-pt-br.svg"><img src="./assets/buttons/desktop-pt-br.svg" alt="Desktop RC7" width="136" height="38"></picture></a>
   &nbsp;
   <a href="https://github.com/Anionex/banana-slides#-%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/deploy-pt-br-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/deploy-pt-br.svg"><img src="./assets/buttons/deploy-pt-br.svg" alt="Implantação" width="136" height="38"></picture></a>
+</p>
+<p>
+  <a href="https://x.com/anion_ex"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/community-x-pt-br-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/community-x-pt-br.svg"><img src="./assets/buttons/community-x-pt-br.svg" alt="anion_ex" width="118" height="38"></picture></a>
+  &nbsp;
+  <a href="#user-content-community"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/community-wechat-pt-br-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/community-wechat-pt-br.svg"><img src="./assets/buttons/community-wechat-pt-br.svg" alt="Grupo WeChat" width="148" height="38"></picture></a>
 </p>
 <!-- /readme:actions -->
 
@@ -68,24 +75,31 @@
 </p>
 <!-- /readme:support -->
 
+<div><img src="./assets/readme/space.svg" alt="" width="1" height="32"></div>
+
 </div>
 
 <!-- i18n:sponsors -->
-## ❤️ Patrocínio
+## ❤️ Patrocinadores
 
 <details open>
 <summary>Clique para recolher</summary>
 
-<table>
-<tr>
-<td width="220" align="center" valign="middle"><a href="https://aihubmix.com/?aff=17EC"><img src="./assets/logo_aihubmix.png" alt="AIHubMix" width="189"></a></td>
-<td valign="middle">Agradecemos à <a href="https://aihubmix.com/?aff=17EC">AIHubMix</a> por patrocinar este projeto! AIHubMix é uma plataforma agregadora de APIs de grandes modelos de IA estável e de alta concorrência; com apenas uma chave de API, você pode acessar modelos populares como Claude, GPT, Gemini, DeepSeek, entre outros, sendo compatível com diversos protocolos. Ao se registrar, usuários no exterior devem usar o <a href="https://aihubmix.com/?aff=17EC">acesso AIHubMix</a>, e usuários na China continental devem usar o <a href="https://inferera.com/?aff=17EC">acesso Inferera</a>.</td>
-</tr>
-<tr>
-<td width="220" align="center" valign="middle"><a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides"><img src="./assets/huoshan.png" alt="火山引擎" width="189"></a></td>
-<td valign="middle">Agradecemos à <a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">火山引擎</a> por patrocinar este projeto! Em comparação com as APIs oficiais internacionais populares, os preços são mais baixos e o custo-benefício é maior, com resultados de geração semelhantes; conexão direta na China, sem necessidade de ambiente de rede especial. Após a assinatura, também pode ser usado para uso diário e outras ferramentas compatíveis, não se limitando ao Banana Slides.<br><a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">Ver ofertas e assinar →</a></td>
-</tr>
-</table>
+<br>
+
+<p><a href="https://aihubmix.com/?aff=17EC"><img src="./assets/logo_aihubmix.png" alt="AIHubMix" width="160"></a></p>
+
+<p>Agradecemos à <a href="https://aihubmix.com/?aff=17EC">AIHubMix</a> por patrocinar este projeto! AIHubMix é uma plataforma agregadora de APIs de grandes modelos de IA estável e de alta concorrência; com apenas uma chave de API, você pode acessar modelos populares como Claude, GPT, Gemini, DeepSeek, entre outros, sendo compatível com diversos protocolos. </p>
+
+<p>Ao se registrar, usuários no exterior devem usar o <a href="https://aihubmix.com/?aff=17EC">acesso AIHubMix</a>, e usuários na China continental devem usar o <a href="https://inferera.com/?aff=17EC">acesso Inferera</a>.</p>
+
+<p><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/section-rule-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/section-rule-light.svg"><img src="./assets/readme/section-rule-light.svg" alt="" width="838" height="20"></picture></p>
+
+<p><a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides"><img src="./assets/huoshan.png" alt="火山引擎" width="160"></a></p>
+
+<p>Agradecemos à <a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">火山引擎</a> por patrocinar este projeto! Em comparação com as APIs oficiais internacionais populares, os preços são mais baixos e o custo-benefício é maior, com resultados de geração semelhantes; conexão direta na China, sem necessidade de ambiente de rede especial. Após a assinatura, também pode ser usado para uso diário e outras ferramentas compatíveis, não se limitando ao Banana Slides.</p>
+
+<p><a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">Ver ofertas e assinar →</a></p>
 
 > Quer patrocinar este projeto? Por favor, envie um e-mail para davidyang042@gmail.com.
 </details>
@@ -561,6 +575,10 @@ Abra o navegador e acesse para usar a aplicação.
 <!-- i18n:community -->
 ## Grupo de Comunicação
 
+<a name="community"></a>
+
+<p align="right"><a href="#user-content-readme-top">↑ Voltar ao topo</a></p>
+
 Sinta-se à vontade para sugerir novas funcionalidades ou dar feedback no grupo~
 
 
@@ -636,9 +654,34 @@ Agradecemos aos seguintes amigos pelo apoio e patrocínio voluntário ao projeto
 
 <br>
 
-<!-- i18n:daily-reports -->
-### Relatórios Diários e Tarefas de Materiais de Back-end
+<!-- i18n:text-fallback -->
+<details align="left">
+<summary>Versão em texto</summary>
 
-Na "Geração em uma frase" da página inicial, é possível alternar para "Relatório Diário", selecionando relatório semanal/mensal, relatório de projeto, apresentação de produto, material de treinamento ou cenários personalizados. Após preencher o tema e os campos opcionais, é possível editar a visualização do Prompt e, em seguida, seguir o modelo original, arquivos de referência, proporção e fluxo de modelo por página. A predefinição preenche apenas os campos; a visualização após a edição manual só é reconstruída ao clicar em "Atualizar Prompt a partir do formulário".
+<p><strong>Banana Slides</strong></p>
 
-Selecionar Codex diretamente nas configurações abrirá uma janela de login da OpenAI se não houver conexão; após a conexão bem-sucedida, a seleção atual será aplicada; o cancelamento mantém a configuração original. Após enviar uma tarefa na Caixa de Ferramentas de Materiais, é possível continuar gerando a próxima; cada tarefa exibe status e resultados de forma independente, e a consulta pode ser recuperada após a atualização. Se a consulta for pausada, é possível clicar em "Continuar consulta", e os resultados ainda serão salvos na biblioteca de materiais.
+<p><a href="README.md">简体中文</a> · <a href="README_EN.md">English</a> · <a href="README_PT-BR.md">Português</a> · <a href="README_JA.md">日本語</a> · <a href="README_KO.md">한국어</a></p>
+
+<p><a href="https://bananaslides.online/">Demo online</a> · <a href="https://docs.bananaslides.online/">Documentação</a> · <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.7">Desktop RC7</a> · <a href="https://github.com/Anionex/banana-slides#-%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95">Implantação</a> · <a href="https://x.com/anion_ex">anion_ex</a> · <a href="#user-content-community">Grupo WeChat</a></p>
+
+<p><a href="https://github.com/Anionex/banana-slides/stargazers">Stars</a> · <a href="https://github.com/Anionex/banana-slides/forks">Forks</a> · <a href="https://github.com/Anionex/banana-slides/watchers">Watchers</a> · <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.7">v0.9.0-rc.7</a> · <a href="https://github.com/Anionex/banana-slides/blob/main/LICENSE">AGPL-3.0</a> · <a href="https://deepwiki.com/Anionex/banana-slides">Ask DeepWiki</a> · <a href="https://trendshift.io/repositories/22056">Trendshift</a> · <a href="https://hellogithub.com/repository/Anionex/banana-slides">HelloGitHub</a></p>
+
+<br>
+
+<p><a href="https://aihubmix.com/?aff=17EC">AIHubMix</a></p>
+
+<p>Agradecemos à <a href="https://aihubmix.com/?aff=17EC">AIHubMix</a> por patrocinar este projeto! AIHubMix é uma plataforma agregadora de APIs de grandes modelos de IA estável e de alta concorrência; com apenas uma chave de API, você pode acessar modelos populares como Claude, GPT, Gemini, DeepSeek, entre outros, sendo compatível com diversos protocolos. </p>
+
+<p>Ao se registrar, usuários no exterior devem usar o <a href="https://aihubmix.com/?aff=17EC">acesso AIHubMix</a>, e usuários na China continental devem usar o <a href="https://inferera.com/?aff=17EC">acesso Inferera</a>.</p>
+
+
+
+<p><a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">火山引擎</a></p>
+
+<p>Agradecemos à <a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">火山引擎</a> por patrocinar este projeto! Em comparação com as APIs oficiais internacionais populares, os preços são mais baixos e o custo-benefício é maior, com resultados de geração semelhantes; conexão direta na China, sem necessidade de ambiente de rede especial. Após a assinatura, também pode ser usado para uso diário e outras ferramentas compatíveis, não se limitando ao Banana Slides.</p>
+
+<p><a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">Ver ofertas e assinar →</a></p>
+
+<blockquote><p>Quer patrocinar este projeto? Por favor, envie um e-mail para <a href="mailto:davidyang042@gmail.com">davidyang042@gmail.com</a>.</p></blockquote>
+
+</details>

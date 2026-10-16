@@ -22,7 +22,7 @@ class SyncTests(unittest.TestCase):
         path.parent.mkdir(parents=True)
         path.write_text(json.dumps(self.config))
         for lang in self.config['languages']:
-            for name in ['language', 'demo', 'docs', 'desktop', 'deploy']:
+            for name in ['language', 'demo', 'docs', 'desktop', 'deploy', 'community-x', 'community-wechat']:
                 for active in ['', '-active', '-dark']:
                     asset = self.root / f'assets/buttons/{name}-{lang["asset"]}{active}.svg'
                     asset.parent.mkdir(parents=True, exist_ok=True)

@@ -11,8 +11,13 @@ const directory = new URL('../assets/buttons/', import.meta.url);
 // Vendored, unmodified Lucide nodes preserve the upstream geometry and license.
 const iconSource = JSON.parse(await readFile(new URL('../assets/readme/lucide-icons.json', import.meta.url), 'utf8'));
 const icons = Object.fromEntries(Object.entries(iconSource.icons).map(([name, icon]) => [name, icon.body]));
+const brandIcons = JSON.parse(await readFile(new URL('../assets/readme/community-icons.json', import.meta.url), 'utf8'));
+for (const [name, icon] of Object.entries(brandIcons.icons)) icons[name] = icon.body;
 const { languages } = JSON.parse(await readFile(new URL('../docs/i18n/languages.json', import.meta.url), 'utf8'));
 const buttons = languages.flatMap(language => [
+  ...Object.entries(language.community ?? {}).flatMap(([icon, [label, width]]) => [false, true].map(dark => ({
+    name: `community-${icon}-${language.asset}${dark ? '-dark' : ''}`, label, width, icon, dark,
+  }))),
   ...Object.entries(language.buttons).flatMap(([icon, [label, width]]) => [false, true].map(dark => ({
     name: `${icon}-${language.asset}${dark ? '-dark' : ''}`, label, width, icon, primary: icon === 'demo', dark,
   }))),
@@ -67,10 +72,11 @@ function render({ label, width, icon, primary, compact, active, divider, dark })
   const color = compact ? (active ? '#FFFFFF' : '#445166') : primary ? '#29270D' : dark ? '#EEEDE7' : '#24262B';
   const labelWidth = [...label].reduce((sum, char) => sum + (char.codePointAt(0) > 255 ? 13 : 6.7), 0);
   const iconX = (width - labelWidth - 23) / 2;
+  const iconBody = icon && icons[icon].replaceAll('currentColor', color);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${label}">
   <title>${label}</title>
   <rect x="0.5" y="${compact ? .5 : 3.5}" width="${width - 1}" height="${compact ? 29 : 31}" rx="${compact ? 15 : 6}" fill="${fill}" stroke="${stroke}"/>
-${icon ? `  <g transform="translate(${iconX} 11.5) scale(.625)" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${icons[icon]}</g>\n` : ''}  <text x="${icon ? (width + 23) / 2 : width / 2}" y="${compact ? 20 : 24}" text-anchor="middle" fill="${color}" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="${compact ? 14 : 13}" font-weight="600">${label}</text>
+${icon ? `  <g transform="translate(${iconX} 11.5) scale(.625)" fill="none" stroke="${brandIcons.icons[icon] ? 'none' : color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${iconBody}</g>\n` : ''}  <text x="${icon ? (width + 23) / 2 : width / 2}" y="${compact ? 20 : 24}" text-anchor="middle" fill="${color}" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="${compact ? 14 : 13}" font-weight="600">${label}</text>
 </svg>
 `;
 }

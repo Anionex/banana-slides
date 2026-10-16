@@ -23,7 +23,7 @@ Icons use vendored Lucide geometry with its ISC license retained alongside them.
 No scripts, external fonts, foreignObject, or SVG-internal links are required.
 Run `node scripts/generate_readme_buttons.mjs` then
 `python3 scripts/render_readme_hero.py`; both support `--check`.
-The renderer changes only hero sections and their matching translation snapshots.
+The renderer updates hero sections, the text fallback footer and their translation snapshots.
 
 GitHub wraps native `<picture>` markup in its `themed-picture` component and
 selects sources using the GitHub page theme. This keeps section anchor URLs intact.
@@ -31,6 +31,26 @@ When verifying injected Markdown on GitHub, set the page theme BEFORE inserting
 the fragment; changing the root attribute afterwards does not trigger the native
 component's theme event. Verify system/page themes both matching and opposite,
 as well as automatic mode, and inspect actual image `currentSrc`.
+
+Do not rely on themed images' `alt` text as a network-error fallback: GitHub's
+`themed-picture` may keep failed images hidden. The end of each README includes a collapsed,
+image-free text version with native navigation, project links and sponsor copy.
+The renderer derives sponsor text and destinations from the corresponding
+localized sponsor section; the disclosure must remain usable with all images
+blocked. This is a manually opened fallback, not an automatic replacement for
+failed images. Preserve the original wording and link fragments.
+
+Community buttons form a second centered row below the four main actions.
+Their labels and destinations live in `docs/i18n/languages.json`; WeChat links
+point to each edition's existing community QR-code section. The image-free
+footer includes both destinations. Brand icon paths are unmodified Simple Icons
+from `@iconify-json/simple-icons` 1.2.99 (CC0-1.0), retained in
+`assets/readme/community-icons.json` with attribution and license metadata.
+
+Sponsor logos use the original PNG assets directly, without added frames or
+background plates. Sponsor links remain native text links so they are visible
+and clickable even when all images fail to load. Preserve their original copy
+and destinations.
 
 Stars, forks, watchers and license remain live Shields images with neutral
 backgrounds matching GitHub's light/default dark palettes; figures are not frozen

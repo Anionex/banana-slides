@@ -2,6 +2,8 @@
 [//]: # "Banana Slides is an AI-native PPT generation app for creating editable presentations from ideas, outlines, documents, images, and custom templates. Features: prompt-to-slide generation, template control, material parsing, conversational editing, PPTX export, project history, and reproducible workflows. Quick Start / Install / Usage / Demo / API / Deploy / Architecture / Test / Screenshot guides are provided for local Docker deployment and online use."
 <div align="center">
 
+<a name="readme-top"></a>
+
 <div>
   <picture><source media="(prefers-color-scheme: dark)" srcset="./assets/hero-dark.png"><source media="(prefers-color-scheme: light)" srcset="./assets/hero-light.png"><img src="./assets/hero-light.png" alt="Banana Slides — Vibe your way to great slides." width="720" height="180"></picture>
 </div>
@@ -27,6 +29,11 @@
   <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.7"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/desktop-zh-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/desktop-zh.svg"><img src="./assets/buttons/desktop-zh.svg" alt="桌面版 RC7" width="132" height="38"></picture></a>
   &nbsp;
   <a href="https://github.com/Anionex/banana-slides#-%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/deploy-zh-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/deploy-zh.svg"><img src="./assets/buttons/deploy-zh.svg" alt="部署方法" width="116" height="38"></picture></a>
+</p>
+<p>
+  <a href="https://x.com/anion_ex"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/community-x-zh-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/community-x-zh.svg"><img src="./assets/buttons/community-x-zh.svg" alt="anion_ex" width="118" height="38"></picture></a>
+  &nbsp;
+  <a href="#user-content-community"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/buttons/community-wechat-zh-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/buttons/community-wechat-zh.svg"><img src="./assets/buttons/community-wechat-zh.svg" alt="微信群" width="110" height="38"></picture></a>
 </p>
 <!-- /readme:actions -->
 
@@ -69,24 +76,31 @@
 </p>
 <!-- /readme:support -->
 
+<div><img src="./assets/readme/space.svg" alt="" width="1" height="32"></div>
+
 </div>
 
 <!-- i18n:sponsors -->
-## ❤️ 赞助
+## ❤️ 赞助商
 
 <details open>
 <summary>点击折叠</summary>
 
-<table>
-<tr>
-<td width="220" align="center" valign="middle"><a href="https://aihubmix.com/?aff=17EC"><img src="./assets/logo_aihubmix.png" alt="AIHubMix" width="189"></a></td>
-<td valign="middle">感谢 <a href="https://aihubmix.com/?aff=17EC">AIHubMix</a> 赞助本项目！AIHubMix 是稳定、高并发的 AI 大模型 API 聚合平台，一个 API Key 即可接入 Claude、GPT、Gemini、DeepSeek 等主流模型，兼容多种协议。注册时，海外用户请使用 <a href="https://aihubmix.com/?aff=17EC">AIHubMix 入口</a>，中国大陆用户请使用 <a href="https://inferera.com/?aff=17EC">Inferera 入口</a>。</td>
-</tr>
-<tr>
-<td width="220" align="center" valign="middle"><a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides"><img src="./assets/huoshan.png" alt="火山引擎" width="189"></a></td>
-<td valign="middle">感谢 <a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">火山引擎</a> 赞助了本项目！相比海外主流官方 API 价格更低、性价比更高，生成效果接近；国内直连，无需特殊网络环境。订阅后还能用于日常使用和其他兼容工具，不局限于 Banana Slides。<br><a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">查看优惠并订阅 →</a></td>
-</tr>
-</table>
+<br>
+
+<p><a href="https://aihubmix.com/?aff=17EC"><img src="./assets/logo_aihubmix.png" alt="AIHubMix" width="160"></a></p>
+
+<p>感谢 <a href="https://aihubmix.com/?aff=17EC">AIHubMix</a> 赞助本项目！AIHubMix 是稳定、高并发的 AI 大模型 API 聚合平台，一个 API Key 即可接入 Claude、GPT、Gemini、DeepSeek 等主流模型，兼容多种协议。</p>
+
+<p>注册时，海外用户请使用 <a href="https://aihubmix.com/?aff=17EC">AIHubMix 入口</a>，中国大陆用户请使用 <a href="https://inferera.com/?aff=17EC">Inferera 入口</a>。</p>
+
+<p><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/readme/section-rule-dark.svg"><source media="(prefers-color-scheme: light)" srcset="./assets/readme/section-rule-light.svg"><img src="./assets/readme/section-rule-light.svg" alt="" width="838" height="20"></picture></p>
+
+<p><a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides"><img src="./assets/huoshan.png" alt="火山引擎" width="160"></a></p>
+
+<p>感谢 <a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">火山引擎</a> 赞助了本项目！相比海外主流官方 API 价格更低、性价比更高，生成效果接近；国内直连，无需特殊网络环境。订阅后还能用于日常使用和其他兼容工具，不局限于 Banana Slides。</p>
+
+<p><a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">查看优惠并订阅 →</a></p>
 
 > 想赞助本项目？请发送邮件至 davidyang042@gmail.com。
 </details>
@@ -572,6 +586,10 @@ npm run dev
 <!-- i18n:community -->
 ## 交流群
 
+<a name="community"></a>
+
+<p align="right"><a href="#user-content-readme-top">↑ 返回顶部</a></p>
+
 欢迎在群中提出新功能建议或反馈～
 
 
@@ -656,9 +674,34 @@ npm run dev
 
 <br>
 
-<!-- i18n:daily-reports -->
-### 日常汇报与后台素材任务
+<!-- i18n:text-fallback -->
+<details align="left">
+<summary>文字版</summary>
 
-首页「一句话生成」中可切换到「日常汇报」，选择周报/月报、项目汇报、产品介绍、培训课件或自定义场景。填写主题和可选字段后，可编辑 Prompt 预览，再沿用原来的模板、参考文件、比例与每页模板流程。预设只填空字段；手动编辑后的预览仅在点击「从表单更新 Prompt」时重建。
+<p><strong>Banana Slides</strong></p>
 
-设置中直接选择 Codex 会在未连接时弹出 OpenAI 登录窗口，连接成功后应用本次选择；取消保留原设置。素材工具箱提交任务后可继续生成下一张，各任务独立展示状态与结果，刷新后可恢复查询。查询暂停时可点击「继续查询」，结果仍会保存到素材库。
+<p><a href="README.md">简体中文</a> · <a href="README_EN.md">English</a> · <a href="README_PT-BR.md">Português</a> · <a href="README_JA.md">日本語</a> · <a href="README_KO.md">한국어</a></p>
+
+<p><a href="https://bananaslides.online/">在线 Demo</a> · <a href="https://docs.bananaslides.online/">文档</a> · <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.7">桌面版 RC7</a> · <a href="https://github.com/Anionex/banana-slides#-%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95">部署方法</a> · <a href="https://x.com/anion_ex">anion_ex</a> · <a href="#user-content-community">微信群</a></p>
+
+<p><a href="https://github.com/Anionex/banana-slides/stargazers">Stars</a> · <a href="https://github.com/Anionex/banana-slides/forks">Forks</a> · <a href="https://github.com/Anionex/banana-slides/watchers">Watchers</a> · <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.7">v0.9.0-rc.7</a> · <a href="https://github.com/Anionex/banana-slides/blob/main/LICENSE">AGPL-3.0</a> · <a href="https://deepwiki.com/Anionex/banana-slides">Ask DeepWiki</a> · <a href="https://trendshift.io/repositories/22056">Trendshift</a> · <a href="https://hellogithub.com/repository/Anionex/banana-slides">HelloGitHub</a></p>
+
+<br>
+
+<p><a href="https://aihubmix.com/?aff=17EC">AIHubMix</a></p>
+
+<p>感谢 <a href="https://aihubmix.com/?aff=17EC">AIHubMix</a> 赞助本项目！AIHubMix 是稳定、高并发的 AI 大模型 API 聚合平台，一个 API Key 即可接入 Claude、GPT、Gemini、DeepSeek 等主流模型，兼容多种协议。</p>
+
+<p>注册时，海外用户请使用 <a href="https://aihubmix.com/?aff=17EC">AIHubMix 入口</a>，中国大陆用户请使用 <a href="https://inferera.com/?aff=17EC">Inferera 入口</a>。</p>
+
+
+
+<p><a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">火山引擎</a></p>
+
+<p>感谢 <a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">火山引擎</a> 赞助了本项目！相比海外主流官方 API 价格更低、性价比更高，生成效果接近；国内直连，无需特殊网络环境。订阅后还能用于日常使用和其他兼容工具，不局限于 Banana Slides。</p>
+
+<p><a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">查看优惠并订阅 →</a></p>
+
+<blockquote><p>想赞助本项目？请发送邮件至 <a href="mailto:davidyang042@gmail.com">davidyang042@gmail.com</a>。</p></blockquote>
+
+</details>

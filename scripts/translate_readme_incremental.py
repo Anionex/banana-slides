@@ -217,6 +217,14 @@ def render_ui(body, language, languages, action_urls):
                     f'  <a href="{html.escape(action_urls[name], quote=True)}">'
                     + visual + '</a>')
             content = "<p>\n" + "\n  &nbsp;\n".join(buttons) + "\n</p>"
+            community = []
+            for name, (label, width, url) in language.get('community', {}).items():
+                base = f'./assets/buttons/community-{name}-{language["asset"]}'
+                community.append(f'<a href="{html.escape(url, quote=True)}">'
+                                 + theme_picture(base+'.svg', base+'-dark.svg', label, width, 38)
+                                 + '</a>')
+            if community:
+                content += '\n<p>\n  ' + '\n  &nbsp;\n  '.join(community) + '\n</p>'
         elif match[1] == "intro":
             paragraph = html.escape(language['hero']['paragraph']).replace('\n', '<br>\n  ')
             content = '<p>\n  ' + paragraph + '\n</p>'

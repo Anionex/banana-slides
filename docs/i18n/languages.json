@@ -32,6 +32,19 @@
         "description": "无需繁琐排版，口头提出修改。迈向真正的「Vibe PPT」。",
         "support": "如果这个项目对你有用，欢迎",
         "paragraph": "基于图像生成模型的原生 AI PPT 应用，\n几分钟内将想法变成演示文稿，\n无需繁琐排版，用自然语言修改，迈向真正的「Vibe PPT」。"
+      },
+      "text_fallback": "文字版",
+      "community": {
+        "x": [
+          "anion_ex",
+          118,
+          "https://x.com/anion_ex"
+        ],
+        "wechat": [
+          "微信群",
+          110,
+          "#user-content-community"
+        ]
       }
     },
     {
@@ -65,6 +78,19 @@
         "description": "Skip the tedious formatting. Refine with your words. This is Vibe PPT.",
         "support": "If you find this project helpful, give it a",
         "paragraph": "An AI-native presentation app powered by image generation models turns ideas into slides in minutes.\nSkip tedious formatting, refine with natural language, and experience true Vibe PPT."
+      },
+      "text_fallback": "Text version",
+      "community": {
+        "x": [
+          "anion_ex",
+          118,
+          "https://x.com/anion_ex"
+        ],
+        "wechat": [
+          "WeChat Group",
+          144,
+          "#user-content-community"
+        ]
       }
     },
     {
@@ -98,6 +124,19 @@
         "description": "Sem formatação trabalhosa. Edite com suas palavras. Isto é Vibe PPT.",
         "support": "Se este projeto for útil para você, deixe um",
         "paragraph": "Um app de apresentações nativo de IA, baseado em modelos de geração de imagens, transforma ideias em slides em minutos.\nSem formatação trabalhosa: edite com linguagem natural e experimente o verdadeiro Vibe PPT."
+      },
+      "text_fallback": "Versão em texto",
+      "community": {
+        "x": [
+          "anion_ex",
+          118,
+          "https://x.com/anion_ex"
+        ],
+        "wechat": [
+          "Grupo WeChat",
+          148,
+          "#user-content-community"
+        ]
       }
     },
     {
@@ -131,6 +170,19 @@
         "description": "面倒なレイアウトは不要。言葉で修正して、本当の「Vibe PPT」へ。",
         "support": "このプロジェクトが役に立ったら、ぜひ",
         "paragraph": "画像生成モデルを活用した AI ネイティブな PPT アプリで、アイデアをわずか数分でプレゼン資料に。\n面倒なレイアウトは不要。自然な言葉で修正し、本当の「Vibe PPT」を体験しましょう。"
+      },
+      "text_fallback": "テキスト版",
+      "community": {
+        "x": [
+          "anion_ex",
+          118,
+          "https://x.com/anion_ex"
+        ],
+        "wechat": [
+          "WeChat グループ",
+          158,
+          "#user-content-community"
+        ]
       }
     },
     {
@@ -164,6 +216,19 @@
         "description": "번거로운 편집 없이 말로 수정하세요. 진정한 Vibe PPT를 경험하세요.",
         "support": "이 프로젝트가 유용하다면",
         "paragraph": "이미지 생성 모델 기반의 AI 네이티브 PPT 앱으로 아이디어를 단 몇 분 만에 프레젠테이션으로 바꾸세요.\n번거로운 편집 없이 자연어로 수정하며 진정한 Vibe PPT를 경험하세요."
+      },
+      "text_fallback": "텍스트 버전",
+      "community": {
+        "x": [
+          "anion_ex",
+          118,
+          "https://x.com/anion_ex"
+        ],
+        "wechat": [
+          "WeChat 그룹",
+          140,
+          "#user-content-community"
+        ]
       }
     }
   ]

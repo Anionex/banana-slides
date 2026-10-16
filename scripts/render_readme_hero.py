@@ -2,7 +2,7 @@
 """Assemble the approved centered README cover from reusable, independently linked pieces.
 
 python3 scripts/render_readme_hero.py [--check]
-Only touches hero sections, their SVG assets, and the corresponding translation snapshot.
+Updates hero sections, the text fallback footer, SVG assets and translation snapshots.
 """
 import argparse
 import html
@@ -87,6 +87,7 @@ def template(action_urls):
         '<a href="https://hellogithub.com/repository/Anionex/banana-slides">'+themed(lambda theme:'https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=c8a0ee51918e4353af08012b8472b85e&claim_uid=CtDTm2jbUHhVGBr&theme='+('dark' if theme=='dark' else 'neutral'),'Featured｜HelloGitHub',244,54)+'</a>')
     # UI blocks are owned by the existing language renderer, not a second copy of button markup.
     return ('<div align="center">\n\n'
+            '<a name="readme-top"></a>\n\n'
             '<div>\n  '+themed(lambda theme:f'./assets/hero-{theme}.png','Banana Slides — Vibe your way to great slides.',720,180)+'\n</div>\n\n'
             '<!-- readme:intro -->\n<!-- /readme:intro -->\n\n'
             '<!-- readme:languages -->\n<!-- /readme:languages -->\n\n'
@@ -95,7 +96,47 @@ def template(action_urls):
             '<p>\n  '+'\n  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;\n  '.join(metrics)+'\n</p>\n\n'
             '<p>\n  '+recommendations+'\n</p>\n\n'
             '<p>\n  '+'\n  &nbsp;\n  '.join(tech)+'\n</p>\n\n'
-            '<!-- readme:support -->\n<!-- /readme:support -->\n\n</div>\n\n')
+            '<!-- readme:support -->\n<!-- /readme:support -->\n\n'
+            '<div><img src="./assets/readme/space.svg" alt="" width="1" height="32"></div>\n\n</div>\n\n')
+
+
+def text_fallback(language, languages, action_urls, sponsor):
+    """Keep essential destinations usable without any image requests or scripts."""
+    def link(url, label):
+        return f'<a href="{html.escape(url, quote=True)}">{html.escape(label)}</a>'
+
+    language_links = ' · '.join(link(lang['file'], lang['name']) for lang in languages)
+    actions = ' · '.join(link(action_urls[name], data[0])
+                         for name, data in language['buttons'].items())
+    community = ' · '.join(link(url, label) for label, _, url
+                           in language.get('community', {}).values())
+    if community:
+        actions += ' · ' + community
+    project_links = ' · '.join(link(url, label) for url, label in [
+        (REPO+'/stargazers', 'Stars'), (REPO+'/forks', 'Forks'),
+        (REPO+'/watchers', 'Watchers'), (action_urls['desktop'], 'v0.9.0-rc.7'),
+        (REPO+'/blob/main/LICENSE', 'AGPL-3.0'),
+        ('https://deepwiki.com/Anionex/banana-slides', 'Ask DeepWiki'),
+        ('https://trendshift.io/repositories/22056', 'Trendshift'),
+        ('https://hellogithub.com/repository/Anionex/banana-slides', 'HelloGitHub'),
+    ])
+    # Derive sponsor copy and links from the same localized section, so a
+    # fallback never introduces independently edited or stale promotional copy.
+    sponsor = re.sub(r'^## .*\n', '', sponsor, count=1, flags=re.M)
+    sponsor = re.sub(r'<summary>.*?</summary>|</?details[^>]*>', '', sponsor, flags=re.S)
+    def image_text(match):
+        alt = re.search(r'\balt="([^"]*)"', match[0])
+        return alt[1] if alt else ''
+    sponsor = re.sub(r'<picture>.*?</picture>|<img\b[^>]*>', image_text, sponsor, flags=re.S)
+    sponsor = re.sub(r'<p>\s*</p>', '', sponsor)
+    sponsor = re.sub(r'(?<![\w">:])davidyang042@gmail\.com',
+                     '<a href="mailto:davidyang042@gmail.com">davidyang042@gmail.com</a>', sponsor)
+    sponsor = re.sub(r'^> (.*)$', r'<blockquote><p>\1</p></blockquote>', sponsor, flags=re.M)
+    assert not re.search(r'<(?:img|picture|source)\b', sponsor)
+    return ('<details align="left">\n<summary>'+html.escape(language['text_fallback'])
+            +'</summary>\n\n<p><strong>Banana Slides</strong></p>\n\n<p>'
+            +language_links+'</p>\n\n<p>'+actions+'</p>\n\n<p>'+project_links
+            +'</p>\n\n'+sponsor.strip()+'\n\n</details>')
 
 
 def main():
@@ -117,16 +158,22 @@ def main():
         if '<!-- i18n:sponsors -->' not in before:raise ValueError('Missing sponsors boundary')
         hero,rest=before.split('<!-- i18n:sponsors -->',1)
         preamble=hero[:hero.index('<div align="center">')]
-        heroes[lang['code']]=preamble+i18n.render_ui(shared,lang,languages,urls)
-        outputs[path]=heroes[lang['code']]+'<!-- i18n:sponsors -->'+rest
-        assert outputs[path].split('<!-- i18n:sponsors -->',1)[1]==rest
-    # All localized hero copy comes from the reviewed language registry; advance only hero snapshots.
+        sponsor = i18n.blocks(before)['sponsors']
+        rendered = i18n.render_ui(shared,lang,languages,urls)
+        heroes[lang['code']]=preamble+rendered
+        rest = rest.split('<!-- i18n:text-fallback -->', 1)[0]
+        outputs[path]=(heroes[lang['code']]+'<!-- i18n:sponsors -->'+rest
+                       +'<!-- i18n:text-fallback -->\n'
+                       +text_fallback(lang,languages,urls,sponsor)+'\n')
+    # Only advance snapshots for the generated sections.
     state_path=ROOT/i18n.STATE
     state=json.loads(state_path.read_text())
-    canonical=i18n.canonical(i18n.blocks(heroes[config['source']])['hero'])
-    for lang in languages:
-        if lang['code']==config['source']:continue
-        state['languages'][lang['code']]['hero']={'sha256':i18n.digest(canonical),'source':canonical}
+    source_blocks=i18n.blocks(outputs[ROOT/next(lang['file'] for lang in languages if lang['code']==config['source'])])
+    for section in ('hero', 'text-fallback'):
+        canonical=i18n.canonical(source_blocks[section])
+        for lang in languages:
+            if lang['code']==config['source']:continue
+            state['languages'][lang['code']][section]={'sha256':i18n.digest(canonical),'source':canonical}
     outputs[state_path]=json.dumps(state,ensure_ascii=False,indent=2)+'\n'
     stale=[str(path.relative_to(ROOT)) for path,value in outputs.items() if not path.exists() or path.read_text()!=value]
     if args.check and stale:raise ValueError('Stale hero: '+', '.join(stale))
