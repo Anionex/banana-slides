@@ -41,10 +41,6 @@ def assets(languages):
         def save(name, value):
             result[ROOT / f'assets/readme/{name}-{theme}.svg'] = value
         for lang in languages:
-            for key, size, height, baseline in [('eyebrow', 11, 24, 17), ('title', 25, 44, 31), ('description', 13, 32, 21)]:
-                value = lang['hero'][key]
-                width = i18n.hero_text_width(value, size)
-                save(key+'-'+lang['asset'], svg(width, height, text(value,width/2,baseline,size,ink if key=='title' else muted,650 if key=='title' else 400),value))
             value = lang['hero']['support']
             width = round(sum(14 if ord(c)>255 else 7.2 for c in value))+6
             save('support-'+lang['asset'], svg(width,26,text(value,width/2,18,14,muted),value))

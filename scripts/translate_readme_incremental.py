@@ -169,9 +169,6 @@ def load_config(root):
     return config
 
 
-def hero_text_width(text, size):
-    return round(sum(size if ord(c) > 255 else size * .58 for c in text)) + 30
-
 
 def theme_picture(light, dark, alt, width=None, height=None):
     dims = (f' width="{width}"' if width else '') + (f' height="{height}"' if height else '')
