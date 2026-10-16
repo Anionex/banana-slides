@@ -361,6 +361,44 @@ def test_per_model_volcengine_source_does_not_fallback_to_openai_key():
             ai_providers.get_text_provider(model='doubao-seed-2-0')
 
 
+def test_atlascloud_text_source_uses_openai_compatible_provider():
+    """Atlas Cloud should use its dedicated defaults with the existing OpenAI adapter."""
+    app = Flask(__name__)
+    app.config.update(
+        AI_PROVIDER_FORMAT='gemini',
+        TEXT_MODEL_SOURCE='atlascloud',
+        TEXT_API_KEY='',
+        TEXT_API_BASE='',
+        ATLASCLOUD_API_KEY='atlas-key',
+        ATLASCLOUD_API_BASE='https://api.atlascloud.ai/v1',
+    )
+
+    with app.app_context():
+        with patch('services.ai_providers.OpenAITextProvider') as provider_cls:
+            provider = ai_providers.get_text_provider(model='deepseek-ai/deepseek-v4-pro')
+
+    assert provider == provider_cls.return_value
+    provider_cls.assert_called_once_with(
+        api_key='atlas-key',
+        api_base='https://api.atlascloud.ai/v1',
+        model='deepseek-ai/deepseek-v4-pro',
+    )
+
+
+def test_atlascloud_source_is_rejected_for_image_models():
+    """The text-only preset must not route image generation to Chat Completions."""
+    app = Flask(__name__)
+    app.config.update(
+        AI_PROVIDER_FORMAT='gemini',
+        IMAGE_MODEL_SOURCE='atlascloud',
+        IMAGE_API_KEY='atlas-key',
+    )
+
+    with app.app_context():
+        with pytest.raises(ValueError, match='only for text models'):
+            ai_providers.get_image_provider(model='gpt-image-2')
+
+
 def test_settings_to_dict_uses_volcengine_defaults_for_selected_provider(monkeypatch):
     """Saved Volcengine selections should display ModelArk defaults from Config."""
     from config import Config
@@ -381,6 +419,27 @@ def test_settings_to_dict_uses_volcengine_defaults_for_selected_provider(monkeyp
     assert data['text_api_base_url'] is None
     assert data['image_api_base_url'] is None
     assert data['image_caption_api_base_url'] is None
+
+
+def test_settings_to_dict_uses_atlascloud_defaults_for_text_source(monkeypatch):
+    """The settings UI should receive Atlas defaults without exposing the API key."""
+    from config import Config
+    from models.settings import Settings
+
+    monkeypatch.setattr(Config, 'AI_PROVIDER_FORMAT', 'gemini')
+    monkeypatch.setattr(Config, 'GOOGLE_API_BASE', 'https://generativelanguage.googleapis.com')
+    monkeypatch.setattr(Config, 'GOOGLE_API_KEY', 'gemini-key')
+    monkeypatch.setattr(Config, 'ATLASCLOUD_API_BASE', 'https://api.atlascloud.ai/v1')
+    monkeypatch.setattr(Config, 'ATLASCLOUD_API_KEY', 'atlas-key')
+    monkeypatch.setattr(Config, 'TEXT_API_BASE', '')
+    monkeypatch.setattr(Config, 'TEXT_API_KEY', '')
+
+    settings = Settings(ai_provider_format='gemini', text_model_source='atlascloud')
+    data = settings.to_dict()
+
+    assert data['text_api_base_url'] == 'https://api.atlascloud.ai/v1'
+    assert data['text_api_key_length'] == len('atlas-key')
+    assert 'atlas-key' not in str(data)
 
 
 def test_settings_to_dict_volcengine_defaults_do_not_use_openai_key(monkeypatch):
