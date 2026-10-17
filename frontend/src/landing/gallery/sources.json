@@ -1,0 +1,182 @@
+[
+  {
+    "id": "money",
+    "title": {
+      "zh": "钱的演变",
+      "en": "The evolution of money"
+    },
+    "category": {
+      "zh": "科普教育",
+      "en": "Education"
+    },
+    "originalTitle": "钱的演变：从贝壳到纸币的旅程.pdf",
+    "pdf": "https://github.com/user-attachments/files/23912895/presentation_68e7c0d1-acac-498e-90fd-4981b0974b32.pdf",
+    "source": "https://github.com/Anionex/banana-slides/issues/2",
+    "author": "Anionex"
+  },
+  {
+    "id": "deepseek-tech",
+    "title": {
+      "zh": "DeepSeek V3.2 技术展示",
+      "en": "DeepSeek V3.2: technical overview"
+    },
+    "category": {
+      "zh": "技术分享",
+      "en": "Technology"
+    },
+    "originalTitle": "DeepSeek-V3.2技术展示.pdf",
+    "pdf": "https://github.com/user-attachments/files/23913297/DeepSeek-V3.2.pdf",
+    "source": "https://github.com/Anionex/banana-slides/issues/2",
+    "author": "Anionex"
+  },
+  {
+    "id": "ecology",
+    "title": {
+      "zh": "人类与生态环境",
+      "en": "Humans and the environment"
+    },
+    "category": {
+      "zh": "科普教育",
+      "en": "Education"
+    },
+    "originalTitle": "人类对生态环境影响.pdf",
+    "pdf": "https://github.com/user-attachments/files/23913853/default.pdf",
+    "source": "https://github.com/Anionex/banana-slides/issues/2",
+    "author": "Anionex"
+  },
+  {
+    "id": "cnn",
+    "title": {
+      "zh": "卷积神经网络",
+      "en": "Convolutional neural networks"
+    },
+    "category": {
+      "zh": "技术分享",
+      "en": "Technology"
+    },
+    "originalTitle": "深度学习的视觉之眼：卷积神经网络.pdf",
+    "pdf": "https://github.com/user-attachments/files/23914172/default.pdf",
+    "source": "https://github.com/Anionex/banana-slides/issues/2",
+    "author": "Anionex"
+  },
+  {
+    "id": "food-production",
+    "title": {
+      "zh": "预制菜智能产线",
+      "en": "Intelligent food production"
+    },
+    "category": {
+      "zh": "行业方案",
+      "en": "Industry"
+    },
+    "originalTitle": "预制菜智能产线.pdf",
+    "pdf": "https://github.com/user-attachments/files/23951916/default.pdf",
+    "source": "https://github.com/Anionex/banana-slides/issues/2#issuecomment-3615012717",
+    "author": "Anionex"
+  },
+  {
+    "id": "xian",
+    "title": {
+      "zh": "西安三日深度游",
+      "en": "Three days in Xi’an"
+    },
+    "category": {
+      "zh": "旅行文化",
+      "en": "Travel & culture"
+    },
+    "originalTitle": "西安三深度游方案.pdf",
+    "pdf": "https://github.com/user-attachments/files/24077375/default.pdf",
+    "source": "https://github.com/Anionex/banana-slides/issues/2#issuecomment-3636800497",
+    "author": "Anionex"
+  },
+  {
+    "id": "software",
+    "title": {
+      "zh": "软件开发原则",
+      "en": "Software development principles"
+    },
+    "category": {
+      "zh": "技术分享",
+      "en": "Technology"
+    },
+    "originalTitle": "软件开发原则.pdf",
+    "pdf": "https://github.com/user-attachments/files/24087896/default.pdf",
+    "source": "https://github.com/Anionex/banana-slides/issues/2#issuecomment-3638956556",
+    "author": "Anionex"
+  },
+  {
+    "id": "deepseek",
+    "title": {
+      "zh": "走近 DeepSeek V3.2",
+      "en": "Inside DeepSeek V3.2"
+    },
+    "category": {
+      "zh": "技术分享",
+      "en": "Technology"
+    },
+    "originalTitle": "deepseek-v3.2.pdf",
+    "pdf": "https://github.com/user-attachments/files/24355396/presentation_0b7a751e-b7ed-4509-9073-9d820da2a4f3.pdf",
+    "source": "https://github.com/Anionex/banana-slides/issues/2#issuecomment-3694050915",
+    "author": "Anionex"
+  },
+  {
+    "id": "saas",
+    "title": {
+      "zh": "SaaS 服务定价",
+      "en": "SaaS pricing"
+    },
+    "category": {
+      "zh": "商业洞察",
+      "en": "Business"
+    },
+    "originalTitle": "saas服务定价.pdf",
+    "pdf": "https://github.com/user-attachments/files/24355375/31721279-0ef4-4112-b022-1cacbbb5ebe3.pdf",
+    "source": "https://github.com/Anionex/banana-slides/issues/2#issuecomment-3694050915",
+    "author": "Anionex"
+  },
+  {
+    "id": "quantum",
+    "title": {
+      "zh": "量子计算机的应用",
+      "en": "Applications of quantum computing"
+    },
+    "category": {
+      "zh": "科普教育",
+      "en": "Education"
+    },
+    "originalTitle": "量子计算机的应用.pdf",
+    "pdf": "https://github.com/user-attachments/files/24355373/presentation_044bfb66-3561-49e4-8422-d414046e50c1.pdf",
+    "source": "https://github.com/Anionex/banana-slides/issues/2#issuecomment-3694050915",
+    "author": "Anionex"
+  },
+  {
+    "id": "moutai",
+    "title": {
+      "zh": "茅台的起源和发展",
+      "en": "The story of Moutai"
+    },
+    "category": {
+      "zh": "旅行文化",
+      "en": "Travel & culture"
+    },
+    "originalTitle": "茅台的起源和发展.pdf",
+    "pdf": "https://github.com/user-attachments/files/24355400/presentation_9e878cae-9f80-4b79-be16-a62c7055918b.pdf",
+    "source": "https://github.com/Anionex/banana-slides/issues/2#issuecomment-3694050915",
+    "author": "Anionex"
+  },
+  {
+    "id": "gen-z",
+    "title": {
+      "zh": "Z 世代年轻人",
+      "en": "Understanding Gen Z"
+    },
+    "category": {
+      "zh": "商业洞察",
+      "en": "Business"
+    },
+    "originalTitle": "z时代年轻人.pdf",
+    "pdf": "https://github.com/user-attachments/files/24355405/presentation_c23ea875-16f3-4b30-aa62-457d05c6a972.pdf",
+    "source": "https://github.com/Anionex/banana-slides/issues/2#issuecomment-3694050915",
+    "author": "Anionex"
+  }
+]

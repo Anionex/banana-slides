@@ -1,3 +1,5 @@
+.landing-page .landing-gallery-link { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin-top: 12px; font-size: 14px; color: var(--text-secondary); text-underline-offset: 5px; }
+.landing-page .landing-gallery-link:hover { color: var(--studio-ink); text-decoration: underline; }
 .landing-page .landing-header {
   --header-height: 96px;
   position: sticky; top: 0; z-index: 50;
