@@ -128,12 +128,17 @@ export function WheelDeck({ deck, language, enteredAt, onExit, onHorizontal, pan
   useEffect(() => {
     const el = element.current!;
     const stage = el.closest<HTMLElement>('.gallery-stage')!;
-    const track = stage.querySelector<HTMLElement>('.gallery-track')!;
 
     const wheel = (event: WheelEvent) => {
       if (event.ctrlKey) return; // Keep browser pinch-to-zoom available.
-      const bounds = track.getBoundingClientRect();
-      if (event.clientY < bounds.top || event.clientY > bounds.bottom) return;
+      const contains = (bounds: DOMRect) => event.clientX >= bounds.left && event.clientX <= bounds.right && event.clientY >= bounds.top && event.clientY <= bounds.bottom;
+      if (!contains(el.getBoundingClientRect())) return;
+      const overPage = Array.from(el.querySelectorAll<HTMLElement>('.gallery-wheel-page')).some(page => contains(page.getBoundingClientRect()));
+      if (!overPage) return;
+      if (stage.dataset.horizontal === 'true') {
+        const overCover = Array.from(stage.querySelectorAll<HTMLElement>('.gallery-cover')).some(cover => cover.dataset.deck === deck.id && contains(cover.getBoundingClientRect()));
+        if (!overCover) return;
+      }
       event.preventDefault();
       event.stopPropagation();
       if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) {

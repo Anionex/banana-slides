@@ -62,7 +62,7 @@
 .gallery-stage[data-reading="true"] .gallery-cover[aria-pressed="true"] { visibility: hidden; }
 
 .gallery-wheel { position: absolute; z-index: 4; inset: var(--belt-offset, 0px) 0 0; margin: auto; width: var(--cover-width); display: flex; flex-direction: column; }
-.gallery-wheel-viewport { position: relative; flex: 1; min-height: 0; overflow: hidden; mask-image: linear-gradient(to bottom, #000 0%, #000 65%, transparent 100%); touch-action: pinch-zoom; overscroll-behavior: contain; cursor: grab; border: 0; border-radius: 0; box-shadow: none; }
+.gallery-wheel-viewport { position: relative; flex: 1; min-height: 0; overflow: hidden; mask-image: linear-gradient(to bottom, #000 0%, #000 65%, transparent 100%); touch-action: pinch-zoom; cursor: grab; border: 0; border-radius: 0; box-shadow: none; }
 .gallery-wheel-page { position: absolute; inset: 0 auto auto 0; margin: 0; width: 100%; aspect-ratio: 16 / 9; display: flex; align-items: center; justify-content: center; }
 .gallery-wheel-page[aria-hidden="true"] { pointer-events: none; visibility: visible; }
 .gallery-wheel-page img { display: block; width: 100%; height: 100%; object-fit: contain; user-select: none; border-radius: 10px; }

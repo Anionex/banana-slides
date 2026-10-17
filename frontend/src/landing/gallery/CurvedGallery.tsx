@@ -268,15 +268,16 @@ export function CurvedGallery({ decks, active, onSelect, label, reading, expande
     const wheel = (event: WheelEvent) => {
       if (reading || event.ctrlKey || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
       const rect = track.current!.getBoundingClientRect();
-      // The canvas paints beyond the center button, so its full artwork area
-      // must own wheel input, including the side covers and faded page edges.
-      if (event.clientY < rect.top || event.clientY > rect.bottom) return;
+      const contains = (bounds: DOMRect) => event.clientX >= bounds.left && event.clientX <= bounds.right && event.clientY >= bounds.top && event.clientY <= bounds.bottom;
+      // Follow the selected cover's actual scroll position, including loop copies.
+      const overCover = Array.from(track.current!.querySelectorAll<HTMLElement>('.gallery-cover')).some(cover => cover.dataset.deck === decks[activeRef.current].id && contains(cover.getBoundingClientRect()));
+      if (!contains(rect) || !overCover) return;
       event.preventDefault();
       onRead();
     };
     el.addEventListener('wheel', wheel, { passive: false });
     return () => el.removeEventListener('wheel', wheel);
-  }, [reading, onRead]);
+  }, [reading, onRead, decks]);
 
   return <div ref={stage} className="gallery-stage" data-reading={reading} data-expanded={expanded}>
     <canvas ref={canvas} aria-hidden="true" className="gallery-canvas" />
@@ -319,7 +320,7 @@ export function CurvedGallery({ decks, active, onSelect, label, reading, expande
       onPointerCancel={() => { if (drag.current?.moved) pan.current?.end(); drag.current = null; touch.current = null; }}
       onPointerLeave={() => { if (!drag.current?.moved) drag.current = null; }}
     >
-      {entries.map((deck, slot) => <button key={`${deck.id}-${slot}`} className="gallery-cover" tabIndex={-1} aria-label={deck.title.zh} aria-hidden={slot === 0 || slot === entries.length - 1} aria-pressed={slot - 1 === active}
+      {entries.map((deck, slot) => <button key={`${deck.id}-${slot}`} className="gallery-cover" data-deck={deck.id} tabIndex={-1} aria-label={deck.title.zh} aria-hidden={slot === 0 || slot === entries.length - 1} aria-pressed={slot - 1 === active}
         onClick={event => {
           if (drag.current?.moved || !track.current) return;
           if (slot - 1 === active) { onRead(); return; }

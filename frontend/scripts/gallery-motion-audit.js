@@ -57,27 +57,54 @@ async (page) => {
     assert(p.url().includes('deck=deepseek-tech'), 'Horizontal dragging can take over from wheel inertia');
     const wheelRegions = [];
     await p.setViewportSize({ width: 1440, height: 800 });
+    const reset = async (deck, reading) => {
+      await p.goto(origin + '/en/gallery/?deck=' + deck);
+      await p.waitForTimeout(300);
+      if (reading) { await p.locator('.gallery-cover[aria-pressed="true"]').click(); await p.waitForTimeout(200); }
+    };
     for (const deck of ['money', 'ecology', 'software']) {
-      await p.goto(origin + '/en/gallery/?deck=' + deck); await p.waitForTimeout(400);
-      const track = await p.locator('.gallery-track').boundingBox();
-      const cover = await p.locator('.gallery-cover[aria-pressed="true"]').boundingBox();
-      const regions = [
-        ['left cover', 180, cover.y + cover.height / 2],
-        ['right cover', 1260, cover.y + cover.height / 2],
-        ['upper fade', 720, track.y + 12],
-        ['lower fade', 720, track.y + track.height - 12],
-      ];
-      for (const [region, x, y] of regions) {
-        const documentY = await p.evaluate(() => scrollY);
-        await p.mouse.move(x, y); await p.mouse.wheel(0, 40); await p.waitForTimeout(150);
-        assert(await p.evaluate(() => scrollY) === documentY, deck + ': ' + region + ' leaked wheel input to the document');
-        assert(await p.locator('.gallery-wheel').count() === 1, 'Side-cover wheel starts in-place reading');
-        wheelRegions.push(deck + ': ' + region);
+      for (const reading of [false, true]) {
+        for (const region of ['side', 'blank', 'gap', 'center', ...(reading ? ['upper', 'lower'] : [])]) {
+          await reset(deck, reading);
+          const cover = await p.locator('.gallery-cover[aria-pressed="true"]').boundingBox();
+          const track = await p.locator('.gallery-track').boundingBox();
+          const x = ['side', 'blank'].includes(region) ? 1260 : cover.x + cover.width / 2;
+          const y = region === 'blank' ? track.y + track.height - 25 : region === 'gap' ? cover.y + cover.height + 8 : region === 'upper' ? cover.y - 20 : region === 'lower' ? cover.y + cover.height + 30 : cover.y + cover.height / 2;
+          const inside = ['center', 'upper', 'lower'].includes(region);
+          const documentY = await p.evaluate(() => scrollY);
+          await p.mouse.move(x, y); await p.mouse.wheel(0, 100); await p.waitForTimeout(220);
+          const moved = await p.evaluate(() => scrollY) - documentY;
+          const position = await p.evaluate(() => Number(document.querySelector('.gallery-wheel-viewport')?.getAttribute('data-position') || 0));
+          assert(inside ? moved === 0 : moved > 0, deck + ': ' + reading + '/' + region + ' routed wheel input incorrectly');
+          if (inside) assert(reading ? position > .01 : await p.locator('.gallery-wheel').count() === 1, 'Wheel over the actual page must advance it');
+          else assert(position === 0, 'Outside input must not advance the deck');
+          wheelRegions.push({ deck, reading, region, documentMoved: moved });
+        }
       }
-      assert(Number(await p.locator('.gallery-wheel-viewport').getAttribute('data-position')) > .01, 'Wheel input over the artwork advances the active deck');
     }
-    await p.mouse.move(720, 150); await p.mouse.wheel(0, 100); await p.waitForTimeout(300);
-    assert(await p.evaluate(() => scrollY) > 0, 'Outside the artwork, normal page scrolling remains available');
-    return { wheelRegions, status: 'passed', longestPauseMs: longestPause, maxDrawsPerFrame: maxDraws, snapSpeed: snap.speed, start, forward, backward };
+    const movingBounds = [];
+    for (const reading of [false, true]) {
+      await reset('money', reading);
+      const before = await p.locator('.gallery-cover[aria-pressed="true"]').boundingBox();
+      await p.mouse.move(before.x + before.width / 2, before.y + before.height / 2);
+      await p.mouse.down();
+      await p.mouse.move(before.x + before.width / 2 - 200, before.y + before.height / 2, { steps: 6 });
+      await p.waitForTimeout(80);
+      const after = await p.locator('.gallery-cover[aria-pressed="true"]').boundingBox();
+      assert(after.x < before.x - 190, 'Slide must move with horizontal dragging');
+      // Dispatch at fixed coordinates without moving the held pointer (which would drag again).
+      const hit = await p.evaluate(({ before, after }) => {
+        const stage = document.querySelector('.gallery-stage');
+        const probe = x => {
+          const event = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 30, clientX: x, clientY: after.y + after.height / 2 });
+          stage.dispatchEvent(event); return event.defaultPrevented;
+        };
+        return { oldArea: probe(before.x + before.width - 20), newArea: probe(after.x + 20) };
+      }, { before, after });
+      assert(!hit.oldArea && hit.newArea, 'Wheel ownership must follow the moving slide, not its original center');
+      movingBounds.push({ reading, shift: after.x - before.x, ...hit });
+      await p.mouse.up();
+    }
+    return { wheelRegions, movingBounds, status: 'passed', longestPauseMs: longestPause, maxDrawsPerFrame: maxDraws, snapSpeed: snap.speed, start, forward, backward };
   } finally { await context.close(); }
 }
