@@ -127,9 +127,13 @@ export function WheelDeck({ deck, language, enteredAt, onExit, onHorizontal, pan
 
   useEffect(() => {
     const el = element.current!;
+    const stage = el.closest<HTMLElement>('.gallery-stage')!;
+    const track = stage.querySelector<HTMLElement>('.gallery-track')!;
 
     const wheel = (event: WheelEvent) => {
       if (event.ctrlKey) return; // Keep browser pinch-to-zoom available.
+      const bounds = track.getBoundingClientRect();
+      if (event.clientY < bounds.top || event.clientY > bounds.bottom) return;
       event.preventDefault();
       event.stopPropagation();
       if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
@@ -148,8 +152,8 @@ export function WheelDeck({ deck, language, enteredAt, onExit, onHorizontal, pan
         window.clearTimeout(timer.current); timer.current = window.setTimeout(coast, 100);
       } else scrollWheel(distance);
     };
-    el.addEventListener('wheel', wheel, { passive: false });
-    return () => { el.removeEventListener('wheel', wheel); window.clearTimeout(timer.current); window.clearTimeout(horizontalTimer.current); stop(); };
+    stage.addEventListener('wheel', wheel, { passive: false });
+    return () => { stage.removeEventListener('wheel', wheel); window.clearTimeout(timer.current); window.clearTimeout(horizontalTimer.current); stop(); };
     // Deck changes remount the reader. Callbacks use the selected deck from this render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deck.id, enteredAt, reduced]);

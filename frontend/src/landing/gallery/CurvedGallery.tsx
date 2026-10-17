@@ -267,15 +267,16 @@ export function CurvedGallery({ decks, active, onSelect, label, reading, expande
     const el = stage.current!;
     const wheel = (event: WheelEvent) => {
       if (reading || event.ctrlKey || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
-      const rect = el.getBoundingClientRect();
-      const cover = track.current?.children[active + 1] as HTMLElement | undefined;
-      if (!cover || Math.abs(event.clientX - rect.left - rect.width / 2) > cover.offsetWidth / 2) return;
+      const rect = track.current!.getBoundingClientRect();
+      // The canvas paints beyond the center button, so its full artwork area
+      // must own wheel input, including the side covers and faded page edges.
+      if (event.clientY < rect.top || event.clientY > rect.bottom) return;
       event.preventDefault();
       onRead();
     };
     el.addEventListener('wheel', wheel, { passive: false });
     return () => el.removeEventListener('wheel', wheel);
-  }, [active, reading, onRead]);
+  }, [reading, onRead]);
 
   return <div ref={stage} className="gallery-stage" data-reading={reading} data-expanded={expanded}>
     <canvas ref={canvas} aria-hidden="true" className="gallery-canvas" />

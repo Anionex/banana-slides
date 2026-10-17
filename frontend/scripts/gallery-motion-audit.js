@@ -55,6 +55,29 @@ async (page) => {
     await p.mouse.move(box.x + box.width / 2 - 100, box.y + 120, { steps: 6 }); await p.mouse.up();
     await p.waitForTimeout(900);
     assert(p.url().includes('deck=deepseek-tech'), 'Horizontal dragging can take over from wheel inertia');
-    return { status: 'passed', longestPauseMs: longestPause, maxDrawsPerFrame: maxDraws, snapSpeed: snap.speed, start, forward, backward };
+    const wheelRegions = [];
+    await p.setViewportSize({ width: 1440, height: 800 });
+    for (const deck of ['money', 'ecology', 'software']) {
+      await p.goto(origin + '/en/gallery/?deck=' + deck); await p.waitForTimeout(400);
+      const track = await p.locator('.gallery-track').boundingBox();
+      const cover = await p.locator('.gallery-cover[aria-pressed="true"]').boundingBox();
+      const regions = [
+        ['left cover', 180, cover.y + cover.height / 2],
+        ['right cover', 1260, cover.y + cover.height / 2],
+        ['upper fade', 720, track.y + 12],
+        ['lower fade', 720, track.y + track.height - 12],
+      ];
+      for (const [region, x, y] of regions) {
+        const documentY = await p.evaluate(() => scrollY);
+        await p.mouse.move(x, y); await p.mouse.wheel(0, 40); await p.waitForTimeout(150);
+        assert(await p.evaluate(() => scrollY) === documentY, deck + ': ' + region + ' leaked wheel input to the document');
+        assert(await p.locator('.gallery-wheel').count() === 1, 'Side-cover wheel starts in-place reading');
+        wheelRegions.push(deck + ': ' + region);
+      }
+      assert(Number(await p.locator('.gallery-wheel-viewport').getAttribute('data-position')) > .01, 'Wheel input over the artwork advances the active deck');
+    }
+    await p.mouse.move(720, 150); await p.mouse.wheel(0, 100); await p.waitForTimeout(300);
+    assert(await p.evaluate(() => scrollY) > 0, 'Outside the artwork, normal page scrolling remains available');
+    return { wheelRegions, status: 'passed', longestPauseMs: longestPause, maxDrawsPerFrame: maxDraws, snapSpeed: snap.speed, start, forward, backward };
   } finally { await context.close(); }
 }
