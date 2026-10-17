@@ -35,6 +35,7 @@ export function WheelDeck({ deck, language, enteredAt, onExit, onHorizontal, pan
   const rewinding = useRef(false);
   const animation = useRef<ReturnType<typeof animate>>();
   const inertiaFrame = useRef(0);
+  const wheelMotion = useRef<{ target: number; speed: number; lastInput: number; time: number } | null>(null);
   const phase = useRef<'drag' | 'coast' | 'snap'>('snap');
   const drag = useRef<{ x: number; y: number; page: number; axis?: 'x' | 'y' } | null>(null);
 
@@ -48,16 +49,17 @@ export function WheelDeck({ deck, language, enteredAt, onExit, onHorizontal, pan
   };
   const stop = () => {
     cancelAnimationFrame(inertiaFrame.current);
+    wheelMotion.current = null;
     animation.current?.stop();
   };
   const go = (value: number, speed = 0, settling = false) => {
     stop(); phase.current = 'snap';
     animation.current = animate(progress, value, reduced ? { duration: 0 } : { type: 'spring', stiffness: settling ? 35 : 130, damping: settling ? 12 : 23, mass: .8, velocity: speed, restSpeed: .001, restDelta: .001 });
   };
-  const coast = () => {
+  const coast = (initialSpeed?: number) => {
     stop();
     if (reduced) { go(Math.round(progress.get())); return; }
-    let speed = performance.now() - velocity.current.time < 180 ? velocity.current.speed : 0;
+    let speed = initialSpeed ?? (performance.now() - velocity.current.time < 180 ? velocity.current.speed : 0);
     let previous = performance.now();
     phase.current = 'coast';
     const tick = (now: number) => {
@@ -67,11 +69,38 @@ export function WheelDeck({ deck, language, enteredAt, onExit, onHorizontal, pan
       const decay = Math.exp(-4.2 * dt);
       progress.set(progress.get() + speed * (1 - decay) / 4.2);
       const nextSpeed = speed * decay;
+      velocity.current = { speed: nextSpeed, time: now };
       const slowingDown = Math.abs(nextSpeed) <= Math.abs(speed);
       if (element.current) element.current.dataset.speed = Math.abs(nextSpeed).toFixed(5);
       // Roughly four pixels/second on a desktop slide: effectively at rest.
       if (slowingDown && Math.abs(nextSpeed) <= .012) { go(Math.round(progress.get()), nextSpeed, true); return; }
       speed = nextSpeed;
+      inertiaFrame.current = requestAnimationFrame(tick);
+    };
+    inertiaFrame.current = requestAnimationFrame(tick);
+  };
+  const scrollWheel = (delta: number) => {
+    const now = performance.now();
+    if (wheelMotion.current) {
+      wheelMotion.current.target += delta;
+      wheelMotion.current.lastInput = now;
+      return;
+    }
+    const speed = now - velocity.current.time < 180 ? velocity.current.speed : 0;
+    stop(); phase.current = 'drag';
+    const state = { target: progress.get() + delta, speed, lastInput: now, time: now };
+    wheelMotion.current = state;
+    const tick = (time: number) => {
+      const dt = Math.min(.04, (time - state.time) / 1000);
+      state.time = time;
+      // A critically damped response smooths wheel notches without pausing between
+      // input and inertia. Preserve the actual velocity when the gesture ends.
+      const omega = 24, offset = progress.get() - state.target;
+      const term = (state.speed + omega * offset) * dt, decay = Math.exp(-omega * dt);
+      state.speed = (state.speed - omega * term) * decay;
+      progress.set(state.target + (offset + term) * decay);
+      velocity.current = { speed: state.speed, time };
+      if (time - state.lastInput >= 100) { coast(state.speed); return; }
       inertiaFrame.current = requestAnimationFrame(tick);
     };
     inertiaFrame.current = requestAnimationFrame(tick);
@@ -112,11 +141,12 @@ export function WheelDeck({ deck, language, enteredAt, onExit, onHorizontal, pan
         return;
       }
 
-      stop(); phase.current = 'drag';
       const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? el.clientHeight : 1);
-      push(progress.get() + delta / Math.max(180, el.clientWidth * .5625));
-      window.clearTimeout(timer.current);
-      timer.current = window.setTimeout(coast, 100);
+      const distance = delta / Math.max(180, el.clientWidth * .5625);
+      if (reduced) {
+        stop(); push(progress.get() + distance);
+        window.clearTimeout(timer.current); timer.current = window.setTimeout(coast, 100);
+      } else scrollWheel(distance);
     };
     el.addEventListener('wheel', wheel, { passive: false });
     return () => { el.removeEventListener('wheel', wheel); window.clearTimeout(timer.current); window.clearTimeout(horizontalTimer.current); stop(); };

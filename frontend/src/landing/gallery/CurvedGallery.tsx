@@ -55,6 +55,18 @@ export function CurvedGallery({ decks, active, onSelect, label, reading, expande
       const top = (px: number) => centerY - sizeAt(px) / 2 + shift;
       const bottom = (px: number) => centerY + sizeAt(px) / 2 + shift;
       const radius = 12, steps = Math.ceil(w / 2);
+      const imageWidth = Math.min(w, base * img.naturalWidth / img.naturalHeight);
+      const imageHeight = imageWidth * img.naturalHeight / img.naturalWidth;
+      if (curvature === 0) {
+        const y = centerY - base / 2 + shift;
+        if (y + base < 0 || y > height) return;
+        ctx.save(); ctx.globalAlpha = alpha;
+        ctx.beginPath(); ctx.roundRect(x, y, w, base, radius); ctx.clip();
+        ctx.fillStyle = '#fff'; ctx.fillRect(x, y, w, base);
+        ctx.drawImage(img, x + (w - imageWidth) / 2, centerY - imageHeight / 2 + shift, imageWidth, imageHeight);
+        ctx.restore();
+        return;
+      }
       ctx.save();
       ctx.globalAlpha = alpha;
       ctx.beginPath();
@@ -77,8 +89,6 @@ export function CurvedGallery({ decks, active, onSelect, label, reading, expande
       ctx.fillStyle = '#fff';
       ctx.fillRect(x, 0, w, height);
       // Slice mapping preserves all source content, including text at the edges.
-      const imageWidth = Math.min(w, base * img.naturalWidth / img.naturalHeight);
-      const imageHeight = imageWidth * img.naturalHeight / img.naturalWidth;
       for (let s = 0; s < steps; s++) {
         const px = x + (w - imageWidth) / 2 + imageWidth * s / steps;
         const h = sizeAt(px + imageWidth / steps / 2) * imageHeight / base;
@@ -146,8 +156,8 @@ export function CurvedGallery({ decks, active, onSelect, label, reading, expande
     position.set(button.offsetLeft - el.scrollLeft - (el.clientWidth - button.offsetWidth) / 2);
   };
   const schedulePaint = useCallback(() => {
-    cancelAnimationFrame(frame.current);
-    frame.current = requestAnimationFrame(() => paintRef.current());
+    if (frame.current) return;
+    frame.current = requestAnimationFrame(() => { frame.current = 0; paintRef.current(); });
   }, []);
   useLayoutEffect(() => { updatePosition(); paint(); });
   useEffect(() => progress.on('change', schedulePaint), [progress, schedulePaint]);
@@ -201,7 +211,7 @@ export function CurvedGallery({ decks, active, onSelect, label, reading, expande
     });
     resize.observe(el);
     schedulePaint();
-    return () => { resize.disconnect(); cancelAnimationFrame(frame.current); settling.current?.stop(); window.clearTimeout(pending.current); };
+    return () => { resize.disconnect(); cancelAnimationFrame(frame.current); frame.current = 0; settling.current?.stop(); window.clearTimeout(pending.current); };
   }, [center, schedulePaint]);
 
   const finishScroll = () => {
