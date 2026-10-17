@@ -108,8 +108,10 @@
 
 .gallery-stage[data-horizontal="true"] .gallery-wheel-page[aria-hidden="true"] { visibility: hidden; }
 
-.gallery-intro-navigation { display: flex; align-items: center; justify-content: center; gap: 24px; max-width: calc(65ch + 136px); margin: 14px auto 0; font-size: 16px; }
-.gallery-intro .gallery-intro-navigation p { flex: 1; min-width: 0; margin: 0; }
+.gallery-intro-navigation { display: flex; align-items: center; justify-content: center; gap: 20px; width: fit-content; max-width: 100%; margin: 14px auto 0; font-size: 16px; }
+.gallery-intro .gallery-intro-navigation p { flex: 0 1 auto; min-width: 0; margin: 0; }
+.gallery-intro-navigation p span { display: block; }
 @media (max-width: 767px) {
  .gallery-intro-navigation { gap: 10px; }
+ .gallery-intro-navigation p span { display: inline; }
 }

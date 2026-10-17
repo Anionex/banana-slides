@@ -16,8 +16,8 @@ import './gallery.css';
 
 const decks: GalleryDeck[] = manifest;
 const strings = {
-  zh: { title: '每一个想法，都有好看的样子。', intro: '用 Banana Slides 创作的真实作品。横向挑选作品，滚动原位翻页。', home: '回到首页', demo: '体验 Demo', previous: '上一个作品', next: '下一个作品', read: '左右拖动挑选作品，上下滚动翻页', pages: '页', skip: '跳到作品内容', original: '原始作品来自 GitHub 社区案例，内容保持原样。', deckLabel: '作品画廊，左右方向键切换作品' },
-  en: { title: 'Every idea has a look of its own.', intro: 'Real presentations made with Banana Slides. Browse sideways. Scroll through each deck in place.', home: 'Back to home', demo: 'Try the demo', previous: 'Previous presentation', next: 'Next presentation', read: 'Drag sideways to browse. Scroll up or down to turn slides.', pages: 'slides', skip: 'Skip to presentation', original: 'Original presentations from the GitHub community showcase, presented as shared.', deckLabel: 'Presentation gallery. Use left and right arrow keys to browse.' },
+  zh: { title: '每一个想法，都有好看的样子。', intro: ['用 Banana Slides 创作的真实作品。', '横向挑选作品，滚动原位翻页。'], home: '回到首页', demo: '体验 Demo', previous: '上一个作品', next: '下一个作品', read: '左右拖动挑选作品，上下滚动翻页', pages: '页', skip: '跳到作品内容', original: '原始作品来自 GitHub 社区案例，内容保持原样。', deckLabel: '作品画廊，左右方向键切换作品' },
+  en: { title: 'Every idea has a look of its own.', intro: ['Real presentations made with Banana Slides.', 'Browse sideways. Scroll through each deck in place.'], home: 'Back to home', demo: 'Try the demo', previous: 'Previous presentation', next: 'Next presentation', read: 'Drag sideways to browse. Scroll up or down to turn slides.', pages: 'slides', skip: 'Skip to presentation', original: 'Original presentations from the GitHub community showcase, presented as shared.', deckLabel: 'Presentation gallery. Use left and right arrow keys to browse.' },
 };
 
 export function Gallery() { return <LandingTheme><GalleryContent /></LandingTheme>; }
@@ -48,7 +48,7 @@ function GalleryContent() {
   useEffect(() => {
     document.title = `${language === 'zh' ? '作品画廊' : 'Presentation gallery'} | Banana Slides`;
     document.documentElement.lang = language === 'zh' ? 'zh-CN' : 'en';
-    document.querySelector('meta[name="description"]')?.setAttribute('content', t.intro);
+    document.querySelector('meta[name="description"]')?.setAttribute('content', t.intro.join(' '));
     document.querySelector('link[rel="canonical"]')?.setAttribute('href', `https://bananaslides.online${path}`);
     history.replaceState(null, '', `${path}?deck=${deck.id}`);
   }, [deck.id, language, path, t.intro]);
@@ -70,7 +70,7 @@ function GalleryContent() {
           <h1 id="gallery-title">{t.title}</h1>
           <div className="gallery-intro-navigation">
             <button className="gallery-arrow" onClick={() => changeDeck(-1)} aria-label={t.previous}><ArrowLeft size={21} /></button>
-            <p>{t.intro}</p>
+            <p><span>{t.intro[0]}</span>{' '}<span>{t.intro[1]}</span></p>
             <button className="gallery-arrow" onClick={() => changeDeck(1)} aria-label={t.next}><ArrowRight size={21} /></button>
           </div>
         </div>
