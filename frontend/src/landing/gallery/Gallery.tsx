@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, useMotionValue, useReducedMotion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, ArrowRight, ArrowUpRight, Download, ExternalLink } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ArrowUpRight } from 'lucide-react';
 import logoUrl from '@/assets/logo.png';
 import { LandingTheme, ThemeToggle } from '../LandingTheme';
 import { LanguageMenu } from '../LanguageMenu';
@@ -16,8 +16,8 @@ import './gallery.css';
 
 const decks: GalleryDeck[] = manifest;
 const strings = {
-  zh: { title: '每一个想法，都有好看的样子。', intro: '用 Banana Slides 创作的真实作品。横向挑选作品，滚动原位翻页。', home: '回到首页', demo: '体验 Demo', previous: '上一个作品', next: '下一个作品', choose: '选择作品', read: '左右拖动挑选作品，上下滚动翻页', pages: '页', source: '查看原帖', pdf: '打开 PDF', top: '返回作品选择', all: '全部作品', skip: '跳到作品内容', original: '原始作品来自 GitHub 社区案例，内容保持原样。', deckLabel: '作品画廊，左右方向键切换作品' },
-  en: { title: 'Every idea has a look of its own.', intro: 'Real presentations made with Banana Slides. Browse sideways. Scroll through each deck in place.', home: 'Back to home', demo: 'Try the demo', previous: 'Previous presentation', next: 'Next presentation', choose: 'Choose a presentation', read: 'Drag sideways to browse. Scroll up or down to turn slides.', pages: 'slides', source: 'Original post', pdf: 'Open PDF', top: 'Back to gallery', all: 'All presentations', skip: 'Skip to presentation', original: 'Original presentations from the GitHub community showcase, presented as shared.', deckLabel: 'Presentation gallery. Use left and right arrow keys to browse.' },
+  zh: { title: '每一个想法，都有好看的样子。', intro: '用 Banana Slides 创作的真实作品。横向挑选作品，滚动原位翻页。', home: '回到首页', demo: '体验 Demo', previous: '上一个作品', next: '下一个作品', read: '左右拖动挑选作品，上下滚动翻页', pages: '页', skip: '跳到作品内容', original: '原始作品来自 GitHub 社区案例，内容保持原样。', deckLabel: '作品画廊，左右方向键切换作品' },
+  en: { title: 'Every idea has a look of its own.', intro: 'Real presentations made with Banana Slides. Browse sideways. Scroll through each deck in place.', home: 'Back to home', demo: 'Try the demo', previous: 'Previous presentation', next: 'Next presentation', read: 'Drag sideways to browse. Scroll up or down to turn slides.', pages: 'slides', skip: 'Skip to presentation', original: 'Original presentations from the GitHub community showcase, presented as shared.', deckLabel: 'Presentation gallery. Use left and right arrow keys to browse.' },
 };
 
 export function Gallery() { return <LandingTheme><GalleryContent /></LandingTheme>; }
@@ -81,8 +81,6 @@ function GalleryContent() {
           </motion.div>
         </div>
         <p className="gallery-read-link">{t.read}</p>
-        <div className="gallery-reader-actions"><a href={deck.source} target="_blank" rel="noopener noreferrer">{t.source}<ExternalLink size={15} /></a><a href={deck.pdf} target="_blank" rel="noopener noreferrer">{t.pdf}<Download size={16} /></a></div>
-        <div className="gallery-browse"><label htmlFor="gallery-picker">{t.all} <span>{String(active + 1).padStart(2, '0')} / {decks.length}</span></label><select id="gallery-picker" value={active} onChange={event => pan.current?.select(Number(event.target.value))} aria-label={t.choose}>{decks.map((item, index) => <option key={item.id} value={index}>{item.title[language]}</option>)}</select></div>
       </section>
     </main>
     <footer className="gallery-footer"><a href={language === 'zh' ? '/' : '/en/'}>Banana Slides</a><p>{t.original}</p><a href="https://github.com/Anionex/banana-slides/issues/2" target="_blank" rel="noopener noreferrer">GitHub <ArrowUpRight size={14} /></a></footer>

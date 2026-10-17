@@ -26,9 +26,6 @@
 .gallery-current { text-align: center; min-width: 240px; }
 .gallery-current > span { color: var(--text-secondary); font-size: 13px; }
 .gallery-current h2 { margin-top: 8px; font-size: 24px; line-height: 1.4; font-weight: 600; }
-.gallery-browse { display: flex; align-items: center; justify-content: center; gap: 18px; margin: 28px 24px 0; font-size: 13px; color: var(--text-secondary); }
-.gallery-browse label span { margin-left: 8px; font-variant-numeric: tabular-nums; }
-.gallery-browse select { max-width: 260px; min-height: 44px; padding: 8px 30px 8px 12px; border: 1px solid var(--studio-line); border-radius: 8px; background: var(--studio-paper); color: var(--studio-ink); }
 .gallery-read-link { margin: 22px auto 0; display: flex; width: fit-content; align-items: center; gap: 10px; min-height: 44px; font-size: 14px; color: var(--text-secondary); }
 
 .gallery-image-error { height: 100%; min-height: 150px; display: flex; flex-direction: column; gap: 14px; align-items: center; justify-content: center; text-align: center; padding: 24px; color: var(--studio-ink); }
@@ -49,8 +46,6 @@
   .gallery-selection-caption { gap: 12px; margin-inline: 20px; }
   .gallery-current { min-width: 0; flex: 1; }
   .gallery-current h2 { font-size: 20px; }
-  .gallery-browse { margin-top: 20px; gap: 10px; flex-wrap: wrap; }
-  .gallery-browse select { max-width: 190px; }
   .gallery-read-link { margin-top: 14px; }
   .gallery-footer { padding: 24px 20px; flex-wrap: wrap; gap: 10px; }
   .gallery-footer p { order: 3; width: 100%; line-height: 1.7; }
@@ -78,17 +73,11 @@
 .gallery-page-controls button { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; }
 .gallery-page-controls button:hover { background: var(--studio-soft); }
 .gallery-page-controls button:disabled { opacity: .3; cursor: not-allowed; }
-.gallery-reader-actions { display: flex; align-items: center; justify-content: center; gap: 24px; margin: 12px 20px 0; }
-.gallery-reader-actions a { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; min-height: 44px; }
-.gallery-reader-actions .studio-button { min-height: 44px; padding: 10px 18px; font-size: 13px; }
-.gallery-selection[data-reading="true"] .gallery-browse { margin-top: 16px; }
 @media (max-width: 767px) {
  .gallery-selection[data-reading="true"] .gallery-intro h1 { font-size: 24px; }
  .gallery-selection[data-reading="true"] .gallery-intro p { font-size: 12px; max-width: 28em; }
  .gallery-selection[data-reading="true"] .gallery-selection-caption { margin-top: 18px; }
 
- .gallery-reader-actions { gap: 14px; flex-wrap: wrap; }
- .gallery-reader-actions a { font-size: 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) { .gallery-intro h1, .gallery-intro p { transition: none; } }
@@ -98,7 +87,7 @@
 .gallery-wheel:has(.gallery-wheel-viewport:focus-visible) .gallery-page-controls { text-decoration: underline; text-underline-offset: 5px; }
 
 /* The works carry the gallery; text stays available to assistive navigation. */
-.gallery-current, .gallery-read-link, .gallery-browse label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.gallery-current, .gallery-read-link { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .gallery-selection, .gallery-selection[data-reading="true"] { padding: 0 0 24px; }
 .gallery-stage, .gallery-selection[data-reading="true"] .gallery-stage { --cover-width: min(46vw, 640px, 60vh); --preview-above: clamp(32px, 5vh, 56px); --strip-height: calc(var(--cover-width) * .84375 + 16px + var(--preview-above)); --belt-offset: 0px; height: calc(var(--strip-height) + 48px); margin-top: 0; }
 .gallery-track, .gallery-stage[data-expanded="true"] .gallery-track, .gallery-canvas, .gallery-stage[data-expanded="true"] .gallery-canvas { height: var(--strip-height); }
@@ -107,8 +96,6 @@
 .gallery-wheel-page { top: var(--preview-above); }
 .gallery-wheel-viewport { mask-image: linear-gradient(to bottom, transparent, #000 var(--preview-above), #000 calc(var(--preview-above) + var(--cover-width) * .5625), transparent); }
 .gallery-wheel-page[data-painted="true"] img { opacity: 0; }
-.gallery-reader-actions { margin-top: 12px; }
-.gallery-browse { margin-top: 12px; }
 @media (max-width: 767px) {
  .gallery-stage, .gallery-selection[data-reading="true"] .gallery-stage { --cover-width: 78vw; }
 }

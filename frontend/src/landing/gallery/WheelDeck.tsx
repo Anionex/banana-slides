@@ -17,7 +17,7 @@ function WheelPage({ deck, index, slot, progress, reduced, language, onLoad }: {
   const dimensions = deck.pages[index];
   const current = Math.round(progress.get()) === slot;
   return <motion.figure className="gallery-wheel-page" data-slot={slot} style={{ y }} aria-hidden={!current}>
-    {failed ? <div className="gallery-image-error"><p>{language === 'zh' ? '页面暂时无法加载' : 'This slide could not load'}</p><button tabIndex={current ? 0 : -1} onClick={() => { setFailed(false); setAttempt(attempt + 1); }}>{language === 'zh' ? '重新加载' : 'Retry'}</button><a tabIndex={current ? 0 : -1} href={deck.pdf} target="_blank" rel="noopener noreferrer">{language === 'zh' ? '打开 PDF' : 'Open PDF'}</a></div>
+    {failed ? <div className="gallery-image-error"><p>{language === 'zh' ? '页面暂时无法加载' : 'This slide could not load'}</p><button tabIndex={current ? 0 : -1} onClick={() => { setFailed(false); setAttempt(attempt + 1); }}>{language === 'zh' ? '重新加载' : 'Retry'}</button></div>
       : <img src={`/gallery/${deck.id}/${index + 1}.webp${attempt ? `?retry=${attempt}` : ''}`} alt={`${deck.title[language]} · ${index + 1}`} {...dimensions} draggable={false} onLoad={onLoad} onError={() => setFailed(true)} />}
   </motion.figure>;
 }

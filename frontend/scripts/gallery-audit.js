@@ -83,8 +83,8 @@ async (page) => {
     await p.getByRole('button',{name:'Previous presentation',exact:true}).click();await settle('money');
     await p.getByRole('button',{name:'Previous presentation',exact:true}).click();await settle('gen-z');
     await p.getByRole('button',{name:'Next presentation',exact:true}).click();await settle('money');
-    await p.getByRole('combobox').selectOption('2');await settle('ecology');await p.reload();await settle('ecology');
-    results.interactions.push('cover click, horizontal wheel, cover reset, wrapping, dropdown, refresh');
+    await p.getByRole('button',{name:'Next presentation',exact:true}).click();await settle('deepseek-tech');await p.getByRole('button',{name:'Next presentation',exact:true}).click();await settle('ecology');await p.reload();await settle('ecology');
+    results.interactions.push('cover click, horizontal wheel, cover reset, wrapping, refresh');
     const assets=await p.evaluate(async()=>{
       const urls=await (await fetch('/gallery/asset-index.json')).json(),failed=[];
       for(let i=0;i<urls.length;i+=8) await Promise.all(urls.slice(i,i+8).map(src=>new Promise(resolve=>{const img=new Image();img.onload=resolve;img.onerror=()=>{failed.push(src);resolve();};img.src=src;})));
