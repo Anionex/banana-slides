@@ -5,6 +5,7 @@ import { Sparkles, FileText, MessageSquare, Download, ChevronRight, Github, Chev
 import { Button, Footer } from '@/components/shared';
 import { useT } from '@/hooks/useT';
 import logoUrl from '@/assets/logo.png';
+import { nextUiLanguage, uiLanguageShortLabel } from '@/utils/uiLanguage';
 
 // 组件内翻译
 const landingI18n = {
@@ -31,6 +32,19 @@ const landingI18n = {
         title_end: "No Formatting Hassle",
         subtitle: "Focus on your content and ideas, leave the rest to Banana Slides. From outline to beautiful slides in seconds.",
         cta_primary: "Get Started for Free"
+      }
+    }
+  },
+  vi: {
+    landing: {
+      nav: { enter: 'Vào ứng dụng' },
+      hero: {
+        badge: 'Trình tạo bài thuyết trình AI thế hệ mới',
+        title_start: 'Biến ý tưởng thành',
+        title_highlight: 'hiện thực tức thì',
+        title_end: 'không cần căn chỉnh phức tạp',
+        subtitle: 'Tập trung vào nội dung và ý tưởng, phần còn lại để Banana Slides xử lý. Từ dàn ý đến slide hoàn chỉnh chỉ trong vài phút.',
+        cta_primary: 'Bắt đầu miễn phí'
       }
     }
   }
@@ -102,10 +116,10 @@ export const Landing: React.FC = () => {
         </div>
         <div className="flex items-center gap-4">
           <button
-            onClick={() => i18n.changeLanguage(i18n.language?.startsWith('zh') ? 'en' : 'zh')}
+            onClick={() => i18n.changeLanguage(nextUiLanguage(i18n.language))}
             className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors px-3 py-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-white/10"
           >
-            {i18n.language?.startsWith('zh') ? 'EN' : '中'}
+            {uiLanguageShortLabel(nextUiLanguage(i18n.language))}
           </button>
           <Button 
             variant="primary" 

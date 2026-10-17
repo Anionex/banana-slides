@@ -80,6 +80,27 @@ test.describe('UX Polish – disabled button tooltips (mock)', () => {
 });
 
 test.describe('UX Polish – i18n strings (mock)', () => {
+  test('Vietnamese locale renders the entry navigation and survives reload', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('banana-slides-language', 'vi');
+    });
+    await page.route('**/api/access-code/check', (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ data: { enabled: false } }),
+      });
+    });
+
+    await page.goto(`${BASE}/`);
+    await expect(page.getByText('Lịch sử', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('Cài đặt', { exact: true }).first()).toBeVisible();
+
+    await page.reload();
+    await expect(page.getByText('Lịch sử', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('Cài đặt', { exact: true }).first()).toBeVisible();
+  });
+
   test('project status text uses i18n (not hardcoded Chinese)', async ({ page }) => {
     // Set English locale
     await page.addInitScript(() => {
