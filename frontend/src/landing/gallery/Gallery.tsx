@@ -66,7 +66,14 @@ function GalleryContent() {
     </header>
     <main>
       <section id="gallery-selection" className="gallery-selection" data-reading={expanded} aria-labelledby="gallery-title">
-        <div className="gallery-intro"><h1 id="gallery-title">{t.title}</h1><p>{t.intro}</p></div>
+        <div className="gallery-intro">
+          <h1 id="gallery-title">{t.title}</h1>
+          <div className="gallery-intro-navigation">
+            <button className="gallery-arrow" onClick={() => changeDeck(-1)} aria-label={t.previous}><ArrowLeft size={21} /></button>
+            <p>{t.intro}</p>
+            <button className="gallery-arrow" onClick={() => changeDeck(1)} aria-label={t.next}><ArrowRight size={21} /></button>
+          </div>
+        </div>
         <div className="gallery-experience">
           <motion.div layout="position" className="gallery-stage-wrap" transition={{ duration: reduced ? 0 : .6, ease: [.22, 1, .36, 1] }}>
             <CurvedGallery decks={decks} active={active} onSelect={selectDeck} label={t.deckLabel} reading={reading} expanded={expanded} pan={pan} position={position} progress={progress} onRead={startReading}>
@@ -74,11 +81,7 @@ function GalleryContent() {
 
             </CurvedGallery>
           </motion.div>
-          <motion.div layout="position" className="gallery-selection-caption" transition={{ duration: reduced ? 0 : .6, ease: [.22, 1, .36, 1] }}>
-            <button className="gallery-arrow" onClick={() => changeDeck(-1)} aria-label={t.previous}><ArrowLeft size={21} /></button>
-            <div className="gallery-current" aria-live="polite" aria-atomic="true"><span>{deck.category[language]} <span aria-hidden="true">·</span> {deck.pages.length} {t.pages}</span><h2>{deck.title[language]}</h2></div>
-            <button className="gallery-arrow" onClick={() => changeDeck(1)} aria-label={t.next}><ArrowRight size={21} /></button>
-          </motion.div>
+          <div className="gallery-current" aria-live="polite" aria-atomic="true"><span>{deck.category[language]} <span aria-hidden="true">·</span> {deck.pages.length} {t.pages}</span><h2>{deck.title[language]}</h2></div>
         </div>
         <p className="gallery-read-link">{t.read}</p>
       </section>
