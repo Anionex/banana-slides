@@ -25,5 +25,6 @@ export async function initializePublicDemo(baseURL: string): Promise<void> {
   if (typeof result.data?.enabled !== 'boolean') throw new Error('站点配置无效，请稍后重试。');
   isPublicDemo = result.data.enabled;
   publicPartners = result.data.partners || {};
+  delete publicPartners.apimart;
   if (isPublicDemo) initializePublicAnalytics();
 }

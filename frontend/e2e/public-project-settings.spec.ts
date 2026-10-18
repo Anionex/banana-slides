@@ -45,12 +45,12 @@ test.afterEach(async ({ request }) => {
   expect(settings.api_key_length).toBe(0);
 });
 
-for (const partner of ['inferera', 'apimart', 'volcengine']) {
+for (const partner of ['inferera', 'volcengine']) {
   test(`real modal: ${partner} save, reload, page parity, isolation and reset`, async ({ page, request, browser }) => {
     await openSettings(page, projectId);
     const select = page.getByRole('radiogroup', { name: 'API 提供商', exact: true });
     await expect(select).toBeVisible();
-    await expect(select.getByRole('radio')).toHaveCount(3);
+    await expect(select.getByRole('radio')).toHaveCount(2);
     await expect(select).not.toContainText('$0.006');
     await expect(select).toContainText('国内直连');
     await expect(page.getByRole('heading', { name: '个人设置', exact: true })).toBeVisible();
@@ -121,7 +121,7 @@ test('mock non-demo: project modal retains the full global settings', async ({ p
   await expect(page.getByText('API Base URL', { exact: true })).toBeVisible();
   await expect(page.getByRole('radio', { name: 'Gemini', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: '个人设置', exact: true })).toHaveCount(0);
-  await page.getByRole('radio', { name: /APIMart/ }).hover();
+  await expect(page.getByRole('radio', { name: /APIMart/ })).toHaveCount(0);
   await expect(page.getByTestId('provider-plan-apimart')).toHaveCount(0);
 });
 
@@ -129,7 +129,7 @@ for (const width of [1440, 390]) {
   test(`real settings page: provider benefits and responsive layout at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 1000 });
     await page.goto('/settings');
-    for (const provider of ['inferera', 'apimart', 'volcengine']) {
+    for (const provider of ['inferera', 'volcengine']) {
       await publicProvider(page, provider).click();
       await expect(publicProvider(page, provider)).toHaveAttribute('aria-checked', 'true');
       await expectFixedSettingsHidden(page);
@@ -148,7 +148,7 @@ test('live modal: saved personal key runs the real text service', async ({ page 
   test.skip(!process.env.PUBLIC_DEMO_LIVE_KEY, 'Requires an explicitly supplied provider credential');
   test.setTimeout(180000);
   await openSettings(page, projectId);
-  await publicProvider(page, 'apimart').click();
+  await publicProvider(page, 'inferera').click();
   await page.getByLabel('API Key', { exact: true }).fill(process.env.PUBLIC_DEMO_LIVE_KEY!);
   await page.getByRole('button', { name: '保存设置', exact: true }).click();
   await expect(page.getByText('设置保存成功', { exact: true })).toBeVisible();
@@ -167,7 +167,7 @@ test('real modal: narrow viewport keeps tabs, provider controls and saving usabl
   expect(box).not.toBeNull();
   expect(box!.width).toBeGreaterThan(250);
   expect(box!.x + box!.width).toBeLessThanOrEqual(374);
-  await publicProvider(page, 'apimart').click();
+  await publicProvider(page, 'inferera').click();
   await page.getByRole('combobox', { name: '图像清晰度', exact: true }).selectOption('4K');
   await page.getByRole('button', { name: '保存设置', exact: true }).click();
   await expect(page.getByText('设置保存成功', { exact: true })).toBeVisible();
@@ -187,22 +187,22 @@ test('modal presentation matches full settings fields and provider details', asy
       const css = getComputedStyle(element);
       return [css.fontSize, css.height, css.padding, css.borderRadius, css.borderColor];
     }),
-    provider: await page.locator('[data-provider="apimart"]').evaluate(element => {
+    provider: await page.locator('[data-provider="volcengine"]').evaluate(element => {
       const css = getComputedStyle(element);
       return [css.fontSize, css.padding, css.borderRadius];
     }),
   });
   const personal = await styles();
-  await page.locator('[data-provider="apimart"]').hover();
+  await page.locator('[data-provider="volcengine"]').hover();
   const promo = page.getByTestId('provider-plan-apimart');
   await expect(promo).toHaveCount(0);
-  await publicProvider(page, 'apimart').click();
+  await publicProvider(page, 'inferera').click();
   await expect(promo).toHaveCount(0);
-  await publicProvider(page, 'apimart').focus();
+  await publicProvider(page, 'inferera').focus();
   await expect(promo).toHaveCount(0);
-  await publicProvider(page, 'apimart').press('Enter');
+  await publicProvider(page, 'inferera').press('Enter');
   await expect(promo).toHaveCount(0);
-  await expect(publicProvider(page, 'apimart')).toHaveAttribute('aria-checked', 'true');
+  await expect(publicProvider(page, 'inferera')).toHaveAttribute('aria-checked', 'true');
   await expectFixedSettingsHidden(page);
   await page.getByRole('heading', { name: '个人设置', exact: true }).click();
   await page.screenshot({ path: test.info().outputPath('personal-modal.png'), animations: 'disabled' });
@@ -216,6 +216,5 @@ test('modal presentation matches full settings fields and provider details', asy
   await openSettings(page, projectId);
   expect(await styles()).toEqual(personal);
   await page.screenshot({ path: test.info().outputPath('original-modal.png'), animations: 'disabled' });
-  await page.locator('[data-provider="apimart"]').hover();
   await expect(promo).toHaveCount(0);
 });

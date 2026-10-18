@@ -7,9 +7,9 @@ The public demo uses the same creation interface as the main version, with simpl
 
 ## Configuration and Usage
 
-The settings page and “Project Settings → Personal Settings” in the preview provide the same personal configuration. Both reuse the open-source forms, provider promotion popovers, and key setup guides. APIMart shows a price hint and Volcengine Agent Plan shows a direct-access hint. Hover or keyboard focus reveals the full benefits; selecting Volcengine also shows its brand introduction and setup steps. Both entry points share the saved configuration, and saving or resetting affects only the current visitor.
+The settings page and “Project Settings → Personal Settings” in the preview provide the same personal configuration. Both reuse the open-source forms, provider promotion popovers, and key setup guides. Volcengine Agent Plan shows a direct-access hint. Hover or keyboard focus reveals the full benefits; selecting Volcengine also shows its brand introduction and setup steps. Both entry points share the saved configuration, and saving or resetting affects only the current visitor.
 
-1. Open Settings and select Inferera, APIMart, or Volcengine Agent Plan.
+1. Open Settings and select Inferera or Volcengine Agent Plan.
 2. Enter and save your API Key for that API provider. Keys are saved separately for each API provider, so switching configurations never sends one provider's Key to another.
 3. Return to the home page to create a presentation. If a missing Key redirects you to Settings, your text input will be restored when you return.
 4. When you first open each PPT's preview page, save the link shown in the dialog. You can also click “Share / Save Link” to copy it again later.
@@ -17,7 +17,6 @@ The settings page and “Project Settings → Personal Settings” in the previe
 | API Provider | Text / Image Recognition Model | Image Generation Model |
 | --- | --- | --- |
 | Inferera | gemini-3-flash-preview | gemini-3-pro-image-preview |
-| APIMart | gpt-5.6-sol / gpt-5.6-luna | gpt-image-2 |
 | Volcengine Agent Plan | doubao-seed-2.1-turbo | doubao-seedream-5.0-lite |
 
 Fixed API endpoints, model names, and model providers are hidden from personal settings and configured automatically for the selected provider. Expand Advanced Settings to adjust concurrency, description generation mode, and reasoning parameters. Reasoning budgets appear only when the corresponding reasoning switch is on; switching it off preserves the budget. The Volcengine option only supports **Keys dedicated to an Agent Plan subscription**; regular pay-as-you-go ModelArk Keys are not supported. Service tests use your saved personal configuration and make real calls to the provider's API. Tests for text, image recognition, image generation, MinerU, Baidu OCR, and Baidu image inpainting can run concurrently, each showing its own progress, result, and retry option, with a maximum wait of ten minutes. Save configuration changes before starting a new test; tests already running continue to use the configuration they started with.
@@ -90,7 +89,7 @@ The database contains personal service credentials. Restrict its file permission
 
 `frontend/e2e/public-settings-behavior.spec.ts` additionally covers saving and reloading all editable settings, switching between providers' Key drafts, running all six tests concurrently, independent failures and retries, timeout recovery, and stopping polling after leaving Settings.
 
-`scripts/verify-public-demo.py --partner apimart --flow` reads a Key from one line of standard input and performs real verification of text, image recognition, generation, and PPTX export. Add `--stream` to verify streaming outlines and descriptions; use `--image` to test the image service separately. For other API providers, use `--partner inferera` or `--partner volcengine` with the appropriate type of Key.
+`scripts/verify-public-demo.py --partner inferera --flow` reads a Key from one line of standard input and performs real verification of text, image recognition, generation, and PPTX export. Add `--stream` to verify streaming outlines and descriptions; use `--image` to test the image service separately. For Volcengine, use `--partner volcengine` with the appropriate type of Key.
 
 `--browser-tests` calls the real text and image recognition services concurrently in the browser, checks that an independent failure due to missing OCR credentials does not block the other tests, and verifies that other visitors cannot read the results. This mode disables screenshots, video, and network tracing, and clears test credentials when it finishes.
 
