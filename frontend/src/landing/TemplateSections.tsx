@@ -4,24 +4,29 @@ import { Feature01 } from './vendor/flexnative/Feature01';
 import './template-sections.css';
 import Reveal from './vendor/asanshay/Reveal';
 import { ScrollReveal } from './vendor/cnippet/ScrollReveal';
+import { useState } from 'react';
+import { Pause, Play } from 'lucide-react';
+import { useArtworkPlayback } from './useArtworkPlayback';
+import './feature-motion.css';
 
 type SectionProps = { t: (key: string) => string };
 const featureArt = [1, 0, 4, 2, 3];
 
 // Waymark's workflow layout with existing Banana Slides copy and illustrations.
 export function ProductShowcase({ t }: SectionProps) {
+  const playback = useArtworkPlayback();
   return <section id="product" className="landing-section landing-waymark landing-waymark-workflow" aria-labelledby="landing-product-title">
     <div className="landing-waymark-container">
       <Reveal><header className="landing-waymark-heading">
         <h2 id="landing-product-title">{t('featureTitle')}</h2>
         <p className="landing-waymark-intro">{t('featureIntro')}</p>
       </header></Reveal>
-      <div className="landing-waymark-workflow-grid">
+      <div className="landing-waymark-workflow-grid" ref={playback.ref} data-motion-active={playback.active}>
         {featureArt.map((kind, index) => <ScrollReveal key={kind} as="article" once
           transition={{ delay: index * 0.12, duration: 0.5, ease: 'easeOut' }}
           variants={{ hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0 } }}
           viewOptions={{ amount: 0.3 }}>
-          <div className="landing-waymark-workflow-visual"><FeatureArtwork kind={kind} /></div>
+          <div className="landing-waymark-workflow-visual" tabIndex={0} role="img" aria-label={t(`f${index + 1}`)}><FeatureArtwork kind={kind} /></div>
           <div className="landing-waymark-caption">
             <h3>{t(`f${index + 1}`)}</h3>
             <p>{t(`f${index + 1}Text`)}</p>
@@ -33,13 +38,15 @@ export function ProductShowcase({ t }: SectionProps) {
 }
 
 export function AudienceShowcase({ t }: SectionProps) {
+  const playback = useArtworkPlayback();
+  const [paused, setPaused] = useState(false);
   return <section id="scenarios" className="landing-section landing-waymark landing-waymark-features" aria-labelledby="landing-audience-title">
     <div className="landing-waymark-container">
       <Reveal><header className="landing-waymark-heading">
         <h2 id="landing-audience-title">{t('scenarioTitle')}</h2>
         <p className="landing-waymark-intro">{t('scenarioIntro')}</p>
       </header></Reveal>
-      <div className="landing-audience-selector">
+      <div className="landing-audience-selector" ref={playback.ref} data-motion-active={playback.active && !paused}>
         <Feature01 animation="subtle" label={t('scenarios')} items={[1, 2, 3, 4, 5].map(scenario => ({
           id: `audience-${scenario}`,
           title: t(`s${scenario}`),
@@ -47,6 +54,10 @@ export function AudienceShowcase({ t }: SectionProps) {
           media: { src: '', alt: '' },
           mediaContent: <ScenarioArtwork scenario={scenario} />,
         }))} />
+        <div className="landing-motion-controls"><button type="button" onClick={() => setPaused(value => !value)}>
+          {paused ? <Play size={14} aria-hidden="true" /> : <Pause size={14} aria-hidden="true" />}
+          {t(paused ? 'playAnimation' : 'pauseAnimation')}
+        </button></div>
       </div>
     </div>
   </section>;

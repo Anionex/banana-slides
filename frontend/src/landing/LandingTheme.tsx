@@ -14,6 +14,12 @@ export function LandingTheme({ children }: { children: ReactNode }) {
   const [systemDark, setSystemDark] = useState(() => typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches);
   const dark = preference === 'dark' || (preference === 'system' && systemDark);
   useEffect(() => {
+    // Keep the retained homepage and visible detail's theme controls in sync.
+    const sync = (event: Event) => setPreference((event as CustomEvent<Preference>).detail);
+    window.addEventListener('landing-theme-change', sync);
+    return () => window.removeEventListener('landing-theme-change', sync);
+  }, []);
+  useEffect(() => {
     const media = matchMedia('(prefers-color-scheme: dark)');
     const change = () => setSystemDark(media.matches);
     media.addEventListener('change', change);
@@ -23,6 +29,7 @@ export function LandingTheme({ children }: { children: ReactNode }) {
     document.documentElement.dataset.landingTheme = dark ? 'dark' : 'light';
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#181818' : '#ffffff');
     try { localStorage.setItem(key, preference); } catch { /* Session-only preference when storage is unavailable. */ }
+    window.dispatchEvent(new CustomEvent('landing-theme-change', { detail: preference }));
   }, [dark, preference]);
   useEffect(() => () => { delete document.documentElement.dataset.landingTheme; }, []);
   return <ThemeContext.Provider value={{ dark, preference, setPreference }}>{children}</ThemeContext.Provider>;

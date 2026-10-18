@@ -1,0 +1,98 @@
+/* Each diagram demonstrates its capability in a single, replayable sequence. */
+.landing-waymark-workflow-visual:focus-visible {
+  outline: 2px solid var(--studio-ink);
+  outline-offset: 4px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .landing-waymark-workflow-grid > article:has(:focus-visible) {
+    --feature-render: feature-render;
+    --feature-source: feature-source;
+    --feature-line: feature-line;
+    --feature-comment: feature-comment;
+    --feature-select: feature-select;
+    --feature-redraw: feature-redraw;
+    --feature-transfer: feature-transfer;
+    --feature-file: feature-file;
+  }
+  @media (hover: hover) {
+    .landing-waymark-workflow-grid > article:hover {
+      --feature-render: feature-render;
+      --feature-source: feature-source;
+      --feature-line: feature-line;
+      --feature-comment: feature-comment;
+      --feature-select: feature-select;
+      --feature-redraw: feature-redraw;
+      --feature-transfer: feature-transfer;
+      --feature-file: feature-file;
+    }
+  }
+
+  .feature-artwork :is(.art-slide, .art-document, .art-outline-lines > div, .art-comment, .art-selection, .art-export-arrow, .art-export-files > div, .art-input-options > div, .art-input-connectors) {
+    animation-duration: 1800ms;
+    animation-timing-function: cubic-bezier(.16, 1, .3, 1);
+    animation-fill-mode: both;
+    animation-play-state: paused;
+  }
+  .landing-page .landing-waymark-workflow-grid[data-motion-active=true] .feature-artwork * { animation-play-state: running; }
+
+  .art-style-deck .art-slide { animation-name: var(--feature-render, none); }
+  .art-style-1 { animation-delay: 140ms; }
+  .art-style-2 { animation-delay: 280ms; }
+  .art-input-options > div { animation-name: var(--feature-source, none); }
+  .art-input-options > div:nth-child(2) { animation-delay: 100ms; }
+  .art-input-options > div:nth-child(3) { animation-delay: 200ms; }
+  .art-input-options > div:nth-child(4) { animation-delay: 300ms; }
+  .art-input-connectors { animation-name: var(--feature-transfer, none); animation-delay: 240ms; }
+  .art-input-result .art-slide { animation-name: var(--feature-render, none); animation-delay: 400ms; }
+  .feature-artwork .art-outline-lines > div { animation-name: var(--feature-line, none); animation-delay: 340ms; transform-origin: left; }
+  .feature-artwork .art-outline-lines > div:nth-child(2) { animation-delay: 470ms; }
+  .feature-artwork .art-outline-lines > div:nth-child(3) { animation-delay: 600ms; }
+  .art-edit-scene .art-comment { animation-name: var(--feature-comment, none); }
+  .art-edit-scene .art-selection { animation-name: var(--feature-select, none); animation-delay: 240ms; }
+  .art-edit-scene .art-edit-slide > .grain-steps { animation: var(--feature-redraw, none) 1800ms cubic-bezier(.16, 1, .3, 1) 400ms both paused; }
+  .feature-artwork-3 .art-export-slide { animation-name: var(--feature-source, none); }
+  .feature-artwork .art-export-arrow { animation-name: var(--feature-transfer, none); animation-delay: 160ms; }
+  .feature-artwork-3 .art-export-files > div { animation-name: var(--feature-file, none); animation-delay: 350ms; }
+  .feature-artwork-3 .art-export-files > div:nth-child(2) { animation-delay: 500ms; }
+  .feature-artwork-3 .art-export-files > div:last-child { animation-delay: 650ms; }
+  .art-parse-scene .art-export-files > div { animation-name: var(--feature-source, none); }
+  .art-parse-scene .art-export-files > div:last-child { animation-delay: 130ms; }
+  .art-parse-scene .art-parsed-document { animation-name: var(--feature-render, none); animation-delay: 240ms; }
+
+}
+
+@keyframes feature-render {
+  0% { opacity: .3; translate: 0 14px; clip-path: inset(0 0 85% 0 round 9px); }
+  45%, 100% { opacity: 1; translate: 0 0; clip-path: inset(0 round 9px); }
+}
+@keyframes feature-source {
+  0%, 100% { translate: 0 0; }
+  30% { translate: 0 -8px; }
+}
+@keyframes feature-line {
+  0% { opacity: .2; scale: .2 1; }
+  40%, 100% { opacity: 1; scale: 1 1; }
+}
+@keyframes feature-comment {
+  0% { opacity: .25; translate: 12px 5px; }
+  30%, 100% { opacity: 1; translate: 0 0; }
+}
+@keyframes feature-select {
+  0% { opacity: 0; scale: 1.15; }
+  25%, 70% { opacity: 1; scale: 1; background-color: #f3ca4326; }
+  100% { opacity: 1; scale: 1; background-color: transparent; }
+}
+@keyframes feature-redraw {
+  0% { clip-path: inset(0 100% 0 0); }
+  55%, 100% { clip-path: inset(0); }
+}
+@keyframes feature-transfer {
+  0%, 100% { opacity: 1; translate: 0 0; }
+  25% { opacity: .3; translate: -7px 0; }
+  60% { opacity: 1; translate: 5px 0; }
+}
+@keyframes feature-file {
+  0% { opacity: .2; translate: -14px 0; scale: .9; }
+  45%, 100% { opacity: 1; translate: 0 0; scale: 1; }
+}

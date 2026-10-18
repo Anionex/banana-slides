@@ -4,8 +4,8 @@ import { animate, motion, useScroll, useTransform, useMotionValue, useMotionValu
 // Ported from Waymark's public SiteHeader bundle; provenance and adaptations in README.md.
 const compactHeight = 52;
 
-export default function ScrollHeader({ brand, navigation, actions, label }: {
-  brand: ReactNode; navigation: ReactNode; actions: ReactNode; label: string;
+export default function ScrollHeader({ brand, navigation, actions, label, sticky = true }: {
+  brand: ReactNode; navigation: ReactNode; actions: ReactNode; label: string; sticky?: boolean;
 }) {
   const shell = useRef<HTMLElement>(null);
   const bar = useRef<HTMLDivElement>(null);
@@ -24,7 +24,7 @@ export default function ScrollHeader({ brand, navigation, actions, label }: {
   const radius = useTransform(scale, value => `${24 / value}px / 24px`);
   const height = useTransform(verticalProgress, [0, 1], [expandedHeight, compactHeight]);
   const y = useTransform(verticalProgress, [0, 1], [0, 8]);
-  useMotionValueEvent(scrollY, 'change', value => setScrolled(value > 24));
+  useMotionValueEvent(scrollY, 'change', value => setScrolled(sticky && value > 24));
   useMotionValueEvent(verticalProgress, 'change', value => setGlassReady(value >= .98));
 
   useEffect(() => {
@@ -43,7 +43,7 @@ export default function ScrollHeader({ brand, navigation, actions, label }: {
   useEffect(() => {
     const element = bar.current;
     if (!element || !shell.current) return;
-    setScrolled(window.scrollY > 24);
+    setScrolled(sticky && window.scrollY > 24);
     const measure = () => {
       setExpandedHeight(parseFloat(getComputedStyle(shell.current!).getPropertyValue('--header-height')));
       // The original minimum is 720px. Our extra language/GitHub actions need more room.
@@ -59,7 +59,7 @@ export default function ScrollHeader({ brand, navigation, actions, label }: {
     window.addEventListener('resize', measure);
     measure();
     return () => { observer.disconnect(); window.removeEventListener('resize', measure); };
-  }, []);
+  }, [sticky]);
 
   const staticScale = scrolled ? targetScale : 1;
   const counterScale = reduce ? 1 / staticScale : inverse;
@@ -74,7 +74,7 @@ export default function ScrollHeader({ brand, navigation, actions, label }: {
       instant: instant || previous === null,
     }));
   };
-  return <header ref={shell} className="landing-header" data-scrolled={scrolled} data-glass={scrolled && glassReady}>
+  return <header ref={shell} className="landing-header" data-sticky={sticky} data-scrolled={scrolled} data-glass={scrolled && glassReady}>
     <motion.div ref={bar} className="landing-nav landing-container" style={{
       scaleX: reduce ? staticScale : scale,
       borderRadius: reduce ? `${24 / staticScale}px / 24px` : radius,

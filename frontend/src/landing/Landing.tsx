@@ -1,12 +1,12 @@
 import { ArrowRight, ArrowUpRight, FileText, Layers, Download, Github, ChevronDown, Sparkles } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useT } from '@/hooks/useT';
-import logoUrl from '@/assets/logo.png';
 import './landing.css';
 import { GrainSteps } from './GrainSteps';
+import { GalleryCurvedShowcase } from './gallery/GalleryCurvedShowcase';
 import { BetaRibbon } from './BetaRibbon';
 import { GithubStars } from './GithubStars';
-import { LanguageMenu } from './LanguageMenu';
+import { LandingHeader } from './LandingHeader';
 import { ProductShowcase, AudienceShowcase } from './TemplateSections';
 import { Footer } from './Footer';
 import { FeedbackWidget } from '@/components/shared/FeedbackWidget';
@@ -15,10 +15,9 @@ import './landing-cta.css';
 import './desktop-layout.css';
 import './mobile-layout.css';
 import Reveal from './vendor/asanshay/Reveal';
-import ScrollHeader from './vendor/waymark/ScrollHeader';
 import './landing-header.css';
 import './landing-typography.css';
-import { LandingTheme, ThemeToggle } from './LandingTheme';
+import { LandingTheme } from './LandingTheme';
 import { FeedbackDialog } from './FeedbackDialog';
 import { useLandingMetadata } from './metadata';
 import './landing-theme.css';
@@ -26,6 +25,7 @@ import { navigateSection } from './sectionNavigation';
 
 const copy = {
   zh: {
+    pauseAnimation: '暂停动画', playAnimation: '播放动画',
     product: '产品能力', scenarios: '使用场景', faq: '常见问题', docs: '文档', enter: '体验 Demo', waitlistNav: '在线版内测',
     faqIntro: '关于创作、素材与导出',
     ctaTitle: '让 PPT 创作，回归直觉', ctaAlternative: '或留下邮箱, 优先获得在线托管版内测邀请。',
@@ -38,7 +38,7 @@ const copy = {
     f2: '多种路径，自由起步', f2Text: '从一句话想法、结构化大纲或逐页描述开始创建。已有演示文稿？通过 PPT 翻新导入 PPTX 或 PDF，重新设计页面。',
     f3: '智能素材解析', f3Text: '上传 PDF、DOCX、Markdown 或 TXT 文件，自动解析文本与图片素材。让已有资料成为生成内容的依据，减少重复整理。',
     f4: '自然语言编辑', f4Text: '对大纲、描述或已生成的页面，直接用自然语言提出修改。支持整页调整与框选局部重绘，把精力放在内容和效果上。',
-    f5: '多格式导出', f5Text: '导出 PPTX 或 PDF，用于演示和分享。需要继续编辑时，可使用可编辑 PPTX（Beta）；导出后请检查文字与布局的还原效果。',
+    f5: '多格式导出', f5Text: '导出 PPTX、PDF 或视频，用于演示和分享。需要继续编辑时，可使用可编辑 PPTX。',
     scenarioTitle: '适合每一位需要演示的人',
     scenarioIntro: '从课堂讲解到工作汇报，找到适合你的创作方式',
     s1: '零基础用户', s1Title: '告别从零开始的焦虑', s1Text: '无需从空白页开始摸索排版。描述你的想法，让 AI 生成内容与画面，再按自己的需要调整。',
@@ -52,6 +52,7 @@ const copy = {
     q4: '开始使用前需要配置什么？', a4: '在个人设置中选择 API 提供商并填写自己的 API Key，保存后即可返回创作。模型调用可能产生所选服务商的费用。',
   },
   en: {
+    pauseAnimation: 'Pause animation', playAnimation: 'Play animation',
     product: 'Product', scenarios: 'Use cases', faq: 'FAQ', docs: 'Docs', enter: 'Try the demo', waitlistNav: 'Hosted beta',
     faqIntro: 'Answers to common questions about creating, using your materials, and exporting.',
     ctaTitle: 'Make creating presentations feel intuitive.', ctaAlternative: 'Or leave your email for an early invitation to the hosted beta.',
@@ -64,7 +65,7 @@ const copy = {
     f2: 'Start however you think', f2Text: 'Start with a single sentence, a structured outline, or detailed page-by-page notes. Already have a deck? Import a PPTX or PDF through the renovation flow to redesign it.',
     f3: 'Drop in your materials', f3Text: 'Upload PDF, DOCX, Markdown, or TXT files and extract text and images automatically. Your existing materials become the foundation for generated content.',
     f4: 'Edit with natural language', f4Text: 'Describe changes to your outline, page descriptions, or generated slides. Refine a whole page or select a region to redraw, keeping your focus on the result.',
-    f5: 'Export for your next presentation', f5Text: 'Download PPTX or PDF files to present and share. For further editing, use editable PPTX (Beta), then check the extracted text and layout before delivery.',
+    f5: 'Export for your next presentation', f5Text: 'Export PPTX, PDF, or video to present and share. For further editing, use editable PPTX.',
     scenarioTitle: 'For everyone with something to present',
     scenarioIntro: 'For lessons, reports, and pitches, find a workflow that fits.',
     s1: 'Beginners', s1Title: 'Start without a blank canvas', s1Text: 'Describe your ideas and let AI create the content and visuals. Refine the result as you go, without building every layout from scratch.',
@@ -127,20 +128,18 @@ function LandingContent() {
   return <div className="landing-page" onClick={navigateSection}>
     <a className="landing-skip" href="#landing-main">{language === 'zh' ? '跳到主要内容' : 'Skip to content'}</a>
     <div className="landing-feedback" data-hidden={footerVisible}><FeedbackWidget DialogComponent={FeedbackDialog} /></div>
-    <ScrollHeader label={t('product')}
-      brand={<a href="/" className="brand" aria-label="Banana Slides"><img src={logoUrl} alt="" width="32" height="32" /><span>Banana Slides</span></a>}
-      navigation={<><a href="#product">{t('product')}</a><a href="#scenarios">{t('scenarios')}</a><a href="#faq">{t('faq')}</a><a href="#landing-cta">{t('waitlistNav')}</a><a href="https://docs.bananaslides.online" target="_blank" rel="noopener noreferrer">{t('docs')}</a></>}
-      actions={<><a className="landing-github-icon" href={githubUrl} target="_blank" rel="noopener noreferrer" aria-label="GitHub"><Github size={19} aria-hidden="true" /></a><LanguageMenu /><ThemeToggle /><a className="studio-button studio-button-dark" href="/app">{t('enter')}<ArrowUpRight size={15} /></a></>}
-    />
+    <LandingHeader language={language} />
     <main id="landing-main" tabIndex={-1}>
       <section className="landing-hero">
         <Reveal className="landing-hero-copy"><h1>{t('title')}<br />{t('title2')}</h1><p className="landing-intro">{t('intro')}</p>
           <div className="landing-hero-actions"><a href="/app" className="studio-button studio-button-dark">{t('start')}<ArrowRight size={17} /></a><a className="studio-button landing-github-button" href={githubUrl} target="_blank" rel="noopener noreferrer"><Github size={18} aria-hidden="true" />GitHub<GithubStars /></a><a className="studio-button landing-beta-button" href="#landing-cta"><BetaRibbon /><span>{t('waitlistOpen')}</span><ArrowUpRight size={16} /></a></div>
+          <a className="landing-gallery-link" href={language === 'zh' ? '/gallery/' : '/en/gallery/'}>{language === 'zh' ? '先逛逛作品画廊' : 'Explore the gallery'}<ArrowRight size={16} /></a>
         </Reveal>
         <Reveal className="landing-hero-art" index={1}><GrainSteps bitmapGrain interactive /><span className="landing-art-label">IDEA<br />OUTLINE<br />DESIGN<br />PRESENT<span /></span></Reveal>
         <Reveal className="landing-strip" index={6}><div>{[FileText, Layers, Sparkles, Download].map((Icon, i) => <span key={i}><Icon size={20} />{t(`strip${i + 1}`)}</span>)}</div></Reveal>
       </section>
       <ProductShowcase t={t} />
+      <GalleryCurvedShowcase language={language} />
       <AudienceShowcase t={t} />
       <section id="faq" className="landing-faq landing-section landing-container">
         <Reveal className="landing-section-heading landing-faq-heading"><h2>{t('faq')}</h2><p>{t('faqIntro')}</p></Reveal>

@@ -192,6 +192,21 @@
 .landing-page .art-export-files > div { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 12px; width: 70px; height: 88px; color: #a5822d; }
 .landing-page .art-export-files > div:first-child { left: 0; top: 0; }.landing-page .art-export-files > div:last-child { right: 0; bottom: 0; }
 .landing-page .art-export-files i { width: 25px; height: 3px; border-radius: 2px; background: var(--studio-line); }
+.landing-page .art-input-options { position: absolute; left: 0; top: 50%; width: 43%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; transform: translateY(-50%); }
+.landing-page .art-input-options > div { display: grid; place-items: center; aspect-ratio: 1; border: 1px solid var(--studio-line); border-radius: 10px; background: var(--studio-paper); }
+.landing-page .art-input-options > div:nth-child(1) { transform: translate(-3px, -5px) rotate(-8deg); }
+.landing-page .art-input-options > div:nth-child(2) { transform: translate(3px, 5px) rotate(5deg); }
+.landing-page .art-input-options > div:nth-child(3) { transform: translate(4px, 2px) rotate(-4deg); }
+.landing-page .art-input-options > div:nth-child(4) { transform: translate(-1px, 10px) rotate(8deg); }
+.landing-page .art-input-options svg { flex-shrink: 0; color: #967321; }
+.landing-page .art-input-connectors { position: absolute; left: 43%; top: 0; width: 21%; height: 200px; color: #b79b57; }
+.landing-page .art-input-result { position: absolute; left: 65%; top: 100px; width: 35%; transform: translateY(-50%); }
+.landing-page .art-input-result .art-slide { position: relative; width: 100%; aspect-ratio: 16 / 9; }
+.landing-page .art-format-scene .art-export-files { top: 0; height: 200px; }
+.landing-page .art-format-scene .art-export-files > div { width: 66px; height: 60px; }
+.landing-page .art-format-scene .art-export-files > div:first-child { top: 2px; }
+.landing-page .art-format-scene .art-export-files > div:nth-child(2) { top: 70px; left: 5px; }
+.landing-page .art-format-scene .art-export-files > div:last-child { bottom: 2px; }
 
 .landing-page .landing-faq {
   /* Match the 96px anchor clearance below the floating header. */
