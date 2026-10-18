@@ -9,4 +9,6 @@
 }
 .home-deck-flight img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; will-change: opacity; }
 .curved-showcase-title[aria-busy='true'], .collection-open[aria-busy='true'] { cursor: progress; }
-#root[data-home-parked='true'] { position: fixed; left: 0; right: 0; visibility: hidden; pointer-events: none; }
+/* Reader peeks explicitly set visibility: visible. Hide the whole composited
+   subtree while retaining its layout/scroll state for the return navigation. */
+#root[data-home-parked='true'] { position: fixed; left: 0; right: 0; visibility: hidden; opacity: 0; pointer-events: none; }

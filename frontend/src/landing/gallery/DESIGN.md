@@ -509,14 +509,28 @@ hover. Retain the 44px click height, keyboard focus treatment and existing hando
 The lightweight use-style link retains a 14px up-right arrow with a 6px gap,
 as explicitly requested; this does not restore the solid button background.
 
-Final placement: move the lightweight “前往使用 ↗” link into the prompt card footer,
-to the right of provenance. Restore the original metadata-to-prompt spacing and
-tablet grid, removing the temporary metadata/CTA wrapper. The footer uses 12px
-link text and preserves a 44px hit area without a standalone CTA row.
+Final placement: group the lightweight “前往使用 ↗” / “Use this style ↗” link
+immediately before Copy in the prompt card heading. Both actions use 12px text;
+the use-style action retains its arrow and faint underline. Keep provenance alone
+in the footer and preserve the metadata-to-prompt spacing and tablet grid.
+Allow the heading group to wrap on exceptionally narrow screens without splitting
+the paired actions. Mobile controls retain the shared 44px touch target.
 
 ## Gallery-to-detail handoff
 
 Gallery covers share the homepage handoff implementation. The clicked cover stays visible while the source page fades for 160 ms, then translates/scales to the detail preview over 700 ms. The overview crossfades into the selected slide after both images decode. The detail preview is hidden only while the overlay occupies its place. Reduced-motion mode skips the durations.
+
+The document body inherits the marketing theme's canvas color without the app's
+background transition. Both fading roots reveal this canvas, so theming only the
+root containers or html exposes the app's light body background in dark mode.
+This override is scoped to data-landing-theme and leaves application theming intact.
+
+The parked source root also has opacity: 0. Homepage reader peeks explicitly use
+visibility: visible, which overrides an ancestor's visibility: hidden and leaks
+cropped image strips into the detail page. Root opacity suppresses the entire
+subtree while retaining measurements and the reader state for Back/Forward.
+Regression coverage must include entering a detail from an expanded homepage
+reader, scrolling past the footer, then returning to that same reader.
 
 Keep the gallery mounted but inert during detail viewing, preserving filters, page selections and scroll position. Back restores that instance and its metadata; browser Forward remounts the detail. Only source-gallery covers are intercepted, so related works, modified clicks and direct detail URLs retain normal link behavior. Cancellation guards prevent a previous transition from clearing a new transition's styles.
 

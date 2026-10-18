@@ -29,12 +29,13 @@
 .deck-detail-metadata { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; max-width: 360px; gap: 12px 20px; margin: 0 0 20px; }
 .deck-detail-metadata dt { margin-bottom: 3px; font-size: 12px; color: var(--text-secondary); }
 .deck-detail-metadata dd { font-size: 14px; line-height: 1.5; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.deck-detail-use { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; min-height: 44px; margin-block: -10px; font-size: 12px; font-weight: 500; color: var(--studio-ink); text-decoration: underline; text-decoration-color: var(--studio-line); text-underline-offset: 5px; transition: text-decoration-color .18s ease-out; }
+.deck-detail-use { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; min-height: 36px; font-size: 12px; font-weight: 500; color: var(--studio-ink); text-decoration: underline; text-decoration-color: var(--studio-line); text-underline-offset: 5px; transition: text-decoration-color .18s ease-out; }
 .deck-detail-use:hover { text-decoration-color: var(--studio-accent); }
 .deck-detail-use svg { flex-shrink: 0; }
 @media (prefers-reduced-motion: reduce) { .deck-detail-use { transition: none; } }
 .deck-detail-prompt { padding: 18px 20px; border-radius: 12px; background: var(--studio-soft); }
-.deck-detail-prompt-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.deck-detail-prompt-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; margin-bottom: 12px; }
+.deck-detail-prompt-actions { display: flex; align-items: center; gap: 12px; margin-block: -6px; margin-left: auto; }
 .deck-detail-prompt-heading h2 { font-size: 14px; font-weight: 600; }
 .deck-detail-prompt-heading button { display: inline-flex; gap: 6px; align-items: center; justify-content: center; min-width: 68px; min-height: 36px; margin: -6px -8px -6px 0; padding: 6px 8px; border-radius: 6px; color: var(--text-secondary); font-size: 12px; transition: background .18s ease-out, color .18s ease-out; }
 .deck-detail-prompt-heading button:hover, .deck-detail-prompt-heading button[data-copied='true'] { color: var(--studio-ink); background: color-mix(in srgb, var(--studio-accent) 20%, transparent); }

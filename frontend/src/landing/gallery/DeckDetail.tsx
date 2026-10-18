@@ -121,16 +121,18 @@ function DeckDetailContent({ deck }: { deck: CatalogDeck | null }) {
             </dl>
             <div className="deck-detail-prompt">
               <div className="deck-detail-prompt-heading"><h2 id="deck-style-prompt-title">{zh ? '风格提示词' : 'Style prompt'}</h2>
+                <div className="deck-detail-prompt-actions">
+                <a className="deck-detail-use" href={galleryStyleHref(deck.id, language)}>{zh ? '前往使用' : 'Use this style'}<ArrowUpRight size={14} aria-hidden="true" /></a>
                 <button type="button" onClick={() => void copy()} aria-label={zh ? '复制风格描述' : 'Copy style description'} data-copied={copyStatus === 'copied'}>
                   {copyStatus === 'copied' ? <Check size={16} /> : <Copy size={16} />}<span>{copyStatus === 'copied' ? (zh ? '已复制' : 'Copied') : (zh ? '复制' : 'Copy')}</span>
                 </button>
+                </div>
               </div>
               <div key={language} ref={promptText} className="deck-detail-prompt-text" role="region" aria-labelledby="deck-style-prompt-title" tabIndex={0}><ReactMarkdown>{prompt}</ReactMarkdown></div>
               <div className="deck-detail-prompt-footer">
               <p className="deck-detail-prompt-note">{metadata.promptSource.kind === 'app-preset'
                 ? (zh ? `应用文字模板 · ${metadata.promptSource.name.zh}` : `App style preset · ${metadata.promptSource.name.en}`)
                 : (zh ? '由模型根据参考图反推，仅供风格参考，非作者原始提示词。' : 'Inferred by AI from the reference image; not the creator’s original prompt.')}</p>
-              <a className="deck-detail-use" href={galleryStyleHref(deck.id, language)}>{zh ? '前往使用' : 'Use this style'}<ArrowUpRight size={14} aria-hidden="true" /></a>
               </div>
               <span className={copyStatus === 'error' ? 'deck-detail-copy-error' : 'sr-only'} role="status">{copyStatus === 'copied' ? (zh ? '风格描述已复制' : 'Style description copied') : copyStatus === 'error' ? (zh ? '自动复制未成功，已选中文本，可手动复制。' : 'Copy failed. The text is selected for manual copying.') : ''}</span>
             </div>

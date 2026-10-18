@@ -1,6 +1,8 @@
 /* Marketing-only surfaces. Illustration paper is intentionally kept light. */
 html[data-landing-theme] { color-scheme: light; background: #fff; }
 html[data-landing-theme="dark"] { color-scheme: dark; background: #181818; }
+/* The page roots fade during deck navigation; the canvas beneath must match. */
+html[data-landing-theme] body { background-color: inherit; transition: none; }
 .landing-page { --landing-focus: #876018; --landing-placeholder: #686b74; }
 .landing-page :focus-visible { outline: 2px solid var(--landing-focus); outline-offset: 4px; }
 .landing-page .landing-cta input::placeholder { color: var(--landing-placeholder); opacity: 1; }
