@@ -1,5 +1,5 @@
 import { ArrowUpRight, Github } from 'lucide-react';
-import logoUrl from '@/assets/logo.png';
+import logoUrl from '@/assets/landing/logo.webp';
 import { LanguageMenu } from './LanguageMenu';
 import { ThemeToggle } from './LandingTheme';
 import ScrollHeader from './vendor/waymark/ScrollHeader';

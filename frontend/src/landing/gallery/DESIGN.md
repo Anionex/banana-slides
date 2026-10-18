@@ -521,3 +521,16 @@ Gallery covers share the homepage handoff implementation. The clicked cover stay
 Keep the gallery mounted but inert during detail viewing, preserving filters, page selections and scroll position. Back restores that instance and its metadata; browser Forward remounts the detail. Only source-gallery covers are intercepted, so related works, modified clicks and direct detail URLs retain normal link behavior. Cancellation guards prevent a previous transition from clearing a new transition's styles.
 
 Validation: desktop frame sampling found no undecoded image in the handoff; source/departing/moving/finished phases were observed. Also check filtered navigation, history Back/Forward, mobile and reduced motion before release.
+
+## Loading performance — Impeccable closing pass
+
+Measured cold browser loads before choosing changes. The shared website header was loading a 2048px, 1.84 MB PNG for a 32px logo; it now uses a 128px, 2.8 KB WebP. Original source artwork remains intact. Gallery overviews offer 800px/1600px sources with sizes matching the actual grid breakpoints. Thumbnail strips use 320px derivatives; preview, paging and full-screen views retain original slide resolution.
+
+The homepage lazily loads offscreen covers and preloads only the selected first slide when the showcase approaches the viewport (400px margin), instead of fetching six full slides on mount. Existing decode-before-transition behavior remains in place. Asset generation is documented in README and uses the existing cwebp tool.
+
+Cold local browser resource transfer (cache disabled, same viewport per comparison):
+- Mobile homepage: 4.29 MB → 1.73 MB (60% less).
+- Desktop gallery: 4.24 MB → 1.86 MB (56% less).
+- Desktop 16-slide detail: 5.26 MB → 1.39 MB (74% less).
+
+These are lab resource measurements, not production network timings or field Core Web Vitals. Observed CLS stayed at 0–0.001. Confirmed mobile at 390px/DPR2 with 100ms latency and 500KB/s throttling: no horizontal overflow, full-resolution detail image after the cover transition, and thumbnail clicks load the corresponding original slide. Existing typography, copy, controls and composition were retained.

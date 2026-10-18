@@ -300,7 +300,7 @@ export function CurvedGallery({ decks, active, onSelect, onCenterChange, label, 
           if (slot % decks.length === active && Math.abs(position.get()) < 1) onRead();
           else select(slot % decks.length);
         }}>
-        <img src={coverSource ? coverSource(deck) : `/gallery/${deck.id}/cover.webp`} alt={deck.title[language]} width="800" height="450" draggable={false} decoding="async" onLoad={schedulePaint} />
+        <img src={coverSource ? coverSource(deck) : `/gallery/${deck.id}/cover.webp`} alt={deck.title[language]} width="800" height="450" draggable={false} loading="lazy" decoding="async" onLoad={schedulePaint} />
       </button>)}
     </div>
     {children}

@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { pageSource, type CatalogDeck, type GalleryLanguage } from './catalog';
+import { type CatalogDeck, type GalleryLanguage } from './catalog';
 
 export function DeckThumbnails({ deck, page, language, onPage, className = '', navigation = false }: {
   deck: CatalogDeck; page: number; language: GalleryLanguage; onPage: (page: number) => void; className?: string; navigation?: boolean;
@@ -26,7 +26,7 @@ export function DeckThumbnails({ deck, page, language, onPage, className = '', n
   const strip = <div id={stripId} ref={thumbnails} className={`collection-thumbnails ${className}`} aria-label={language === 'zh' ? '选择幻灯片' : 'Choose a slide'}>
     {deck.pages.map((_, index) => <button key={index} type="button" aria-current={page === index ? 'page' : undefined}
       aria-label={language === 'zh' ? `查看第 ${index + 1} 页` : `View slide ${index + 1}`} onClick={() => onPage(index)}>
-      <img src={pageSource(deck, index)} alt="" width={160} height={90} loading="lazy" decoding="async" /><span>{index + 1}</span>
+      <img src={`/gallery/thumbnails/${deck.id}/${index + 1}.webp`} alt="" width={160} height={90} loading="lazy" decoding="async" /><span>{index + 1}</span>
     </button>)}
   </div>;
   if (!navigation) return strip;
