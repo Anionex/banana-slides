@@ -16,7 +16,7 @@ test.beforeEach(async ({ page }, testInfo) => {
 test('real settings: partners, locked models, persistence, isolation and reset', async ({ page, request }) => {
   await request.post(`${base}/api/settings/reset`, { headers: auth });
   await page.goto('/settings');
-  await publicProvider(page, 'apimart').click();
+  await publicProvider(page, 'volcengine').click();
   await expect(page.getByLabel('文本模型', { exact: true })).toHaveCount(0);
   await page.getByLabel('API Key', { exact: true }).fill('public-e2e-placeholder-key');
   await page.getByRole('button', { name: '高级设置', exact: true }).click();
@@ -26,7 +26,7 @@ test('real settings: partners, locked models, persistence, isolation and reset',
   await page.getByRole('button', { name: '保存设置', exact: true }).click();
   await expect(page.getByText('设置保存成功')).toBeVisible();
   await page.reload();
-  await expect(publicProvider(page, 'apimart')).toHaveAttribute('aria-checked', 'true');
+  await expect(publicProvider(page, 'volcengine')).toHaveAttribute('aria-checked', 'true');
   await page.getByRole('button', { name: '高级设置', exact: true }).click();
   await expect(page.getByLabel('文本推理预算', { exact: true })).toHaveValue('2048');
   await expect(page.getByLabel('MinerU Token', { exact: true })).toHaveAttribute('placeholder', '已保存，留空保持不变');
@@ -39,7 +39,7 @@ test('real settings: partners, locked models, persistence, isolation and reset',
     await expect(page.getByText('设置保存成功')).toBeVisible();
     await page.reload();
     await expect(publicProvider(page, partner)).toHaveAttribute('aria-checked', 'true');
-    await expect(page.getByLabel('API Key', { exact: true })).toHaveAttribute('placeholder', '输入该 API 提供商的 API Key');
+    await expect(page.getByLabel('API Key', { exact: true })).toHaveAttribute('placeholder', partner === 'volcengine' ? '已保存，留空保持不变' : '输入该 API 提供商的 API Key');
     await expect(page.getByLabel('图像生成模型', { exact: true })).toHaveCount(0);
   }
   await page.getByRole('button', { name: '重置设置', exact: true }).click();

@@ -7,7 +7,6 @@ test.describe.configure({ mode: 'serial' });
 
 const providers = [
   { id: 'inferera', name: 'Inferera', url: 'https://inferera.com/?aff=17EC' },
-  { id: 'apimart', name: 'APIMart', url: 'https://apimart.ai/' },
   { id: 'volcengine', name: '火山 Agent Plan', url: 'https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides' },
 ];
 
@@ -67,12 +66,12 @@ test('clipboard rejection shows an error instead of success', async ({ page }) =
 test('legacy clipboard fallback copies the selected provider URL', async ({ page }) => {
   await page.addInitScript(() => Object.defineProperty(navigator, 'clipboard', { value: undefined }));
   await page.goto('/settings');
-  await publicProvider(page, 'apimart').click();
+  await publicProvider(page, 'inferera').click();
   await page.getByRole('button', { name: '复制链接', exact: true }).click();
   await expect(page.getByText('链接已复制到剪贴板', { exact: true })).toBeVisible();
   const reader = await page.context().newPage();
   await reader.goto('/');
-  expect(await reader.evaluate(() => navigator.clipboard.readText())).toBe(providers[1].url);
+  expect(await reader.evaluate(() => navigator.clipboard.readText())).toBe(providers[0].url);
   await reader.close();
   await expect(page.locator('textarea')).toHaveCount(0);
 });

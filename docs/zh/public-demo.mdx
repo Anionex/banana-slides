@@ -7,9 +7,9 @@ description: 固定 API 提供商、个人密钥隔离与 PPT 链接分享
 
 ## 配置与使用
 
-首页设置页和预览页的「项目设置 → 个人设置」提供相同的个人配置。两处复用开源版的表单样式、供应商悬浮介绍和 Key 获取指引。APIMart 按钮显示价格提示，火山 Agent Plan 显示国内直连提示；悬停或键盘聚焦可展开完整优势介绍，选择火山后还会展示品牌说明和申请步骤。两处配置互通，保存和重置只影响当前访客。
+首页设置页和预览页的「项目设置 → 个人设置」提供相同的个人配置。两处复用开源版的表单样式、供应商悬浮介绍和 Key 获取指引。火山 Agent Plan 显示国内直连提示；悬停或键盘聚焦可展开完整优势介绍，选择火山后还会展示品牌说明和申请步骤。两处配置互通，保存和重置只影响当前访客。
 
-1. 打开设置页，选择 Inferera、APIMart 或火山 Agent Plan。
+1. 打开设置页，选择 Inferera 或火山 Agent Plan。
 2. 填写该 API 提供商的 API Key 并保存。每个 API 提供商的密钥分别保存，切换配置不会把上一家的 Key 发给下一家。
 3. 返回首页创作。若因缺少 Key 跳转到设置，返回后会恢复刚才的文字输入。
 4. 第一次进入每个 PPT 的预览页时，保存提示框中的链接。之后也可点击「分享 / 保存链接」重新复制。
@@ -17,7 +17,6 @@ description: 固定 API 提供商、个人密钥隔离与 PPT 链接分享
 | API 提供商 | 文本 / 图片识别模型 | 图像模型 |
 | --- | --- | --- |
 | Inferera | gemini-3-flash-preview | gemini-3-pro-image-preview |
-| APIMart | gpt-5.6-sol / gpt-5.6-luna | gpt-image-2 |
 | 火山 Agent Plan | doubao-seed-2.1-turbo | doubao-seedream-5.0-lite |
 
 固定的接口地址、模型名称和模型提供商不会显示在个人设置中，由所选供应商自动配置。并发数、描述生成模式及推理参数在「高级设置」中展开调整；推理预算仅在对应推理开关开启后显示，关闭开关不会清除已有预算。火山选项仅支持 **Agent Plan 订阅专属 Key**，普通方舟按量 Key 不适用。服务测试使用已保存的个人配置，会实际调用供应商接口。文本、图片识别、图像生成、MinerU、百度 OCR 和百度图像修复可同时测试，各自显示进度、结果和重试入口，最长等待十分钟。修改配置后请先保存再开始新测试；已经启动的测试继续使用启动时的配置。
@@ -90,7 +89,7 @@ uv run python scripts/migrate-public-demo.py \
 
 `frontend/e2e/public-settings-behavior.spec.ts` 进一步覆盖全部可编辑设置的保存与重载、提供商密钥草稿切换、六项测试并发、独立失败与重试、超时恢复，以及离开设置页后停止轮询。
 
-`scripts/verify-public-demo.py --partner apimart --flow` 从标准输入读取一行 Key，真实验证文本、图片识别、生成及 PPTX 导出。加 `--stream` 验证流式大纲与描述；`--image` 单独测试图像服务。其他 API 提供商可使用 `--partner inferera` 或 `--partner volcengine`，并提供对应类型的 Key。
+`scripts/verify-public-demo.py --partner inferera --flow` 从标准输入读取一行 Key，真实验证文本、图片识别、生成及 PPTX 导出。加 `--stream` 验证流式大纲与描述；`--image` 单独测试图像服务。火山 Agent Plan 可使用 `--partner volcengine`，并提供对应类型的 Key。
 
 `--browser-tests` 在浏览器中同时调用真实文本和图片识别服务，确认缺失 OCR 凭据的独立失败不阻塞其他测试，且结果不能被其他访客读取。此模式关闭截图、视频和网络追踪，并在结束时清空测试凭据。
 

@@ -37,13 +37,13 @@ test('all public settings round-trip, provider drafts stay separate, reset clear
   await page.addInitScript(token => localStorage.setItem('banana-slides-user-token', token), visitor);
   await page.goto('/settings');
   await expect(page.getByText(/合作方|合作关系/)).toHaveCount(0);
-  await publicProvider(page, 'apimart').click();
-  await page.getByLabel('API Key', { exact: true }).fill('apimart-draft-placeholder');
+  await publicProvider(page, 'inferera').click();
+  await page.getByLabel('API Key', { exact: true }).fill('inferera-draft-placeholder');
   await publicProvider(page, 'volcengine').click();
   await expect(page.getByLabel('API Key', { exact: true })).toHaveValue('');
   await page.getByLabel('API Key', { exact: true }).fill('volcengine-draft-placeholder');
-  await publicProvider(page, 'apimart').click();
-  await expect(page.getByLabel('API Key', { exact: true })).toHaveValue('apimart-draft-placeholder');
+  await publicProvider(page, 'inferera').click();
+  await expect(page.getByLabel('API Key', { exact: true })).toHaveValue('inferera-draft-placeholder');
   await page.getByRole('button', { name: '高级设置', exact: true }).click();
   await expect(page.getByLabel('文本推理预算', { exact: true })).toHaveCount(0);
   await expect(page.getByLabel('图像推理预算', { exact: true })).toHaveCount(0);
@@ -86,7 +86,7 @@ test('all public settings round-trip, provider drafts stay separate, reset clear
   await expect(page.getByRole('combobox', { name: '默认图像比例', exact: true })).toHaveValue('9:16');
   await expect(page.getByLabel('图像推理预算', { exact: true })).toHaveValue('4096');
   await publicProvider(page, 'inferera').click();
-  await publicProvider(page, 'apimart').click();
+  await publicProvider(page, 'inferera').click();
   await expect(page.getByLabel('API Key', { exact: true })).toHaveAttribute('placeholder', '已保存，留空保持不变');
   await page.getByRole('button', { name: '重置设置', exact: true }).click();
   await page.getByRole('button', { name: '确定', exact: true }).click();

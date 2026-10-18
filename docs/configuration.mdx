@@ -65,30 +65,6 @@ Notes:
 - `sensenova-u1`, `sensenova-u1-fast`, and `sensenova-u1.5-fast` use fixed-size text-to-image presets and do not support reference-image editing in this release.
 - Set `IMAGE_MODEL_SOURCE=openai` for image requests. Existing LazyLLM `sensenova` configurations remain supported and are not deleted.
 
-## APIMart (OpenAI-Compatible)
-
-APIMart uses an OpenAI-compatible endpoint but returns image generation tasks asynchronously. Banana Slides sends `stream=false` for chat calls and polls APIMart image tasks automatically.
-
-```env
-AI_PROVIDER_FORMAT=openai
-OPENAI_API_KEY=your-apimart-api-key
-OPENAI_API_BASE=https://api.apimart.ai/v1
-TEXT_MODEL=gpt-5.6-sol
-IMAGE_MODEL=gpt-image-2
-IMAGE_CAPTION_MODEL=gpt-5.6-luna
-IMAGE_MODEL_SOURCE=openai
-IMAGE_CAPTION_MODEL_SOURCE=openai
-IMAGE_API_BASE=https://api.apimart.ai/v1
-IMAGE_CAPTION_API_BASE=https://api.apimart.ai/v1
-```
-
-Notes:
-
-- Use model IDs listed in the APIMart console. `gemini-3-pro-image` is not an APIMart model ID; use `gpt-image-2` or `gemini-3-pro-image-preview` when available.
-- If `IMAGE_MODEL_SOURCE` is empty, the image-specific `IMAGE_API_BASE` is ignored and image calls use the global `OPENAI_API_BASE`; set `IMAGE_MODEL_SOURCE=openai` when APIMart should be used only for image generation.
-- Image generation can take about one to two minutes; the app polls the async task until completion or timeout.
-- For `gpt-image-2`, Banana converts the project ratio and `1K/2K/4K` tier into APIMart's `size` and `resolution` parameters. If the service test returns `1672x941`, the request is using APIMart's 1K tier; select `2K` or `4K` in project settings.
-
 ## Volcengine AgentPlans
 
 Volcengine ModelArk AgentPlans can be used through an OpenAI-compatible endpoint. Select "Volcengine AgentPlans" in Settings, or configure `.env`:

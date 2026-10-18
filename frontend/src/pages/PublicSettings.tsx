@@ -120,10 +120,7 @@ export function PublicSettings({ embedded = false }: { embedded?: boolean }) {
   }, []);
   const set = (key: string, value: string | number | boolean) =>
     setData((prev) => ({ ...prev, [key]: value }));
-  const selectedPartner = publicPartners[String(data.partner)];
-  const partner = selectedPartner && data.partner === "apimart"
-    ? { ...selectedPartner, signup: "https://apimart.ai/" }
-    : selectedPartner;
+  const partner = publicPartners[String(data.partner)];
   const copyProviderLink = async (url = partner?.signup) => {
     if (!url) return;
     try {
@@ -337,10 +334,7 @@ export function PublicSettings({ embedded = false }: { embedded?: boolean }) {
   const guideT: typeof t = (key, params) => {
     if (key === "settings.apiKeyTip.linkLabel") return "Inferera 申请 API Key";
     if (key === "settings.apiKeyHelp.linkLabel") return "访问 Inferera 官网 →";
-    if (
-      key === "settings.apiKeyHelp.step1" ||
-      key === "settings.apimartKeyHelp.step1"
-    )
+    if (key === "settings.apiKeyHelp.step1")
       return `前往 ${partner?.name} 注册或登录：{{link}}`;
     if (key === "settings.apiKeyHelp.step2") return "按平台说明完成充值";
     if (key === "settings.apiKeyHelp.step3")
@@ -400,7 +394,6 @@ export function PublicSettings({ embedded = false }: { embedded?: boolean }) {
                       providerPromotions={promotions}
                       globalProviderSources={[
                         "inferera",
-                        "apimart",
                         "volcengine",
                       ]
                         .filter((id) => publicPartners[id])
@@ -414,7 +407,9 @@ export function PublicSettings({ embedded = false }: { embedded?: boolean }) {
                         }))}
                     />
                     <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">
-                      {partner?.key_hint}。切换 API 提供商后使用各自保存的密钥。
+                      {partner
+                        ? `${partner.key_hint}。切换 API 提供商后使用各自保存的密钥。`
+                        : "当前使用此前保存的兼容接口配置。选择提供商并保存后才会切换。"}
                     </p>
                   </div>
                   <div className="space-y-3 pl-3 border-l-2 border-banana-300 dark:border-banana-600">
@@ -438,7 +433,7 @@ export function PublicSettings({ embedded = false }: { embedded?: boolean }) {
                     </div>
                   </div>
                 </div>
-                <SettingsApiGuidance
+                {partner && <SettingsApiGuidance
                   t={guideT}
                   usesVolcengineCampaignPromo={providerId === "volcengine"}
                   providerFormat={providerId}
@@ -451,20 +446,14 @@ export function PublicSettings({ embedded = false }: { embedded?: boolean }) {
                   activeApiKeyHelpKey={
                     providerId === "volcengine"
                       ? "settings.volcengineKeyHelp"
-                      : providerId === "apimart"
-                        ? "settings.apimartKeyHelp"
-                        : "settings.apiKeyHelp"
+                      : "settings.apiKeyHelp"
                   }
-                  activeApiKeyTipKey={
-                    providerId === "apimart"
-                      ? "settings.apimartApiKeyTip"
-                      : "settings.apiKeyTip"
-                  }
+                  activeApiKeyTipKey="settings.apiKeyTip"
                   activeApiKeyHelpUrl={partner?.signup || ""}
                   copyToClipboard={(url) => {
                     void copyProviderLink(url);
                   }}
-                />
+                />}
                 <p className="text-sm text-gray-500 flex items-center gap-1">
                   <Lock size={14} />
                   你的密钥仅用于你的请求，不会与其他访客共享。
