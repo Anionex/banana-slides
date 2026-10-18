@@ -160,3 +160,7 @@ interaction. Document scrolling remains native until reading a selected deck.
 The discarded worktable, screening room, story tracks, comparison, atlas and
 animated-scroll prototypes, their styles and the comparison navigation have been
 removed. The separate collection and presentation detail pages remain available.
+
+### Small display assets
+
+Run `node scripts/optimize-gallery-assets.mjs` from `frontend/` after importing slides or regenerating overview covers. It preserves the original images and emits 320px slide thumbnails, 800px overview candidates, and a 128px website logo using `cwebp`. Detail previews and full-screen viewing continue to use the original slides. Commit generated display assets alongside source changes.

@@ -22,6 +22,7 @@ export function GalleryCurvedShowcase({ language }: { language: 'zh' | 'en' }) {
   const [active, setActive] = useState(() => decks.findIndex(deck => deck.id === 'deepseek'));
   const [centered, setCentered] = useState(active);
   const [reading, setReading] = useState(false);
+  const [nearby, setNearby] = useState(false);
   const [enteredAt, setEnteredAt] = useState(0);
   const hovering = useRef(false);
   const visible = useRef(false);
@@ -36,7 +37,15 @@ export function GalleryCurvedShowcase({ language }: { language: 'zh' | 'en' }) {
   const step = (direction: number) => { interacting(); pan.current?.step(direction); };
 
   useEffect(() => {
-    decks.forEach(item => { void preloadSlide(pageSource(item, 0)).catch(() => {}); });
+    if (nearby) void preloadSlide(pageSource(decks[active], 0)).catch(() => {});
+  }, [active, nearby]);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) { setNearby(true); observer.disconnect(); }
+    }, { rootMargin: '400px' });
+    observer.observe(root.current!);
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
