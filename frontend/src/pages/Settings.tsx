@@ -57,9 +57,6 @@ interface ServiceTestState {
 }
 
 const INFERERA_AFFILIATE_URL = 'https://api.inferera.com/?aff=17EC';
-const APIMART_SIGNUP_URL = 'https://apimart.ai/';
-const OPENAI_BASE_URL = 'https://api.openai.com/v1';
-const APIMART_BASE_URL = 'https://api.apimart.ai/v1';
 const VOLCENGINE_AGENTPLANS_CN_URL = 'https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides';
 const VOLCENGINE_AGENTPLANS_EN_URL = 'https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=banana-slides&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides';
 
@@ -90,16 +87,9 @@ const getAllProviderSources = (isZh: boolean) => [
 
 // 需要 API Key + Base URL 的提供商（非 LazyLLM 厂商）
 const API_KEY_PROVIDERS = new Set(['gemini', 'openai', 'volcengine']);
-const APIMART_RECOMMENDED_MODELS = {
-  text: 'gpt-5.6-sol',
-  image: 'gpt-image-2.5-flare',
-  caption: 'gpt-5.6-luna',
-};
 // Quality tiers only apply to the GPT Image family (matches the backend's
 // _is_gpt_image_model); DALL-E, Seedream and Gemini models ignore the setting.
 const GPT_IMAGE_MODEL_PATTERN = /^(gpt-image|chatgpt-image)/i;
-const isApimartBaseUrl = (url: string) =>
-  url.trim().replace(/\/+$/, '') === APIMART_BASE_URL;
 // 火山 Agent Plans（OpenAI 兼容）: 专属 Base URL 与模型名
 const VOLCENGINE_AGENTPLANS_BASE_URL = 'https://ark.cn-beijing.volces.com/api/plan/v3';
 const VOLCENGINE_AGENTPLANS_RECOMMENDED_MODELS = {
@@ -118,7 +108,7 @@ const KNOWN_DEFAULT_BASE_URLS = new Set([
   '',
   'https://api.inferera.com/v1',
   'https://api.openai.com/v1',
-  APIMART_BASE_URL,
+  'https://api.apimart.ai/v1',
   'https://api.inferera.com/gemini',
   'https://generativelanguage.googleapis.com',
   'https://ark.cn-beijing.volces.com/api/v3',
@@ -659,7 +649,6 @@ export const Settings: React.FC = () => {
   const allProviderSources = getAllProviderSources(isZh);
   const globalProviderSources = [
     allProviderSources[0],
-    { value: 'apimart', label: 'APIMart' },
     allProviderSources[2],
     allProviderSources[1],
     ...allProviderSources.slice(3),
@@ -667,8 +656,7 @@ export const Settings: React.FC = () => {
   const volcengineAgentPlansUrl = isZh ? VOLCENGINE_AGENTPLANS_CN_URL : VOLCENGINE_AGENTPLANS_EN_URL;
   const volcengineLogoUrl = isZh ? '/volcengine/huoshan.png' : '/volcengine/byteplus.png';
   const usesVolcengineCampaignPromo = formData.ai_provider_format === 'volcengine' || formData.ai_provider_format === 'doubao';
-  const usesApimartProvider = formData.ai_provider_format === 'openai' && isApimartBaseUrl(formData.api_base_url);
-  const selectedGlobalProvider = usesApimartProvider ? 'apimart' : formData.ai_provider_format;
+  const selectedGlobalProvider = formData.ai_provider_format;
   const activeVolcenginePromoKey = formData.ai_provider_format === 'doubao'
     ? 'settings.doubaoVolcenginePromo'
     : 'settings.volcenginePromo';
@@ -676,11 +664,9 @@ export const Settings: React.FC = () => {
     ? 'settings.volcengineKeyHelp'
     : formData.ai_provider_format === 'doubao'
       ? 'settings.doubaoKeyHelp'
-      : usesApimartProvider
-        ? 'settings.apimartKeyHelp'
-        : 'settings.apiKeyHelp';
-  const activeApiKeyHelpUrl = usesApimartProvider ? APIMART_SIGNUP_URL : INFERERA_AFFILIATE_URL;
-  const activeApiKeyTipKey = usesApimartProvider ? 'settings.apimartApiKeyTip' : 'settings.apiKeyTip';
+      : 'settings.apiKeyHelp';
+  const activeApiKeyHelpUrl = INFERERA_AFFILIATE_URL;
+  const activeApiKeyTipKey = 'settings.apiKeyTip';
   const stopOAuthMonitor = useCallback(() => {
     oauthAttemptRef.current += 1;
     oauthMonitorStopRef.current?.();
@@ -1184,40 +1170,10 @@ export const Settings: React.FC = () => {
     handleFieldChange('ai_provider_format', 'volcengine');
   };
 
-  const selectApimartProvider = () => {
-    setFormData(prev => ({
-      ...prev,
-      ai_provider_format: 'openai',
-      api_base_url: APIMART_BASE_URL,
-      text_model: prev.text_model_source ? prev.text_model : APIMART_RECOMMENDED_MODELS.text,
-      image_model: prev.image_model_source ? prev.image_model : APIMART_RECOMMENDED_MODELS.image,
-      image_caption_model: prev.image_caption_model_source
-        ? prev.image_caption_model
-        : APIMART_RECOMMENDED_MODELS.caption,
-      openai_image_api_protocol: prev.image_model_source ? prev.openai_image_api_protocol : 'images',
-    }));
-  };
-
   const selectGlobalProvider = (provider: string, oauthConnected = settings?.openai_oauth_connected) => {
     if (provider === 'codex' && !oauthConnected) {
       pendingCodexSelection.current = () => selectGlobalProvider(provider, true);
       setOauthDialogOpen(true);
-      return;
-    }
-    if (provider === 'apimart') {
-      selectApimartProvider();
-      return;
-    }
-    if (usesApimartProvider) {
-      setFormData(prev => ({
-        ...prev,
-        ai_provider_format: provider,
-        api_base_url: provider === 'openai'
-          ? OPENAI_BASE_URL
-          : provider === 'volcengine'
-            ? VOLCENGINE_AGENTPLANS_BASE_URL
-            : '',
-      }));
       return;
     }
     handleFieldChange('ai_provider_format', provider, oauthConnected);

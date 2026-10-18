@@ -67,8 +67,8 @@ test.describe('Settings: promoted provider pills', () => {
 
     const pills = page.getByTestId('global-provider-pills').locator('[data-provider]');
     await expect.poll(async () => pills.evaluateAll(elements =>
-      elements.slice(0, 4).map(element => element.getAttribute('data-provider'))
-    )).toEqual(['gemini', 'apimart', 'volcengine', 'openai']);
+      elements.slice(0, 3).map(element => element.getAttribute('data-provider'))
+    )).toEqual(['gemini', 'volcengine', 'openai']);
 
     const gemini = page.locator('[data-provider="gemini"]');
     const apimart = page.locator('[data-provider="apimart"]');
@@ -76,8 +76,7 @@ test.describe('Settings: promoted provider pills', () => {
     const doubao = page.locator('[data-provider="doubao"]');
 
     await expect(gemini).not.toHaveAttribute('aria-describedby', /.+/);
-    await expect(apimart).toHaveText('APIMart');
-    await expect(apimart).not.toHaveAttribute('aria-describedby', /.+/);
+    await expect(apimart).toHaveCount(0);
     await expect(volcengine).toContainText('国内直连');
     await expect(volcengine).not.toContainText('高性价比');
     await expect(doubao).not.toContainText('国内直连');
@@ -89,7 +88,6 @@ test.describe('Settings: promoted provider pills', () => {
     await expect(apimartPromo).not.toBeVisible();
     await expect(volcenginePromo).not.toBeVisible();
 
-    await apimart.hover();
     await expect(apimartPromo).toHaveCount(0);
 
     await volcengine.hover();
@@ -97,17 +95,6 @@ test.describe('Settings: promoted provider pills', () => {
     await expect(volcenginePromo).toBeVisible();
     await expect(volcenginePromo.getByText('火山 Agent Plan', { exact: true })).toBeVisible();
     await expect(volcenginePromo.getByText('国内直连，无需特殊网络环境')).toBeVisible();
-  });
-
-  test('keeps APIMart available without sponsorship promotion', async ({ page }) => {
-    const apimart = page.locator('[data-provider="apimart"]');
-    await apimart.hover();
-    await expect(page.getByTestId('provider-plan-apimart')).toHaveCount(0);
-    await apimart.click();
-
-    await expect(apimart).toHaveAttribute('aria-checked', 'true');
-    await expect(page.getByTestId('global-api-config-section').locator('input').first())
-      .toHaveValue('https://api.apimart.ai/v1');
   });
 
   test('applies Volcengine Agent Plan from its hover panel', async ({ page }) => {

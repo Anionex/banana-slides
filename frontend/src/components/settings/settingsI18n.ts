@@ -148,16 +148,6 @@ export const settingsI18n = {
         copyLink: "复制链接",
       },
       apiKeyTip: { before: "若需快速配置或稳定高并发生图，可选择 ", linkLabel: "AIHubMix 申请 API Key", after: "" },
-      apimartKeyHelp: {
-        title: "如何获取 APIMart API Key",
-        step1: "打开 {{link}}，注册或登录 APIMart",
-        step2: "进入 APIMart 控制台并完成账户设置",
-        step3: "在控制台创建新的 API Key",
-        step4: "将 API Key 复制到本页并保存设置",
-        linkLabel: "打开 APIMart →",
-        copyLink: "复制链接",
-      },
-      apimartApiKeyTip: { before: "当前已选择 APIMart，请前往 ", linkLabel: "APIMart 获取 API Key", after: "" },
       providerComparison: {
         volcengine: {
           name: "火山 Agent Plan",
@@ -388,16 +378,6 @@ export const settingsI18n = {
         copyLink: "Copy link",
       },
       apiKeyTip: { before: "For quick setup or stable high-concurrency image generation, get an API key from ", linkLabel: "AIHubMix", after: "" },
-      apimartKeyHelp: {
-        title: "How to get an APIMart API key",
-        step1: "Open {{link}}, then sign in or create an APIMart account",
-        step2: "Open the APIMart console and complete your account setup",
-        step3: "Create a new API key in the console",
-        step4: "Copy the API key into this page and save the settings",
-        linkLabel: "Open APIMart →",
-        copyLink: "Copy link",
-      },
-      apimartApiKeyTip: { before: "APIMart is selected. Get an API key from ", linkLabel: "APIMart", after: "" },
       providerComparison: {
         volcengine: {
           name: "Volcengine Agent Plan",

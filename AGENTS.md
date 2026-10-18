@@ -13,3 +13,5 @@
 - `bananaslides.online` 经 Cloudflare 访问时，服务器内 Python `urllib` 可能被返回 403，即使源站和浏览器正常。发布验收分别核对源站构建哈希与公网 `curl`/真实浏览器结果；不要仅因 `urllib` 的边缘拦截判定部署失败。
 - 官网发布含数据库迁移时，先用真实 SQLite 库的在线备份预演，再核对该备份的 `alembic_version`、新表和原有数据行数；镜像中的 `alembic.ini` 不得指向占位数据库。
 - 官网前端使用 `npm run build:online`（启用 `VITE_PUBLIC_LANDING=true`）；验收实际发布产物和公网根路径的 landing 标题及 Demo 跳转，不能只检查 HTTP 200。
+
+- 下架赞助商须移除所有品牌入口、提供商预设、注册链接和获取密钥引导，并按新访客及已有配置验收；不能只删除广告卡片。保留底层兼容不得变成继续展示或引流。
