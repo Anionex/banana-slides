@@ -11,6 +11,7 @@
   background: transparent;
   transition: none;
 }
+.landing-page .landing-header[data-sticky='false'] { position: relative; }
 .landing-page .landing-header[data-glass="true"] .landing-nav {
   background: rgb(255 255 255 / .85);
   border-color: rgb(229 229 229 / .6);
@@ -37,6 +38,7 @@
 .landing-page .landing-header nav > :is(a, button) {
   position: relative; z-index: 1; padding: 6px 8px; margin-inline: -8px;
 }
+.landing-page .landing-header nav > a[aria-current='page'] { color: var(--studio-ink); font-weight: 600; }
 .landing-page .landing-header nav > :is(a, button),
 .landing-page .landing-header .landing-nav-actions > :is(a:not(.landing-github-icon), button) {
   display: inline-flex; align-items: center; justify-content: center; line-height: 20px;

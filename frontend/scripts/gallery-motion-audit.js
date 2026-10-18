@@ -62,7 +62,7 @@ async (page) => {
       await p.waitForTimeout(300);
       if (reading) { await p.locator('.gallery-cover[aria-pressed="true"]').click(); await p.waitForTimeout(200); }
     };
-    for (const deck of ['money', 'ecology', 'software']) {
+    for (const deck of ['money', 'cnn', 'software']) {
       for (const reading of [false, true]) {
         for (const region of ['side', 'blank', 'gap', 'center', ...(reading ? ['upper', 'lower'] : [])]) {
           await reset(deck, reading);

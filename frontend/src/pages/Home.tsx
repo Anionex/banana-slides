@@ -18,6 +18,7 @@ import { useT } from '@/hooks/useT';
 import logoUrl from '@/assets/logo.png';
 import { ASPECT_RATIO_OPTIONS } from '@/config/aspectRatio';
 import { isDesktop } from '@/utils';
+import { galleryStyleFromSearch } from '@/utils/galleryStyle';
 
 type CreationType = 'idea' | 'outline' | 'description' | 'ppt_renovation';
 
@@ -196,6 +197,9 @@ const homeI18n = {
 
 export const Home: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [galleryStyle] = useState(() => galleryStyleFromSearch(searchParams));
+  const styleSectionRef = useRef<HTMLDivElement>(null);
   const { i18n } = useTranslation();
   const t = useT(homeI18n);
   const { theme, isDark, setTheme } = useTheme();
@@ -228,8 +232,8 @@ export const Home: React.FC = () => {
   const [isFileSelectorOpen, setIsFileSelectorOpen] = useState(false);
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
 
-  const [useTemplateStyle, setUseTemplateStyle] = useState(false);
-  const [templateStyle, setTemplateStyle] = useState('');
+  const [useTemplateStyle, setUseTemplateStyle] = useState(Boolean(galleryStyle));
+  const [templateStyle, setTemplateStyle] = useState(galleryStyle?.prompt ?? '');
   const [aspectRatio, setAspectRatio] = useState('16:9');
   const [isAspectRatioOpen, setIsAspectRatioOpen] = useState(false);
   const [renovationFile, setRenovationFile] = useState<File | null>(null);
@@ -272,6 +276,7 @@ export const Home: React.FC = () => {
 
   // 首次访问自动弹出帮助模态框
   useEffect(() => {
+    if (galleryStyle) return;
     const hasSeenHelp = localStorage.getItem('hasSeenHelpModal');
     if (!hasSeenHelp) {
       // 延迟500ms打开，让页面先渲染完成
@@ -281,9 +286,17 @@ export const Home: React.FC = () => {
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, []);
+  }, [galleryStyle]);
 
-  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    if (!galleryStyle) return;
+    const frame = requestAnimationFrame(() => {
+      styleSectionRef.current?.scrollIntoView({ block: 'center' });
+      styleSectionRef.current?.querySelector('textarea')?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [galleryStyle]);
+
   useEffect(() => {
     const action = searchParams.get('action');
     if (action === 'material-generate') {
@@ -1287,12 +1300,14 @@ export const Home: React.FC = () => {
 
             {/* 根据模式显示不同的内容 */}
             {useTemplateStyle ? (
-              <TextStyleSelector
-                value={templateStyle}
-                onChange={setTemplateStyle}
-                onToast={show}
-                sourceContent={content}
-              />
+              <div ref={styleSectionRef}>
+                <TextStyleSelector
+                  value={templateStyle}
+                  onChange={setTemplateStyle}
+                  onToast={show}
+                  sourceContent={content}
+                />
+              </div>
             ) : (
               <TemplateSelector
                 onSelect={handleTemplateSelect}

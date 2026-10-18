@@ -83,7 +83,7 @@ async (page) => {
     await p.getByRole('button',{name:'Previous presentation',exact:true}).click();await settle('money');
     await p.getByRole('button',{name:'Previous presentation',exact:true}).click();await settle('gen-z');
     await p.getByRole('button',{name:'Next presentation',exact:true}).click();await settle('money');
-    await p.getByRole('button',{name:'Next presentation',exact:true}).click();await settle('deepseek-tech');await p.getByRole('button',{name:'Next presentation',exact:true}).click();await settle('ecology');await p.reload();await settle('ecology');
+    await p.getByRole('button',{name:'Next presentation',exact:true}).click();await settle('deepseek-tech');await p.getByRole('button',{name:'Next presentation',exact:true}).click();await settle('cnn');await p.reload();await settle('cnn');
     results.interactions.push('cover click, horizontal wheel, cover reset, wrapping, refresh');
     const assets=await p.evaluate(async()=>{
       const urls=await (await fetch('/gallery/asset-index.json')).json(),failed=[];
@@ -94,7 +94,7 @@ async (page) => {
     await p.setViewportSize({width:390,height:844});await p.goto(origin+'/en/gallery/?deck=money');await settle('money');await capture('wheel-mobile');
     await p.locator('.gallery-cover[aria-pressed="true"]').click();await p.waitForTimeout(850);await capture('wheel-mobile-read');
     await p.getByRole('button',{name:'Dark theme',exact:true}).click();await p.waitForTimeout(350);await capture('wheel-mobile-dark');
-    await p.emulateMedia({reducedMotion:'reduce'});await p.getByRole('button',{name:'Next slide',exact:true}).click();
+    await p.emulateMedia({reducedMotion:'reduce'});await p.getByRole('region',{name:'Read in place. Scroll up or down to turn slides.',exact:true}).press('ArrowDown');
     await p.waitForFunction(()=>document.querySelector('.gallery-wheel')?.dataset.page==='2');
     await p.locator('.gallery-wheel-viewport').focus();await p.keyboard.press('Escape');
     await p.route('**/gallery/money/1.webp',route=>route.abort());await p.reload();await settle('money');

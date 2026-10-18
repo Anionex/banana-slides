@@ -1,333 +1,306 @@
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import type { MutableRefObject, ReactNode } from 'react';
 import type { MotionValue } from 'motion/react';
-import { animate } from 'motion/react';
 import type { GalleryDeck } from './types';
+import { GalleryMotion, modulo } from './galleryMotion';
+import { GalleryRenderer } from './GalleryRenderer';
 
 export interface GalleryPan {
   start: (x: number) => void;
   move: (x: number) => void;
   end: () => void;
   select: (index: number) => void;
+  step: (direction: number) => void;
   paint: () => void;
 }
 
-/** Native scroll/snap owns input; the canvas only bends the cover artwork.
- * The unmodified images/buttons remain the accessible and no-canvas fallback.
- * Inspired by 21st.dev's cylinder-carousel and circular-gallery-2 studies.
+/** Reuse one motion axis for the DOM showcase and the experimental warped gallery.
+ * The homepage always draws ordinary images, without a canvas or GPU setup.
  */
-export function CurvedGallery({ decks, active, onSelect, label, reading, expanded, onRead, children, pan, position, progress }: {
-  decks: GalleryDeck[]; active: number; onSelect: (index: number) => void; label: string; reading: boolean; onRead: () => void; children?: ReactNode; expanded: boolean; pan: MutableRefObject<GalleryPan | null>; position: MotionValue<number>; progress: MotionValue<number>;
+export function CurvedGallery({ decks, active, onSelect, onCenterChange, label, reading, expanded, onRead, children, pan, position, progress, interaction = 'gallery', language = 'zh', coverSource }: {
+  decks: GalleryDeck[]; active: number; onSelect: (index: number) => void; label: string; reading: boolean; onRead: (index?: number, wheelDelta?: number) => void; children?: ReactNode; expanded: boolean; pan: MutableRefObject<GalleryPan | null>; position: MotionValue<number>; progress: MotionValue<number>; interaction?: 'gallery' | 'showcase'; language?: 'zh' | 'en'; coverSource?: (deck: GalleryDeck) => string;
+  onCenterChange?: (index: number) => void;
 }) {
   const stage = useRef<HTMLDivElement>(null);
-  const touch = useRef<{ x: number; y: number } | null>(null);
   const track = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
-  const manual = useRef<{ x: number; scroll: number } | null>(null);
-  const pending = useRef<number>();
+  const renderer = useRef<GalleryRenderer | null>(null);
+  const motion = useRef(new GalleryMotion(1));
   const frame = useRef(0);
-  const settling = useRef<ReturnType<typeof animate>>();
-  const activeRef = useRef(active);
-  activeRef.current = active;
-  const drag = useRef<{ x: number; scroll: number; moved: boolean } | null>(null);
+  const previousTime = useRef(0);
+  const paintedFrames = useRef(0);
+  const initialized = useRef(false);
+  const horizontalAt = useRef(0);
+  const drag = useRef<{ x: number; y: number; moved: boolean; axis?: 'x' | 'y' } | null>(null);
+  const suppressClick = useRef(false);
+  const manual = useRef<{ pointer: number; position: number } | null>(null);
+  const assets = useRef(new Map<string, HTMLImageElement>());
+  const layout = useRef({ width: 0, height: 0, centerY: 0, origin: 0, cycle: 1, covers: [] as { button: HTMLButtonElement; image: HTMLImageElement; left: number; width: number }[] });
+  const centered = useRef(active);
+  const current = useRef({ active, reading, onSelect, onRead, onCenterChange });
+  current.current = { active, reading, onSelect, onRead, onCenterChange };
   const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const entries = [decks[decks.length - 1], ...decks, decks[0]];
-
-  const paint = useCallback(() => {
-    const el = track.current;
-    const surface = canvas.current;
-    const ctx = surface?.getContext('2d');
-    if (!el || !surface || !ctx) return;
-    const width = el.clientWidth, height = el.clientHeight;
-    // Share the layout's artwork anchor instead of centering in the preview belt.
-    const anchor = el.querySelector<HTMLButtonElement>('.gallery-cover');
-    const centerY = anchor ? anchor.offsetTop + anchor.offsetHeight / 2 : height / 2;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    if (surface.width !== Math.round(width * dpr) || surface.height !== Math.round(height * dpr)) {
-      surface.width = Math.round(width * dpr); surface.height = Math.round(height * dpr);
-    }
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, width, height);
-    const drawCard = (img: HTMLImageElement, x: number, w: number, shift = 0, alpha = 1, curvature = 1) => {
-      const base = w * 9 / 16;
-      const bend = (width < 768 ? .2 : .55) * curvature;
-      const sizeAt = (px: number) => base * (1 + bend * Math.pow((px - width / 2) / (width / 2), 2));
-      const top = (px: number) => centerY - sizeAt(px) / 2 + shift;
-      const bottom = (px: number) => centerY + sizeAt(px) / 2 + shift;
-      const radius = 12, steps = Math.ceil(w / 2);
-      const imageWidth = Math.min(w, base * img.naturalWidth / img.naturalHeight);
-      const imageHeight = imageWidth * img.naturalHeight / img.naturalWidth;
-      if (curvature === 0) {
-        const y = centerY - base / 2 + shift;
-        if (y + base < 0 || y > height) return;
-        ctx.save(); ctx.globalAlpha = alpha;
-        ctx.beginPath(); ctx.roundRect(x, y, w, base, radius); ctx.clip();
-        ctx.fillStyle = '#fff'; ctx.fillRect(x, y, w, base);
-        ctx.drawImage(img, x + (w - imageWidth) / 2, centerY - imageHeight / 2 + shift, imageWidth, imageHeight);
-        ctx.restore();
-        return;
-      }
-      ctx.save();
-      ctx.globalAlpha = alpha;
-      ctx.beginPath();
-      ctx.moveTo(x + radius, top(x + radius));
-      for (let s = 1; s <= steps; s++) {
-        const px = x + radius + (w - 2 * radius) * s / steps;
-        ctx.lineTo(px, top(px));
-      }
-      ctx.quadraticCurveTo(x + w, top(x + w), x + w, top(x + w) + radius);
-      ctx.lineTo(x + w, bottom(x + w) - radius);
-      ctx.quadraticCurveTo(x + w, bottom(x + w), x + w - radius, bottom(x + w - radius));
-      for (let s = steps - 1; s >= 0; s--) {
-        const px = x + radius + (w - 2 * radius) * s / steps;
-        ctx.lineTo(px, bottom(px));
-      }
-      ctx.quadraticCurveTo(x, bottom(x), x, bottom(x) - radius);
-      ctx.lineTo(x, top(x) + radius);
-      ctx.quadraticCurveTo(x, top(x), x + radius, top(x + radius));
-      ctx.clip();
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(x, 0, w, height);
-      // Slice mapping preserves all source content, including text at the edges.
-      for (let s = 0; s < steps; s++) {
-        const px = x + (w - imageWidth) / 2 + imageWidth * s / steps;
-        const h = sizeAt(px + imageWidth / steps / 2) * imageHeight / base;
-        ctx.drawImage(img, img.naturalWidth * s / steps, 0, img.naturalWidth / steps, img.naturalHeight,
-          px, centerY - h / 2 + shift, imageWidth / steps + .6, h);
-      }
-      ctx.restore();
-    };
-    el.querySelectorAll<HTMLButtonElement>('.gallery-cover').forEach((button, slot) => {
-      const cover = button.querySelector('img')!;
-      const x = button.offsetLeft - el.scrollLeft, w = button.offsetWidth;
-      if (x + w < 0 || x > width || !cover.complete || !cover.naturalWidth) return;
-      // The centered work is completely flat, including its cover. Curvature only
-      // develops as a work moves into the side position, with no mode-change jump.
-      const side = Math.min(1, Math.max(0, (Math.abs(x - (width - w) / 2) / w - .2) / .8));
-      const curvature = side * side * (3 - 2 * side);
-      if (reading && slot === active + 1) {
-        const departure = Math.min(1, Math.abs(x - (width - w) / 2) / (w * .6));
-        const base = w * 9 / 16;
-        const horizontal = stage.current!.dataset.horizontal === 'true';
-        ctx.save();
-        if (horizontal) {
-          // Hide the adjacent pages as soon as horizontal intent is established.
-          // Keep the central aperture curved so the card can still return smoothly.
-          const edge = (px: number) => base * (1 + (width < 768 ? .2 : .55) * curvature * Math.pow((px - width / 2) / (width / 2), 2));
-          ctx.beginPath();
-          for (let i = 0; i <= 40; i++) {
-            const px = x + w * i / 40, py = centerY - edge(px) / 2;
-            if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-          }
-          for (let i = 40; i >= 0; i--) {
-            const px = x + w * i / 40;
-            ctx.lineTo(px, centerY + edge(px) / 2);
-          }
-          ctx.closePath(); ctx.clip();
-        }
-        const figures = stage.current!.querySelectorAll<HTMLElement>('.gallery-wheel-page');
-        figures.forEach(figure => {
-          const virtual = Number(figure.dataset.slot);
-          const img = figure.querySelector('img');
-          const isCover = ((virtual % decks[active].pages.length) + decks[active].pages.length) % decks[active].pages.length === 0;
-          const source = img?.complete && img.naturalWidth ? img : isCover ? cover : null;
-          if (!source) return;
-          drawCard(source, x, w, (virtual - progress.get()) * (base + 16), isCover ? 1 : 1 - departure, isCover ? curvature : 0);
-          figure.dataset.painted = 'true';
-        });
-        // Mask only this card's column; neighboring presentations keep their curvature.
-        ctx.save(); ctx.beginPath(); ctx.rect(x, 0, w, height); ctx.clip();
-        ctx.globalCompositeOperation = 'destination-in';
-        const fade = ctx.createLinearGradient(0, 0, 0, height);
-        fade.addColorStop(0, 'transparent'); fade.addColorStop((centerY - base / 2) / height, '#000');
-        fade.addColorStop((centerY + base / 2) / height, '#000'); fade.addColorStop(1, 'transparent');
-        ctx.fillStyle = fade; ctx.fillRect(x, 0, w, height); ctx.restore();
-        ctx.restore();
-      } else drawCard(cover, x, w, 0, 1, curvature);
-      button.dataset.painted = 'true';
-    });
-  }, [reading, active, decks, progress]);
-
-  const paintRef = useRef(paint);
-  paintRef.current = paint;
-  const updatePosition = () => {
-    const el = track.current!;
-    const button = el.children[activeRef.current + 1] as HTMLElement;
-    position.set(button.offsetLeft - el.scrollLeft - (el.clientWidth - button.offsetWidth) / 2);
-  };
+  const entries = [...decks, ...decks, ...decks];
+  const renderRef = useRef<(time: number) => void>(() => {});
   const schedulePaint = useCallback(() => {
-    if (frame.current) return;
-    frame.current = requestAnimationFrame(() => { frame.current = 0; paintRef.current(); });
+    if (!frame.current) frame.current = requestAnimationFrame(time => { frame.current = 0; renderRef.current(time); });
   }, []);
-  useLayoutEffect(() => { updatePosition(); paint(); });
-  useEffect(() => progress.on('change', schedulePaint), [progress, schedulePaint]);
-  useEffect(() => {
-    const deck = decks[active];
-    const indexes = new Set([0, 1, 2, deck.pages.length - 1, deck.pages.length - 2]);
-    const images = [...indexes].map(index => {
-      const image = new Image();
-      image.src = `/gallery/${deck.id}/${index + 1}.webp`;
-      return image;
-    });
-    return () => { images.forEach(image => { image.onload = null; }); };
-  }, [active, decks]);
-
-  const settleTo = useCallback((left: number, instant = false) => {
-    const el = track.current!;
-    settling.current?.stop();
-    if (instant || reduced() || Math.abs(left - el.scrollLeft) < 1) {
-      el.scrollTo({ left, behavior: 'instant' });
-      return;
+  const markHorizontal = () => {
+    if (stage.current?.dataset.horizontal !== 'true') horizontalAt.current = performance.now();
+    if (stage.current) stage.current.dataset.horizontal = 'true';
+  };
+  const pageImage = (deck: GalleryDeck, index: number) => {
+    const src = `/gallery/${deck.id}/${modulo(index, deck.pages.length) + 1}.webp`;
+    let image = assets.current.get(src);
+    if (!image) {
+      image = new Image(); image.decoding = 'async';
+      image.onload = schedulePaint; image.src = src;
+      assets.current.set(src, image);
+      if (assets.current.size > 32) {
+        const oldest = assets.current.keys().next().value as string;
+        const discarded = assets.current.get(oldest)!; discarded.onload = null; assets.current.delete(oldest);
+      }
     }
-    el.style.scrollSnapType = 'none';
-    settling.current = animate(el.scrollLeft, left, {
-      duration: Math.min(.56, .32 + Math.abs(left - el.scrollLeft) / 2400),
-      ease: [.45, 0, .55, 1],
-      onUpdate: value => { el.scrollLeft = value; },
-    });
-  }, []);
+    return image;
+  };
 
-  const center = useCallback((index: number, instant = false) => {
-    const el = track.current;
-    let slot = index + 1;
-    if (el && !instant) {
-      const first = el.children[1] as HTMLElement;
-      const last = el.children[decks.length] as HTMLElement;
-      const middle = el.scrollLeft + el.clientWidth / 2;
-      if (index === decks.length - 1 && Math.abs(middle - first.offsetLeft - first.offsetWidth / 2) < 2) slot = 0;
-      if (index === 0 && Math.abs(middle - last.offsetLeft - last.offsetWidth / 2) < 2) slot = decks.length + 1;
+  renderRef.current = time => {
+    const el = track.current, container = stage.current, data = layout.current;
+    if (!el || !container || !data.width) return;
+    const axis = motion.current, previousPhase = axis.phase;
+    const dt = previousTime.current ? Math.min(.04, (time - previousTime.current) / 1000) : 1 / 60;
+    previousTime.current = time;
+    if (reduced() && axis.phase === 'coast') axis.velocity = 0;
+    axis.tick(dt, time);
+    if (reduced() && axis.phase === 'snap') { axis.position = axis.target; axis.velocity = 0; axis.tick(0, time); }
+    // Preview follows the nearest cover during drag/coast, independently of the
+    // settled selection that owns the in-place reader.
+    const nearestCover = modulo(Math.round(axis.position / axis.step), decks.length);
+    if (nearestCover !== centered.current) {
+      centered.current = nearestCover;
+      current.current.onCenterChange?.(nearestCover);
     }
-    const button = el?.children[slot] as HTMLElement | undefined;
-    if (el && button) settleTo(button.offsetLeft - (el.clientWidth - button.offsetWidth) / 2, instant);
-  }, [decks.length, settleTo]);
+    const scroll = data.origin + modulo(axis.position, data.cycle);
+    el.scrollLeft = scroll;
+    const relative = modulo(current.current.active * axis.step - axis.position + data.cycle / 2, data.cycle) - data.cycle / 2;
+    position.set(relative);
+    container.dataset.motion = axis.phase;
+    container.dataset.speed = Math.abs(axis.velocity).toFixed(4);
+    container.dataset.position = axis.position.toFixed(4);
+    if (previousPhase !== 'idle' && axis.phase === 'idle') {
+      container.dataset.horizontal = 'false';
+      current.current.onSelect(modulo(Math.round(axis.position / axis.step), decks.length));
+    }
+    const horizontal = container.dataset.horizontal === 'true';
+    const aperture = horizontal ? Math.min(1, (time - horizontalAt.current) / 100) : 0;
+    if (interaction === 'showcase') {
+      data.covers.forEach(({ image, left, width }) => {
+        const distance = Math.max(-1, Math.min(1, (left - scroll + width / 2 - data.width / 2) / axis.step));
+        image.style.transform = `perspective(1000px) rotateY(${-distance * 7}deg) scale(${1 - Math.abs(distance) * .07})`;
+        image.style.opacity = String(1 - Math.abs(distance) * .12);
+      });
+    }
+    const gpu = renderer.current;
+    if (gpu) {
+      const started = performance.now();
+      gpu.begin(data.width, data.height, data.centerY);
+      const deck = decks[current.current.active];
+      const p = progress.get(), nearest = Math.round(p);
+      if (current.current.reading) for (let i = nearest - 3; i <= nearest + 3; i++) pageImage(deck, i);
+      data.covers.forEach(({ button, image, left, width }, slot) => {
+        const x = left - scroll;
+        if (x + width < -data.width * .25 || x > data.width * 1.25) return;
+        if (current.current.reading && slot % decks.length === current.current.active) {
+          for (let virtual = nearest - 2; virtual <= nearest + 2; virtual++) {
+            const isCover = modulo(virtual, deck.pages.length) === 0;
+            const img = pageImage(deck, virtual);
+            const source = img.complete && img.naturalWidth ? img : isCover ? image : img;
+            const painted = gpu.draw(source, x, width, (virtual - p) * (width * 9 / 16 + 16), isCover, true, aperture);
+            const figure = container.querySelector<HTMLElement>(`.gallery-wheel-page[data-slot="${virtual}"]`);
+            if (figure) figure.dataset.painted = String(painted);
+          }
+        } else button.dataset.painted = String(gpu.draw(image, x, width));
+      });
+      gpu.end();
+      container.dataset.drawCalls = String(gpu.draws);
+      container.dataset.renderMs = (performance.now() - started).toFixed(3);
+      container.dataset.frame = String(++paintedFrames.current);
+    }
+    if (!['idle', 'drag'].includes(axis.phase) || (horizontal && aperture < 1)) schedulePaint();
+    else previousTime.current = 0;
+  };
 
-  useEffect(() => { center(active); }, [active, center]);
-  useEffect(() => {
-    const el = track.current!;
-    let width = 0;
-    const resize = new ResizeObserver(() => {
-      if (el.clientWidth !== width) { width = el.clientWidth; center(activeRef.current, true); }
-      schedulePaint();
-    });
-    resize.observe(el);
+  const select = (index: number) => {
+    const axis = motion.current;
+    const base = axis.phase === 'snap' ? axis.target : axis.position;
+    const nearest = base + (modulo(index * axis.step - base + layout.current.cycle / 2, layout.current.cycle) - layout.current.cycle / 2);
+    markHorizontal();
+    if (reduced()) { axis.snap(nearest); axis.velocity = 0; axis.position = nearest; }
+    else axis.snap(nearest);
     schedulePaint();
-    return () => { resize.disconnect(); cancelAnimationFrame(frame.current); frame.current = 0; settling.current?.stop(); window.clearTimeout(pending.current); };
-  }, [center, schedulePaint]);
-
-  const finishScroll = () => {
-    window.clearTimeout(pending.current);
-    pending.current = window.setTimeout(() => {
-      if (manual.current) return;
-      const el = track.current!;
-      const buttons = Array.from(el.children) as HTMLElement[];
-      const middle = el.scrollLeft + el.clientWidth / 2;
-      const nearest = buttons.reduce((best, button, i) => Math.abs(button.offsetLeft + button.offsetWidth / 2 - middle) < Math.abs(buttons[best].offsetLeft + buttons[best].offsetWidth / 2 - middle) ? i : best, 0);
-      const index = (nearest - 1 + decks.length) % decks.length;
-      el.style.scrollSnapType = '';
-      if (nearest === 0 || nearest === decks.length + 1) center(index, true);
-      stage.current!.dataset.horizontal = 'false';
-      onSelect(index); schedulePaint();
-    }, 180);
   };
   pan.current = {
     paint: schedulePaint,
     start(x) {
-      settling.current?.stop();
-      stage.current!.dataset.horizontal = 'true';
-      const el = track.current!;
-      window.clearTimeout(pending.current);
-      manual.current = { x, scroll: el.scrollLeft };
-      el.style.scrollSnapType = 'none';
-      el.scrollTo({ left: el.scrollLeft, behavior: 'instant' });
+      markHorizontal(); motion.current.begin(performance.now());
+      manual.current = { pointer: x, position: motion.current.position };
     },
     move(x) {
       if (!manual.current) return;
-      track.current!.scrollLeft = manual.current.scroll + manual.current.x - x;
-      updatePosition(); schedulePaint();
+      motion.current.drag(manual.current.position + manual.current.pointer - x, performance.now());
+      schedulePaint();
     },
     end() {
-      const el = track.current!;
-      const state = manual.current;
       manual.current = null;
-      if (!state) return;
-      const first = el.children[1] as HTMLElement;
-      const second = el.children[2] as HTMLElement;
-      const step = second.offsetLeft - first.offsetLeft;
-      const distance = el.scrollLeft - state.scroll;
-      const initialSlot = Math.round((state.scroll + (el.clientWidth - first.offsetWidth) / 2 - first.offsetLeft) / step) + 1;
-      const slot = Math.max(0, Math.min(decks.length + 1, initialSlot + (Math.abs(distance) > 60 ? Math.sign(distance) * Math.max(1, Math.round(Math.abs(distance) / step)) : 0)));
-      const button = el.children[slot] as HTMLElement;
-      settleTo(button.offsetLeft - (el.clientWidth - button.offsetWidth) / 2);
-      finishScroll();
+      motion.current.release(performance.now());
+      if (reduced()) motion.current.velocity = 0;
+      schedulePaint();
     },
-    select(index) { stage.current!.dataset.horizontal = 'true'; center(index); finishScroll(); },
+    select,
+    step(direction) {
+      const axis = motion.current;
+      select(modulo(Math.round((axis.phase === 'snap' ? axis.target : axis.position) / axis.step) + direction, decks.length));
+    },
   };
+
+  useLayoutEffect(() => {
+    const el = track.current!, surface = canvas.current, container = stage.current!;
+    const fallback = () => {
+      container.dataset.renderer = 'fallback';
+      container.querySelectorAll<HTMLElement>('[data-painted]').forEach(node => { delete node.dataset.painted; });
+    };
+    const initialize = () => {
+      if (!surface) { container.dataset.renderer = 'dom'; return; }
+      try { renderer.current = new GalleryRenderer(surface, interaction === 'showcase'); container.dataset.renderer = 'webgl'; }
+      catch (error) { renderer.current = null; container.dataset.rendererError = String(error); fallback(); }
+      schedulePaint();
+    };
+    const lost = (event: Event) => { event.preventDefault(); renderer.current = null; fallback(); };
+    const measure = () => {
+      const bounds = el.getBoundingClientRect();
+      const covers = Array.from(el.querySelectorAll<HTMLButtonElement>('.gallery-cover')).map(button => {
+        const rect = button.getBoundingClientRect();
+        return { button, image: button.querySelector('img')!, left: rect.left - bounds.left + el.scrollLeft, width: rect.width };
+      });
+      if (!covers.length || !bounds.width) return;
+      const first = covers[decks.length], cycle = covers[2 * decks.length].left - first.left;
+      const fraction = initialized.current ? motion.current.position / motion.current.step : current.current.active;
+      const speed = motion.current.velocity / motion.current.step;
+      const target = motion.current.target / motion.current.step;
+      motion.current.step = cycle / decks.length;
+      motion.current.position = fraction * motion.current.step;
+      motion.current.target = initialized.current ? target * motion.current.step : motion.current.position;
+      motion.current.velocity = speed * motion.current.step;
+      layout.current = { width: bounds.width, height: bounds.height, centerY: first.button.offsetTop + first.width * 9 / 32, origin: first.left - (bounds.width - first.width) / 2, cycle, covers };
+      initialized.current = true;
+      schedulePaint();
+    };
+    initialize(); measure();
+    const resize = new ResizeObserver(measure); resize.observe(el);
+    surface?.addEventListener('webglcontextlost', lost); surface?.addEventListener('webglcontextrestored', initialize);
+    const visibility = () => { previousTime.current = 0; if (document.hidden) { cancelAnimationFrame(frame.current); frame.current = 0; } else schedulePaint(); };
+    document.addEventListener('visibilitychange', visibility);
+    return () => {
+      resize.disconnect(); cancelAnimationFrame(frame.current); frame.current = 0; previousTime.current = 0;
+      renderer.current?.destroy(); renderer.current = null;
+      surface?.removeEventListener('webglcontextlost', lost); surface?.removeEventListener('webglcontextrestored', initialize);
+      document.removeEventListener('visibilitychange', visibility);
+      assets.current.forEach(image => { image.onload = null; }); assets.current.clear();
+      fallback();
+    };
+  }, [decks.length, interaction, schedulePaint]);
+  useLayoutEffect(schedulePaint, [active, reading, schedulePaint]);
+  useEffect(() => progress.on('change', schedulePaint), [progress, schedulePaint]);
+  useEffect(() => {
+    // Decode the selected deck ahead of interaction; the renderer keeps only the
+    // moving neighborhood on the GPU. Loading never hides the DOM fallback.
+    if (interaction === 'showcase') return;
+    const deck = decks[active];
+    for (let i = -2; i <= 3; i++) pageImage(deck, i);
+  }, [active, decks, interaction]);
 
   useEffect(() => {
     const el = stage.current!;
     const wheel = (event: WheelEvent) => {
-      if (reading || event.ctrlKey || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
-      const rect = track.current!.getBoundingClientRect();
-      const contains = (bounds: DOMRect) => event.clientX >= bounds.left && event.clientX <= bounds.right && event.clientY >= bounds.top && event.clientY <= bounds.bottom;
-      // Follow the selected cover's actual scroll position, including loop copies.
-      const overCover = Array.from(track.current!.querySelectorAll<HTMLElement>('.gallery-cover')).some(cover => cover.dataset.deck === decks[activeRef.current].id && contains(cover.getBoundingClientRect()));
-      if (!contains(rect) || !overCover) return;
-      event.preventDefault();
-      onRead();
+      if (event.ctrlKey) return;
+      if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+        event.preventDefault(); event.stopPropagation(); markHorizontal();
+        motion.current.wheel(event.deltaX * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? layout.current.width : 1), performance.now());
+        schedulePaint(); return;
+      }
+      if (interaction === 'showcase') return;
+      const horizontal = el.dataset.horizontal === 'true';
+      if (current.current.reading && !horizontal) return;
+      const axis = motion.current;
+      // A vertical gesture takes over the work currently nearest the center,
+      // without waiting for the horizontal spring's invisible settling tail.
+      const index = horizontal && axis.phase !== 'drag'
+        ? modulo(Math.round(axis.position / axis.step), decks.length)
+        : current.current.active;
+      const inside = layout.current.covers.some(({ button }) => {
+        if (button.dataset.deck !== decks[index].id) return false;
+        const r = button.getBoundingClientRect();
+        return event.clientX >= r.left && event.clientX <= r.right && event.clientY >= r.top && event.clientY <= r.bottom;
+      });
+      if (inside) {
+        event.preventDefault(); event.stopPropagation();
+        if (horizontal && axis.phase !== 'drag') {
+          axis.snap(Math.round(axis.position / axis.step) * axis.step);
+          axis.velocity = 0;
+          el.dataset.horizontal = 'false';
+          position.set(modulo(index * axis.step - axis.position + layout.current.cycle / 2, layout.current.cycle) - layout.current.cycle / 2);
+          schedulePaint();
+        }
+        const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? layout.current.height : 1);
+        current.current.onRead(index, delta);
+      }
     };
-    el.addEventListener('wheel', wheel, { passive: false });
-    return () => el.removeEventListener('wheel', wheel);
-  }, [reading, onRead, decks]);
+    el.addEventListener('wheel', wheel, { passive: false, capture: true });
+    return () => el.removeEventListener('wheel', wheel, { capture: true });
+  }, [decks, interaction, position, schedulePaint]);
 
   return <div ref={stage} className="gallery-stage" data-reading={reading} data-expanded={expanded}>
-    <canvas ref={canvas} aria-hidden="true" className="gallery-canvas" />
+    {interaction !== 'showcase' && <canvas ref={canvas} aria-hidden="true" className="gallery-canvas" />}
     <div ref={track} className="gallery-track" role="region" aria-roledescription="carousel" aria-label={label} tabIndex={0}
+      onScroll={interaction === 'showcase' ? schedulePaint : undefined}
       onKeyDown={event => {
         if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onRead(); }
-        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-          event.preventDefault(); pan.current?.select((active + (event.key === 'ArrowRight' ? 1 : -1) + decks.length) % decks.length);
-        }
-        if (event.key === 'Home' || event.key === 'End') { event.preventDefault(); pan.current?.select(event.key === 'Home' ? 0 : decks.length - 1); }
+        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); pan.current?.step(event.key === 'ArrowRight' ? 1 : -1); }
+        if (event.key === 'Home' || event.key === 'End') { event.preventDefault(); select(event.key === 'Home' ? 0 : decks.length - 1); }
       }}
-      onScroll={() => { updatePosition(); schedulePaint(); if (!manual.current) finishScroll(); }}
       onPointerDown={event => {
-        settling.current?.stop();
-        if (event.pointerType !== 'mouse') { touch.current = { x: event.clientX, y: event.clientY }; return; }
-        if (event.button !== 0) return;
-        drag.current = { x: event.clientX, scroll: event.currentTarget.scrollLeft, moved: false };
+        if (event.pointerType === 'mouse' && event.button !== 0) return;
+        suppressClick.current = false;
+        motion.current.begin(performance.now());
+        drag.current = { x: event.clientX, y: event.clientY, moved: false };
       }}
       onPointerMove={event => {
         const state = drag.current;
         if (!state) return;
-        if (Math.abs(event.clientX - state.x) > 5) {
-          if (!state.moved) pan.current?.start(state.x);
-          state.moved = true;
-          event.currentTarget.setPointerCapture(event.pointerId);
-          pan.current?.move(event.clientX);
+        const dx = event.clientX - state.x, dy = event.clientY - state.y;
+        if (!state.axis && Math.max(Math.abs(dx), Math.abs(dy)) > 5) {
+          state.axis = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y';
+          if (state.axis === 'x') { pan.current?.start(state.x); event.currentTarget.setPointerCapture(event.pointerId); }
         }
+        if (state.axis === 'x') { state.moved = true; suppressClick.current = true; pan.current?.move(event.clientX); }
       }}
       onPointerUp={event => {
-        if (touch.current) {
-          const dx = Math.abs(event.clientX - touch.current.x), dy = Math.abs(event.clientY - touch.current.y);
-          if (dy > 24 && dy > dx) onRead();
-          touch.current = null;
-        }
-        if (drag.current?.moved) pan.current?.end();
+        const state = drag.current;
+        if (state?.moved) pan.current?.end();
+        else { motion.current.release(performance.now()); schedulePaint(); }
+        if (interaction === 'gallery' && state?.axis === 'y' && Math.abs(event.clientY - state.y) > 24) onRead();
         if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-        // Keep moved until click has fired, then allow the next interaction.
-        window.setTimeout(() => { drag.current = null; }, 0);
+        drag.current = null;
       }}
-      onPointerCancel={() => { if (drag.current?.moved) pan.current?.end(); drag.current = null; touch.current = null; }}
-      onPointerLeave={() => { if (!drag.current?.moved) drag.current = null; }}
+      onPointerCancel={() => { if (interaction === 'gallery' && drag.current?.axis === 'y') onRead(); pan.current?.end(); drag.current = null; }}
     >
-      {entries.map((deck, slot) => <button key={`${deck.id}-${slot}`} className="gallery-cover" data-deck={deck.id} tabIndex={-1} aria-label={deck.title.zh} aria-hidden={slot === 0 || slot === entries.length - 1} aria-pressed={slot - 1 === active}
-        onClick={event => {
-          if (drag.current?.moved || !track.current) return;
-          if (slot - 1 === active) { onRead(); return; }
-          const button = event.currentTarget;
-          settleTo(button.offsetLeft - (track.current.clientWidth - button.offsetWidth) / 2);
+      {entries.map((deck, slot) => <button key={`${deck.id}-${slot}`} className="gallery-cover" data-deck={deck.id} tabIndex={-1} aria-label={deck.title[language]} aria-hidden={slot < decks.length || slot >= 2 * decks.length} aria-pressed={slot - decks.length === active}
+        onClick={() => {
+          if (suppressClick.current) return;
+          if (slot % decks.length === active && Math.abs(position.get()) < 1) onRead();
+          else select(slot % decks.length);
         }}>
-        <img src={`/gallery/${deck.id}/cover.webp`} alt={deck.title.zh} width="800" height="450" draggable={false} onLoad={schedulePaint} />
+        <img src={coverSource ? coverSource(deck) : `/gallery/${deck.id}/cover.webp`} alt={deck.title[language]} width="800" height="450" draggable={false} decoding="async" onLoad={schedulePaint} />
       </button>)}
     </div>
     {children}

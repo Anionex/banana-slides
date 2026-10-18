@@ -10,3 +10,7 @@ export function isLandingPath(pathname: string): boolean {
 export function isGalleryPath(pathname: string): boolean {
   return /^\/(en\/)?gallery\/?$/.test(pathname);
 }
+
+export function isGalleryDetailPath(pathname: string): boolean {
+  return /^\/(?:en\/)?gallery\/[a-z0-9-]+\/?$/.test(pathname);
+}

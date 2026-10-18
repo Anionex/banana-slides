@@ -12,7 +12,25 @@
     "originalTitle": "钱的演变：从贝壳到纸币的旅程.pdf",
     "pdf": "https://github.com/user-attachments/files/23912895/presentation_68e7c0d1-acac-498e-90fd-4981b0974b32.pdf",
     "source": "https://github.com/Anionex/banana-slides/issues/2",
-    "author": "Anionex"
+    "author": "Anionex",
+    "creation": {
+      "model": "Nanobanana Pro",
+      "modelSource": "creator-confirmed",
+      "generationMethod": "reference-image",
+      "stylePrompt": {
+        "zh": "采用复古泛黄羊皮纸卷轴背景，搭配深褐色文字与古典单色钢笔手绘插图。字体采用清晰醒目的无衬线黑体，层级明确。页面装饰融合古典几何暗纹与羊皮纸边缘纹理，呈现中世纪手稿质感。排版采用多列图文对称布局，辅以细线分区，整体典雅古朴、图文分明。",
+        "en": "Use an aged yellow parchment scroll background with dark brown text and classical monochrome pen illustrations. Use clear, prominent sans-serif typography with distinct hierarchy. Combine subtle classical geometric patterns and textured parchment edges to evoke a medieval manuscript. Arrange text and images in a symmetrical multicolumn layout separated by fine lines, creating an elegant, antique appearance with a clear distinction between text and illustrations."
+      },
+      "promptSource": {
+        "kind": "image-extraction",
+        "image": "/templates/template_y.png",
+        "analysisModel": "gemini-3.8-flash",
+        "extractionPrompt": "backend/services/prompts.py:get_style_extraction_prompt",
+        "fingerprint": "eaffa298584be3de1ea3984ce7690eb5ed0c6002ff1e357c873eb9d264035cb9",
+        "extractedAt": "2026-10-18",
+        "englishTranslation": "Translation of the Chinese extraction; not an original generation prompt"
+      }
+    }
   },
   {
     "id": "deepseek-tech",
@@ -27,22 +45,25 @@
     "originalTitle": "DeepSeek-V3.2技术展示.pdf",
     "pdf": "https://github.com/user-attachments/files/23913297/DeepSeek-V3.2.pdf",
     "source": "https://github.com/Anionex/banana-slides/issues/2",
-    "author": "Anionex"
-  },
-  {
-    "id": "ecology",
-    "title": {
-      "zh": "人类与生态环境",
-      "en": "Humans and the environment"
-    },
-    "category": {
-      "zh": "科普教育",
-      "en": "Education"
-    },
-    "originalTitle": "人类对生态环境影响.pdf",
-    "pdf": "https://github.com/user-attachments/files/23913853/default.pdf",
-    "source": "https://github.com/Anionex/banana-slides/issues/2",
-    "author": "Anionex"
+    "author": "Anionex",
+    "creation": {
+      "model": "Nanobanana Pro",
+      "modelSource": "creator-confirmed",
+      "generationMethod": "reference-image",
+      "stylePrompt": {
+        "zh": "采用深蓝科技感背景与微弱电路纹理，搭配青色霓虹光效边框及白色、青蓝与亮黄色文字。整体呈现未来机甲与数字仪表盘风格，字体统一采用醒目的粗体无衬线字。设计元素以带切角、斜切格栅装饰和发光描边的HUD卡片为主，内嵌发光圆形科技图标与圆角胶囊标签。版面采用紧凑的模块化卡片式布局，视觉层次清晰，科技感与专业度突出。",
+        "en": "Use a deep blue technology background with faint circuit textures, cyan neon borders, and white, cyan-blue and bright yellow text. Create a futuristic mechanical and digital-dashboard aesthetic with prominent bold sans-serif typography. Build HUD-style cards with clipped corners, diagonal grille details and luminous outlines, containing glowing circular technology icons and rounded pill labels. Use a compact modular card layout with clear visual hierarchy and a professional technological feel."
+      },
+      "promptSource": {
+        "kind": "image-extraction",
+        "image": "/templates/template_b.png",
+        "analysisModel": "gemini-3.8-flash",
+        "extractionPrompt": "backend/services/prompts.py:get_style_extraction_prompt",
+        "fingerprint": "451fca3ad8e89a53c7a1266c2f03f8f2c71bfea8447bbc6e3c69c458b3954d8f",
+        "extractedAt": "2026-10-18",
+        "englishTranslation": "Translation of the Chinese extraction; not an original generation prompt"
+      }
+    }
   },
   {
     "id": "cnn",
@@ -57,7 +78,25 @@
     "originalTitle": "深度学习的视觉之眼：卷积神经网络.pdf",
     "pdf": "https://github.com/user-attachments/files/23914172/default.pdf",
     "source": "https://github.com/Anionex/banana-slides/issues/2",
-    "author": "Anionex"
+    "author": "Anionex",
+    "creation": {
+      "model": "Nanobanana Pro",
+      "modelSource": "creator-confirmed",
+      "generationMethod": "reference-image",
+      "stylePrompt": {
+        "zh": "采用纯白背景与经典商务蓝主色，搭配浅灰色调。整体呈现现代简约商务风，采用干练的无衬线字体，标题加粗且层级分明。页面边缘饰有蓝白斜切几何装饰条，内容采用微投影圆角卡片承载，搭配扁平实色圆形图标。版面模块化排布，留白充足，视觉整洁且秩序感强。",
+        "en": "Use a pure white background with classic business blue and light gray accents. Create a modern, understated business style with crisp sans-serif typography, bold headings and clear hierarchy. Decorate page edges with blue-and-white diagonally cut geometric strips. Place content in rounded cards with subtle shadows and flat, solid-color circular icons. Use modular layouts and generous whitespace for a clean, orderly appearance."
+      },
+      "promptSource": {
+        "kind": "image-extraction",
+        "image": "/templates/template_s.png",
+        "analysisModel": "gemini-3.8-flash",
+        "extractionPrompt": "backend/services/prompts.py:get_style_extraction_prompt",
+        "fingerprint": "9b7811a3925b39e06a3682b0838899ff338d95dbadfa598cc1971235647be3dc",
+        "extractedAt": "2026-10-18",
+        "englishTranslation": "Translation of the Chinese extraction; not an original generation prompt"
+      }
+    }
   },
   {
     "id": "food-production",
@@ -72,7 +111,25 @@
     "originalTitle": "预制菜智能产线.pdf",
     "pdf": "https://github.com/user-attachments/files/23951916/default.pdf",
     "source": "https://github.com/Anionex/banana-slides/issues/2#issuecomment-3615012717",
-    "author": "Anionex"
+    "author": "Anionex",
+    "creation": {
+      "model": "Nanobanana Pro",
+      "modelSource": "creator-confirmed",
+      "generationMethod": "reference-image",
+      "stylePrompt": {
+        "zh": "采用纯白背景，以深蓝与深红作为主副色调，呈现严谨规范的工程科研汇报风格。排版选用无衬线黑体，层级分明，关键文字通过红蓝双色强调。内容依托结构化卡片与层级架构展开，大量使用淡蓝、浅绿、浅橙等低饱和浅色块与细线边框区分模块，配合方向箭头表现工艺流程与控制层级。页面自上而下对称规整，穿插实物设备图与底部总结通栏，整体严谨对称、逻辑流向清晰。",
+        "en": "Use a pure white background with deep blue and deep red as the primary and secondary colors for a rigorous engineering research presentation. Use sans-serif typography with clear hierarchy, emphasizing key text in red and blue. Organize content into structured cards and layered architecture diagrams. Distinguish modules with muted pale blue, green and orange blocks and fine borders, using directional arrows to explain processes and control hierarchies. Keep the page orderly and symmetrical from top to bottom, with equipment photographs and full-width summary bands. Maintain clear logical flow."
+      },
+      "promptSource": {
+        "kind": "image-extraction",
+        "image": "/templates/template_academic.jpg",
+        "analysisModel": "gemini-3.8-flash",
+        "extractionPrompt": "backend/services/prompts.py:get_style_extraction_prompt",
+        "fingerprint": "1f3232132dbfa4ae60580f4bb1d0b39b7ba1bc5fa1f0267f4eaa403d2bc07b51",
+        "extractedAt": "2026-10-18",
+        "englishTranslation": "Translation of the Chinese extraction; not an original generation prompt"
+      }
+    }
   },
   {
     "id": "xian",
@@ -87,7 +144,25 @@
     "originalTitle": "西安三深度游方案.pdf",
     "pdf": "https://github.com/user-attachments/files/24077375/default.pdf",
     "source": "https://github.com/Anionex/banana-slides/issues/2#issuecomment-3636800497",
-    "author": "Anionex"
+    "author": "Anionex",
+    "creation": {
+      "model": "Nanobanana Pro",
+      "modelSource": "creator-confirmed",
+      "generationMethod": "reference-image",
+      "stylePrompt": {
+        "zh": "采用复古泛黄羊皮纸卷轴背景，搭配深褐色文字与古典单色钢笔手绘插图。字体采用清晰醒目的无衬线黑体，层级明确。页面装饰融合古典几何暗纹与羊皮纸边缘纹理，呈现中世纪手稿质感。排版采用多列图文对称布局，辅以细线分区，整体典雅古朴、图文分明。",
+        "en": "Use an aged yellow parchment scroll background with dark brown text and classical monochrome pen illustrations. Use clear, prominent sans-serif typography with distinct hierarchy. Combine subtle classical geometric patterns and textured parchment edges to evoke a medieval manuscript. Arrange text and images in a symmetrical multicolumn layout separated by fine lines, creating an elegant, antique appearance with a clear distinction between text and illustrations."
+      },
+      "promptSource": {
+        "kind": "image-extraction",
+        "image": "/templates/template_y.png",
+        "analysisModel": "gemini-3.8-flash",
+        "extractionPrompt": "backend/services/prompts.py:get_style_extraction_prompt",
+        "fingerprint": "eaffa298584be3de1ea3984ce7690eb5ed0c6002ff1e357c873eb9d264035cb9",
+        "extractedAt": "2026-10-18",
+        "englishTranslation": "Translation of the Chinese extraction; not an original generation prompt"
+      }
+    }
   },
   {
     "id": "software",
@@ -102,7 +177,25 @@
     "originalTitle": "软件开发原则.pdf",
     "pdf": "https://github.com/user-attachments/files/24087896/default.pdf",
     "source": "https://github.com/Anionex/banana-slides/issues/2#issuecomment-3638956556",
-    "author": "Anionex"
+    "author": "Anionex",
+    "creation": {
+      "model": "Nanobanana Pro",
+      "modelSource": "creator-confirmed",
+      "generationMethod": "reference-image",
+      "stylePrompt": {
+        "zh": "采用米黄色背景与粗黑线条描边的复古手绘插画风格。配色采用珊瑚红、薄荷绿、亮黄与暖棕等撞色色块，搭配高对比的粗体无衬线字体与大号序号。版面采用顶部图解搭配2×2网格卡片布局，点缀小星芒与放射线条手绘元素，整体视觉鲜明活泼且层级直观。",
+        "en": "Use a cream background with thick black outlines and vintage hand-drawn illustrations. Combine contrasting coral, mint green, bright yellow and warm brown color blocks with high-contrast bold sans-serif typography and large numerals. Place an illustrated explanation across the top and a 2×2 card grid below. Add small hand-drawn stars and radiating lines for a vivid, playful appearance with an immediately clear hierarchy."
+      },
+      "promptSource": {
+        "kind": "image-extraction",
+        "image": "/templates/template_vector_illustration.png",
+        "analysisModel": "gemini-3.8-flash",
+        "extractionPrompt": "backend/services/prompts.py:get_style_extraction_prompt",
+        "fingerprint": "676bf2cdcd7071bdd56d68f94bb65e519e8067f239d5152e59719cae463b35ea",
+        "extractedAt": "2026-10-18",
+        "englishTranslation": "Translation of the Chinese extraction; not an original generation prompt"
+      }
+    }
   },
   {
     "id": "deepseek",
@@ -117,7 +210,29 @@
     "originalTitle": "deepseek-v3.2.pdf",
     "pdf": "https://github.com/user-attachments/files/24355396/presentation_0b7a751e-b7ed-4509-9073-9d820da2a4f3.pdf",
     "source": "https://github.com/Anionex/banana-slides/issues/2#issuecomment-3694050915",
-    "author": "Anionex"
+    "author": "Anionex",
+    "creation": {
+      "model": "Nanobanana Pro",
+      "modelSource": "creator-confirmed",
+      "generationMethod": "style-prompt",
+      "stylePrompt": {
+        "zh": "视觉描述：全局视觉语言应模仿高质量印刷出版物或经典论文的排版风格，传达理性、客观和知识的厚重感。整体氛围安静、克制，没有任何干扰视线的炫光或过度设计。画面必须铺满全屏，严禁出现书本装订线、纸张边缘、卷角、阴影或任何形式的边框。背景不应该呈现三维立体，而应该以二维平面方式呈现。\n\n配色与材质：背景色严格限制为\"米白色\"（Off-white, #F8F7F2），模拟高级道林纸的质感。前景色仅使用纯黑（#000000）、深炭灰（Charcoal, #1F2937）和作为强调色的深红（Deep Red, #7F1D1D）或深蓝（Deep Blue, #1E3A8A）（这种强调色占比不超过5%）。材质完全呈现为高质量的纸质印刷效果，具有细腻的纸张纹理。\n\n内容与排版：排版必须遵循经典的版式设计原则，拥有宽阔的页边距。请使用带有衬线的字体（类似Times New Roman或Garamond）来体现传统与正式。视觉元素主要由精细的黑色线条框（Black, #000000）、标准的学术表格样式和黑白线稿插图（Black, #000000 / White, #FFFFFF）组成。布局上采用左右分栏或上下结构的严谨对齐方式。\n\n渲染要求：超高分辨率扫描件风格，强调字体的灰度抗锯齿效果和线条的锐度，画面如同精装学术期刊的内页，展现出绝对的专业性与权威性。不应该存在任何形式的页面边框，比如黑色边框或者阴影边线。",
+        "en": "Visual Description: The global visual language should emulate high-quality print publications or classic academic paper typesetting, conveying rationality, objectivity, and intellectual gravitas. The overall atmosphere is quiet and restrained, with no distracting glare or over-design. The image must fill the entire screen — no book bindings, paper edges, curled corners, shadows, or borders of any kind. The background should be presented in 2D flat style, not 3D.\n\nColor & Material: The background color is strictly Off-white (#F8F7F2), simulating premium book paper texture. Foreground colors use only pure black (#000000), Charcoal (#1F2937), and sparingly used Deep Red (#7F1D1D) or Deep Blue (#1E3A8A) as accent colors (no more than 5%). The material fully presents as high-quality printed paper with fine paper grain texture.\n\nContent & Typography: Typography must follow classic typographic design principles with generous margins. Use serif fonts (similar to Times New Roman or Garamond) to convey tradition and formality. Visual elements consist mainly of fine black line frames (#000000), standard academic table styles, and black-and-white line illustrations (#000000 / #FFFFFF). Layout uses left-right columns or top-bottom structured strict alignment.\n\nRendering: Ultra-high resolution scan style, emphasizing font grayscale anti-aliasing and line sharpness, appearing like the inner pages of a hardcover academic journal, showcasing absolute professionalism and authority. No page borders, black frames, or shadow lines should exist."
+      },
+      "promptSource": {
+        "kind": "app-preset",
+        "presetId": "academic-formal",
+        "name": {
+          "zh": "严谨学术",
+          "en": "Academic Formal"
+        },
+        "file": "frontend/src/config/presetStylesI18n.ts",
+        "key": "academicFormal",
+        "snapshotDate": "2026-10-18",
+        "mappingEvidence": "Matching deck content in the app preset preview",
+        "previewImage": "/preset-previews/academic-formal.webp"
+      }
+    }
   },
   {
     "id": "saas",
@@ -132,7 +247,29 @@
     "originalTitle": "saas服务定价.pdf",
     "pdf": "https://github.com/user-attachments/files/24355375/31721279-0ef4-4112-b022-1cacbbb5ebe3.pdf",
     "source": "https://github.com/Anionex/banana-slides/issues/2#issuecomment-3694050915",
-    "author": "Anionex"
+    "author": "Anionex",
+    "creation": {
+      "model": "Nanobanana Pro",
+      "modelSource": "creator-confirmed",
+      "generationMethod": "style-prompt",
+      "stylePrompt": {
+        "zh": "视觉描述：全局视觉语言严格对齐国际顶级咨询公司通用商务范式，强调专业、稳重、克制与可复用。全稿采用**极致扁平化**与**强秩序网格**，以信息清晰传达为唯一优先级。**禁止**渐变、发光、高光、拟物纹理、装饰性背景图案与任何非必要视觉元素。光照环境固定为**均匀演播室漫射光**：画面无方向性主光、无硬阴影、无戏剧化明暗对比，整体保持干净、透亮、冷静。\n\n配色与材质：背景色全篇锁定为海军蓝（Navy Blue，**#0B1F3B**）。所有标题与正文文字颜色固定为纯白（White，**#FFFFFF**）。唯一强调色固定为天蓝（Sky Blue，**#38BDF8**），仅用于关键数字、关键结论关键词、关键路径/连接线端点等一级强调，其使用面积占单页总面积**不超过3%**。分割线、辅助标注与次要边界仅使用浅灰（Light Gray，**#E5E7EB**）。材质表现固定为**平滑矢量色块**，**不使用**纸张纹理、颗粒噪点、金属/玻璃拟态或任何复杂材质。全稿默认**不使用阴影**；如因可读性必须使用（仅限信息卡与背景分离），阴影必须为极弱软阴影且不形成可见投影轮廓。\n\n内容与排版：版式必须遵循严格模块化网格系统，所有元素按统一对齐规则与基线系统排布，留白使用统一间距尺度，保证秩序感与一致性。页面结构固定为几何分区：标题区、主图/图表区、要点区、结论区；分区边界使用**1px细线**划分，线条颜色固定为 **#E5E7EB**（在深蓝底上保持低对比、克制呈现），**禁止**粗边框与装饰性图形。字体固定为无衬线体系：英文字体使用 **Roboto**，标题为 **Roboto Bold**，正文为 **Roboto Regular/Light**；中文字体使用 **思源黑体（Source Han Sans）**，标题为 **Heavy/Bold**，正文为 **Regular/Light**；同一层级禁止混用不同字体家族与字重。中英文混排必须统一基线与字重逻辑；强调仅允许通过字重/字号与天蓝（**#38BDF8**）实现。\n\n插图与图片规则（强制）：为保证扁平与一致性，所有视觉素材**必须**采用矢量插画形式，统一为**白色线稿**（**#FFFFFF**），关键部件或关键路径仅用天蓝（**#38BDF8**）点亮；**禁止**直接使用彩色照片、写实渲染、复杂背景与高细节纹理。线条粗细必须统一，转角规整，保持工程图式的简洁与理性。\n\n图表与图形：所有图表必须为**2D扁平矢量**，线宽统一、角度规整、无渐变与无立体效果。默认允许的图表类型仅限：**柱状图、折线图、流程/架构框图**；除非必须表达占比结构且分类不超过5类，否则**禁止饼图**。图表配色固定为白（**#FFFFFF**）为主体，天蓝（**#38BDF8**）仅用于关键数据点/关键路径高亮，浅灰（**#E5E7EB**）仅用于辅助刻度与分隔线。标注数量最小化，所有文本与数值严格对齐，图例与装饰网格一律从简。\n\n渲染要求：全稿输出为超高清矢量插画与商务信息图风格，所有文字与图形边缘必须锐利无锯齿，线条干净、层级稳定、对比克制，整体呈现严谨的企业级商务美学，适用于世界500强企业正式汇报场景。",
+        "en": "Visual Description: The global visual language strictly aligns with the universal business paradigm of top-tier international consulting firms, emphasizing professionalism, stability, restraint, and reusability. The entire presentation adopts **extreme flat design** and **strong ordered grids**, with clear information delivery as the sole priority. **Prohibit** gradients, glows, highlights, skeuomorphic textures, decorative background patterns, and any unnecessary visual elements. The lighting environment is fixed to **uniform studio diffused light**: no directional key light, no hard shadows, no dramatic light-dark contrast, maintaining a clean, bright, and calm overall appearance.\n\nColor & Material: The background color is locked throughout to Navy Blue (**#0B1F3B**). All heading and body text colors are fixed to pure white (White, **#FFFFFF**). The only accent color is fixed to Sky Blue (**#38BDF8**), used exclusively for key numbers, key conclusion keywords, key paths/connection line endpoints, and other primary emphasis, with its usage area **not exceeding 3%** of the total single-page area. Dividing lines, auxiliary annotations, and secondary boundaries use only Light Gray (**#E5E7EB**). Material expression is fixed to **smooth vector color blocks**; **do not use** paper textures, grain noise, metal/glass skeuomorphism, or any complex materials. The entire presentation defaults to **no shadows**; if shadows must be used for readability (limited to information cards separating from background), shadows must be extremely weak soft shadows without visible projection outlines.\n\nContent & Typography: Layout must follow a strict modular grid system, with all elements arranged according to unified alignment rules and baseline systems, using unified spacing scales for whitespace to ensure order and consistency. Page structure is fixed to geometric partitions: title area, main image/chart area, key points area, conclusion area; partition boundaries use **1px thin lines** for division, with line color fixed to **#E5E7EB** (maintaining low contrast and restrained presentation on dark blue background), **prohibit** thick borders and decorative graphics. Fonts are fixed to sans-serif system: English fonts use **Roboto**, headings use **Roboto Bold**, body text uses **Roboto Regular/Light**; Chinese fonts use **Source Han Sans**, headings use **Heavy/Bold**, body text uses **Regular/Light**; the same hierarchy prohibits mixing different font families and weights. Mixed Chinese-English text must unify baseline and weight logic; emphasis is only allowed through font weight/font size and Sky Blue (**#38BDF8**).\n\nIllustration & Image Rules (Mandatory): To ensure flatness and consistency, all visual materials **must** adopt vector illustration form, unified as **white line art** (**#FFFFFF**), with key components or key paths only highlighted using Sky Blue (**#38BDF8**); **prohibit** direct use of color photographs, realistic rendering, complex backgrounds, and high-detail textures. Line thickness must be unified, corners regular, maintaining the simplicity and rationality of engineering drawings.\n\nCharts & Graphics: All charts must be **2D flat vectors**, with unified line width, regular angles, no gradients, and no 3D effects. Default allowed chart types are limited to: **bar charts, line charts, flow/architecture block diagrams**; **prohibit pie charts** unless it is necessary to express proportional structure and categories do not exceed 5. Chart color scheme is fixed to white (**#FFFFFF**) as the main body, Sky Blue (**#38BDF8**) only for key data points/key path highlights, Light Gray (**#E5E7EB**) only for auxiliary scales and dividing lines. Minimize annotations, strictly align all text and values, simplify legends and decorative grids.\n\nRendering Requirements: The entire presentation outputs as ultra-high-definition vector illustrations and business infographic style. All text and graphic edges must be sharp without aliasing, lines clean, hierarchy stable, contrast restrained, overall presenting rigorous enterprise-level business aesthetics, suitable for Fortune 500 formal presentation scenarios."
+      },
+      "promptSource": {
+        "kind": "app-preset",
+        "presetId": "business-simple",
+        "name": {
+          "zh": "简约商务",
+          "en": "Business Simple"
+        },
+        "file": "frontend/src/config/presetStylesI18n.ts",
+        "key": "businessSimple",
+        "snapshotDate": "2026-10-18",
+        "mappingEvidence": "Matching deck content in the app preset preview",
+        "previewImage": "/preset-previews/business-simple.webp"
+      }
+    }
   },
   {
     "id": "quantum",
@@ -147,7 +284,29 @@
     "originalTitle": "量子计算机的应用.pdf",
     "pdf": "https://github.com/user-attachments/files/24355373/presentation_044bfb66-3561-49e4-8422-d414046e50c1.pdf",
     "source": "https://github.com/Anionex/banana-slides/issues/2#issuecomment-3694050915",
-    "author": "Anionex"
+    "author": "Anionex",
+    "creation": {
+      "model": "Nanobanana Pro",
+      "modelSource": "creator-confirmed",
+      "generationMethod": "style-prompt",
+      "stylePrompt": {
+        "zh": "视觉描述：全局视觉语言要融合赛博朋克与现代SaaS产品的未来感。整体氛围神秘、深邃且富有动感，仿佛置身于高科技的数据中心或虚拟空间。光照采用暗调环境下的自发光效果，模拟霓虹灯管和激光的辉光。\n\n配色与材质：背景色采用深邃的\"午夜黑\"（Midnight Black, #0B0F19），以衬托前景的亮度。主色调使用高饱和度的\"电光蓝\"（Electric Blue, #00A3FF）与\"赛博紫\"（Cyber Purple, #7C3AED）进行线性渐变，营造出流动的能量感。材质上大量运用半透明的玻璃、发光的网格线以及带有金属光泽的几何体。\n\n内容与排版：画面中应包含悬浮的3D几何元素（如立方体、四面体或芯片结构），这些元素应带有线框渲染（Wireframe）效果。排版布局倾向于不对称的动态平衡，使用具有科技感的等宽字体或现代无衬线体。背景中可以隐约添加电路板纹理、二进制代码流或点阵地图作为装饰，增加细节密度。\n\n渲染要求：Octane Render渲染风格，强调光线追踪、辉光（Bloom）效果和景深控制，呈现出精细的粒子特效和充满科技张力的视觉冲击力。",
+        "en": "Visual Description: The global visual language should blend cyberpunk with modern SaaS product futurism. The overall atmosphere is mysterious, deep, and dynamic, as if set inside a high-tech data center or virtual space. Lighting uses self-luminous effects in a dark environment, simulating neon tubes and laser glow.\n\nColor & Material: The background is a deep Midnight Black (#0B0F19) to contrast with foreground brightness. The primary palette uses high-saturation Electric Blue (#00A3FF) and Cyber Purple (#7C3AED) in linear gradients, creating a flowing energy feel. Materials heavily feature translucent glass, glowing grid lines, and metallic-sheen geometric shapes.\n\nContent & Typography: The scene should contain floating 3D geometric elements (cubes, tetrahedrons, or chip structures) with wireframe rendering effects. Layout favors asymmetric dynamic balance, using tech-feel monospace or modern sans-serif fonts. The background may subtly include circuit board textures, binary code streams, or dot-matrix maps as decorative detail.\n\nRendering: Octane Render style, emphasizing ray tracing, bloom effects, and depth of field control, presenting refined particle effects and tech-driven visual impact."
+      },
+      "promptSource": {
+        "kind": "app-preset",
+        "presetId": "tech-modern",
+        "name": {
+          "zh": "现代科技",
+          "en": "Tech Modern"
+        },
+        "file": "frontend/src/config/presetStylesI18n.ts",
+        "key": "techModern",
+        "snapshotDate": "2026-10-18",
+        "mappingEvidence": "Matching deck content in the app preset preview",
+        "previewImage": "/preset-previews/tech-modern.webp"
+      }
+    }
   },
   {
     "id": "moutai",
@@ -162,7 +321,29 @@
     "originalTitle": "茅台的起源和发展.pdf",
     "pdf": "https://github.com/user-attachments/files/24355400/presentation_9e878cae-9f80-4b79-be16-a62c7055918b.pdf",
     "source": "https://github.com/Anionex/banana-slides/issues/2#issuecomment-3694050915",
-    "author": "Anionex"
+    "author": "Anionex",
+    "creation": {
+      "model": "Nanobanana Pro",
+      "modelSource": "creator-confirmed",
+      "generationMethod": "style-prompt",
+      "stylePrompt": {
+        "zh": "视觉描述：全局视觉语言要融合高端腕表广告或五星级酒店的品牌形象。整体氛围神秘、高贵、独一无二。光照采用戏剧性的伦勃朗光或聚光灯效果，重点照亮关键元素，其余部分隐没在黑暗中。\n\n配色与材质：背景色严格锁定为深沉的\"曜石黑\"（Obsidian Black, #0B0B0F）。前景色主要由\"香槟金\"（Champagne Gold, #F7E7CE）构成。材质上必须体现昂贵的触感，核心组合为：背景呈现哑光黑天鹅绒质感，前景装饰呈现拉丝金属质感。\n\n内容与排版：排版采用经典的居中对齐或对称布局，强调仪式感。字体必须使用高雅的衬线体（Serif），字间距适当加宽以体现尊贵。画面中可以加入细致的金色边框线条、Art Deco风格的装饰纹样。如果有3D物体，应呈现出珠宝般的抛光质感。\n\n渲染要求：电影级写实渲染，强调材质的物理属性（PBR），特别是金属的高光反射和丝绒的漫反射细节，画面呈现出奢侈品广告大片的高级质感。",
+        "en": "Visual Description: The global visual language should blend luxury watch advertising with five-star hotel brand imagery. The overall atmosphere is mysterious, noble, and unique. Lighting uses dramatic Rembrandt lighting or spotlight effects, illuminating key elements while the rest fades into darkness.\n\nColor & Material: The background is strictly locked to deep Obsidian Black (#0B0B0F). Foreground colors primarily consist of Champagne Gold (#F7E7CE). Materials must convey an expensive tactile quality — the core combination is: matte black velvet texture for backgrounds, brushed metal texture for foreground decorations.\n\nContent & Typography: Layout uses classic centered or symmetrical alignment, emphasizing ceremonial feel. Fonts must be elegant serif typefaces with slightly widened letter spacing to convey prestige. The scene may include delicate gold border lines and Art Deco decorative patterns. Any 3D objects should have a jewel-like polished quality.\n\nRendering: Cinematic photorealistic rendering, emphasizing physical material properties (PBR), particularly metallic specular reflections and velvet diffuse reflection details, presenting luxury advertising campaign-level premium quality."
+      },
+      "promptSource": {
+        "kind": "app-preset",
+        "presetId": "luxury-premium",
+        "name": {
+          "zh": "高端奢华",
+          "en": "Luxury Premium"
+        },
+        "file": "frontend/src/config/presetStylesI18n.ts",
+        "key": "luxuryPremium",
+        "snapshotDate": "2026-10-18",
+        "mappingEvidence": "Matching deck content in the app preset preview",
+        "previewImage": "/preset-previews/luxury-premium.webp"
+      }
+    }
   },
   {
     "id": "gen-z",
@@ -177,6 +358,28 @@
     "originalTitle": "z时代年轻人.pdf",
     "pdf": "https://github.com/user-attachments/files/24355405/presentation_c23ea875-16f3-4b30-aa62-457d05c6a972.pdf",
     "source": "https://github.com/Anionex/banana-slides/issues/2#issuecomment-3694050915",
-    "author": "Anionex"
+    "author": "Anionex",
+    "creation": {
+      "model": "Nanobanana Pro",
+      "modelSource": "creator-confirmed",
+      "generationMethod": "style-prompt",
+      "stylePrompt": {
+        "zh": "视觉描述：全局视觉语言对标现代科技独角兽公司（如Stripe或Linear）的官网视觉，呈现一种极光般的流动美感。整体氛围梦幻、通透且富有呼吸感，避免刺眼的撞色，强调色彩之间的优雅融合。\n\n配色与材质：背景即前景，使用全屏的弥散渐变色。配色方案采用高雅且和谐的\"全息色系\"，以深邃的\"宝石蓝\"（Royal Blue, #2563EB）为基底，平滑过渡到\"紫罗兰\"（Violet, #7C3AED）和明亮的\"洋红色\"（Magenta, #DB2777）。颜色之间如水彩般晕染，没有生硬的边界。材质上锁定为\"磨砂玻璃（Frosted Glass）\"质感，让色彩看起来像是透过一层雾面屏透出来的，增加朦胧的高级感。插画使用有质感的半立体彩色设计。\n\n内容与排版：画面核心是缓慢流动的有机波浪形状，形态柔和自然。排版上使用醒目的粗体无衬线字（Bold Sans-serif），文字颜色为纯白（#FFFFFF），以确保在多彩背景上的绝对清晰度。界面元素采用\"玻璃拟态\"（Glassmorphism），即高透明度的白色圆角卡片，带有细腻的白色描边和背景模糊效果。\n\n渲染要求：C4D流体模拟渲染，强调\"丝绸\"般的顺滑光泽，配合轻微的噪点（Grain）增加质感，色彩饱满但不刺眼，展现出流光溢彩的现代数字美学。",
+        "en": "Visual Description: The global visual language benchmarks modern tech unicorn companies (such as Stripe or Linear) website visuals, presenting an aurora-like flowing beauty. The overall atmosphere is dreamy, translucent, and breathable, avoiding harsh color clashes and emphasizing elegant color fusion.\n\nColor & Material: The background IS the foreground, using full-screen diffused gradients. The palette uses elegant and harmonious \"holographic colors,\" with a deep Royal Blue (#2563EB) base smoothly transitioning to Violet (#7C3AED) and bright Magenta (#DB2777). Colors blend like watercolors without hard boundaries. The material is locked to \"frosted glass\" texture, making colors appear as if glowing through a matte screen, adding an elegant haziness. Illustrations use textured semi-dimensional colorful designs.\n\nContent & Typography: The visual core consists of slowly flowing organic wave shapes with soft, natural forms. Typography uses bold sans-serif fonts, with text color in pure white (#FFFFFF) to ensure absolute clarity on the multicolored background. Interface elements use glassmorphism — highly transparent white rounded cards with subtle white borders and background blur effects.\n\nRendering: C4D fluid simulation rendering, emphasizing \"silk-like\" smooth sheen, with subtle grain for texture. Colors are saturated but not glaring, showcasing an iridescent modern digital aesthetic."
+      },
+      "promptSource": {
+        "kind": "app-preset",
+        "presetId": "gradient-vibrant",
+        "name": {
+          "zh": "渐变活力",
+          "en": "Gradient Vibrant"
+        },
+        "file": "frontend/src/config/presetStylesI18n.ts",
+        "key": "gradientVibrant",
+        "snapshotDate": "2026-10-18",
+        "mappingEvidence": "Matching deck content in the app preset preview",
+        "previewImage": "/preset-previews/gradient-vibrant.webp"
+      }
+    }
   }
 ]

@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { animate, motion, useMotionValueEvent, useReducedMotion, useTransform, type MotionValue } from 'motion/react';
-import { ArrowUp, ArrowDown } from 'lucide-react';
 import type { GalleryPan } from './CurvedGallery';
 import type { GalleryDeck } from './types';
 
@@ -22,8 +21,8 @@ function WheelPage({ deck, index, slot, progress, reduced, language, onLoad }: {
   </motion.figure>;
 }
 
-export function WheelDeck({ deck, language, enteredAt, onExit, onHorizontal, pan, position, progress }: {
-  deck: GalleryDeck; language: 'zh' | 'en'; enteredAt: number; onExit: () => void; onHorizontal: (direction: number) => void; pan: MutableRefObject<GalleryPan | null>; position: MotionValue<number>; progress: MotionValue<number>;
+export function WheelDeck({ deck, language, enteredAt, initialWheel = 0, onExit, onHorizontal, pan, position, progress }: {
+  deck: GalleryDeck; language: 'zh' | 'en'; enteredAt: number; initialWheel?: number; onExit: () => void; onHorizontal: (direction: number) => void; pan: MutableRefObject<GalleryPan | null>; position: MotionValue<number>; progress: MotionValue<number>;
 }) {
   const element = useRef<HTMLDivElement>(null);
   const opacity = useTransform(position, x => 1 - Math.min(1, Math.abs(x) / ((element.current?.clientWidth || 540) * .6)));
@@ -33,6 +32,7 @@ export function WheelDeck({ deck, language, enteredAt, onExit, onHorizontal, pan
   const horizontalTimer = useRef<number>();
   const horizontalDelta = useRef<number | null>(null);
   const rewinding = useRef(false);
+  const consumedWheel = useRef<number | null>(null);
   const animation = useRef<ReturnType<typeof animate>>();
   const inertiaFrame = useRef(0);
   const wheelMotion = useRef<{ target: number; speed: number; lastInput: number; time: number } | null>(null);
@@ -114,7 +114,7 @@ export function WheelDeck({ deck, language, enteredAt, onExit, onHorizontal, pan
   });
   useMotionValueEvent(position, 'change', value => {
     if (Math.abs(value) < 1) rewinding.current = false;
-    else if (!rewinding.current && Math.abs(progress.get() % deck.pages.length) > .001) rewind();
+    else if (element.current?.closest<HTMLElement>('.gallery-stage')?.dataset.horizontal === 'true' && !rewinding.current && Math.abs(progress.get() % deck.pages.length) > .001) rewind();
   });
   const rewind = () => {
     rewinding.current = true;
@@ -157,10 +157,17 @@ export function WheelDeck({ deck, language, enteredAt, onExit, onHorizontal, pan
         window.clearTimeout(timer.current); timer.current = window.setTimeout(coast, 100);
       } else scrollWheel(distance);
     };
+    // The event that mounts this reader is already dispatched. Consume its delta
+    // here so the first wheel notch moves the pages too.
+    const initialFrame = initialWheel && consumedWheel.current !== enteredAt ? requestAnimationFrame(() => {
+      consumedWheel.current = enteredAt;
+      const distance = initialWheel / Math.max(180, el.clientWidth * .5625);
+      if (reduced) { push(progress.get() + distance); timer.current = window.setTimeout(coast, 100); }
+      else scrollWheel(distance);
+    }) : 0;
     stage.addEventListener('wheel', wheel, { passive: false });
-    return () => { stage.removeEventListener('wheel', wheel); window.clearTimeout(timer.current); window.clearTimeout(horizontalTimer.current); stop(); };
+    return () => { cancelAnimationFrame(initialFrame); stage.removeEventListener('wheel', wheel); window.clearTimeout(timer.current); window.clearTimeout(horizontalTimer.current); stop(); };
     // Deck changes remount the reader. Callbacks use the selected deck from this render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deck.id, enteredAt, reduced]);
 
   return <motion.div className="gallery-wheel" data-page={wrap(page) + 1} data-progress={page} style={{ x: position, opacity }}>
@@ -205,11 +212,6 @@ export function WheelDeck({ deck, language, enteredAt, onExit, onHorizontal, pan
       onPointerCancel={() => { if (drag.current?.axis === 'x') pan.current?.end(); drag.current = null; go(Math.round(progress.get())); }}
     >
       {Array.from({ length: 5 }, (_, i) => page + i - 2).map(slot => <WheelPage key={slot} deck={deck} index={wrap(slot)} slot={slot} progress={progress} reduced={reduced} language={language} onLoad={() => pan.current?.paint()} />)}
-    </div>
-    <div className="gallery-page-controls">
-      <button onClick={() => go(page - 1)} aria-label={language === 'zh' ? '上一页' : 'Previous slide'}><ArrowUp size={18} /></button>
-      <span aria-live="polite" aria-atomic="true">{String(wrap(page) + 1).padStart(2, '0')} / {String(deck.pages.length).padStart(2, '0')}</span>
-      <button onClick={() => go(page + 1)} aria-label={language === 'zh' ? '下一页' : 'Next slide'}><ArrowDown size={18} /></button>
     </div>
   </motion.div>;
 }
