@@ -10,7 +10,7 @@ contrast on dark backgrounds.
 
 The cover is assembled as centered Markdown/HTML rows. It reuses these original
 brand PNGs and the original recommendation artwork. Order: brand, language links,
-one introduction paragraph, navigation, live statistics, version/license/tool
+one introduction paragraph, navigation, daily statistics, version/license/tool
 badges, recommendations, and Star / Fork with thin rules on both sides.
 Each navigation button, metric, recommendation, and support action remains a
 separate link. Mobile rows wrap naturally; there is no fixed-width HTML table.
@@ -57,10 +57,25 @@ background plates. Sponsor links remain native text links so they are visible
 and clickable even when all images fail to load. Preserve their original copy
 and destinations.
 
-Stars, forks, watchers and license remain live Shields images with neutral
-backgrounds matching GitHub's light/default dark palettes; figures are not frozen
-in local SVGs. Other custom GitHub dark palettes may show a slight background tint.
-HelloGitHub also
+Stars, forks and watchers use transparent local light/dark SVGs. The
+`Refresh README metrics` workflow refreshes them daily at 03:17 UTC (11:17 in
+China/Singapore; GitHub scheduling can be delayed), or via `workflow_dispatch`
+on `main`. Ordinary pushes do not trigger a refresh. The workflow uses GitHub's
+built-in token and commits only the six statistics SVGs when displayed values
+change, with an English Conventional Commit. No extra secret is required.
+
+Run `python3 scripts/refresh_readme_metrics.py` for a local refresh. It validates
+all three counts from one GitHub repository API response before writing. Watchers
+uses `subscribers_count`, not `watchers_count` (which is the star count). Transient
+network errors get at most three attempts with 20-second request timeouts;
+invalid data or exhausted retries fail the task and preserve the last good images.
+File-write failures roll back the batch. An upstream error SVG can be a successful
+image response, so neither alt text nor changing cache parameters is a reliable
+fallback. Never publish upstream error text as a badge or substitute zero counts.
+
+The ordinary hero renderer stays offline and never overwrites these snapshots.
+The AGPL-3.0 license SVG is static and generated locally by the hero renderer.
+HelloGitHub
 supports `theme=dark` (light fallback: `theme=neutral`). Trendshift's official
 badge embed does not expose a dark option as of 2026-10-15; `?theme=dark` returned
 the same white SVG. The dark theme uses a local palette adaptation of the official

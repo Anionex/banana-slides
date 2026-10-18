@@ -8,12 +8,16 @@ import argparse
 import html
 import json
 import re
-from urllib.parse import urlencode
 import translate_readme_incremental as i18n
 
 ROOT = i18n.ROOT
 REPO = 'https://github.com/Anionex/banana-slides'
 FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif"
+METRICS = [
+    ('star', 'Stars', 'stargazers', 'stargazers_count', 91),
+    ('fork', 'Forks', 'forks', 'forks_count', 96),
+    ('eye', 'Watchers', 'watchers', 'subscribers_count', 109),
+]
 # Exact icon nodes exported from the installed lucide-react package; see its retained ISC license.
 ICON_SOURCE = json.loads((ROOT / 'assets/readme/lucide-icons.json').read_text())
 ICONS = {name: item['body'] for name, item in ICON_SOURCE['icons'].items()}
@@ -52,6 +56,7 @@ def assets(languages):
         save('docker',svg(99,20,icon('docker',muted,0,2,15)+text('Docker Build',21,14,11,muted,400,'start'),'Docker Build'))
         save('deepwiki',svg(112,20,icon('sparkles',muted,0,2,15)+text('Ask DeepWiki',22,14,11,muted,400,'start'),'Ask DeepWiki'))
         save('version',svg(96,20,icon('tag',muted,0,2,15)+text('v0.9.0-rc.7',21,14,11,muted,400,'start'),'v0.9.0-rc.7'))
+        save('license',svg(78,22,text('AGPL-3.0',39,16,13,ink),'AGPL-3.0'))
         for name in ['star','fork','eye','license']:
             save('icon-'+name,svg(18,24,icon(name,muted,1,4,16),''))
     result[ROOT/'assets/readme/space.svg']=svg(900,8,'','')
@@ -66,16 +71,12 @@ def local(name, alt, width, height):
     return themed(lambda theme:f'./assets/readme/{name}-{theme}.svg',alt,width,height)
 
 
-def badge(endpoint, label):
-    return lambda theme: 'https://img.shields.io/'+endpoint+'?'+urlencode({'style':'flat-square','cacheSeconds':'300','label':label,'labelColor':'ffffff' if theme=='light' else '0d1117','color':'ffffff' if theme=='light' else '0d1117'})
-
-
 def template(action_urls):
     metrics=[]
-    for name, endpoint, label, destination in [('star','stars','Stars','stargazers'),('fork','forks','Forks','forks'),('eye','watchers','Watchers','watchers')]:
-        metrics.append(f'<a href="{REPO}/{destination}">'+local('icon-'+name,'',24,32)+themed(badge('github/'+endpoint+'/Anionex/banana-slides',label),'GitHub '+label,width={'star':91,'fork':96,'eye':109}[name],height=26)+'</a>')
+    for name, label, destination, _, width in METRICS:
+        metrics.append(f'<a href="{REPO}/{destination}">'+local('icon-'+name,'',24,32)+local('metric-'+name,'GitHub '+label,width,26)+'</a>')
     tech = [f'<a href="{action_urls["desktop"]}">'+local('version','v0.9.0-rc.7',106,22)+'</a>',
-            f'<a href="{REPO}/blob/main/LICENSE">'+local('icon-license','',20,27)+themed(badge('github/license/Anionex/banana-slides',''),'AGPL-3.0',width=78,height=22)+'</a>',
+            f'<a href="{REPO}/blob/main/LICENSE">'+local('icon-license','',20,27)+local('license','AGPL-3.0',78,22)+'</a>',
             local('docker','Docker Build',109,22),
             '<a href="https://deepwiki.com/Anionex/banana-slides">'+local('deepwiki','Ask DeepWiki',123,22)+'</a>']
     recommendations=(
