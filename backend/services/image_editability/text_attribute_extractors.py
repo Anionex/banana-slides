@@ -8,6 +8,7 @@
 - TextAttributeExtractorRegistry: 提取器注册表
 """
 import logging
+from services.export_control import check_export
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, asdict
 from typing import Dict, Any, List, Optional, Tuple, Union
@@ -284,7 +285,9 @@ class CaptionModelTextAttributeExtractor(TextAttributeExtractor):
             
             # 调用AI服务（需要支持图片输入的generate_json）
             # 这里假设text_provider支持带图片的generate方法
+            check_export()
             result_json = self._call_vision_model(pil_image, prompt, thinking_budget)
+            check_export()
             
             # 解析结果
             return self._parse_result(result_json)

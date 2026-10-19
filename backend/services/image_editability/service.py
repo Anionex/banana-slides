@@ -8,6 +8,7 @@
 4. 零具体实现依赖 - 完全依赖抽象接口
 """
 import logging
+from services.export_control import check_export, dependency_failed
 import math
 import uuid
 from typing import List, Optional, Tuple
@@ -110,6 +111,7 @@ class ImageEditabilityService:
             FileNotFoundError: 图片文件不存在
             ValueError: 图片格式不支持
         """
+        check_export()
         image_id = str(uuid.uuid4())[:8]
         logger.info(f"{'  ' * depth}[{image_id}] 开始处理")
         
@@ -135,6 +137,9 @@ class ImageEditabilityService:
         )
 
         # 检查提取是否有错误（根层级必须成功，否则报错）
+        check_export()
+        if extraction_result.has_error:
+            dependency_failed("版面分析失败", "layout_analysis", cause=RuntimeError(extraction_result.error))
         if extraction_result.has_error and depth == 0:
             raise RuntimeError(f"版面分析失败: {extraction_result.error}")
 
@@ -162,6 +167,8 @@ class ImageEditabilityService:
         
         # 3. 生成clean background（根据元素类型选择重绘方法）
         clean_background = None
+        if elements and not self._inpaint_registry:
+            dependency_failed("未配置背景修复服务", "inpaint")
         if self._inpaint_registry and elements:
             clean_background = self._generate_clean_background(
                 image_path=image_path,
@@ -309,8 +316,11 @@ class ImageEditabilityService:
                         element_image_path = str(output_dir / f"{idx}_{elem_type}.png")
                         cropped.save(element_image_path)
                 except Exception as e:
+                    dependency_failed("元素裁剪失败", "layout_analysis", cause=e)
                     logger.warning(f"裁剪元素 {idx} 失败: {e}")
             
+            if source_image_path and not element_image_path:
+                dependency_failed(f"元素裁剪区域无效: {idx}", "layout_analysis")
             element = EditableElement(
                 element_id=f"{image_id}_{idx}",
                 element_type=elem_type,
@@ -394,7 +404,9 @@ class ImageEditabilityService:
         
         # 从注册表获取重绘方法
         inpaint_provider = self._inpaint_registry.get_provider(element_type)
+        check_export()
         if inpaint_provider is None:
+            dependency_failed("未配置背景修复服务", "inpaint")
             logger.warning(f"{'  ' * depth}未找到重绘方法，跳过")
             return None
         
@@ -430,6 +442,8 @@ class ImageEditabilityService:
                     x0, y0, x1, y1 = bbox
                     coverage = ((x1 - x0) * (y1 - y0)) / (img_width * img_height)
                     if coverage > 0.95:
+                        if elem_type not in ('image', 'figure', 'chart', 'table'):
+                            dependency_failed("文字区域覆盖整页，无法可靠擦除原文", "inpaint")
                         continue
                 filtered_bboxes.append(bbox)
                 filtered_types.append(elem_type)
@@ -443,6 +457,7 @@ class ImageEditabilityService:
             
             # 调用注册表中选择的重绘方法
             logger.info(f"{'  ' * depth}使用 {inpaint_provider.__class__.__name__} 进行重绘")
+            check_export()
             result_img = inpaint_provider.inpaint_regions(
                 image=img,
                 bboxes=filtered_bboxes,
@@ -453,7 +468,9 @@ class ImageEditabilityService:
                 crop_box=crop_box
             )
             
+            check_export()
             if result_img is None:
+                dependency_failed("背景修复服务未返回图片", "inpaint")
                 return None
             
             # 保存结果
@@ -462,6 +479,7 @@ class ImageEditabilityService:
             return str(output_path)
         
         except Exception as e:
+            dependency_failed("背景修复失败", "inpaint", cause=e)
             logger.error(f"生成clean background失败: {e}", exc_info=True)
             return None
     
@@ -494,8 +512,8 @@ class ImageEditabilityService:
             return
         
         # 并行处理多个子元素
-        from concurrent.futures import as_completed
-        from services.public_demo import VisitorThreadPoolExecutor as ThreadPoolExecutor
+        from services.export_control import as_completed
+        from services.export_control import ExportThreadPoolExecutor as ThreadPoolExecutor
         
         def process_single_element(element):
             """处理单个子元素"""
@@ -519,6 +537,7 @@ class ImageEditabilityService:
                 return element, child_editable, None
             
             except Exception as e:
+                dependency_failed("子元素解析失败", "layout_analysis", cause=e)
                 return element, None, e
         
         logger.info(f"{'  ' * depth}  并行处理 {len(elements_to_process)} 个子元素...")
@@ -532,6 +551,7 @@ class ImageEditabilityService:
                 element, child_editable, error = future.result()
                 
                 if error:
+                    dependency_failed("子元素解析失败", "layout_analysis", cause=error)
                     logger.error(f"{'  ' * depth}  ✗ {element.element_id} 失败: {error}")
                 else:
                     element.children = child_editable.elements

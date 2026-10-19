@@ -11,6 +11,7 @@ Inpaint提供者 - 抽象不同的inpaint实现
 - InpaintProviderRegistry - 元素类型到重绘方法的映射注册表
 """
 import logging
+from services.export_control import check_export, dependency_failed
 import tempfile
 from abc import ABC, abstractmethod
 from typing import List, Optional, Dict
@@ -109,6 +110,7 @@ class DefaultInpaintProvider(InpaintProvider):
             )
             return result_img
         except Exception as e:
+            dependency_failed("背景修复失败", "inpaint", cause=e)
             logger.error(f"DefaultInpaintProvider处理失败: {e}", exc_info=True)
             return None
 
@@ -253,6 +255,7 @@ class GenerativeEditInpaintProvider(InpaintProvider):
             return clean_bg_image
         
         except Exception as e:
+            dependency_failed("背景修复失败", "inpaint", cause=e)
             logger.error(f"GenerativeEditInpaintProvider处理失败: {e}", exc_info=True)
             return None
 
@@ -315,6 +318,7 @@ class BaiduInpaintProvider(InpaintProvider):
             return Image.composite(result_image, image, mask.convert('L'))
         
         except Exception as e:
+            dependency_failed("背景修复失败", "inpaint", cause=e)
             logger.error(f"BaiduInpaintProvider处理失败: {e}", exc_info=True)
             return None
 
@@ -374,6 +378,7 @@ class HybridInpaintProvider(InpaintProvider):
         enhance_quality = kwargs.get('enhance_quality', self._enhance_quality)
         
         try:
+            check_export()
             # Step 1: 百度图像修复 - 精确去除文字
             logger.info(f"HybridInpaintProvider Step 1: 百度修复 {len(bboxes)} 个区域...")
             
@@ -390,6 +395,7 @@ class HybridInpaintProvider(InpaintProvider):
             
             logger.info("HybridInpaintProvider: 百度修复完成")
             
+            check_export()
             # Step 2: 生成式画质提升（可选）
             if enhance_quality and self._generative_provider:
                 logger.info("HybridInpaintProvider Step 2: 生成式画质提升...")
@@ -406,6 +412,7 @@ class HybridInpaintProvider(InpaintProvider):
                     logger.info("HybridInpaintProvider: 画质提升完成")
                     return enhanced_image
                 else:
+                    dependency_failed("背景画质修复未返回图片", "inpaint")
                     logger.warning("HybridInpaintProvider: 画质提升失败，返回百度修复结果")
                     return repaired_image
             else:
@@ -413,6 +420,7 @@ class HybridInpaintProvider(InpaintProvider):
                 return repaired_image
         
         except Exception as e:
+            dependency_failed("背景修复失败", "inpaint", cause=e)
             logger.error(f"HybridInpaintProvider处理失败: {e}", exc_info=True)
             return None
     
@@ -498,6 +506,7 @@ class HybridInpaintProvider(InpaintProvider):
             return enhanced_image
         
         except Exception as e:
+            dependency_failed("背景修复失败", "inpaint", cause=e)
             logger.error(f"画质提升失败: {e}", exc_info=True)
             return None
 

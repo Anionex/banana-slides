@@ -3,6 +3,7 @@
 直接HTTP调用，完全绕过SDK限制
 """
 import logging
+from services.export_control import check_export, retry_export_request, export_sleep
 import base64
 import json
 import requests
@@ -10,7 +11,7 @@ from datetime import datetime
 from io import BytesIO
 from typing import Optional
 from PIL import Image
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +71,8 @@ class VolcengineInpaintingProvider:
     @retry(
         stop=stop_after_attempt(3),  # 最多重试3次
         wait=wait_exponential(multiplier=1, min=2, max=10),  # 指数避让: 2s, 4s, 8s
-        retry=retry_if_exception_type((requests.exceptions.RequestException, Exception)),
+        retry=retry_if_exception(retry_export_request),
+        before=lambda _: check_export(), sleep=export_sleep,
         reraise=True
     )
     def inpaint_image(

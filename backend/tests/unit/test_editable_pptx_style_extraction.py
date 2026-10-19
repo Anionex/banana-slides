@@ -191,7 +191,7 @@ def test_hybrid_style_extraction_filters_null_global_results(tmp_path):
     assert failures == [("text_0", "全局识别未返回完整结果")]
 
 
-def test_hybrid_style_extraction_retries_non_dict_global_results(tmp_path):
+def test_hybrid_style_extraction_rejects_non_dict_global_results(tmp_path):
     editable_images = _make_editable_images(tmp_path)
     extractor = NonDictGlobalExtractor()
 
@@ -204,7 +204,7 @@ def test_hybrid_style_extraction_retries_non_dict_global_results(tmp_path):
         )
         assert False, "expected ExportError"
     except ExportError as exc:
-        assert extractor.calls == 3
+        assert extractor.calls == 1
         assert exc.error_type == "style_extraction"
         assert exc.error_code == "EXPORT_STYLE_INVALID_RESPONSE"
         assert "Expected dict or None" in exc.details["technical_message"]
@@ -257,7 +257,7 @@ def test_hybrid_style_extraction_keeps_last_error_when_no_global_results(tmp_pat
         )
         assert False, "expected ExportError"
     except ExportError as exc:
-        assert extractor.calls == 3
+        assert extractor.calls == 2  # one incomplete result, then exhausted provider failure
         assert exc.error_type == "style_extraction"
         assert exc.error_code == "EXPORT_STYLE_TIMEOUT"
         assert exc.details["reason"] == "timeout"

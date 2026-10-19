@@ -650,7 +650,7 @@ def test_limiter_wait_keeps_the_heartbeat_alive(app):
 
 
 def test_watchdog_failure_stays_terminal_when_export_finishes(app, db_session, tmp_path, monkeypatch):
-    """看门狗判失败后 worker 又跑完：保持 FAILED，但保留产物信息（Codex P2）。"""
+    """A terminal failure must never restart the export or publish a late artifact."""
     from PIL import Image
     from models import Page
     from services.export_service import ExportService
@@ -711,8 +711,9 @@ def test_watchdog_failure_stays_terminal_when_export_finishes(app, db_session, t
     assert stored.status == 'FAILED'
     progress = stored.get_progress()
     assert progress['error_code'] == STALLED_ERROR_CODE
-    assert progress['download_url'].endswith('demo.pptx')
-    assert progress['filename'] == 'demo.pptx'
+    assert 'download_url' not in progress
+    assert 'filename' not in progress
+    assert progress['percent'] == 88
 
 
 def test_watchdog_failure_is_terminal_for_every_task_type(app, db_session):

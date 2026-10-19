@@ -11,6 +11,7 @@
 import os
 import json
 import logging
+from services.export_control import dependency_failed
 import tempfile
 import uuid
 from abc import ABC, abstractmethod
@@ -260,6 +261,7 @@ class MinerUElementExtractor(ElementExtractor):
             content_list_files = list(mineru_dir.glob("*_content_list.json"))
             
             if not layout_file.exists() or not content_list_files:
+                dependency_failed("MinerU 解析结果文件不完整", "layout_analysis")
                 logger.warning(f"layout.json或content_list.json不存在")
                 return []
             
@@ -452,6 +454,7 @@ class MinerUElementExtractor(ElementExtractor):
             logger.info(f"MinerU提取了 {len(elements)} 个元素")
         
         except Exception as e:
+            dependency_failed("MinerU 解析结果损坏", "layout_analysis", cause=e)
             logger.error(f"MinerU提取元素失败: {e}", exc_info=True)
         
         return elements

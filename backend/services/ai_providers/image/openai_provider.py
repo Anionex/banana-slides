@@ -10,6 +10,7 @@ Two code paths:
 Resolution validation is handled at the task_manager level for all providers.
 """
 import logging
+from services.export_control import check_export, strict_export, export_request, retry_export_request, export_sleep
 import base64
 import math
 import re
@@ -273,6 +274,10 @@ class OpenAIImageProvider(ImageProvider):
         self.model = model
         self.image_api_protocol = image_api_protocol or 'auto'
     
+    def _request_client(self):
+        check_export()
+        return self.client.with_options(max_retries=0) if strict_export() else self.client
+
     def _encode_image_to_base64(self, image: Image.Image) -> str:
         """
         Encode PIL Image to base64 string
@@ -440,7 +445,8 @@ class OpenAIImageProvider(ImageProvider):
     @retry(
         stop=stop_after_attempt(_SENSENOVA_MAX_ATTEMPTS),
         wait=wait_exponential(multiplier=1, min=1, max=10),
-        retry=retry_if_exception(_is_retryable_sensenova_error),
+        retry=retry_if_exception(lambda exc: retry_export_request(exc) and _is_retryable_sensenova_error(exc)),
+        sleep=export_sleep, before=lambda _: check_export(),
         reraise=True,
         before_sleep=_log_sensenova_retry,
     )
@@ -451,6 +457,7 @@ class OpenAIImageProvider(ImageProvider):
         payload: dict,
     ) -> requests.Response:
         """POST to SenseNova with retries for transient HTTP/network errors."""
+        check_export()
         response = requests.post(
             url,
             headers=headers,
@@ -738,6 +745,7 @@ class OpenAIImageProvider(ImageProvider):
         deadline = time.monotonic() + APIMART_TASK_TIMEOUT
 
         while True:
+            check_export()
             response = requests.get(
                 endpoint,
                 headers=headers,
@@ -771,7 +779,7 @@ class OpenAIImageProvider(ImageProvider):
                 raise TimeoutError(f"apimart image task timed out after {APIMART_TASK_TIMEOUT:.0f}s")
 
             logger.debug("apimart image task %s still running (status=%s)", task_id, status or "unknown")
-            time.sleep(APIMART_TASK_POLL_INTERVAL)
+            export_sleep(APIMART_TASK_POLL_INTERVAL)
 
     def _generate_with_apimart_images_api(
         self,
@@ -799,7 +807,7 @@ class OpenAIImageProvider(ImageProvider):
             resolution,
             len(ref_images) if ref_images else 0,
         )
-        raw_response = self.client.images.with_raw_response.generate(**kwargs)
+        raw_response = export_request(self._request_client().images.with_raw_response.generate, attempts=get_config().OPENAI_MAX_RETRIES + 1, **kwargs)
         payload = self._raw_response_payload(raw_response)
         task_id = self._image_task_id(payload)
         if task_id:
@@ -838,7 +846,7 @@ class OpenAIImageProvider(ImageProvider):
                     f'data:image/jpeg;base64,{self._encode_image_to_base64(img)}'
                     for img in ref_images
                 ]}
-            raw_response = self.client.images.with_raw_response.generate(**kwargs)
+            raw_response = export_request(self._request_client().images.with_raw_response.generate, attempts=get_config().OPENAI_MAX_RETRIES + 1, **kwargs)
         elif ref_images and self.model.lower() != 'dall-e-3':
             # dall-e-3 does not support images.edit; all other native models do
             model = self.model.lower()
@@ -903,7 +911,7 @@ class OpenAIImageProvider(ImageProvider):
                 kwargs['quality'] = quality
             if response_format:
                 kwargs['response_format'] = response_format
-            raw_response = self.client.images.with_raw_response.edit(**kwargs)
+            raw_response = export_request(self._request_client().images.with_raw_response.edit, attempts=get_config().OPENAI_MAX_RETRIES + 1, **kwargs)
         else:
             if ref_images:
                 logger.warning("dall-e-3 does not support images.edit; ignoring ref_images")
@@ -913,7 +921,7 @@ class OpenAIImageProvider(ImageProvider):
                 kwargs['quality'] = quality
             if response_format:
                 kwargs['response_format'] = response_format
-            raw_response = self.client.images.with_raw_response.generate(**kwargs)
+            raw_response = export_request(self._request_client().images.with_raw_response.generate, attempts=get_config().OPENAI_MAX_RETRIES + 1, **kwargs)
 
         payload = self._raw_response_payload(raw_response)
         task_id = self._image_task_id(payload)
@@ -1091,7 +1099,7 @@ class OpenAIImageProvider(ImageProvider):
             logger.debug(f"Using extra_body: {extra_body}")
 
             # Use both system message (for basic providers) and extra_body (for advanced providers)
-            response = self.client.chat.completions.create(
+            response = export_request(self._request_client().chat.completions.create, attempts=get_config().OPENAI_MAX_RETRIES + 1,
                 model=self.model,
                 messages=[
                     {"role": "system", "content": f"aspect_ratio={aspect_ratio}, resolution={resolution}"},
@@ -1185,6 +1193,7 @@ class OpenAIImageProvider(ImageProvider):
                         image_url = markdown_matches[0]  # Use the first image URL found
                         logger.debug(f"Found Markdown image URL: {image_url}")
                         try:
+                            check_export()
                             response = requests.get(image_url, timeout=30, stream=True)
                             response.raise_for_status()
                             image = Image.open(BytesIO(response.content))
@@ -1201,6 +1210,7 @@ class OpenAIImageProvider(ImageProvider):
                         image_url = url_matches[0]
                         logger.debug(f"Found plain image URL: {image_url}")
                         try:
+                            check_export()
                             response = requests.get(image_url, timeout=30, stream=True)
                             response.raise_for_status()
                             image = Image.open(BytesIO(response.content))

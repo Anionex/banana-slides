@@ -6,12 +6,13 @@ Operates in two authentication modes selected at construction time:
   * Vertex AI mode (GCP service-account credentials via GOOGLE_APPLICATION_CREDENTIALS)
 """
 import logging
+from services.export_control import check_export, strict_export, retry_export_request, export_sleep
 from typing import Optional, List
 from google import genai
 from google.genai import types
 from PIL import Image
 from io import BytesIO
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
 from .base import ImageProvider
 from config import get_config
 from ..genai_client import make_genai_client
@@ -41,6 +42,9 @@ class GenAIImageProvider(ImageProvider):
         self.model = model
 
     @retry(
+        retry=retry_if_exception(retry_export_request),
+        sleep=export_sleep,
+        before=lambda _: check_export(),
         stop=stop_after_attempt(get_config().GENAI_MAX_RETRIES + 1),
         wait=wait_exponential(multiplier=1, min=2, max=10),
         reraise=True
@@ -100,12 +104,16 @@ class GenAIImageProvider(ImageProvider):
                     include_thoughts=True  
                 )
             
+            check_export()
+            if strict_export():
+                config_params['http_options'] = types.HttpOptions(retry_options=types.HttpRetryOptions(attempts=1))
             response = self.client.models.generate_content(
                 model=self.model,
                 contents=contents,
                 config=types.GenerateContentConfig(**config_params)
             )
             
+            check_export()
             logger.debug("GenAI API call completed")
             
             # Extract the final image from the response.

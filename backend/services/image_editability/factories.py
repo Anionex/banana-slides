@@ -2,6 +2,7 @@
 工厂类 - 负责创建和配置具体的提取器和Inpaint提供者
 """
 import logging
+from services.export_control import dependency_failed
 from typing import List, Optional, Any
 from pathlib import Path
 
@@ -606,6 +607,7 @@ class ServiceConfig:
                 extractor_registry.register_default(hybrid_extractor)
                 logger.info("✅ 混合提取器已创建（MinerU + 百度高精度OCR）")
             else:
+                dependency_failed("所选混合版面分析服务初始化失败", "config")
                 # 回退到MinerU
                 mineru_extractor = MinerUElementExtractor(parser_service, upload_path)
                 extractor_registry.register_default(mineru_extractor)
@@ -638,6 +640,7 @@ class ServiceConfig:
                 inpaint_registry.register_default(hybrid_inpaint)
                 logger.info("✅ 混合Inpaint提供者已创建（百度修复 + 生成式画质提升）")
             else:
+                dependency_failed("所选混合背景修复服务初始化失败", "config")
                 # 回退到纯生成式重绘
                 generative_provider = InpaintProviderFactory.create_generative_edit_provider(
                     ai_service=ai_service
@@ -653,6 +656,7 @@ class ServiceConfig:
                 inpaint_registry.register_default(baidu_inpaint)
                 logger.info("✅ 百度Inpaint提供者已创建（纯百度修复）")
             else:
+                dependency_failed("所选百度背景修复服务初始化失败", "config")
                 # 回退到生成式
                 generative_provider = InpaintProviderFactory.create_generative_edit_provider(
                     ai_service=ai_service

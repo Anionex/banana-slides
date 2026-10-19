@@ -4,6 +4,7 @@ Based on OpenDCAI/DataFlow-Agent's implementation
 """
 import os
 import logging
+from services.export_control import check_export, dependency_failed, strict_export
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional, Tuple
 from pathlib import Path
@@ -657,6 +658,7 @@ class PPTXBuilder:
         
         # Check if image exists
         if not os.path.exists(image_path):
+            dependency_failed("元素图片文件缺失", "image_add")
             logger.warning(f"Image not found: {image_path}, adding placeholder")
             self.add_image_placeholder(slide, bbox, dpi)
             return
@@ -672,6 +674,7 @@ class PPTXBuilder:
             slide.shapes.add_picture(image_path, left, top, width, height)
             logger.debug(f"Added image: {image_path} at bbox {bbox}")
         except Exception as e:
+            dependency_failed("元素图片写入失败", "image_add", cause=e)
             logger.error(f"Failed to add image {image_path}: {str(e)}")
             self.add_image_placeholder(slide, bbox, dpi)
     
@@ -801,7 +804,20 @@ class PPTXBuilder:
         if str(output_dir) != '.':  # Only create directory if it's not current directory
             output_dir.mkdir(parents=True, exist_ok=True)
         
-        self.prs.save(output_path)
+        if strict_export():
+            import tempfile
+            check_export()
+            with tempfile.NamedTemporaryFile(dir=output_dir, suffix='.tmp', delete=False) as tmp:
+                temporary_path = tmp.name
+            try:
+                self.prs.save(temporary_path)
+                check_export()
+                os.replace(temporary_path, output_path)
+            finally:
+                if os.path.exists(temporary_path):
+                    os.remove(temporary_path)
+        else:
+            self.prs.save(output_path)
         logger.info(f"Saved presentation to: {output_path}")
     
     def get_presentation(self) -> Presentation:

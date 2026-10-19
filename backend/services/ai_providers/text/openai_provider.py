@@ -3,6 +3,7 @@ OpenAI SDK implementation for text generation
 """
 import base64
 import logging
+from services.export_control import check_export, strict_export, retry_during_export
 from time import monotonic
 from typing import Generator
 from openai import OpenAI
@@ -59,7 +60,9 @@ class OpenAITextProvider(TextProvider):
         Returns:
             Generated text
         """
-        response = self.client.chat.completions.create(
+        check_export()
+        client = self.client.with_options(max_retries=0) if strict_export() else self.client
+        response = client.chat.completions.create(
             model=self.model,
             messages=[
                 {"role": "user", "content": prompt}
@@ -111,12 +114,15 @@ class OpenAITextProvider(TextProvider):
                 monotonic() - started, text_chars, reasoning_chars, stream_stopped(),
             )
 
+    @retry_during_export
     def generate_with_image(self, prompt: str, image_path: str, thinking_budget: int = 0) -> str:
         """Generate text with image input using OpenAI-compatible chat completions."""
         with open(image_path, "rb") as image_file:
             encoded = base64.b64encode(image_file.read()).decode("ascii")
 
-        response = self.client.chat.completions.create(
+        check_export()
+        client = self.client.with_options(max_retries=0) if strict_export() else self.client
+        response = client.chat.completions.create(
             model=self.model,
             **self._thinking_options(thinking_budget),
             messages=[
