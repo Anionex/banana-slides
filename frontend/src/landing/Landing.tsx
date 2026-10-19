@@ -26,11 +26,11 @@ import { navigateSection } from './sectionNavigation';
 const copy = {
   zh: {
     pauseAnimation: '暂停动画', playAnimation: '播放动画',
-    product: '产品能力', scenarios: '使用场景', faq: '常见问题', docs: '文档', enter: '体验 Demo', waitlistNav: '在线版内测',
+    product: '产品能力', scenarios: '使用场景', faq: '常见问题', docs: '文档', enter: '体验演示', waitlistNav: '在线版内测',
     faqIntro: '关于创作、素材与导出',
     ctaTitle: '让 PPT 创作，回归直觉', ctaAlternative: '或留下邮箱, 优先获得在线托管版内测邀请。',
     title: '让想法落地，', title2: '无需繁琐排版',
-    intro: '图像生成模型驱动的原生 AI PPT 应用。用自然语言描述想法、调整页面，从内容到视觉，生成完整的演示文稿。', start: '体验 Demo', waitlistOpen: '预约在线版内测', waitlistPlaceholder: '你的邮箱地址', waitlistSubmit: '预约内测', waitlistSubmitting: '提交中…', waitlistSuccess: '已收到预约，内测开放时我们会通过邮件联系你。', waitlistError: '提交失败，请稍后重试。', waitlistInvalid: '请输入有效的邮箱地址。', waitlistRateLimited: '提交较频繁，请稍后再试。',
+    intro: '图像生成模型驱动的原生 AI PPT 应用。用自然语言描述想法、调整页面，从内容到视觉，生成完整的演示文稿。', start: '体验演示', waitlistOpen: '预约在线版内测', waitlistPlaceholder: '你的邮箱地址', waitlistSubmit: '预约内测', waitlistSubmitting: '提交中…', waitlistSuccess: '已收到预约，内测开放时我们会通过邮件联系你。', waitlistError: '提交失败，请稍后重试。', waitlistInvalid: '请输入有效的邮箱地址。', waitlistRateLimited: '提交较频繁，请稍后再试。',
     strip1: '一句话生成', strip2: '资料智能解析', strip3: '自然语言修改', strip4: '多格式导出',
     featureTitle: '全新的 PPT 制作体验',
     featureIntro: '每一页都由 AI 原生渲染，让内容结构与视觉设计一起成型。',

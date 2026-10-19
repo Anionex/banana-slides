@@ -7,7 +7,8 @@ import { Home } from './Home';
 import manifest from '../landing/gallery/manifest.json';
 import { galleryStyleHref } from '../utils/galleryStyle';
 
-vi.mock('@/utils/publicDemo', () => ({ isPublicDemo: true, visitorHeaders: () => ({}) }));
+const demoConfig = vi.hoisted(() => ({ enabled: true }));
+vi.mock('@/utils/publicDemo', () => ({ get isPublicDemo() { return demoConfig.enabled; }, visitorHeaders: () => ({}) }));
 vi.mock('@/store/useProjectStore', () => ({ useProjectStore: () => ({ isGlobalLoading: false }) }));
 vi.mock('@/api/endpoints', async importOriginal => ({
   ...await importOriginal<typeof import('../api/endpoints')>(),
@@ -25,7 +26,7 @@ vi.mock('@/components/shared', async () => {
     useToast: () => ({ show: vi.fn(), ToastContainer: Empty }),
     MaterialGeneratorModal: Empty, MaterialCenterModal: Empty, MaterialSelector: Empty,
     ReferenceFileList: Empty, ReferenceFileSelector: Empty, FilePreviewModal: Empty,
-    HelpModal: ({ isOpen }: { isOpen: boolean }) => isOpen ? <div>Onboarding dialog</div> : null,
+    HelpModal: ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => isOpen ? <div>Onboarding dialog<button onClick={onClose}>Finish help</button></div> : null,
     Footer: Empty, GithubRepoCard: Empty,
   };
 });
@@ -34,10 +35,12 @@ describe('Home gallery style entry', () => {
   beforeEach(() => {
     localStorage.clear();
     sessionStorage.clear();
+    demoConfig.enabled = true;
     HTMLElement.prototype.scrollIntoView = vi.fn();
   });
 
   it.each(['zh', 'en'] as const)('opens the real style editor with the complete %s prompt, preserves topic and allows edits', async language => {
+    localStorage.setItem('hasSeenPublicDemoNotice', 'true');
     const deck = manifest.find(item => item.id === 'gen-z')!;
     sessionStorage.setItem('home-draft-content', 'My existing presentation topic');
     render(<React.StrictMode><MemoryRouter initialEntries={[galleryStyleHref(deck.id, language)]}><Home /></MemoryRouter></React.StrictMode>);
@@ -54,5 +57,43 @@ describe('Home gallery style entry', () => {
     localStorage.setItem('hasSeenHelpModal', 'true');
     render(<MemoryRouter initialEntries={['/app']}><Home /></MemoryRouter>);
     expect(screen.getByText('Image templates')).toBeInTheDocument();
+  });
+
+  it('shows the demo notice only after a new visitor closes help, then remembers dismissal', async () => {
+    const view = render(<MemoryRouter initialEntries={['/app']}><Home /></MemoryRouter>);
+    await screen.findByText('Onboarding dialog');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Finish help' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent(/该网址目前仅作应用演示|This website is currently an application demo/);
+    expect(screen.queryByText('Onboarding dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /GitHub/ })).toHaveAttribute('href', 'https://github.com/Anionex/banana-slides/releases');
+    fireEvent.click(screen.getByRole('button', { name: /我已了解|Got it/ }));
+    view.unmount();
+    render(<MemoryRouter initialEntries={['/app']}><Home /></MemoryRouter>);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('shows the new notice to returning demo visitors who have already seen help', async () => {
+    localStorage.setItem('hasSeenHelpModal', 'true');
+    render(<MemoryRouter initialEntries={['/app']}><Home /></MemoryRouter>);
+    expect(await screen.findByRole('dialog')).toHaveTextContent(/应用演示说明|About this demo/);
+    expect(screen.queryByText('Onboarding dialog')).not.toBeInTheDocument();
+  });
+
+  it('keeps focus in the notice before focusing a gallery style on dismissal', async () => {
+    const deck = manifest.find(item => item.id === 'gen-z')!;
+    render(<MemoryRouter initialEntries={[galleryStyleHref(deck.id, 'zh')]}><Home /></MemoryRouter>);
+    const acknowledge = await screen.findByRole('button', { name: /我已了解|Got it/ });
+    expect(acknowledge).toHaveFocus();
+    fireEvent.click(acknowledge);
+    await waitFor(() => expect(screen.getByDisplayValue(deck.creation.stylePrompt.zh, { normalizer: value => value })).toHaveFocus());
+  });
+
+  it('does not show the demo notice on a non-demo installation', async () => {
+    demoConfig.enabled = false;
+    render(<MemoryRouter initialEntries={['/']}><Home /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: 'Finish help' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });

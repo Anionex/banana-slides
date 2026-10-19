@@ -19,6 +19,7 @@ import logoUrl from '@/assets/logo.png';
 import { ASPECT_RATIO_OPTIONS } from '@/config/aspectRatio';
 import { isDesktop } from '@/utils';
 import { galleryStyleFromSearch } from '@/utils/galleryStyle';
+import { DemoNoticeModal, DEMO_NOTICE_SEEN_KEY } from '@/components/shared/DemoNoticeModal';
 
 type CreationType = 'idea' | 'outline' | 'description' | 'ppt_renovation';
 
@@ -224,6 +225,7 @@ export const Home: React.FC = () => {
   const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
   const [isMaterialCenterOpen, setIsMaterialCenterOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
+  const [isDemoNoticeOpen, setIsDemoNoticeOpen] = useState(false);
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [userTemplates, setUserTemplates] = useState<UserTemplate[]>([]);
@@ -276,9 +278,8 @@ export const Home: React.FC = () => {
 
   // 首次访问自动弹出帮助模态框
   useEffect(() => {
-    if (galleryStyle) return;
     const hasSeenHelp = localStorage.getItem('hasSeenHelpModal');
-    if (!hasSeenHelp) {
+    if (!hasSeenHelp && !galleryStyle) {
       // 延迟500ms打开，让页面先渲染完成
       const timer = setTimeout(() => {
         setIsHelpModalOpen(true);
@@ -286,16 +287,31 @@ export const Home: React.FC = () => {
       }, 500);
       return () => clearTimeout(timer);
     }
+    if (isPublicDemo && !localStorage.getItem(DEMO_NOTICE_SEEN_KEY)) {
+      setIsDemoNoticeOpen(true);
+    }
   }, [galleryStyle]);
 
+  const closeHelpModal = () => {
+    setIsHelpModalOpen(false);
+    if (isPublicDemo && !localStorage.getItem(DEMO_NOTICE_SEEN_KEY)) {
+      setIsDemoNoticeOpen(true);
+    }
+  };
+
+  const closeDemoNotice = () => {
+    localStorage.setItem(DEMO_NOTICE_SEEN_KEY, 'true');
+    setIsDemoNoticeOpen(false);
+  };
+
   useEffect(() => {
-    if (!galleryStyle) return;
+    if (!galleryStyle || isDemoNoticeOpen) return;
     const frame = requestAnimationFrame(() => {
       styleSectionRef.current?.scrollIntoView({ block: 'center' });
       styleSectionRef.current?.querySelector('textarea')?.focus({ preventScroll: true });
     });
     return () => cancelAnimationFrame(frame);
-  }, [galleryStyle]);
+  }, [galleryStyle, isDemoNoticeOpen]);
 
   useEffect(() => {
     const action = searchParams.get('action');
@@ -1353,10 +1369,11 @@ export const Home: React.FC = () => {
       
       <FilePreviewModal fileId={previewFileId} onClose={() => setPreviewFileId(null)} />
       {/* 帮助模态框 */}
-      <HelpModal
-        isOpen={isHelpModalOpen}
-        onClose={() => setIsHelpModalOpen(false)}
-      />
+      {isDemoNoticeOpen ? (
+        <DemoNoticeModal onClose={closeDemoNotice} />
+      ) : (
+        <HelpModal isOpen={isHelpModalOpen} onClose={closeHelpModal} />
+      )}
       {/* Footer */}
       <Footer />
     </div>

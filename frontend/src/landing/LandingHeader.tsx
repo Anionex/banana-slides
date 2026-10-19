@@ -26,7 +26,7 @@ export function LandingHeader({ language, currentPage = 'home' }: { language: 'z
     actions={<>
       <a className="landing-github-icon" href="https://github.com/Anionex/banana-slides" target="_blank" rel="noopener noreferrer" aria-label="GitHub"><Github size={19} aria-hidden="true" /></a>
       <LanguageMenu /><ThemeToggle />
-      <a className="studio-button studio-button-dark" href="/app">{zh ? '体验 Demo' : 'Try the demo'}<ArrowUpRight size={15} /></a>
+      <a className="studio-button studio-button-dark" href="/app">{zh ? '体验演示' : 'Try the demo'}<ArrowUpRight size={15} /></a>
     </>}
   />;
 }
