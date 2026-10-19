@@ -6,7 +6,7 @@ if (process.env.VITE_PUBLIC_LANDING !== 'true') process.exit(0);
 const temporary = path.resolve('.landing-ssr');
 try {
   await build({ build: { ssr: 'src/landing/prerender.tsx', outDir: temporary, emptyOutDir: true }, logLevel: 'error' });
-  const { render, decks, landingSeo, siteUrl, structuredData } = await import(pathToFileURL(path.join(temporary, 'prerender.js')));
+  const { render, decks, landingSeo, siteUrl, structuredData, installMarketingScrollRestoration } = await import(pathToFileURL(path.join(temporary, 'prerender.js')));
   await Promise.all(['cover.png','cover-en.png'].map(file=>readFile('public/social/'+file))); // Fail the build if the advertised cover is missing.
   const template = await readFile('dist/index.html', 'utf8');
   const manifest = JSON.parse(await readFile('dist/.vite/manifest.json', 'utf8'));
@@ -35,9 +35,10 @@ try {
     <script type="application/ld+json">${JSON.stringify(gallery ? { '@context': 'https://schema.org', '@type': deck ? 'WebPage' : 'CollectionPage', name: seo.title, url, description: seo.description } : structuredData).replaceAll('<', '\\u003c')}</script>
     ${[...styles].map(file => `<link rel="stylesheet" href="/${file}" />`).join('\n')}
     <script>(function(){if(!/^\\/(en\\/?|landing\\/?|(?:en\\/)?gallery(?:\\/[a-z0-9-]+)?\\/?)?$/.test(location.pathname)){document.documentElement.dataset.appShell='true';return;}try{var p=localStorage.getItem('banana-landing-theme');document.documentElement.dataset.landingTheme=p==='dark'||(p!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light'}catch(e){document.documentElement.dataset.landingTheme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}})();</script>
-    <style>html[data-app-shell] #root > .landing-page{display:none}</style>
+    <script>(${installMarketingScrollRestoration.toString()})();</script>
+    <style>html[data-app-shell] #root > .landing-page{display:none}html[data-marketing-scroll="restoring"] #root{visibility:hidden}</style>
     <noscript><style>.landing-page [style*="opacity:0"],.landing-page [style*="opacity: 0"]{opacity:1!important;filter:none!important;transform:none!important}.landing-feedback,.landing-nav-actions>button,.landing-cta form,.landing-audience-selector nav{display:none!important}.landing-faq-answer{grid-template-rows:1fr!important;opacity:1!important;visibility:visible!important}</style></noscript>`;
-    const html = template.replace(/<html lang="[^"]+"/, `<html lang="${seo.lang}"`).replace(/<title>.*?<\/title>/, `<title>${escape(seo.title)}</title>`).replace('</head>', head + '\n</head>').replace('<div id="root"></div>', `<div id="root">${await render(language, gallery, deck?.id)}</div>`);
+    const html = template.replace(/<html lang="[^"]+"/, `<html lang="${seo.lang}"`).replace(/<title>.*?<\/title>/, `<title>${escape(seo.title)}</title>`).replace('</head>', head + '\n</head>').replace('<div id="root"></div>', `<div id="root">${await render(language, gallery, deck?.id)}</div><script>document.dispatchEvent(new Event('marketing:content-ready'));</script>`);
     const directory = 'dist' + seo.path.replace(/\/$/, '');
     await mkdir(directory, { recursive: true });
     await writeFile(`${directory}/index.html`, html);

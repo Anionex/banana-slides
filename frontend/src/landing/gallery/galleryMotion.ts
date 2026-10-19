@@ -6,7 +6,7 @@ export class GalleryMotion {
   target = 0;
   lastInput = 0;
   private lastPointer = 0;
-  private snapSpeed = 3; // CSS pixels/second; never capture a fast release.
+  private snapSpeed = 30; // Capture the slow tail before it feels unresponsive.
 
   constructor(public step: number) {}
 
@@ -62,13 +62,13 @@ export class GalleryMotion {
     }
     // Closed-form critically damped spring: frame-rate independent, no overshoot
     // from rest, and velocity survives both interruption and coast-to-snap.
-    const omega = this.phase === 'wheel' ? 24 : 10;
+    const omega = this.phase === 'wheel' ? 24 : 14;
     const offset = this.position - this.target;
     const term = (this.velocity + omega * offset) * dt;
     const decay = Math.exp(-omega * dt);
     this.position = this.target + (offset + term) * decay;
     this.velocity = (this.velocity - omega * term) * decay;
-    if (this.phase === 'snap' && Math.abs(this.position - this.target) < .025 && Math.abs(this.velocity) < .1) this.jump(this.target);
+    if (this.phase === 'snap' && Math.abs(this.position - this.target) < .25 && Math.abs(this.velocity) < 3) this.jump(this.target);
   }
 }
 

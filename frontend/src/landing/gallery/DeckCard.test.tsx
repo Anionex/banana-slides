@@ -25,33 +25,46 @@ describe('card slide readiness', () => {
     expect(view.container.querySelector('.collection-pagination')).toHaveTextContent('总览');
     expect(view.getByRole('button', { name: `${deck.title.zh} 上一页` })).toBeDisabled();
     expect(view.getByRole('button', { name: `浏览整套作品：${deck.title.zh}` })).toBeInTheDocument();
-    await waitFor(() => expect(view.container.querySelectorAll('img')).toHaveLength(1));
+    await waitFor(() => expect(view.container.querySelectorAll('.collection-slide img')).toHaveLength(0));
+  });
+
+  it('keeps the overview until the first slide decodes', async () => {
+    const view = render(card(0, true));
+    view.rerender(card(0, false));
+    const retained = view.container.querySelector('.collection-overview-retained');
+    const image = view.container.querySelector('.collection-slide img')!;
+    const ready = holdDecode(image as HTMLImageElement);
+    expect(retained).toHaveAttribute('data-visible', 'true');
+    expect(image.closest('.collection-image')).toHaveAttribute('aria-busy', 'true');
+    await ready();
+    await waitFor(() => expect(retained).toHaveAttribute('data-visible', 'false'));
+    expect(image.closest('.collection-image')).toHaveAttribute('aria-busy', 'false');
   });
 
   it('keeps the previous slide opaque until the requested image has decoded', async () => {
     const view = render(card(0));
-    const first = view.container.querySelector('img')!;
+    const first = view.container.querySelector<HTMLImageElement>('.collection-slide img')!;
     await holdDecode(first)();
     view.rerender(card(1));
-    const incoming = view.container.querySelectorAll('img')[1];
+    const incoming = view.container.querySelectorAll<HTMLImageElement>('.collection-slide img')[1];
     const finishDecode = holdDecode(incoming);
     expect(first.closest('.collection-slide')).toHaveStyle({ opacity: '1' });
     expect(incoming.closest('.collection-slide')).toHaveStyle({ opacity: '0' });
     await finishDecode();
-    await waitFor(() => expect(view.container.querySelectorAll('img')).toHaveLength(1));
-    expect(view.container.querySelector('img')).toBe(incoming);
+    await waitFor(() => expect(view.container.querySelectorAll('.collection-slide img')).toHaveLength(1));
+    expect(view.container.querySelector('.collection-slide img')).toBe(incoming);
   });
 
   it('ignores stale image readiness when navigating back before decoding completes', async () => {
     const view = render(card(0));
-    const first = view.container.querySelector('img')!;
+    const first = view.container.querySelector<HTMLImageElement>('.collection-slide img')!;
     await holdDecode(first)();
     view.rerender(card(1));
-    const finishDecode = holdDecode(view.container.querySelectorAll('img')[1]);
+    const finishDecode = holdDecode(view.container.querySelectorAll<HTMLImageElement>('.collection-slide img')[1]);
     view.rerender(card(0));
     await finishDecode();
-    await waitFor(() => expect(view.container.querySelectorAll('img')).toHaveLength(1));
-    expect(view.container.querySelector('img')).toBe(first);
+    await waitFor(() => expect(view.container.querySelectorAll('.collection-slide img')).toHaveLength(1));
+    expect(view.container.querySelector('.collection-slide img')).toBe(first);
     expect(first.closest('.collection-slide')).toHaveStyle({ opacity: '1' });
   });
 });

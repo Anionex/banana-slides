@@ -15,8 +15,7 @@
 .curved-showcase .gallery-wheel-viewport { position: relative; flex: 1; min-height: 0; overflow: hidden; mask-image: linear-gradient(to bottom, transparent, #000 var(--preview-above), #000 calc(var(--preview-above) + var(--cover-width) * .5625), transparent); touch-action: pinch-zoom; cursor: grab; }
 .curved-showcase .gallery-wheel-page { position: absolute; inset: var(--preview-above) auto auto 0; margin: 0; width: 100%; aspect-ratio: 16 / 9; display: flex; align-items: center; justify-content: center; }
 .curved-showcase .gallery-wheel-page[aria-hidden="true"] { pointer-events: none; visibility: visible; }
-.curved-showcase .gallery-wheel-page img { display: block; width: 100%; height: 100%; object-fit: contain; user-select: none; border-radius: 10px; }
-.curved-showcase .gallery-stage[data-horizontal="true"] .gallery-wheel-page[aria-hidden="true"] { visibility: hidden; }
+.curved-showcase .gallery-wheel-page img { display: block; width: 100%; height: 100%; object-fit: contain; user-select: none; border-radius: 12px; }
 .curved-showcase-caption { position: relative; z-index: 5; display: flex; flex-direction: column; align-items: center; gap: 2px; width: min(100%, var(--cover-width)); margin: calc(14px - var(--preview-above)) auto 8px; text-align: center; transition: margin-top .42s cubic-bezier(.22, 1, .36, 1); }
 .curved-showcase[data-reading="true"] .curved-showcase-caption { margin-top: 14px; }
 .curved-showcase-reader-actions { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .42s cubic-bezier(.22, 1, .36, 1), opacity .24s ease-out; }

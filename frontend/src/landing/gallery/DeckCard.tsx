@@ -1,4 +1,5 @@
 import { ArrowLeft, ArrowRight } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useIsPresent } from 'motion/react';
 import { type CatalogDeck, type GalleryLanguage } from './catalog';
 import { SlidePreview } from './SlidePreview';
@@ -15,6 +16,8 @@ export function DeckCard({ deck, page, language, eager, showOverview, onOverview
   const present = useIsPresent();
   const hasOverview = hasDeckOverview(deck.id);
   const overview = hasOverview && showOverview && page === 0;
+  const [waitingForSlide, setWaitingForSlide] = useState(true);
+  useEffect(() => { if (overview) setWaitingForSlide(true); }, [overview]);
   const title = deck.title[language];
   const step = (direction: number) => {
     if (overview) { if (direction > 0) onOverview(false); return; }
@@ -25,8 +28,11 @@ export function DeckCard({ deck, page, language, eager, showOverview, onOverview
   const { shouldOpen, ...swipe } = useSlideSwipe(step);
   return <article className="collection-card" data-deck={deck.id} aria-labelledby={`deck-${deck.id}`} aria-hidden={!present || undefined} {...(!present ? { inert: '' } : {})}>
     <div className="collection-stage">
-      {!overview && <SlidePreview deck={deck} page={page} language={language} eager={eager} />}
-      {overview && <DeckOverview deck={deck} language={language} eager={eager} />}
+      {!overview && <SlidePreview deck={deck} page={page} language={language} eager={eager} onReady={() => setWaitingForSlide(false)} />}
+      {hasOverview && <div className="collection-overview-retained" data-visible={overview || waitingForSlide} aria-hidden={!overview}>
+        <DeckOverview deck={deck} language={language} eager={eager} />
+      </div>}
+      {!overview && hasOverview && waitingForSlide && <span className="collection-slide-pending" role="status">{zh ? '正在加载这一页…' : 'Loading slide…'}</span>}
       {detailHref ? <a className="collection-open" href={detailHref} {...swipe}
         aria-label={zh ? `查看作品：${title}` : `View presentation: ${title}`}
         onClick={event => { if (event.detail !== 0 && !shouldOpen()) event.preventDefault(); }}

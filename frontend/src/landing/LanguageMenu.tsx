@@ -4,7 +4,7 @@ import { ChoiceMenu } from './ChoiceMenu';
 
 export function LanguageMenu() {
   const { i18n } = useTranslation();
-  const language = i18n.resolvedLanguage?.startsWith('zh') ? 'zh' : 'en';
+  const language = i18n.language.startsWith('zh') ? 'zh' : 'en';
   const label = language === 'zh' ? '选择语言' : 'Choose language';
 
   return <ChoiceMenu label={label} value={language} onValueChange={value => { void i18n.changeLanguage(value); }}

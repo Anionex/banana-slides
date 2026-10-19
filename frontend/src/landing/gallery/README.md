@@ -164,3 +164,34 @@ removed. The separate collection and presentation detail pages remain available.
 ### Small display assets
 
 Run `node scripts/optimize-gallery-assets.mjs` from `frontend/` after importing slides or regenerating overview covers. It preserves the original images and emits 320px slide thumbnails, 800px overview candidates, and a 128px website logo using `cwebp`. Detail previews and full-screen viewing continue to use the original slides. Commit generated display assets alongside source changes.
+
+
+## Private PDF submissions
+
+Gallery's footer invitation opens the shared marketing dialog. It accepts one
+complete PDF exported directly from Banana Slides, up to 50 MiB / 500 pages.
+POST `/api/gallery/submissions` uses the existing visitor token. The backend reads
+PDF structure and requires Author, Creator and Producer = `banana-slides` (the
+current export service's markers), and rejects encrypted, repaired or unreadable
+PDFs. These editable markers identify the exporter; they are **not a signature**
+and cannot prove that every original page is present or that the PDF is unedited.
+The UI requests the complete export, while the server validates what the file
+actually contains. Do not describe this as cryptographic provenance validation.
+
+Files are saved under `backend/instance/gallery-submissions/<uuid>.pdf`, outside
+public uploads. Apply migration `d73e9f501ab2` before enabling this version; preserve
+the existing persistent instance volume. Metadata is stored in `gallery_submission`.
+One successful submission per visitor per minute and 20 globally per minute;
+retries of an identical visitor/file return the existing receipt. There is no
+publication/review status and no approve/reject/publish endpoint.
+
+`/admin/gallery-submissions` reuses the admin feedback login and list shell with
+`PUBLIC_DEMO_ADMIN_PASSWORD`. List, page-preview and original-download endpoints
+all require the admin password and return `Cache-Control: no-store`. PDF preview
+is rendered server-side to bounded PNG images, rather than embedding submitted
+active PDF content in the admin page. Keep this route out of public navigation.
+
+Local validation uses a separate SQLite database and private directory in ignored
+`output/gallery-submissions-local/`; it never writes to the production database.
+The frontend test server on 43187 proxies this local backend on 43189. Production
+release still requires the repository's database-backup migration rehearsal.

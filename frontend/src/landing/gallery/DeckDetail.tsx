@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import { LandingTheme } from '../LandingTheme';
 import { LandingHeader } from '../LandingHeader';
 import { Footer } from '../Footer';
+import { useBrowserReady } from '../useBrowserReady';
 import { decks, type CatalogDeck } from './catalog';
 import { DeckCard } from './DeckCard';
 import { DeckViewer } from './DeckViewer';
@@ -28,7 +29,9 @@ function DeckDetailContent({ deck }: { deck: CatalogDeck | null }) {
   const { i18n } = useTranslation();
   const language = i18n.language.startsWith('zh') ? 'zh' : 'en';
   const zh = language === 'zh';
-  const [initialSearch] = useState(() => typeof location === 'undefined' ? '' : location.search);
+  const browserReady = useBrowserReady();
+  const [locationReady, setLocationReady] = useState(browserReady);
+  const [initialSearch, setInitialSearch] = useState(() => browserReady ? location.search : '');
   const [page, setPage] = useState(() => deck ? detailPage(deck, initialSearch) : 0);
   const [viewer, setViewer] = useState(false);
   const [viewerFromToolbar, setViewerFromToolbar] = useState(false);
@@ -46,6 +49,14 @@ function DeckDetailContent({ deck }: { deck: CatalogDeck | null }) {
   const { shouldOpen, ...swipe } = useSlideSwipe(step);
 
   useEffect(() => {
+    if (!browserReady || locationReady) return;
+    setInitialSearch(location.search);
+    if (deck) setPage(detailPage(deck, location.search));
+    setLocationReady(true);
+  }, [browserReady, locationReady, deck]);
+
+  useEffect(() => {
+    if (!locationReady) return;
     document.title = `${deck ? deck.title[language] : (zh ? '作品未找到' : 'Presentation not found')} | Banana Slides`;
     document.documentElement.lang = zh ? 'zh-CN' : 'en';
     if (!deck) return;
@@ -53,7 +64,7 @@ function DeckDetailContent({ deck }: { deck: CatalogDeck | null }) {
     history.replaceState(history.state, '', path);
     document.querySelector('link[rel="canonical"]')?.setAttribute('href', `https://bananaslides.online${deckPath(deck.id, language)}`);
     document.querySelector('meta[name="description"]')?.setAttribute('content', `${deck.title[language]} · ${deck.appearance[language]}`);
-  }, [deck, language, zh, page, initialSearch]);
+  }, [deck, language, zh, page, initialSearch, locationReady]);
   useEffect(() => {
     const restore = () => { if (deck) setPage(detailPage(deck, location.search)); setViewer(false); };
     window.addEventListener('popstate', restore);

@@ -214,6 +214,8 @@ def settings_json():
 
 
 def install(app):
+    from services.gallery_submissions import install as install_submissions
+    install_submissions(app)
     from models import db, Feedback, FeedbackImage, PublicVisitor
     from utils import error_response, success_response
 
