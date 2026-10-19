@@ -1,6 +1,7 @@
 import React from 'react';
 import { BookOpen, Github } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { resolveUiLanguage } from '@/utils/uiLanguage';
 
 const GITHUB_REPO = 'Anionex/banana-slides';
 const GITHUB_URL = `https://github.com/${GITHUB_REPO}`;
@@ -9,7 +10,8 @@ const DOCS_URL = 'https://docs.bananaslides.online';
 export const Footer: React.FC = () => {
   const currentYear = new Date().getFullYear();
   const { i18n } = useTranslation();
-  const docsLabel = i18n.language?.startsWith('zh') ? '文档' : 'Docs';
+  const language = resolveUiLanguage(i18n.language);
+  const docsLabel = language === 'zh' ? '文档' : language === 'vi' ? 'Tài liệu' : 'Docs';
 
   return (
     <footer className="relative w-full py-6 px-4 mt-auto">
