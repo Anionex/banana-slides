@@ -135,6 +135,38 @@ def test_build_reports_element_level_progress_and_heartbeat(tmp_path):
     assert heartbeats.count('构建PPTX') >= count
 
 
+def test_completed_local_style_reports_progress_before_slow_global_style(tmp_path):
+    from threading import Event
+
+    global_started = Event()
+    release_global = Event()
+    events = []
+
+    class SlowGlobalExtractor(StubExtractor):
+        def extract_batch_with_full_image(self, full_image, text_elements):
+            global_started.set()
+            release_global.wait(timeout=2)
+            return super().extract_batch_with_full_image(full_image, text_elements)
+
+        def extract(self, image, text_content):
+            assert global_started.wait(timeout=2)
+            return super().extract(image, text_content)
+
+    def on_progress(done, total, label):
+        events.append((done, total, label))
+        if label == '单个元素识别':
+            release_global.set()
+
+    styles, failures = ExportService._batch_extract_text_styles_hybrid(
+        [_build_slide(tmp_path, count=1)], SlowGlobalExtractor(),
+        max_workers=2, fail_fast=True, on_progress=on_progress,
+    )
+
+    assert events == [(1, 2, '单个元素识别'), (2, 2, '全局识别第 1 页')]
+    assert len(styles) == 1
+    assert not failures
+
+
 def test_style_extraction_reports_progress_per_task(tmp_path):
     element_count = 12
     slide = _build_slide(tmp_path, count=element_count, name='style')
