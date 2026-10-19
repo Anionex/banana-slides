@@ -1,3 +1,4 @@
+import { isPublicDemo } from '@/utils/publicDemo';
 import React, { useState } from 'react';
 import { X, FileText, Settings as SettingsIcon, Download, Sparkles, AlertTriangle, HelpCircle, Lightbulb } from 'lucide-react';
 import { Button, Textarea, TextStyleSelector } from '@/components/shared';
@@ -419,6 +420,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                   </div>
                 </div>
 
+                {!isPublicDemo && (
                 <div className="space-y-4">
                   <div>
                     <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('projectSettings.iconSubjectExtraction')}</h4>
@@ -444,6 +446,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                     </p>
                   </div>
                 </div>
+                )}
 
                 <div className="space-y-4">
                   <div>
