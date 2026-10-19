@@ -145,8 +145,8 @@ function LandingContent() {
         <Reveal className="landing-section-heading landing-faq-heading"><h2>{t('faq')}</h2><p>{t('faqIntro')}</p></Reveal>
         <Reveal className="landing-faq-panel">
           {[0, 1, 2, 3].map(i => <article key={i}>
-            <h3><button type="button" aria-expanded={typeof window === 'undefined' || expanded === i} aria-controls={`faq-answer-${i}`} onClick={() => setExpanded(expanded === i ? null : i)}>{t(`q${i + 1}`)}<ChevronDown size={16} aria-hidden="true" /></button></h3>
-            <div id={`faq-answer-${i}`} className="landing-faq-answer" data-expanded={expanded === i} aria-hidden={typeof window === 'undefined' ? undefined : expanded !== i}>
+            <h3><button type="button" aria-expanded={expanded === i} aria-controls={`faq-answer-${i}`} onClick={() => setExpanded(expanded === i ? null : i)}>{t(`q${i + 1}`)}<ChevronDown size={16} aria-hidden="true" /></button></h3>
+            <div id={`faq-answer-${i}`} className="landing-faq-answer" data-expanded={expanded === i} aria-hidden={expanded !== i}>
               <div><p>{t(`a${i + 1}`)}</p></div>
             </div>
           </article>)}

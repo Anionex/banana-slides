@@ -6,6 +6,7 @@ import { Gallery } from './gallery/Gallery';
 import { DeckDetail } from './gallery/DeckDetail';
 export { decks } from './gallery/catalog';
 export { landingSeo, siteUrl, structuredData } from './seo';
+export { installMarketingScrollRestoration } from './scrollRestoration';
 export async function render(language: 'zh' | 'en', gallery = false, deckId?: string) {
   const i18n = createInstance();
   await i18n.init({ lng: language, fallbackLng: language, resources: { [language]: { translation: {} } }, interpolation: { escapeValue: false } });

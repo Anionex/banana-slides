@@ -44,15 +44,10 @@ export function ScrollReveal({
     as as keyof typeof motion
   ] as typeof motion.div;
 
-  if (reduce || typeof window === 'undefined') {
-    const Component = as;
-    return <Component>{children}</Component>;
-  }
-
   return (
     <MotionComponent
-      animate={isInView || isViewed ? "visible" : "hidden"}
-      initial="hidden"
+      animate={reduce || isInView || isViewed ? "visible" : undefined}
+      initial={false}
       onAnimationComplete={(definition) => {
         if (once && definition === "visible") setIsViewed(true);
       }}

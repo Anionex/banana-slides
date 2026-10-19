@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useMotionValue, useReducedMotion } from 'motion/react';
+import { motionValue, useMotionValue, useReducedMotion, type MotionValue } from 'motion/react';
 import { ArrowLeft, ArrowRight, ArrowUpRight } from 'lucide-react';
 import { CurvedGallery, type GalleryPan } from './CurvedGallery';
 import { WheelDeck } from './WheelDeck';
@@ -11,29 +11,38 @@ import './gallery-curved-showcase.css';
 
 const decks = catalogDecks.filter(deck => hasDeckOverview(deck.id)).slice(0, 6);
 const interval = 3600;
+type ReaderSession = { id: number; index: number; progress: MotionValue<number>; initialWheel: number; returning: boolean };
 
 export function GalleryCurvedShowcase({ language }: { language: 'zh' | 'en' }) {
   const zh = language === 'zh';
   const root = useRef<HTMLElement>(null);
   const pan = useRef<GalleryPan | null>(null);
   const position = useMotionValue(0);
-  const progress = useMotionValue(0);
+  const idleProgress = useMotionValue(0);
   const reduced = useReducedMotion();
   const [active, setActive] = useState(() => decks.findIndex(deck => deck.id === 'deepseek'));
   const [centered, setCentered] = useState(active);
-  const [reading, setReading] = useState(false);
+  const [reader, setReader] = useState<ReaderSession | null>(null);
+  const nextReader = useRef(0);
+  const reading = reader !== null;
+  const progress = reader?.progress ?? idleProgress;
   const [nearby, setNearby] = useState(false);
-  const [enteredAt, setEnteredAt] = useState(0);
   const hovering = useRef(false);
   const visible = useRef(false);
   const nextAt = useRef(0);
   const interacting = () => { nextAt.current = performance.now() + interval; };
   const select = (index: number) => {
     if (index === active) return;
-    setReading(false); progress.set(0); setActive(index);
+    setReader(null); setActive(index);
     interacting();
   };
-  const read = () => { interacting(); if (!reading) { progress.set(0); setEnteredAt(performance.now()); setReading(true); } };
+  const read = (index = active, wheelDelta = 0) => {
+    interacting();
+    setActive(index); setCentered(index);
+    setReader({ id: ++nextReader.current, index,
+      progress: reader?.index === index ? reader.progress : motionValue(0),
+      initialWheel: wheelDelta, returning: false });
+  };
   const step = (direction: number) => { interacting(); pan.current?.step(direction); };
 
   useEffect(() => {
@@ -70,7 +79,9 @@ export function GalleryCurvedShowcase({ language }: { language: 'zh' | 'en' }) {
     return () => window.clearInterval(timer);
   }, [reduced, reading]);
 
-  const exitReading = () => { setReading(false); progress.set(0); interacting(); };
+  // A completion from an old reader may never close a newer reading intent.
+  const exitReading = (id: number) => { setReader(current => current?.id === id ? null : current); interacting(); };
+  const resumeReading = (id: number) => setReader(current => current?.id === id && current.returning ? { ...current, returning: false } : current);
   const deck = decks[active];
   const captionDeck = decks[centered];
 
@@ -86,13 +97,13 @@ export function GalleryCurvedShowcase({ language }: { language: 'zh' | 'en' }) {
         coverSource={item => `/gallery/overviews/${item.id}-${language}.webp`}
         label={zh ? '精选作品，左右键切换，回车逐页浏览' : 'Selected decks. Arrow keys to browse, Enter to read.'}
         reading={reading} expanded={reading} onRead={read} pan={pan} position={position} progress={progress} interaction="showcase">
-        {reading && <WheelDeck key={deck.id} deck={deck} language={language} enteredAt={enteredAt} onExit={exitReading} onHorizontal={step} pan={pan} position={position} progress={progress} />}
+        {reader && <WheelDeck key={deck.id} deck={deck} overviewSource={`/gallery/overviews/${deck.id}-${language}.webp`} language={language} enteredAt={reader.id} initialWheel={reader.initialWheel} returning={reader.returning} onExit={() => exitReading(reader.id)} onResume={() => resumeReading(reader.id)} onHorizontal={step} pan={pan} position={position} progress={progress} />}
       </CurvedGallery>
     </div>
     <div className="curved-showcase-caption">
       <a className="curved-showcase-title" href={`${deckPath(captionDeck.id, language)}?from=home`}>{captionDeck.title[language]}<ArrowUpRight size={13} /></a>
       <div className="curved-showcase-reader-actions" aria-hidden={!reading}>
-        <div><button className="curved-showcase-read" type="button" disabled={!reading} tabIndex={reading ? 0 : -1} onClick={exitReading}>{zh ? '返回总览' : 'Back to overview'}</button></div>
+        <div><button className="curved-showcase-read" type="button" disabled={!reading} tabIndex={reading ? 0 : -1} onClick={() => setReader(current => current ? { ...current, returning: true } : current)}>{zh ? '返回总览' : 'Back to overview'}</button></div>
       </div>
     </div>
     <div className="curved-showcase-footer">

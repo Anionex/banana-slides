@@ -44,9 +44,15 @@
 .collection-slide { position: absolute; inset: 0; }
 .collection-overview-image { position: absolute; inset: 0; }
 .collection-image { position: relative; height: 100%; width: 100%; background: var(--studio-soft, #242424); }
-.collection-image img { width: 100%; height: 100%; display: block; object-fit: contain; user-select: none; }
-.collection-image:not([data-loaded='true'])::before { content: ''; position: absolute; top: calc(50% - 10px); left: calc(50% - 10px); width: 20px; height: 20px; border-radius: 50%; border: 2px solid #8885; border-top-color: #888; animation: collection-loading 1s linear infinite; }
-@keyframes collection-loading { to { transform: rotate(360deg); } }
+.collection-image img { position: relative; width: 100%; height: 100%; display: block; object-fit: contain; user-select: none; }
+.collection-image[aria-busy='true']::before { content: ''; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 20%, color-mix(in srgb, var(--studio-ink) 5%, transparent) 50%, transparent 80%); background-size: 220% 100%; animation: collection-skeleton 1.8s ease-in-out infinite; }
+@keyframes collection-skeleton { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+.collection-overview-retained { position: absolute; inset: 0; pointer-events: none; opacity: 1; transition: opacity .22s ease-out; }
+.collection-overview-retained[data-visible='false'] { opacity: 0; }
+.collection-slide-pending, .deck-navigation-pending { position: absolute; right: 12px; bottom: 12px; z-index: 3; padding: 6px 10px; border-radius: 6px; font-size: 12px; background: var(--studio-paper); color: var(--studio-ink); pointer-events: none; }
+.collection-slide-pending { animation: collection-pending-reveal .2s .45s both; }
+@keyframes collection-pending-reveal { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .collection-image[aria-busy='true']::before { animation: none; } .collection-overview-retained { transition: none; } .collection-slide-pending { animation: none; } }
 .collection-open { position: absolute; inset: 0; width: 100%; height: 100%; cursor: pointer; touch-action: pan-y pinch-zoom; border-radius: inherit; }
 .collection-page .collection-open:focus-visible { outline-offset: -4px; }
 .collection-card-info { padding-top: 14px; display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }

@@ -24,15 +24,13 @@ export default function Reveal({
   index?: number;
 }) {
   const reduce = useReducedMotion();
-  if (reduce || typeof window === 'undefined') return <div className={cn(className)}>{children}</div>;
-
   return (
     <motion.div
       variants={VARIANTS}
-      initial="hidden"
+      initial={false}
       whileInView="show"
       viewport={{ once: true, amount: 0.2 }}
-      custom={index}
+      custom={reduce ? 0 : index}
       className={cn(className)}
     >
       {children}

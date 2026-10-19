@@ -59,10 +59,7 @@ export function installHomeDeckNavigation(origin: 'home' | 'gallery' = 'home') {
     version++;
     running.forEach(animation => animation.cancel());
     document.querySelector('.home-deck-flight')?.remove();
-    // Unmounting the detail's theme provider clears the shared document attribute.
-    const theme = document.documentElement.dataset.landingTheme;
     flushSync(() => detailRoot?.unmount());
-    if (theme) document.documentElement.dataset.landingTheme = theme;
     detailHost?.remove(); detailHost = null; detailRoot = null;
     detailMounted = false; busy = false;
     delete host.dataset.homeParked;
@@ -128,7 +125,7 @@ export function installHomeDeckNavigation(origin: 'home' | 'gallery' = 'home') {
     // A card can contain both sides of an in-progress page fade. Fly the visible one.
     const cardImage = origin === 'gallery' ? [...stage.querySelectorAll<HTMLImageElement>('img')]
       .filter(item => item.complete && item.naturalWidth)
-      .sort((a, b) => Number(getComputedStyle(b.closest('.collection-slide') ?? b).opacity) - Number(getComputedStyle(a.closest('.collection-slide') ?? a).opacity))[0] : null;
+      .sort((a, b) => Number(getComputedStyle(b.closest('.collection-overview-retained, .collection-slide') ?? b).opacity) - Number(getComputedStyle(a.closest('.collection-overview-retained, .collection-slide') ?? a).opacity))[0] : null;
     const image = cardImage ?? (stage.dataset.reading === 'true' ? stage.querySelector<HTMLImageElement>('.gallery-wheel-page[aria-hidden="false"] img') : null)
       ?? cover?.querySelector<HTMLImageElement>('img');
     if (!cover || !image?.complete || !image.naturalWidth) { location.assign(href); return; }
@@ -149,6 +146,11 @@ export function installHomeDeckNavigation(origin: 'home' | 'gallery' = 'home') {
     };
     host.dataset.deckTransition = 'loading';
     link.setAttribute('aria-busy', 'true');
+    const pending = document.createElement('span');
+    pending.className = 'deck-navigation-pending';
+    pending.setAttribute('role', 'status');
+    pending.textContent = i18n.language.startsWith('zh') ? '正在打开作品…' : 'Opening presentation…';
+    const pendingTimer = window.setTimeout(() => stage.append(pending), 450);
     void (async () => {
       try {
         const deck = decks.find(item => item.id === id);
@@ -160,6 +162,7 @@ export function installHomeDeckNavigation(origin: 'home' | 'gallery' = 'home') {
         incoming.className = 'home-deck-flight-incoming';
         incoming.style.opacity = '0';
         await Promise.all([incoming.decode(), outgoing.decode()]);
+        window.clearTimeout(pendingTimer); pending.remove();
         if (visit !== version) return;
         proxy.prepend(incoming);
         document.body.append(proxy);
@@ -195,6 +198,7 @@ export function installHomeDeckNavigation(origin: 'home' | 'gallery' = 'home') {
           if (!detailMounted) location.assign(href);
         }
       } finally {
+        window.clearTimeout(pendingTimer); pending.remove();
         target?.style.removeProperty('visibility');
         animations.forEach(animation => animation.cancel());
         proxy.remove(); link.removeAttribute('aria-busy');

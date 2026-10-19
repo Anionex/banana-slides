@@ -6,8 +6,10 @@ import { LandingTheme } from '../LandingTheme';
 import { LandingHeader } from '../LandingHeader';
 import { Footer } from '../Footer';
 import { ChoiceMenu } from '../ChoiceMenu';
+import { useBrowserReady } from '../useBrowserReady';
 import { categories, decks, filterDecks, readGalleryLocation, styles } from './catalog';
 import { DeckCard } from './DeckCard';
+import { GallerySubmission } from './GallerySubmission';
 import { detailHref } from './deckDetails';
 import { filterMotion } from './filterMotion';
 import '../landing.css';
@@ -24,7 +26,9 @@ function GalleryContent() {
   const language = i18n.language.startsWith('zh') ? 'zh' : 'en';
   const zh = language === 'zh';
   const categoryOptions = [{ value: '', label: zh ? '所有用途' : 'All use cases' }, ...categories.map(item => ({ value: item.en, label: item[language] }))];
-  const [initial] = useState(() => readGalleryLocation(typeof location === 'undefined' ? '' : location.search));
+  const browserReady = useBrowserReady();
+  const [locationReady, setLocationReady] = useState(browserReady);
+  const [initial, setInitial] = useState(() => readGalleryLocation(browserReady ? location.search : ''));
   const [query, setQuery] = useState(initial.query);
   const [keyboardNavigation, setKeyboardNavigation] = useState(false);
   const [style, setStyle] = useState(initial.style);
@@ -40,6 +44,14 @@ function GalleryContent() {
   const reset = () => { setQuery(''); setStyle(''); setCategory(''); };
 
   useEffect(() => {
+    if (!browserReady || locationReady) return;
+    const state = readGalleryLocation(location.search);
+    setInitial(state); setQuery(state.query); setStyle(state.style); setCategory(state.category);
+    if (state.deck) setPages({ [state.deck]: state.page });
+    setLocationReady(true);
+  }, [browserReady, locationReady]);
+
+  useEffect(() => {
     const restore = () => {
       if (!/^\/(?:en\/)?gallery\/?$/.test(location.pathname)) return;
       const state = readGalleryLocation(location.search);
@@ -51,6 +63,7 @@ function GalleryContent() {
   }, []);
 
   useEffect(() => {
+    if (!locationReady) return;
     if (document.getElementById('root')?.dataset.homeParked === 'true') return;
     // Old shared viewer links now land on the dedicated presentation page.
     const legacyDeck = decks.find(deck => deck.id === initial.deck);
@@ -65,7 +78,7 @@ function GalleryContent() {
     if (style) params.set('style', style);
     if (category) params.set('category', category);
     history.replaceState(history.state, '', `${path}${params.size ? `?${params}` : ''}`);
-  }, [zh, language, path, description, query, style, category, initial]);
+  }, [zh, language, path, description, query, style, category, initial, locationReady]);
 
   return <div className="landing-page collection-page" onPointerDownCapture={() => setKeyboardNavigation(false)} onKeyDownCapture={event => { if (event.key === 'Tab') setKeyboardNavigation(true); }}>
     <a className="landing-skip" href="#collection-results">{zh ? '跳到作品' : 'Skip to presentations'}</a>
@@ -114,6 +127,6 @@ function GalleryContent() {
         </section>
       </main>
     </div>
-    <Footer />
+    <Footer><GallerySubmission language={language} /></Footer>
   </div>;
 }

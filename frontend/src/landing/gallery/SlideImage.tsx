@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ImageOff, RotateCw } from 'lucide-react';
 import type { GalleryLanguage } from './catalog';
 
@@ -9,9 +9,26 @@ export function SlideImage({ src, srcSet, sizes, alt, language, eager = false, o
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const imageRef = useRef<HTMLImageElement>(null);
+  useEffect(() => {
+    const image = imageRef.current;
+    if (!image) return;
+    let cancelled = false;
+    const ready = async () => {
+      await image.decode?.().catch(() => {});
+      if (!cancelled && image.naturalWidth) setLoaded(true);
+    };
+    // The prerendered image may finish before React attaches its load handler.
+    if (image.complete) {
+      if (image.naturalWidth) void ready();
+      else setFailed(true);
+    }
+    return () => { cancelled = true; };
+  }, [attempt]);
   useEffect(() => { if (loaded || failed) onReady?.(); }, [loaded, failed, onReady]);
-  return <div className="collection-image" data-loaded={loaded} aria-busy={!loaded && !failed}>
-    {!failed ? <img key={attempt} src={src} srcSet={srcSet} sizes={sizes} alt={alt} width={1600} height={900} draggable={false}
+  return <div className="collection-image" data-loaded={loaded} data-failed={failed} aria-busy={!loaded && !failed}>
+    {!loaded && !failed && <span className="sr-only" role="status">{language === 'zh' ? '正在加载幻灯片…' : 'Loading slide…'}</span>}
+    {!failed ? <img ref={imageRef} key={attempt} src={src} srcSet={srcSet} sizes={sizes} alt={alt} width={1600} height={900} draggable={false}
       loading={eager ? 'eager' : 'lazy'} decoding="async" onLoad={async event => {
         const image = event.currentTarget;
         await image.decode().catch(() => {});

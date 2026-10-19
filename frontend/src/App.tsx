@@ -57,6 +57,7 @@ function App() {
                   <Route path="/landing" element={<Landing />} />
                   <Route path="/history" element={isPublicDemo ? <Navigate to="/" replace /> : <History />} />
                   <Route path="/admin/history" element={isPublicDemo ? <AdminHistory /> : <Navigate to="/" replace />} />
+                  <Route path="/admin/gallery-submissions" element={isPublicDemo ? <AdminFeedback submissions /> : <Navigate to="/" replace />} />
                   <Route path="/admin/feedback" element={isPublicDemo ? <AdminFeedback /> : <Navigate to="/" replace />} />
                   <Route path="/settings" element={isPublicDemo ? <PublicSettings /> : <SettingsPage />} />
                   <Route path="/project/:projectId/outline" element={<OutlineEditor />} />

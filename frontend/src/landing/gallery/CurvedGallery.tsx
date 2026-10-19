@@ -139,6 +139,18 @@ export function CurvedGallery({ decks, active, onSelect, onCenterChange, label, 
     else axis.snap(nearest);
     schedulePaint();
   };
+  // A new reading intent interrupts inertia immediately. Centering may finish
+  // visually afterwards; it must never gate opening or wheel input.
+  const open = (index: number, delta = 0) => {
+    const axis = motion.current;
+    const target = axis.position + modulo(index * axis.step - axis.position + layout.current.cycle / 2, layout.current.cycle) - layout.current.cycle / 2;
+    axis.velocity = 0;
+    axis.snap(target);
+    if (stage.current) stage.current.dataset.horizontal = 'false';
+    position.set(target - axis.position);
+    current.current.onRead(index, delta);
+    schedulePaint();
+  };
   pan.current = {
     paint: schedulePaint,
     start(x) {
@@ -228,8 +240,10 @@ export function CurvedGallery({ decks, active, onSelect, onCenterChange, label, 
         motion.current.wheel(event.deltaX * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? layout.current.width : 1), performance.now());
         schedulePaint(); return;
       }
-      if (interaction === 'showcase') return;
       const horizontal = el.dataset.horizontal === 'true';
+      // Only click/keyboard opens a showcase cover. An already-open WheelDeck
+      // handles vertical wheel input (including gaps); elsewhere it scrolls the page.
+      if (interaction === 'showcase') return;
       if (current.current.reading && !horizontal) return;
       const axis = motion.current;
       // A vertical gesture takes over the work currently nearest the center,
@@ -264,11 +278,12 @@ export function CurvedGallery({ decks, active, onSelect, onCenterChange, label, 
     <div ref={track} className="gallery-track" role="region" aria-roledescription="carousel" aria-label={label} tabIndex={0}
       onScroll={interaction === 'showcase' ? schedulePaint : undefined}
       onKeyDown={event => {
-        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onRead(); }
+        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); if (interaction === 'showcase') open(centered.current); else onRead(); }
         if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); pan.current?.step(event.key === 'ArrowRight' ? 1 : -1); }
         if (event.key === 'Home' || event.key === 'End') { event.preventDefault(); select(event.key === 'Home' ? 0 : decks.length - 1); }
       }}
       onPointerDown={event => {
+        if (drag.current || !event.isPrimary) return;
         if (event.pointerType === 'mouse' && event.button !== 0) return;
         suppressClick.current = false;
         motion.current.begin(performance.now());
@@ -294,9 +309,10 @@ export function CurvedGallery({ decks, active, onSelect, onCenterChange, label, 
       }}
       onPointerCancel={() => { if (interaction === 'gallery' && drag.current?.axis === 'y') onRead(); pan.current?.end(); drag.current = null; }}
     >
-      {entries.map((deck, slot) => <button key={`${deck.id}-${slot}`} className="gallery-cover" data-deck={deck.id} tabIndex={-1} aria-label={deck.title[language]} aria-hidden={slot < decks.length || slot >= 2 * decks.length} aria-pressed={slot - decks.length === active}
+      {entries.map((deck, slot) => <button key={`${deck.id}-${slot}`} className="gallery-cover" data-deck={deck.id} tabIndex={-1} aria-label={deck.title[language]} aria-hidden={slot < decks.length || slot >= 2 * decks.length} aria-pressed={slot % decks.length === active}
         onClick={() => {
           if (suppressClick.current) return;
+          if (interaction === 'showcase') { open(slot % decks.length); return; }
           if (slot % decks.length === active && Math.abs(position.get()) < 1) onRead();
           else select(slot % decks.length);
         }}>

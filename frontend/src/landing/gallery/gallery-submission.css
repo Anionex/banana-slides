@@ -1,0 +1,41 @@
+.landing-page footer.landing-footer:has(.gallery-submission) { flex-direction: column; align-items: stretch; }
+.gallery-submission { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; width: min(1240px, calc(100% - 2 * var(--landing-gutter))); margin-inline: auto; padding: 32px 0 56px; }
+.gallery-submission-art { display: block; width: 200px; height: auto; aspect-ratio: 3 / 2; margin-bottom: 24px; }
+.gallery-submission h2 { margin-bottom: 12px; font-size: 28px; font-weight: 600; letter-spacing: -.02em; }
+.gallery-submission-intro > p { max-width: 52ch; margin-inline: auto; line-height: 1.7; font-size: 15px; color: var(--text-secondary); }
+.gallery-submission-dialog .gallery-submission-note { margin-top: 10px; font-size: 13px; line-height: 1.7; color: var(--text-secondary); }
+.gallery-submission-form { padding: 24px; background: var(--studio-soft); border: 1px dashed var(--studio-line); border-radius: 12px; min-width: 0; transition: border-color .18s ease-out, background .18s ease-out; }
+.gallery-submission-form[data-dragging="true"] { border-color: var(--studio-accent); background: color-mix(in srgb, var(--studio-accent) 8%, var(--studio-paper)); }
+.gallery-submission-empty { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
+.gallery-submission-empty p { font-size: 14px; }
+.gallery-submission-icon { display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid var(--studio-line); border-radius: 50%; color: var(--text-secondary); }
+.gallery-submission-empty + .gallery-submission-note { text-align: center; }
+:is(.gallery-submission, .gallery-submission-dialog) button { min-height: 44px; display: inline-flex; gap: 8px; align-items: center; justify-content: center; border-radius: 6px; font-size: 14px; transition: background .18s ease-out, color .18s ease-out; }
+:is(.gallery-submission, .gallery-submission-dialog) button:disabled { opacity: .6; cursor: wait; }
+.gallery-submission-pick { padding: 0 16px; border: 1px solid var(--studio-line); background: var(--studio-paper); color: var(--studio-ink); }
+:is(.gallery-submission, .gallery-submission-dialog) button:focus-visible { outline: 2px solid var(--studio-accent); outline-offset: 3px; }
+.gallery-submission-pick:hover { background: var(--bg-hover); }
+.gallery-submission-file { display: flex; gap: 12px; align-items: center; }
+.gallery-submission-file > div { min-width: 0; flex: 1; }
+.gallery-submission-file strong { display: block; overflow-wrap: anywhere; font-size: 14px; font-weight: 500; }
+.gallery-submission-file span { display: block; font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+.gallery-submission-file svg { flex-shrink: 0; }
+.gallery-submission-file button { width: 44px; flex-shrink: 0; color: var(--text-secondary); }
+.gallery-submission-send { margin-top: 14px; }
+.gallery-submission-send button { padding: 0 16px; background: var(--studio-ink); color: var(--studio-paper); }
+.gallery-submission-progress { height: 3px; margin-top: 12px; border-radius: 3px; overflow: hidden; background: var(--studio-line); }
+.gallery-submission-progress span { display: block; height: 100%; background: var(--studio-accent); transition: width .2s ease-out; }
+.gallery-submission-error { display: flex; gap: 8px; margin-top: 12px; color: var(--studio-ink); font-size: 13px; line-height: 1.7; }
+.gallery-submission-error svg { flex-shrink: 0; margin-top: 3px; }
+.gallery-submission-success { display: flex; gap: 12px; }
+.gallery-submission-success > svg { flex-shrink: 0; margin-top: 3px; }
+.gallery-submission-success p { margin-top: 8px; font-size: 14px; line-height: 1.6; color: var(--text-secondary); }
+.gallery-submission-success button { margin-top: 12px; text-decoration: underline; text-underline-offset: 4px; }
+@media (max-width: 767px) { .gallery-submission { padding: 16px 0 40px; } .gallery-submission h2 { font-size: 24px; } .gallery-submission-art { width: 168px; } }
+@media (prefers-reduced-motion: reduce) { :is(.gallery-submission, .gallery-submission-dialog) button, .gallery-submission-progress span, .gallery-submission-form { transition: none; } }
+
+.gallery-submission-entry { margin-top: 20px; color: var(--studio-ink); white-space: nowrap; text-decoration: underline; text-decoration-color: var(--studio-line); text-underline-offset: 5px; padding: 4px 0; }
+.gallery-submission-entry:hover { text-decoration-color: var(--studio-accent); }
+.gallery-submission-description { font-size: 14px; line-height: 1.7; color: var(--text-secondary); margin-bottom: 24px; }
+.gallery-submission-dialog { scrollbar-width: thin; scrollbar-color: var(--studio-line) transparent; }
+

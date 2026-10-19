@@ -548,3 +548,171 @@ Cold local browser resource transfer (cache disabled, same viewport per comparis
 - Desktop 16-slide detail: 5.26 MB → 1.39 MB (74% less).
 
 These are lab resource measurements, not production network timings or field Core Web Vitals. Observed CLS stayed at 0–0.001. Confirmed mobile at 390px/DPR2 with 100ms latency and 500KB/s throttling: no horizontal overflow, full-resolution detail image after the cover transition, and thumbnail clicks load the corresponding original slide. Existing typography, copy, controls and composition were retained.
+
+
+## Slow connections and private presentation submissions
+
+Keep the gallery useful while images arrive: reserve each 16:9 frame, use a
+low-contrast themed shimmer, retain the overview until the first slide decodes,
+and retain the previous slide during later page changes. A delayed, small loading
+label explains a slow slide or detail handoff. Reduced motion disables shimmer.
+An upload is not optimistic: 100% means bytes sent; success follows the server's
+validation and durable-save acknowledgement. Failed requests retain the file for
+retry; identical visitor/file retries are deduplicated.
+
+The owner's final direction is a centered end-of-page invitation with illustration,
+heading, one short sentence and “提交作品 ↗” / “Share your presentation ↗”. There is
+no inline upload form. Reuse Footer and its existing ribbon; put the invitation in
+its optional content slot, leaving every other page's footer unchanged. Use a
+small ivory-slide/yellow-paper-plane illustration, generated with Imagegen and
+optimized to a 480px transparent WebP (about 17 KB), rendered at 200px desktop /
+168px mobile and loaded lazily. Keep the text action secondary to global Demo.
+
+Clicking the invitation opens the existing Base UI marketing dialog. Reuse its
+focus trap, Escape, theme and close control; return focus to the invitation.
+The upload surface references 21st's Joyco File Dropzone:
+https://21st.dev/@joyco/components/file-dropzone
+Its preview and component source were inspected. Adapt the restrained dashed
+surface, file metadata/removal and inline error pattern to one PDF and the
+existing private backend; do not import an unrelated hosting provider or a fake
+progress timer. Preserve selected file/progress if the dialog is closed/reopened.
+
+Gemini review used gemini-3.6-flash-low. Initial question: “这个作品画廊的页尾邀请区布局合理吗？”
+The full-page capture did not show the footer correctly to the model; its claim
+that the invitation/footer was absent was contradicted by the live page. Follow-up
+with the checked viewport capture: “这是页尾邀请区的近景截图。你看到的区域是什么？这里的布局合理吗？”
+It correctly identified the submission CTA and footer, found the vertical hierarchy
+and placement reasonable, and suggested a stronger yellow button and more spacing.
+Keep the owner's lightweight secondary action; measured separation from cards is
+already generous. Its yellow-edge concern is the existing custom scrollbar, with
+no horizontal overflow. Do not change shared footer navigation for this task.
+Review outputs and screenshots: task workspace outputs/gallery-submissions/.
+
+Validation: 33 frontend regression tests, 26 backend/public-demo/migration tests,
+online prerender build and ESLint (zero errors; nine existing warnings). Browser
+submission rejects an unmarked PDF, accepts an actual app-exported three-page PDF,
+and the authenticated admin can view page 2 and download byte-identical original
+content. Closing the dialog restores focus. Checked dark/light and narrow layouts.
+At 3s latency / 25 KiB/s, the first slide remains covered by the loaded overview
+with a loading label until decoding completes, then reveals the slide. Network
+throttling is reset after testing. These changes are local, not deployed.
+
+### Navigation without image remounts
+
+Normal-speed Chrome exposed a separate flash: `createRoot` discarded the entire
+static page once JavaScript arrived. Instrumentation measured 0/13 retained images
+on Gallery before the fix. Marketing entries now hydrate the existing DOM; the
+development shell still uses createRoot when empty. Chrome retains 13/13 Gallery
+images and 19/19 homepage images after hydration. Cached images reconcile their
+completed/error state even when their native load event preceded React.
+
+Browser-only state (theme, URL filters, requested slide) restores after the first
+matching hydration render. Keep the head-applied theme throughout; unmounting a
+detail must not clear a document-wide theme. Already-visible prerendered sections
+must not become transparent and replay an entrance animation on JS startup.
+The Gallery/detail enlargement and crossfade remain, with the source DOM retained
+for return navigation. Regression coverage checks DOM identity, cached readiness,
+dark theme, query filters, slide selection and return destination.
+
+History return has a separate pre-paint requirement: restoring images alone does
+not prevent a document from briefly showing its top before native scroll recovery.
+The prerendered head now installs a small, self-contained scroll bootstrap. Save
+the current position on the departing history entry (preserving other state),
+then restore it synchronously after the static body is parsed, before revealing
+the root. Direct section links use the same path. New homepage visits remain at
+the top, and bfcache restores do not replay an obsolete initial position. This
+does not wait for React, fonts, a timer or a transition. Six regression cases
+cover restoration ordering, state preservation, anchors, fresh visits, bfcache
+and missing targets. A Chrome Gallery→Back capture retained the work-section
+viewport in every sampled frame, with the hero above the viewport throughout.
+
+### Continuous reader wheel surface
+
+The in-place reader handles wheel input across its entire viewport, including
+the 16px gaps between slides. Individual image bounds must not let wheel events
+leak through to document scrolling. Input outside the viewport and pinch zoom
+remain native. Chrome verification: a wheel gesture in the gap advanced slide
+1 to slide 2 while document scrollY stayed at 1635.5; regression tests cover
+gap input, outside bounds and Ctrl+wheel.
+
+Horizontal dragging translates the reader without reducing its opacity. Keep
+the slide legible during its rewind; completion hands back to the cover without
+waiting for horizontal selection to settle. Chrome confirmed
+opacity 1 at a 180px drag offset and normal overview selection after release.
+
+### Overview as page zero
+
+The homepage reader includes the localized overview WebP as page 0, followed by
+all original slides (1…N). Entry begins on that same overview and advances along
+the belt to slide 1. Horizontal rewind targets the nearest page-0 slot in the
+N+1 cycle; adjacent pages remain visible throughout instead of being hidden
+when a drag begins. The overview and slides share identical image dimensions
+and corner treatment. Returning explicitly waits for page 0 before unmounting
+the reader, so the resting cover matches the outgoing image. The actual deck's
+page count and detail-page numbering remain unchanged.
+
+Checked in Chrome: entry, drag back to page 0 at full opacity, selection after
+release, and animated Back to overview. Four reader regression tests cover gap
+input, browser scrolling/zoom, the N+1 cycle and the return handoff.
+
+### Interruptible reading and selection
+
+Reference: emilkowalski/skills, commit
+`2d228630ba1446365f614a108cb8252f1feda202`, particularly
+`skills/apple-design/SKILL.md`, `skills/review-animations/STANDARDS.md` and
+`skills/animation-performance/SKILL.md`. These are design guidance, not a carousel
+implementation. Apply their interruptibility and presentation-state principles
+to the existing reader rather than replacing its visual design.
+
+Reading intent is independent of horizontal settling. Click or keyboard input
+opens the selected cover immediately while horizontal centering finishes.
+Vertical wheel input never opens a cover: it scrolls the document unless it is
+inside an already-expanded reader, including its inter-page gaps. Each reader
+session owns its progress; stale completion
+callbacks cannot close a newer session. A returning reader accepts new input
+from its current position, and cancelled springs cannot complete an old exit.
+
+Keep the page-zero belt and full-opacity horizontal rewind. Use a near-critically
+damped spring for rewind, inheriting vertical velocity, rather than restarting a
+fixed-duration easing. Horizontal snapping starts below 30 CSS px/s (previously
+3); vertical snapping starts below .12 pages/s (previously .012). The spring
+shortens the low-speed tail without adding an input lock. Keyboard page changes
+are immediate; unrelated keys do not interrupt a return. Only the primary pointer
+can take control. Page and reader translations use full transform strings.
+
+Validation: 18 targeted tests cover motion settling, page-zero cycling, gap input,
+independent sessions and stale exits. Chrome checks cover drag then immediate
+click/wheel and wheel interruption during Back to overview. No document scrolling
+occurred during reader wheel takeover. This is local interaction validation,
+not a measured frame-rate guarantee or a real-device touch certification.
+
+### Slide preview handoff without a background flash
+
+The detail thumbnail transition must retain an opaque backing image until the
+incoming image has both decoded and completed its fade. Decode completion alone
+is not the handoff: Chrome previously captured the outgoing DOM node removed
+while the only remaining image still had opacity 0. Explicit retained layers now
+replace AnimatePresence exit timing. Interrupted fades keep their visible layers;
+only the newest completed fade may discard them. Unseen cancelled requests are
+removed immediately. The shared SlidePreview applies this to gallery cards too.
+
+Validation: ten card, preview and hydration tests passed. Chrome took 25 DOM samples
+during a dark-theme thumbnail change with combined layer coverage always 1, then
+rapidly selected slides 1→3→2→4→5 with the same result. The final incoming layer
+remains mounted when prior layers are removed. Online prerender build passed.
+
+### Loop-copy visibility during side entry
+
+The carousel renders three repeated sets of covers. Reading selection must use
+the deck index modulo the deck count for every copy, not only the middle set.
+Otherwise clicking the right neighbor at the last→first boundary mounts the
+reader over a still-visible cover; it shows through page gaps and the viewport
+mask while moving inward. All copies of the reading deck now share selected
+visibility, while duplicate sets remain hidden from accessibility. The simultaneous
+horizontal centering and vertical expansion behavior is unchanged.
+
+Chrome reproduced the faulty boundary with a visible outer software cover while
+its off-screen middle copy was hidden. After the fix, all three copies are hidden
+throughout the sampled inward movement. Verified last→first, first→last and an
+ordinary right-neighbor entry, with exactly one reader mounted. Eleven targeted
+tests, scoped lint and the online build passed; the local preview was rebuilt.

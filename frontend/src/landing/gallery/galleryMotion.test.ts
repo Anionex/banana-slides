@@ -52,9 +52,9 @@ describe('gallery simulated curve', () => {
 
 describe('gallery inertial axis', () => {
   const release=()=>{const m=new GalleryMotion(480);m.begin(0);for(let t=16;t<=160;t+=16)m.drag(t*2,t);m.release(160);return m;};
-  it('coasts then captures only while decelerating below 3px/s', () => {
+  it('coasts then captures only while decelerating below 30px/s', () => {
     const m=release();expect(m.position).toBe(320);expect(m.phase).toBe('coast');let snap=false;
-    for(let t=176;t<5000;t+=16){const prior=m.velocity,phase=m.phase;m.tick(.016,t);if(phase==='coast'&&m.phase==='snap'){expect(Math.abs(m.velocity)).toBeLessThanOrEqual(3);expect(Math.abs(m.velocity)).toBeLessThan(Math.abs(prior));snap=true;}}
+    for(let t=176;t<5000;t+=16){const prior=m.velocity,phase=m.phase;m.tick(.016,t);if(phase==='coast'&&m.phase==='snap'){expect(Math.abs(m.velocity)).toBeLessThanOrEqual(30);expect(Math.abs(m.velocity)).toBeLessThan(Math.abs(prior));snap=true;}}
     expect(snap).toBe(true);expect(m.phase).toBe('idle');expect(modulo(m.position,480)).toBe(0);
   });
   it('is frame-rate independent at 60 and 120Hz', () => {
@@ -63,6 +63,15 @@ describe('gallery inertial axis', () => {
   });
   it('interrupts without a position jump and accepts immediate reversal', () => {
     const m=release();m.tick(.016,176);const p=m.position;m.begin(180);expect(m.position).toBe(p);m.drag(p-50,200);expect(m.position).toBe(p-50);expect(m.velocity).toBeLessThan(0);m.release(400);expect(m.velocity).toBe(0);
+  });
+  it('captures a slow release promptly and settles within one second', () => {
+    const m = new GalleryMotion(480);
+    m.position = 380; m.velocity = 25; m.phase = 'coast';
+    m.tick(.016, 16);
+    expect(m.phase).toBe('snap');
+    for (let t = 32; t <= 1000; t += 16) m.tick(.016, t);
+    expect(m.phase).toBe('idle');
+    expect(m.position).toBe(480);
   });
   it('keeps velocity at capture and converges without oscillation from rest', () => {
     const m=new GalleryMotion(480);m.position=100;m.velocity=2;m.phase='coast';m.tick(.016,16);expect(m.phase).toBe('snap');expect(m.velocity).toBeGreaterThan(0);

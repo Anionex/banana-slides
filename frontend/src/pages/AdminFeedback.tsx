@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { apiClient } from '@/api/client';
 import { Button } from '@/components/shared';
+import { AdminSubmissionPreview, type Submission } from './AdminSubmissionPreview';
 
 type Feedback = {
   id: number;
@@ -43,13 +44,13 @@ function FeedbackImagePreview({ feedbackId, imageId, password, zh }: { feedbackI
 
 const PAGE_SIZE = 20;
 
-export function AdminFeedback() {
+export function AdminFeedback({ submissions = false }: { submissions?: boolean }) {
   const { i18n } = useTranslation();
   const zh = i18n.language?.startsWith('zh');
   const password = useRef('');
   const [draft, setDraft] = useState('');
   const [unlocked, setUnlocked] = useState(false);
-  const [items, setItems] = useState<Feedback[]>([]);
+  const [items, setItems] = useState<(Feedback | Submission)[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -59,7 +60,7 @@ export function AdminFeedback() {
     setLoading(true);
     setError('');
     try {
-      const response = await apiClient.post('/api/admin/feedback', { password: nextPassword }, { params: { limit: PAGE_SIZE, offset: nextOffset } });
+      const response = await apiClient.post(submissions ? '/api/admin/gallery-submissions' : '/api/admin/feedback', { password: nextPassword }, { params: { limit: PAGE_SIZE, offset: nextOffset } });
       setItems(response.data.data.items);
       setTotal(response.data.data.total);
       setOffset(nextOffset);
@@ -69,7 +70,7 @@ export function AdminFeedback() {
     } catch (cause) {
       const status = (cause as { response?: { status?: number } }).response?.status;
       setError(status === 401 ? (zh ? '管理员口令错误。' : 'Incorrect admin password.') :
-        zh ? '反馈加载失败，请重试。' : 'Could not load feedback. Please try again.');
+        zh ? '列表加载失败，请重试。' : 'Could not load the list. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -82,13 +83,13 @@ export function AdminFeedback() {
 
   if (!unlocked) return <main className="min-h-screen bg-gray-50 dark:bg-background-primary flex items-center justify-center p-4">
     <form onSubmit={unlock} className="w-full max-w-sm rounded-xl border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary p-6 space-y-4 text-gray-900 dark:text-foreground-primary">
-      <h1 className="text-xl font-semibold">{zh ? '问题反馈管理' : 'Problem reports'}</h1>
+      <h1 className="text-xl font-semibold">{submissions ? (zh ? '收到的作品' : 'Submitted presentations') : (zh ? '问题反馈管理' : 'Problem reports')}</h1>
       <label className="block text-sm space-y-2"><span>{zh ? '管理员口令' : 'Admin password'}</span>
         <input type="password" autoComplete="off" required disabled={loading} value={draft} onChange={event => setDraft(event.target.value)} className="w-full rounded-lg border border-gray-300 dark:border-border-primary bg-transparent px-3 py-2" />
       </label>
       <p className="text-xs text-gray-500">{zh ? '刷新页面后需重新输入口令。' : 'Enter the password again after refreshing.'}</p>
       {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
-      <Button type="submit" disabled={loading}>{loading ? (zh ? '正在验证…' : 'Checking…') : (zh ? '查看反馈' : 'View reports')}</Button>
+      <Button type="submit" disabled={loading}>{loading ? (zh ? '正在验证…' : 'Checking…') : (submissions ? (zh ? '查看作品' : 'View presentations') : (zh ? '查看反馈' : 'View reports'))}</Button>
       <p><Link className="text-sm text-banana-700 underline dark:text-banana-400" to="/admin/history">{zh ? '查看历史项目' : 'View project history'}</Link></p>
     </form>
   </main>;
@@ -96,23 +97,24 @@ export function AdminFeedback() {
   return <main className="min-h-screen bg-gray-50 dark:bg-background-primary px-4 py-8 text-gray-900 dark:text-foreground-primary">
     <div className="mx-auto max-w-4xl space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <div><h1 className="text-2xl font-semibold">{zh ? '问题反馈' : 'Problem reports'}</h1><p className="mt-1 text-sm text-gray-500">{zh ? `共 ${total} 条` : `${total} reports`}</p></div>
-        <div className="flex items-center gap-3"><Link className="text-sm underline" to="/admin/history">{zh ? '历史项目' : 'Project history'}</Link><Button variant="secondary" size="sm" onClick={() => { password.current = ''; setUnlocked(false); setItems([]); }}>{zh ? '退出' : 'Sign out'}</Button></div>
+        <div><h1 className="text-2xl font-semibold">{submissions ? (zh ? '收到的作品' : 'Submitted presentations') : (zh ? '问题反馈' : 'Problem reports')}</h1><p className="mt-1 text-sm text-gray-500">{zh ? `共 ${total} 条${submissions ? ' · 仅管理员可见' : ''}` : `${total} ${submissions ? 'presentations · Admin access only' : 'reports'}`}</p></div>
+        <div className="flex flex-wrap items-center gap-3"><Link className="text-sm underline" to={submissions ? "/admin/feedback" : "/admin/gallery-submissions"}>{submissions ? (zh ? "问题反馈" : "Problem reports") : (zh ? "收到的作品" : "Submitted presentations")}</Link><Link className="text-sm underline" to="/admin/history">{zh ? '历史项目' : 'Project history'}</Link><Button variant="secondary" size="sm" onClick={() => { password.current = ''; setUnlocked(false); setItems([]); }}>{zh ? '退出' : 'Sign out'}</Button></div>
       </header>
       {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
-      {items.length === 0 ? <p className="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-500 dark:border-border-primary dark:bg-background-secondary">{zh ? '暂时没有反馈' : 'No reports yet'}</p> :
+      {items.length === 0 ? <p className="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-500 dark:border-border-primary dark:bg-background-secondary">{submissions ? (zh ? '暂时还没有收到作品' : 'No presentations received yet') : (zh ? '暂时没有反馈' : 'No reports yet')}</p> :
         <div className="space-y-3">{items.map(item => <article key={item.id} className="rounded-xl border border-gray-200 bg-white p-5 dark:border-border-primary dark:bg-background-secondary">
           <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
             <time dateTime={item.created_at}>{new Date(item.created_at).toLocaleString(zh ? 'zh-CN' : 'en-US')}</time>
-            <a href={item.page_path} className="underline">{item.page_path}</a>
+            {'page_path' in item && <a href={item.page_path} className="underline">{item.page_path}</a>}
           </div>
+          {'filename' in item ? <AdminSubmissionPreview item={item} password={password.current} zh={zh} /> : <>
           <p className="whitespace-pre-wrap break-words leading-relaxed">{item.message}</p>
           {item.images?.length > 0 && <div className="mt-3 flex flex-wrap gap-3">{item.images.map(image =>
             <FeedbackImagePreview key={image.id} feedbackId={item.id} imageId={image.id} password={password.current} zh={zh} />
           )}</div>}
-          {item.reply_email && <a className="mt-3 inline-block text-sm text-banana-700 underline dark:text-banana-400" href={`mailto:${item.reply_email}`}>{item.reply_email}</a>}
+          {item.reply_email && <a className="mt-3 inline-block text-sm text-banana-700 underline dark:text-banana-400" href={`mailto:${item.reply_email}`}>{item.reply_email}</a>}</>}
         </article>)}</div>}
-      <nav aria-label={zh ? '反馈分页' : 'Report pages'} className="flex items-center justify-between gap-3">
+      <nav aria-label={zh ? '列表分页' : 'List pages'} className="flex items-center justify-between gap-3">
         <Button variant="secondary" size="sm" disabled={loading || offset === 0} onClick={() => void load(Math.max(0, offset - PAGE_SIZE))}>{zh ? '上一页' : 'Previous'}</Button>
         <span className="text-sm text-gray-500">{total ? `${offset + 1}–${Math.min(offset + PAGE_SIZE, total)} / ${total}` : '0 / 0'}</span>
         <Button variant="secondary" size="sm" disabled={loading || offset + PAGE_SIZE >= total} onClick={() => void load(offset + PAGE_SIZE)}>{zh ? '下一页' : 'Next'}</Button>

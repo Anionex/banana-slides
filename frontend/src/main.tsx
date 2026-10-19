@@ -14,23 +14,31 @@ if (showLanding || showGallery || showDeck) {
   initializePublicAnalytics();
 }
 
+// Reuse the static page's DOM, including already decoded images. createRoot
+// would discard it and repaint every cover when the interactive bundle arrives.
+function mountMarketingPage(page: React.ReactNode) {
+  const container = document.getElementById('root')!;
+  const app = <React.StrictMode>{page}</React.StrictMode>;
+  if (container.hasChildNodes()) ReactDOM.hydrateRoot(container, app);
+  else ReactDOM.createRoot(container).render(app);
+}
+
 // Keep the prerendered page visible while its interactive bundle loads.
 if (showDeck) {
   void import('./landing/gallery/DeckDetail').then(({ DeckDetail }) => {
     delete document.documentElement.dataset.appShell;
-    ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><DeckDetail /></React.StrictMode>);
+    mountMarketingPage(<DeckDetail />);
   });
 } else if (showGallery) {
   void Promise.all([import('./landing/gallery/Gallery'), import('./landing/gallery/homeDeckNavigation')]).then(([{ Gallery }, { installHomeDeckNavigation }]) => {
     installHomeDeckNavigation('gallery');
     delete document.documentElement.dataset.appShell;
-    ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><Gallery /></React.StrictMode>);
+    mountMarketingPage(<Gallery />);
   });
 } else if (showLanding) {
   void Promise.all([import('./landing/Landing'), import('./landing/gallery/homeDeckNavigation')]).then(([{ Landing }, { installHomeDeckNavigation }]) => {
-    const root = ReactDOM.createRoot(document.getElementById('root')!);
     installHomeDeckNavigation();
-    root.render(<React.StrictMode><Landing /></React.StrictMode>);
+    mountMarketingPage(<Landing />);
   });
 } else {
   const App = lazy(() => import('./AppBootstrap'));
