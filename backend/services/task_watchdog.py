@@ -421,6 +421,9 @@ def mark_task_failed(
         _expire()
         return False
 
+    from services.export_control import abort_export_task
+    from services.export_service import ExportError
+    abort_export_task(task.id, ExportError(message, error_code=error_code, stage=error_stage))
     _expire()
     logger.warning("Task %s marked FAILED (%s): %s", task.id, error_code, message)
     return True

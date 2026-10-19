@@ -9,6 +9,7 @@ Completions) and supports both streaming and non-streaming generation.
 """
 import json
 import logging
+from services.export_control import check_export, retry_export_request, export_sleep
 from typing import Generator
 
 import requests as http_requests
@@ -87,7 +88,8 @@ class CodexTextProvider(TextProvider):
     @retry(
         stop=stop_after_attempt(5),
         wait=wait_exponential(multiplier=2, min=4, max=60),
-        retry=retry_if_exception(_is_retryable_http_error),
+        retry=retry_if_exception(lambda exc: retry_export_request(exc) and _is_retryable_http_error(exc)),
+        before=lambda _: check_export(), sleep=export_sleep,
         reraise=True,
         before_sleep=_log_codex_retry,
     )

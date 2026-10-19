@@ -3,10 +3,11 @@ Gemini Inpainting 消除服务提供者
 使用 Gemini 2.5 Flash Image Preview 模型进行基于 mask 的图像编辑
 """
 import logging
+from services.export_control import check_export, retry_export_request, export_sleep
 from typing import Optional
 from PIL import Image, ImageDraw
 import numpy as np
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
 from .genai_provider import GenAIImageProvider
 from config import get_config
 
@@ -104,6 +105,9 @@ class GeminiInpaintingProvider:
         return marked_image
     
     @retry(
+        retry=retry_if_exception(retry_export_request),
+        sleep=export_sleep,
+        before=lambda _: check_export(),
         stop=stop_after_attempt(3),  # 最多重试3次
         wait=wait_exponential(multiplier=1, min=2, max=10),  # 指数避让: 2s, 4s, 8s
         reraise=True

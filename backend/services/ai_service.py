@@ -11,7 +11,9 @@ import requests
 from typing import List, Dict, Optional, Union, Any
 from textwrap import dedent
 from PIL import Image
-from tenacity import retry, stop_after_attempt, retry_if_exception_type
+from tenacity import retry, stop_after_attempt, retry_if_exception_type, retry_if_exception
+from services.export_control import check_export, retry_export_request, export_sleep
+
 from .prompts import (
     get_outline_generation_prompt,
     get_outline_parsing_prompt,
@@ -235,7 +237,9 @@ class AIService:
     
     @retry(
         stop=stop_after_attempt(3),
-        retry=retry_if_exception_type((json.JSONDecodeError, ValueError)),
+        retry=(retry_if_exception_type((json.JSONDecodeError, ValueError)) & retry_if_exception(retry_export_request)),
+        before=lambda _: check_export(),
+        sleep=export_sleep,
         reraise=True
     )
     def generate_json(self, prompt: str, thinking_budget: int = 1000) -> Union[Dict, List]:
@@ -267,7 +271,9 @@ class AIService:
     
     @retry(
         stop=stop_after_attempt(3),
-        retry=retry_if_exception_type((json.JSONDecodeError, ValueError)),
+        retry=(retry_if_exception_type((json.JSONDecodeError, ValueError)) & retry_if_exception(retry_export_request)),
+        before=lambda _: check_export(),
+        sleep=export_sleep,
         reraise=True
     )
     def generate_json_with_image(self, prompt: str, image_path: str, thinking_budget: int = 1000) -> Union[Dict, List]:
@@ -286,6 +292,7 @@ class AIService:
             json.JSONDecodeError: JSON解析失败（重试3次后仍失败）
             ValueError: caption_provider 不支持图片输入
         """
+        check_export()
         # 使用 caption_provider（支持图片输入的多模态模型）
         actual_budget = self._get_text_thinking_budget()
         provider = self.caption_provider
@@ -305,6 +312,7 @@ class AIService:
             raise ValueError("caption_provider 不支持图片输入")
 
         # 清理响应文本：移除markdown代码块标记和多余空白
+        check_export()
         cleaned_text = (response_text or "").strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
 
         if not cleaned_text:

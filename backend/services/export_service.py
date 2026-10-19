@@ -6,6 +6,7 @@ import math
 import os
 import json
 import logging
+from services.export_control import check_export, dependency_failed, export_operation, export_sleep
 import random
 import re
 import tempfile
@@ -1036,10 +1037,13 @@ class ExportService:
         text_items = []
         
         for elem in elements:
+            check_export()
             elem_type = elem.element_type
             
             # 文本类型元素需要提取样式
             if elem_type in ['text', 'title', 'table_cell', 'list', 'paragraph', 'header', 'footer', 'heading', 'table_caption', 'image_caption']:
+                if elem.content and elem.content.strip() and not (elem.image_path and os.path.exists(elem.image_path)):
+                    dependency_failed(f"文本元素裁剪图片缺失: {elem.element_id}", "style_extraction")
                 if elem.content and elem.image_path and os.path.exists(elem.image_path):
                     text = elem.content.strip()
                     if text:
@@ -1077,8 +1081,8 @@ class ExportService:
         Returns:
             字典，key为element_id，value为TextStyleResult
         """
-        from concurrent.futures import as_completed
-        from services.public_demo import VisitorThreadPoolExecutor as ThreadPoolExecutor
+        from services.export_control import as_completed
+        from services.export_control import ExportThreadPoolExecutor as ThreadPoolExecutor
         
         if not text_items or not text_attribute_extractor:
             return {}
@@ -1094,8 +1098,11 @@ class ExportService:
                     image=image_path,
                     text_content=text_content
                 )
+                if style is None or (style.confidence == 0 and style.metadata.get("error")):
+                    dependency_failed("文本样式提取失败", "style_extraction", cause=RuntimeError(str(getattr(style, "metadata", {}))))
                 return element_id, style
             except Exception as e:
+                dependency_failed("文本样式提取失败", "style_extraction", cause=e)
                 logger.warning(f"提取文字样式失败 [{element_id}]: {e}")
                 return element_id, None
         
@@ -1128,6 +1135,7 @@ class ExportService:
         text_items = []
         
         for elem in elements:
+            check_export()
             elem_type = elem.element_type
             
             # 文本类型元素需要提取样式
@@ -1175,8 +1183,8 @@ class ExportService:
         Returns:
             字典，key为element_id，value为TextStyleResult
         """
-        from concurrent.futures import as_completed
-        from services.public_demo import VisitorThreadPoolExecutor as ThreadPoolExecutor
+        from services.export_control import as_completed
+        from services.export_control import ExportThreadPoolExecutor as ThreadPoolExecutor
         
         if not editable_images or not text_attribute_extractor:
             return {}
@@ -1253,6 +1261,7 @@ class ExportService:
         return all_results
     
     @staticmethod
+    @export_operation
     def _batch_extract_text_styles_hybrid(
         editable_images: List,  # List[EditableImage]
         text_attribute_extractor,
@@ -1281,8 +1290,8 @@ class ExportService:
             - results: 字典，key为element_id，value为TextStyleResult（合并后的结果）
             - failed_extractions: 失败列表，每项为 (element_id, error_reason)
         """
-        from concurrent.futures import as_completed
-        from services.public_demo import VisitorThreadPoolExecutor as ThreadPoolExecutor
+        from services.export_control import as_completed
+        from services.export_control import ExportThreadPoolExecutor as ThreadPoolExecutor
         from services.image_editability.text_attribute_extractors import TextStyleResult
         
         if not editable_images or not text_attribute_extractor:
@@ -1342,7 +1351,8 @@ class ExportService:
 
             for attempt in range(1, max_global_attempts + 1):
                 if attempt > 1:
-                    time.sleep(1)
+                    export_sleep(1)
+                check_export()
                 try:
                     raw_results = text_attribute_extractor.extract_batch_with_full_image(
                         full_image=page_data['image_path'],
@@ -1381,6 +1391,13 @@ class ExportService:
                         list(missing_element_ids)[:5],
                     )
                 except Exception as e:
+                    check_export()
+                    if fail_fast:
+                        raise ExportService._build_style_extraction_error(
+                            str(e), page_idx=page_idx,
+                            text_attribute_extractor=text_attribute_extractor,
+                            operation="global_page_style",
+                        ) from e
                     last_exception = str(e)
                     logger.warning(
                         "全局识别页面 %s 第 %s/%s 次失败，将重试: %s",
@@ -1575,6 +1592,7 @@ class ExportService:
         return merged_results, failed_extractions
     
     @staticmethod
+    @export_operation
     def create_editable_pptx_with_recursive_analysis(
         image_paths: List[str] = None,
         output_file: str = None,
@@ -1631,6 +1649,7 @@ class ExportService:
         
         # 辅助函数：报告进度
         def report_progress(step: str, message: str, percent: int):
+            check_export()
             logger.info(f"[进度 {percent}%] {step}: {message}")
             if progress_callback:
                 try:
@@ -1640,6 +1659,7 @@ class ExportService:
 
         # 辅助函数：只打心跳（元素级，避免每个元素都写一次数据库）
         def beat(step: str):
+            check_export()
             if heartbeat_callback:
                 try:
                     heartbeat_callback(step)
@@ -1674,8 +1694,8 @@ class ExportService:
             
             # 2. 并发处理所有页面，生成EditableImage结构
             report_progress("版面分析", f"开始分析 {total_pages} 张图片（并发数: {max_workers}）...", 5)
-            from concurrent.futures import as_completed
-            from services.public_demo import VisitorThreadPoolExecutor as ThreadPoolExecutor
+            from services.export_control import as_completed
+            from services.export_control import ExportThreadPoolExecutor as ThreadPoolExecutor
             
             editable_images = []
             completed_count = 0
@@ -1776,6 +1796,9 @@ class ExportService:
             # 创建空白幻灯片
             slide = builder.add_blank_slide()
             
+            check_export()
+            if editable_img.clean_background and not os.path.exists(editable_img.clean_background):
+                dependency_failed("背景修复文件缺失", "inpaint")
             # 添加背景图（参考原实现，使用slide.shapes.add_picture）
             if editable_img.clean_background and os.path.exists(editable_img.clean_background):
                 logger.info(f"    添加clean background: {editable_img.clean_background}")
@@ -1788,6 +1811,7 @@ class ExportService:
                         height=builder.prs.slide_height
                     )
                 except Exception as e:
+                    dependency_failed("幻灯片背景写入失败", "image_add", cause=e)
                     logger.error(f"Failed to add background: {e}")
             else:
                 # 回退到原图
@@ -1801,6 +1825,7 @@ class ExportService:
                         height=builder.prs.slide_height
                     )
                 except Exception as e:
+                    dependency_failed("幻灯片背景写入失败", "image_add", cause=e)
                     logger.error(f"Failed to add background: {e}")
             
             # 添加所有元素（递归地）
@@ -1850,6 +1875,7 @@ class ExportService:
             return pptx_bytes, warnings
     
     @staticmethod
+    @export_operation
     def _add_editable_elements_to_slide(
         builder,
         slide,
@@ -1920,6 +1946,7 @@ class ExportService:
                 ):
                     return
 
+                dependency_failed("公式无法转换为可编辑公式", "text_render")
                 fallback_text = latex_to_display_text(formula_text)
                 builder.add_text_element(
                     slide=slide,
@@ -1947,6 +1974,7 @@ class ExportService:
             )
         
         for elem in elements:
+            check_export()
             elem_type = elem.element_type
             
             # 根据深度决定使用局部坐标还是全局坐标
@@ -2024,6 +2052,8 @@ class ExportService:
                     logger.info(f"{'  ' * depth}    表格有 {len(elem.children)} 个单元格，使用可编辑格式")
                     
                     # 先添加inpainted背景（干净的表格框架）
+                    if not os.path.exists(elem.inpainted_background_path):
+                        dependency_failed("子元素背景文件缺失", "image_add")
                     if os.path.exists(elem.inpainted_background_path):
                         try:
                             builder.add_image_element(
@@ -2032,6 +2062,7 @@ class ExportService:
                                 bbox=bbox_list
                             )
                         except Exception as e:
+                            dependency_failed("表格背景写入失败", "image_add", cause=e)
                             logger.error(f"Failed to add table background: {e}")
                     
                     # 递归添加单元格
@@ -2058,9 +2089,11 @@ class ExportService:
                                 bbox=bbox_list
                             )
                         except Exception as e:
+                            dependency_failed("表格图片写入失败", "image_add", cause=e)
                             logger.error(f"Failed to add table image: {e}")
                     else:
                         logger.warning(f"Table image not found: {elem.image_path}")
+                        dependency_failed(f"元素图片缺失: {elem.element_id}", "image_add")
                         builder.add_image_placeholder(slide, bbox_list)
             
             elif elem_type in ['image', 'figure', 'chart']:
@@ -2094,10 +2127,13 @@ class ExportService:
                     logger.debug(f"{'  ' * depth}    元素有 {len(elem.children)} 个子元素，递归添加")
                     
                     # 先添加inpainted背景
+                    if not os.path.exists(elem.inpainted_background_path):
+                        dependency_failed("子元素背景文件缺失", "image_add")
                     if os.path.exists(elem.inpainted_background_path):
                         try:
                             builder.add_image_element(slide, elem.inpainted_background_path, bbox_list)
                         except Exception as e:
+                            dependency_failed("子元素背景写入失败", "image_add", cause=e)
                             logger.error(f"Failed to add inpainted background: {e}")
                     
                     # 递归添加子元素
@@ -2124,13 +2160,16 @@ class ExportService:
                                 bbox=bbox_list
                             )
                         except Exception as e:
+                            dependency_failed("图片写入失败", "image_add", cause=e)
                             logger.error(f"Failed to add image: {e}")
                     else:
                         logger.warning(f"Image file not found: {elem.image_path}")
+                        dependency_failed(f"元素图片缺失: {elem.element_id}", "image_add")
                         builder.add_image_placeholder(slide, bbox_list)
             
             else:
                 # 其他类型
+                dependency_failed(f"无法导出元素类型: {elem_type}", "element_render")
                 logger.debug(f"{'  ' * depth}  跳过未知类型: {elem_type}")
 
             if on_element:

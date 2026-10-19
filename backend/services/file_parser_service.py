@@ -5,6 +5,7 @@ import os
 import re
 import time
 import logging
+from services.export_control import check_export, retry_export_request, export_sleep
 import zipfile
 import io
 import requests
@@ -325,6 +326,7 @@ class FileParserService:
         }
         
         try:
+            check_export()
             response = requests.post(
                 self.get_upload_url_api,
                 headers=headers,
@@ -352,6 +354,7 @@ class FileParserService:
         """Upload file to MinerU"""
         try:
             with open(file_path, 'rb') as f:
+                check_export()
                 response = requests.put(
                     upload_url,
                     data=f,
@@ -391,6 +394,7 @@ class FileParserService:
                 return None, None, error_msg
             
             try:
+                check_export()
                 response = requests.get(result_url, headers=headers, timeout=30)
                 response.raise_for_status()
                 task_info = response.json()
@@ -414,9 +418,12 @@ class FileParserService:
                     return None, None, error_msg
                 else:
                     logger.debug(f"Current task status: {task_status}, waiting...")
-                    time.sleep(2)  # Wait 2 seconds before next poll
+                    export_sleep(2)  # Wait 2 seconds before next poll
                     
             except requests.exceptions.HTTPError as e:
+                check_export()
+                if not retry_export_request(e):
+                    raise
                 status_code = getattr(e.response, 'status_code', None)
                 if status_code in (401, 403):
                     error_msg = (
@@ -426,10 +433,10 @@ class FileParserService:
                     logger.error(error_msg)
                     return None, None, error_msg
                 logger.warning(f"HTTP error while polling result: {str(e)}, retrying...")
-                time.sleep(2)
+                export_sleep(2)
             except requests.exceptions.RequestException as e:
                 logger.warning(f"Network error while polling result: {str(e)}, retrying...")
-                time.sleep(2)
+                export_sleep(2)
     
     def _download_markdown(self, zip_url: str) -> tuple[Optional[str], Optional[str], Optional[str]]:
         """Download and extract markdown from result zip, save images to local server
@@ -438,6 +445,7 @@ class FileParserService:
             Tuple of (markdown_content, extract_id, error_message)
         """
         try:
+            check_export()
             response = requests.get(zip_url, timeout=60)
             response.raise_for_status()
             

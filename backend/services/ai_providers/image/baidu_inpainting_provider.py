@@ -5,13 +5,14 @@
 API文档: https://ai.baidu.com/ai-doc/IMAGEPROCESS/Mk4i6o3w3
 """
 import logging
+from services.export_control import check_export, retry_export_request, export_sleep
 import base64
 import requests
 import json
 from typing import Dict, List, Any, Optional, Tuple
 from PIL import Image
 import io
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,9 @@ class BaiduInpaintingProvider:
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=0.5, min=1, max=5),
-        retry=retry_if_exception_type((requests.exceptions.RequestException, Exception)),
+        retry=retry_if_exception(retry_export_request),
+        sleep=export_sleep,
+        before=lambda _: check_export(),
         reraise=True
     )
     def inpaint(

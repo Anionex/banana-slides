@@ -3,6 +3,7 @@ Task Manager - handles background tasks using ThreadPoolExecutor
 No need for Celery or Redis, uses in-memory task tracking
 """
 import logging
+from services.export_control import export_operation, current_export, check_export
 import os
 import shutil
 import tempfile
@@ -1786,6 +1787,7 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
             db.session.commit()
 
 
+@export_operation
 def export_editable_pptx_with_recursive_analysis_task(
     task_id: str,
     project_id: str,
@@ -1829,6 +1831,8 @@ def export_editable_pptx_with_recursive_analysis_task(
     
     with app.app_context():
         import os
+        import json
+        from sqlalchemy import update
         from datetime import datetime
         from PIL import Image
         from models import Project
@@ -1838,18 +1842,23 @@ def export_editable_pptx_with_recursive_analysis_task(
         logger.info(f"开始递归分析导出任务 {task_id} for project {project_id}")
 
         current_stage = "准备"
+        output_path = None
+        published = False
 
         def persist_export_failure(failure: ExportError):
             """Persist a terminal backend failure without discarding the last real progress."""
             failed_task = Task.query.get(task_id)
-            if not failed_task:
+            if failed_task:
+                db.session.refresh(failed_task)
+            if not failed_task or failed_task.status in ("FAILED", "COMPLETED"):
                 return
 
             previous_progress = failed_task.get_progress()
             previous_messages = previous_progress.get('messages') or []
             display_stage = {
-                'style_extraction': '样式提取',
-                'export': '导出',
+                'style_extraction': '样式提取', 'layout_analysis': '版面分析',
+                'inpaint': '背景修复', 'image_add': '图片写入',
+                'config': '配置', 'preparation': '准备', 'export': '导出',
             }.get(failure.stage, failure.stage)
             failed_task.status = 'FAILED'
             failed_task.error_message = failure.message
@@ -1880,6 +1889,7 @@ def export_editable_pptx_with_recursive_analysis_task(
             # 读取项目的导出设置：是否允许返回半成品
             export_allow_partial = project.export_allow_partial or False
             fail_fast = not export_allow_partial
+            current_export().strict = fail_fast
             logger.info(f"导出设置: export_allow_partial={export_allow_partial}, fail_fast={fail_fast}")
 
             # IMPORTANT: Expire cached objects to ensure fresh data from database
@@ -1897,6 +1907,9 @@ def export_editable_pptx_with_recursive_analysis_task(
                     img_path = file_service.get_absolute_path(page.generated_image_path)
                     if os.path.exists(img_path):
                         image_paths.append(img_path)
+                    elif fail_fast:
+                        raise ExportError("页面图片文件缺失，导出已终止", error_type="image_add",
+                                          stage="preparation", details={"page_id": page.id})
             
             if not image_paths:
                 raise ValueError('No generated images found for project')
@@ -1905,6 +1918,9 @@ def export_editable_pptx_with_recursive_analysis_task(
             
             # 初始化任务进度（包含消息日志）
             task = Task.query.get(task_id)
+            db.session.refresh(task)
+            if task.status in ("FAILED", "COMPLETED"):
+                return
             task.status = 'PROCESSING'
             task.set_progress({
                 "total": 100,  # 使用百分比
@@ -1923,6 +1939,7 @@ def export_editable_pptx_with_recursive_analysis_task(
             def progress_callback(step: str, message: str, percent: int):
                 """更新任务进度到数据库"""
                 nonlocal progress_messages, current_stage
+                check_export()
                 try:
                     current_stage = step
                     # 心跳：既更新内存看门狗，也写入数据库，
@@ -1935,23 +1952,32 @@ def export_editable_pptx_with_recursive_analysis_task(
                     if len(progress_messages) > max_messages:
                         progress_messages = progress_messages[-max_messages:]
                     
-                    # 更新数据库
-                    task = Task.query.get(task_id)
-                    if task:
-                        task.set_progress({
-                            "total": 100,
-                            "completed": percent,
-                            "failed": 0,
-                            "current_step": message,
-                            "percent": percent,
-                            "messages": progress_messages.copy(),
-                        })
-                        db.session.commit()
+                    # Only active tasks can accept progress. A concurrent
+                    # watchdog failure must keep its diagnostics intact.
+                    payload = {
+                        "total": 100, "completed": percent, "failed": 0,
+                        "current_step": message, "percent": percent,
+                        "messages": progress_messages.copy(),
+                        "heartbeat_at": datetime.utcnow().isoformat(),
+                    }
+                    result = db.session.execute(
+                        update(Task).where(Task.id == task_id, Task.status.in_(['PENDING', 'PROCESSING']))
+                        .values(progress=json.dumps(payload))
+                        .execution_options(synchronize_session=False)
+                    )
+                    db.session.commit()
+                    if not result.rowcount:
+                        current_export().fail(ExportError("导出已终止"))
+                        check_export()
                 except Exception as e:
+                    check_export()
+                    if isinstance(e, ExportError):
+                        raise
                     logger.warning(f"更新进度失败: {e}")
 
             def heartbeat_callback(step: str):
                 """仅更新内存心跳（不写库），用于元素级细粒度进度。"""
+                check_export()
                 touch_task(task_id, step)
             
             # Step 1: 准备工作
@@ -2008,6 +2034,7 @@ def export_editable_pptx_with_recursive_analysis_task(
                 fail_fast=fail_fast
             )
             
+            check_export()
             logger.info(f"✓ 可编辑PPTX已创建: {output_path}")
             
             # Step 4: 标记任务完成
@@ -2023,35 +2050,28 @@ def export_editable_pptx_with_recursive_analysis_task(
                 progress_messages.extend(warning_messages)
                 logger.warning(f"导出有 {len(warning_messages)} 条警告")
             
-            task = Task.query.get(task_id)
-            if task:
-                # 注意：如果该任务已被看门狗判为失败，Task.status 的校验器
-                # 会保持 FAILED 终态，但下面的产物信息仍会写入进度。
-                task.status = 'COMPLETED'
-                task.completed_at = datetime.utcnow()
-                touch_task(task_id, "完成")
-                task.set_progress({
-                    "total": 100,
-                    "completed": 100,
-                    "failed": 0,
-                    "current_step": "导出完成",
-                    "percent": 100,
-                    "messages": progress_messages,
-                    "download_url": download_path,
-                    "filename": filename,
-                    "method": "recursive_analysis",
-                    "max_depth": max_depth,
-                    "warnings": warning_messages,  # 单独的警告列表
-                    "warning_details": export_warnings.to_dict() if export_warnings else {}  # 详细警告信息
-                })
-                db.session.commit()
-                if task.status == 'COMPLETED':
-                    logger.info(f"✓ 任务 {task_id} 完成 - 递归分析导出成功（深度={max_depth}）")
-                else:
-                    logger.warning(
-                        f"任务 {task_id} 在看门狗判失败后仍完成了导出，保持 FAILED 终态，"
-                        f"产物: {filename}"
-                    )
+            check_export()
+            # Conditional SQL update prevents late workers from overwriting a
+            # watchdog failure, including a concurrent update from another session.
+            progress = {
+                "total": 100, "completed": 100, "failed": 0,
+                "current_step": "导出完成", "percent": 100,
+                "messages": progress_messages, "download_url": download_path,
+                "filename": filename, "method": "recursive_analysis",
+                "max_depth": max_depth, "warnings": warning_messages,
+                "warning_details": export_warnings.to_dict() if export_warnings else {},
+                "heartbeat_at": datetime.utcnow().isoformat(),
+            }
+            result = db.session.execute(
+                update(Task).where(Task.id == task_id, Task.status.in_(['PROCESSING', 'PENDING']))
+                .values(status='COMPLETED', completed_at=datetime.utcnow(), progress=json.dumps(progress))
+                .execution_options(synchronize_session=False)
+            )
+            db.session.commit()
+            published = bool(result.rowcount)
+            if not published:
+                raise ExportError("导出已终止，丢弃晚到的结果")
+            logger.info(f"✓ 任务 {task_id} 完成")
 
         except ExportError as e:
             # 导出错误（fail_fast 模式下的详细错误）
@@ -2070,6 +2090,10 @@ def export_editable_pptx_with_recursive_analysis_task(
             persist_export_failure(
                 ExportService._build_unexpected_export_error(str(e), current_stage)
             )
+
+        finally:
+            if not published and output_path and os.path.isfile(output_path):
+                os.remove(output_path)
 
 
 def export_video_task(

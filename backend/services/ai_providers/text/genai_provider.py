@@ -6,11 +6,12 @@ Operates in two authentication modes selected at construction time:
   * Vertex AI mode (GCP service-account credentials via GOOGLE_APPLICATION_CREDENTIALS)
 """
 import logging
+from services.export_control import check_export, strict_export, retry_export_request, export_sleep
 import re
 from typing import Generator
 from google import genai
 from google.genai import types
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
 from .base import TextProvider, strip_think_tags
 from .stream_control import stream_timeout, stream_stopped
 from config import get_config
@@ -80,7 +81,8 @@ class GenAITextProvider(TextProvider):
                 model,
             )
             if not match:
-                return None
+                return (types.GenerateContentConfig(http_options=types.HttpOptions(
+                    retry_options=types.HttpRetryOptions(attempts=1))) if strict_export() else None)
             version, family = match.groups()
             if version.startswith('3'):
                 thinking = types.ThinkingConfig(
@@ -89,10 +91,16 @@ class GenAITextProvider(TextProvider):
             else:
                 thinking = types.ThinkingConfig(thinking_budget=128 if family == 'pro' else 0)
         else:
-            return None
-        return types.GenerateContentConfig(thinking_config=thinking)
+            thinking = None
+        config = types.GenerateContentConfig(thinking_config=thinking)
+        if strict_export():
+            config.http_options = types.HttpOptions(retry_options=types.HttpRetryOptions(attempts=1))
+        return config
 
     @retry(
+        retry=retry_if_exception(retry_export_request),
+        sleep=export_sleep,
+        before=lambda _: check_export(),
         stop=stop_after_attempt(get_config().GENAI_MAX_RETRIES + 1),
         wait=wait_exponential(multiplier=1, min=2, max=10),
         reraise=True,
@@ -109,14 +117,19 @@ class GenAITextProvider(TextProvider):
         Returns:
             Generated text
         """
+        check_export()
         response = self.client.models.generate_content(
             model=self.model,
             contents=prompt,
             config=self._generation_config(thinking_budget),
         )
+        check_export()
         return _validate_response(response)
     
     @retry(
+        retry=retry_if_exception(retry_export_request),
+        sleep=export_sleep,
+        before=lambda _: check_export(),
         stop=stop_after_attempt(get_config().GENAI_MAX_RETRIES + 1),
         wait=wait_exponential(multiplier=1, min=2, max=10),
         reraise=True,
@@ -142,11 +155,13 @@ class GenAITextProvider(TextProvider):
         # 构建多模态内容
         contents = [img, prompt]
         
+        check_export()
         response = self.client.models.generate_content(
             model=self.model,
             contents=contents,
             config=self._generation_config(thinking_budget),
         )
+        check_export()
         return _validate_response(response)
 
     def generate_text_stream(self, prompt: str, thinking_budget: int = 0) -> Generator[str, None, None]:
