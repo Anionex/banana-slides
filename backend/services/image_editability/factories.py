@@ -670,6 +670,12 @@ class ServiceConfig:
         
         # 创建主体抠图 Provider（默认 RMBG-2.0 ONNX 本地推理，用于图标透明背景）
         enable_icon_subject_extraction = kwargs.get('enable_icon_subject_extraction', False)
+        from services.public_demo import enabled as public_demo_enabled
+        if public_demo_enabled():
+            # The shared online backend cannot safely host RMBG CPU inference.
+            # Enforce this here as well as at the API boundary for saved projects
+            # and direct background-task calls.
+            enable_icon_subject_extraction = False
         segmentation_provider = None
         if enable_icon_subject_extraction:
             try:

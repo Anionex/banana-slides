@@ -503,6 +503,9 @@ def export_editable_pptx(project_id):
                 True if project.enable_icon_subject_extraction is None
                 else bool(project.enable_icon_subject_extraction)
             )
+            from services.public_demo import enabled as public_demo_enabled
+            if public_demo_enabled():
+                enable_icon_subject_extraction = False
             logger.info(
                 f"Export settings: extractor={export_extractor_method}, "
                 f"inpaint={export_inpaint_method}, "
