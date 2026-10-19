@@ -11,6 +11,7 @@ interface ModalProps {
   size?: 'sm' | 'md' | 'lg' | 'xl' | 'wide' | 'full';
   showCloseButton?: boolean;
   headerActions?: React.ReactNode;
+  headerContent?: React.ReactNode;
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -21,6 +22,7 @@ export const Modal: React.FC<ModalProps> = ({
   size = 'md',
   showCloseButton = true,
   headerActions,
+  headerContent,
 }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -139,6 +141,7 @@ export const Modal: React.FC<ModalProps> = ({
               >
                 {title}
               </h2>
+              {headerContent}
             </div>
           )}
 
