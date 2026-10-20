@@ -339,7 +339,7 @@ export function PublicSettings({ embedded = false }: { embedded?: boolean }) {
     if (key === "settings.apiKeyHelp.step1")
       return `前往 ${partner?.name} 注册或登录，进入控制台：{{link}}`;
     if (key === "settings.apiKeyHelp.step2")
-      return "如需使用付费模型，在左侧「账户」区域点击「余额充值」，按需充值";
+      return "在左侧「账户」区域点击「余额充值」，完成充值";
     if (key === "settings.apiKeyHelp.step3")
       return "在左侧「开发」区域点击「API Keys」，创建新的 API Key";
     if (key === "settings.apiKeyHelp.step4")
