@@ -11,9 +11,9 @@ export function GithubStars() {
   useEffect(() => {
     try {
       const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
-      if (cached && Number.isInteger(cached.data?.stars) && cached.data.stars >= 0 && Date.now() - cached.timestamp < CACHE_DURATION) {
+      if (cached && Number.isInteger(cached.data?.stars) && cached.data.stars >= 0) {
         setStars(cached.data.stars);
-        return;
+        if (Date.now() - cached.timestamp < CACHE_DURATION) return;
       }
     } catch { /* A blocked or invalid cache should not prevent fetching. */ }
 
@@ -32,7 +32,7 @@ export function GithubStars() {
           }));
         } catch { /* Stats still display when storage is unavailable. */ }
       })
-      .catch(() => { /* Keep the GitHub link usable if the API is unavailable. */ });
+      .catch(() => { /* Keep the last successful count when refreshing fails. */ });
     return () => controller.abort();
   }, []);
 
