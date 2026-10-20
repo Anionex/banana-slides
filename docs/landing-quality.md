@@ -46,6 +46,8 @@ playwright-cli -s=landing-review run-code --filename frontend/scripts/landing-co
 
 ## 验收与维护
 
+首页 GitHub star 数先显示上次成功的本地缓存。一小时 TTL 只控制刷新：过期值在刷新中、网络/HTTP 失败或响应无有效数字时继续显示，成功后才更新缓存。无历史结果时不编造数字。回归测试：`npm run test:run -- src/landing/GithubStars.test.tsx`。
+
 复用 4178 的稳定预览产物，在仓库根执行 `frontend/scripts/landing-audit.js`（Playwright CLI run-code）。该脚本创建并清理独立浏览器上下文，检查主题、键盘、语言、静态 HTML、320–1440px 布局、axe 和模拟表单响应；不提交真实预约。返回结构化结果。
 
 本次验收：官网构建、修改文件 ESLint、publicLanding 的 5 项测试及浏览器验收通过。全仓 tsc 仍报 61 个错误；已在相同依赖下对比未修改的生产基线，输出完全相同，本次未新增。
