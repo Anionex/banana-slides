@@ -90,7 +90,7 @@ for (const embedded of [false, true]) for (const mobile of [false, true]) {
     await page.addStyleTag({ content: 'a[href*="inferera.com"], a[href*="?aff="], a[href*="&aff="] { display: none !important; }' });
     const region = page.getByRole('region', { name: 'API 配置', exact: true });
     await expect(region.getByText('若需快速配置或稳定高并发生图，可使用 Inferera。', { exact: false })).toBeVisible();
-    await expect(region.getByText('如需使用付费模型，在左侧「账户」区域点击「余额充值」，按需充值')).toBeVisible();
+    await expect(region.getByText('在左侧「账户」区域点击「余额充值」，完成充值')).toBeVisible();
     await expect(region.getByText('在左侧「开发」区域点击「API Keys」，创建新的 API Key')).toBeVisible();
     await page.context().route(providers[0].url, route => route.fulfill({ body: 'Provider destination verified' }));
     for (const name of ['申请 API Key ↗', '访问官网 ↗']) {
