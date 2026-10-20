@@ -13,6 +13,7 @@ interface Props {
   activeApiKeyTipKey: string;
   activeApiKeyHelpUrl: string;
   copyToClipboard: (text: string) => void;
+  openApiKeyHelp?: () => void;
   applyVolcengineRecommendedModels?: () => void;
 }
 const VOLCENGINE_AGENTPLANS_APIKEY_URL =
@@ -29,8 +30,28 @@ export function SettingsApiGuidance({
   activeApiKeyTipKey,
   activeApiKeyHelpUrl,
   copyToClipboard,
+  openApiKeyHelp,
   applyVolcengineRecommendedModels,
 }: Props) {
+  // Public setup actions must remain usable when cosmetic filters hide referral anchors.
+  const apiKeyLink = (label: string) => openApiKeyHelp ? (
+    <button
+      type="button"
+      onClick={openApiKeyHelp}
+      className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline font-medium rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+    >
+      {label}
+    </button>
+  ) : (
+    <a
+      href={activeApiKeyHelpUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-blue-600 hover:text-blue-800 underline font-medium"
+    >
+      {label}
+    </a>
+  );
   return (
     <>
       {" "}
@@ -137,14 +158,7 @@ export function SettingsApiGuidance({
         <div className="mt-3 pl-4 border-l-4 border-blue-300 dark:border-blue-600">
           <p className="text-sm text-gray-700 dark:text-foreground-secondary">
             {t(`${activeApiKeyTipKey}.before`)}
-            <a
-              href={activeApiKeyHelpUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:text-blue-800 underline font-medium"
-            >
-              {t(`${activeApiKeyTipKey}.linkLabel`)}
-            </a>
+            {apiKeyLink(t(`${activeApiKeyTipKey}.linkLabel`))}
             {t(`${activeApiKeyTipKey}.after`)}
           </p>
         </div>
@@ -163,16 +177,10 @@ export function SettingsApiGuidance({
                   "{{link}}",
                 )[0]
               }
-              <span className="inline-flex items-center gap-2">
-                <a
-                  href={activeApiKeyHelpUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:text-blue-800 underline font-medium"
-                >
-                  {t(`${activeApiKeyHelpKey}.linkLabel`)}
-                </a>
+              <span className="inline-flex flex-wrap items-center gap-2">
+                {apiKeyLink(t(`${activeApiKeyHelpKey}.linkLabel`))}
                 <button
+                  type="button"
                   onClick={() => copyToClipboard(activeApiKeyHelpUrl)}
                   className="text-xs px-2 py-0.5 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded transition-colors"
                 >

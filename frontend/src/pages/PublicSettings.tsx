@@ -332,13 +332,16 @@ export function PublicSettings({ embedded = false }: { embedded?: boolean }) {
   }));
   // Keep the public provider identity and signup URLs while sharing the original guide presentation.
   const guideT: typeof t = (key, params) => {
-    if (key === "settings.apiKeyTip.linkLabel") return "Inferera 申请 API Key";
-    if (key === "settings.apiKeyHelp.linkLabel") return "访问 Inferera 官网 →";
+    if (key === "settings.apiKeyTip.before")
+      return `若需快速配置或稳定高并发生图，可使用 ${partner?.name}。`;
+    if (key === "settings.apiKeyTip.linkLabel") return "申请 API Key ↗";
+    if (key === "settings.apiKeyHelp.linkLabel") return "访问官网 ↗";
     if (key === "settings.apiKeyHelp.step1")
-      return `前往 ${partner?.name} 注册或登录：{{link}}`;
-    if (key === "settings.apiKeyHelp.step2") return "按平台说明完成充值";
+      return `前往 ${partner?.name} 注册或登录，进入控制台：{{link}}`;
+    if (key === "settings.apiKeyHelp.step2")
+      return "如需使用付费模型，在左侧「账户」区域点击「余额充值」，按需充值";
     if (key === "settings.apiKeyHelp.step3")
-      return "进入 API Key 管理页面创建密钥";
+      return "在左侧「开发」区域点击「API Keys」，创建新的 API Key";
     if (key === "settings.apiKeyHelp.step4")
       return "复制 API Key，填入本页并保存";
     if (key === "settings.volcengineKeyHelp.step1")
@@ -450,6 +453,10 @@ export function PublicSettings({ embedded = false }: { embedded?: boolean }) {
                   }
                   activeApiKeyTipKey="settings.apiKeyTip"
                   activeApiKeyHelpUrl={partner?.signup || ""}
+                  openApiKeyHelp={() => {
+                    if (partner?.signup)
+                      window.open(partner.signup, "_blank", "noopener,noreferrer");
+                  }}
                   copyToClipboard={(url) => {
                     void copyProviderLink(url);
                   }}
