@@ -46,7 +46,7 @@ playwright-cli -s=landing-review run-code --filename frontend/scripts/landing-co
 
 ## 验收与维护
 
-首页 GitHub star 数先显示上次成功的本地缓存。一小时 TTL 只控制刷新：过期值在刷新中、网络/HTTP 失败或响应无有效数字时继续显示，成功后才更新缓存。无历史结果时不编造数字。回归测试：`npm run test:run -- src/landing/GithubStars.test.tsx`。
+首页 GitHub star 数使用网站共享成功快照，不依赖访客 localStorage 或直连 GitHub。预渲染 HTML 与客户端初始状态均使用 `src/landing/githubStats.snapshot.json`，首访和刷新期间就有真实数字；挂载后读取本站 `/stats/github.json`，只有有效且不早于内置快照的数据才替换。服务器每小时原子刷新持久化 JSON，失败保留上次结果。部署及回归命令见 `deploy/github-stats/README.md`。
 
 复用 4178 的稳定预览产物，在仓库根执行 `frontend/scripts/landing-audit.js`（Playwright CLI run-code）。该脚本创建并清理独立浏览器上下文，检查主题、键盘、语言、静态 HTML、320–1440px 布局、axe 和模拟表单响应；不提交真实预约。返回结构化结果。
 

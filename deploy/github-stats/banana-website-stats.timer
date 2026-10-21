@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh Banana Slides shared GitHub statistics hourly
+
+[Timer]
+OnBootSec=2min
+OnCalendar=hourly
+Persistent=true
+Unit=banana-website-stats.service
+
+[Install]
+WantedBy=timers.target
