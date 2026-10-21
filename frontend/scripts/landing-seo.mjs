@@ -8,6 +8,8 @@ try {
   await build({ build: { ssr: 'src/landing/prerender.tsx', outDir: temporary, emptyOutDir: true }, logLevel: 'error' });
   const { render, decks, landingSeo, siteUrl, structuredData, installMarketingScrollRestoration } = await import(pathToFileURL(path.join(temporary, 'prerender.js')));
   await Promise.all(['cover.png','cover-en.png'].map(file=>readFile('public/social/'+file))); // Fail the build if the advertised cover is missing.
+  await mkdir('dist/stats', { recursive: true });
+  await writeFile('dist/stats/github.json', await readFile('src/landing/githubStats.snapshot.json'));
   const template = await readFile('dist/index.html', 'utf8');
   const manifest = JSON.parse(await readFile('dist/.vite/manifest.json', 'utf8'));
   const styles = new Set();

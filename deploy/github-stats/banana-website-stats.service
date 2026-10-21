@@ -1,0 +1,9 @@
+[Unit]
+Description=Refresh Banana Slides shared GitHub statistics
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/banana-website-stats/refresh_website_github_stats.py --output /var/lib/banana-website-stats/github.json
+TimeoutStartSec=30

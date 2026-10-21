@@ -41,6 +41,9 @@ jobs:
       - name: Backend unit tests
         run: uv run pytest backend/tests/unit -v
 
+      - name: Website shared statistics tests
+        run: python -m unittest discover -s scripts/tests -p test_website_github_stats.py
+
       # Frontend checks
       - name: Setup Node.js
         uses: actions/setup-node@v4
