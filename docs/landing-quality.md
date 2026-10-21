@@ -62,7 +62,15 @@ playwright-cli -s=landing-review run-code --filename frontend/scripts/landing-co
 
 ### 发布基线
 
-本轮仅发布官网前端，不更改后端、数据库、模型配置或共享 GitHub star 刷新机制。发布前发现实际线上镜像 `banana-demo-release-frontend:blank-key-check-20261021` 还包含已发布的 `7b4c8694`（PR #661，空白项目 API Key 校验），该提交尚未进入生产分支。构建发布产物时须保留这项线上补丁；不得用仅含生产分支的旧应用代码覆盖它。最终发布提交、镜像及验收记录见本节后续发布记录。
+本轮仅发布官网前端，不更改后端、数据库、模型配置或共享 GitHub star 刷新机制。发布前发现实际线上镜像 `banana-demo-release-frontend:blank-key-check-20261021` 还包含已发布的 `7b4c8694`（PR #661，空白项目 API Key 校验），该提交尚未进入生产分支。构建发布产物时须保留这项线上补丁；不得用仅含生产分支的旧应用代码覆盖它。发布源码与验证结果如下。
+
+### 发布记录（2026-10-21）
+
+- PR #662 已合入 `production/bananaslides-online`，合并提交 `b999d757`；其文件树与经过 CI 的 `2b7d0b73` 一致。Docs Link Check、Quick Check（含前后端测试、构建和真实后端深层链接测试）、Smoke Test 全部通过。
+- 线上前端镜像：`banana-demo-release-frontend:hero-copy-2b7d0b73-20261021`，保留已上线的 `7b4c8694` 应用补丁。发布目录 `/root/banana-demo-releases/hero-copy-2b7d0b73` 保存 `release-source.json`、补丁、旧 Compose 配置、产物校验和部署记录。
+- 中英文公网首页与本次发布 HTML 字节一致；真实浏览器验证浅色首屏、新文案、按钮顺序，以及 Demo 点击进入 `/app` 并完成加载。共享 star 文件挂载保留，后端容器 ID 与启动时间均未变化。
+- 两个淘汰方案的预览服务和本地分支已清理；布局对照工作区已归档。正式预览继续使用 43191。
+- 容器刚重建时曾因连接重置触发自动回滚；给只读启动探测增加有界重试后重新发布并通过全部产物校验。上一版本镜像保留以便回滚。
 
 ## 验收与维护
 
