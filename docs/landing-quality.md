@@ -44,6 +44,26 @@ playwright-cli -s=landing-review run-code --filename frontend/scripts/landing-co
 
 文件参数以仓库根为工作目录；截图完成后重新构建。发布需完整包含 `dist/en/`、`dist/social/`、robots.txt 和 sitemap.xml。robots 排除应用与 API 仅用于抓取管理，不是权限措施。
 
+## Hero 定稿决策（2026-10-21）
+
+本轮通过控制变量对比后，用户选择“原线上布局＋新文案及按钮顺序”为正式版。
+
+- 布局沿用生产基线 `239acf5b`：`desktop-layout.css`、`landing.css` 不变，保留原有字号、字距、间距、容器宽度、右侧矩形比例与位置。文案变长后的自然换行属于正常文档流，不通过移动画面或缩小字体补偿。
+- 中文标题为两行“让 PPT 创作 / 回归直觉”，保留 PPT 两侧空格，不加逗号或句号。“回归直觉”四字不改；本轮试验的 0.04em 字距不进入定稿。
+- 中文介绍为“Banana Slides 是一款一站式原生 AI PPT 应用。用自然语言描述想法即可生成或调整页面，几分钟内生成完整、精美的演示文稿。无需设计基础。”保留产品定位，用“应用”而非“工具”。仅将“无需”作为不可拆分词，空间不足时两个字一起换行，其余文字自然排版，不插入额外中文空格。
+- 英文标题为“Vibe your way / to great slides.”，呼应 GitHub slogan。介绍保留 all-in-one、AI-native presentation app、自然语言创作、complete, beautifully designed presentations 和 No design skills needed；首屏不再强调 image-generation models。
+- 按钮顺序固定为“体验演示 → 预约在线版内测 → GitHub”。保留原黑色 Demo、黄白动态内测按钮、带 star 数的 GitHub 样式。小屏沿用原两列布局，由第三项 GitHub 占整行。
+- “视觉设计”英文使用 visual design，而非 style。末屏采用“把你的下一个想法，变成精彩的演示。”／“Turn your next idea into stunning slides.”。
+- 淘汰“只改布局”及“布局和文案一起调整”两套实验；不把它们的 CSS 或对照入口带入发布。历史快照仅用于追溯，不再作为待选设计。
+
+### 本轮可复用的取舍
+
+先用真实成品和控制变量对照判断效果；用户认可原有视觉层级时，不按通用审美建议擅自重做。修改文案、按钮顺序和调整布局是独立变量。不得为适配布局删除产品介绍，也不得将局部调整扩大到右侧图形、功能行或其他已确认区域。
+
+### 发布基线
+
+本轮仅发布官网前端，不更改后端、数据库、模型配置或共享 GitHub star 刷新机制。发布前发现实际线上镜像 `banana-demo-release-frontend:blank-key-check-20261021` 还包含已发布的 `7b4c8694`（PR #661，空白项目 API Key 校验），该提交尚未进入生产分支。构建发布产物时须保留这项线上补丁；不得用仅含生产分支的旧应用代码覆盖它。最终发布提交、镜像及验收记录见本节后续发布记录。
+
 ## 验收与维护
 
 首页 GitHub star 数使用网站共享成功快照，不依赖访客 localStorage 或直连 GitHub。预渲染 HTML 与客户端初始状态均使用 `src/landing/githubStats.snapshot.json`，首访和刷新期间就有真实数字；挂载后读取本站 `/stats/github.json`，只有有效且不早于内置快照的数据才替换。服务器每小时原子刷新持久化 JSON，失败保留上次结果。部署及回归命令见 `deploy/github-stats/README.md`。
