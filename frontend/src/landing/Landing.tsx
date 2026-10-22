@@ -25,12 +25,11 @@ import { navigateSection } from './sectionNavigation';
 
 const copy = {
   zh: {
-    pauseAnimation: '暂停动画', playAnimation: '播放动画',
     product: '产品能力', scenarios: '使用场景', faq: '常见问题', docs: '文档', enter: '体验演示', waitlistNav: '在线版内测',
     faqIntro: '关于创作、素材与导出',
-    ctaTitle: '把你的下一个想法，变成精彩的演示。', ctaAlternative: '或留下邮箱，优先获得在线版内测邀请。',
+    ctaTitle: '把下一个想法，变成精彩的演示', ctaAlternative: '或留下邮箱，优先获得在线版内测邀请。',
     title: '让 PPT 创作', title2: '回归直觉',
-    intro: 'Banana Slides 是一款一站式原生 AI PPT 应用。用自然语言描述想法即可生成或调整页面，几分钟内生成完整、精美的演示文稿。', introNote: '无需设计基础。', start: '体验演示', waitlistOpen: '预约在线版内测', waitlistPlaceholder: '你的邮箱地址', waitlistSubmit: '预约内测', waitlistSubmitting: '提交中…', waitlistSuccess: '已收到预约，内测开放时我们会通过邮件联系你。', waitlistError: '提交失败，请稍后重试。', waitlistInvalid: '请输入有效的邮箱地址。', waitlistRateLimited: '提交较频繁，请稍后再试。',
+    intro: 'Banana Slides 是一款原生 AI PPT 生成应用。用自然语言描述想法即可生成或调整页面，几分钟内生成完整、精美的演示文稿。', introNote: '无需设计基础。', start: '体验演示', waitlistOpen: '预约在线版内测', waitlistPlaceholder: '你的邮箱地址', waitlistSubmit: '预约内测', waitlistSubmitting: '提交中…', waitlistSuccess: '已收到预约，内测开放时我们会通过邮件联系你。', waitlistError: '提交失败，请稍后重试。', waitlistInvalid: '请输入有效的邮箱地址。', waitlistRateLimited: '提交较频繁，请稍后再试。',
     strip1: '一句话生成', strip2: '资料智能解析', strip3: '自然语言修改', strip4: '多格式导出',
     featureTitle: '全新的 PPT 制作体验',
     featureIntro: '每一页都由 AI 原生渲染，让内容结构与视觉设计一起成型。',
@@ -39,7 +38,7 @@ const copy = {
     f3: '智能素材解析', f3Text: '上传 PDF、DOCX、Markdown 或 TXT 文件，自动解析文本与图片素材。让已有资料成为生成内容的依据，减少重复整理。',
     f4: '自然语言编辑', f4Text: '对大纲、描述或已生成的页面，直接用自然语言提出修改。支持整页调整与框选局部重绘，把精力放在内容和效果上。',
     f5: '多格式导出', f5Text: '导出 PPTX、PDF 或视频，用于演示和分享。需要继续编辑时，可使用可编辑 PPTX。',
-    scenarioTitle: '适合每一位需要演示的人',
+    scenarioTitle: '每个场景都值得尝试',
     scenarioIntro: '从课堂讲解到工作汇报，找到适合你的创作方式',
     s1: '零基础用户', s1Title: '告别从零开始的焦虑', s1Text: '无需从空白页开始摸索排版。描述你的想法，让 AI 生成内容与画面，再按自己的需要调整。',
     s2: 'PPT 设计师', s2Title: '打破视觉灵感的瓶颈', s2Text: '将生成结果作为设计起点。快速探索不同的图文组合与排版方案，把更多时间留给创意和细节。',
@@ -52,7 +51,6 @@ const copy = {
     q4: '开始使用前需要配置什么？', a4: '在个人设置中选择 API 提供商并填写自己的 API Key，保存后即可返回创作。模型调用可能产生所选服务商的费用。',
   },
   en: {
-    pauseAnimation: 'Pause animation', playAnimation: 'Play animation',
     product: 'Product', scenarios: 'Use cases', faq: 'FAQ', docs: 'Docs', enter: 'Try the demo', waitlistNav: 'Hosted beta',
     faqIntro: 'Answers to common questions about creating, using your materials, and exporting.',
     ctaTitle: 'Turn your next idea into stunning slides.', ctaAlternative: 'Or leave your email for early access to the hosted version.',
