@@ -39,7 +39,7 @@ test('landing: navigation, bilingual copy, FAQ and workspace entry', async ({ pa
   await page.screenshot({ path: '../work/landing/hero-reference-size-zh.png' });
   await page.getByRole('link', { name: '使用场景', exact: true }).click();
   await expect(page).toHaveURL(/#scenarios$/);
-  await expect(page.getByRole('heading', { name: '适合每一位需要演示的人' })).toBeInViewport();
+  await expect(page.getByRole('heading', { name: '每个场景都值得尝试' })).toBeInViewport();
   for (const [audience, heading] of [['PPT 设计师', '打破视觉灵感的瓶颈'], ['教育工作者', '从讲义到教学课件'], ['学生', '轻松准备课程汇报'], ['职场人士', '让商业提案更快成型'], ['零基础用户', '告别从零开始的焦虑']]) {
     await page.getByRole('button', { name: audience, exact: true }).click();
     await expect(page.getByRole('button', { name: audience, exact: true })).toHaveAttribute('aria-pressed', 'true');

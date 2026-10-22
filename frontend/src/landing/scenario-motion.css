@@ -23,14 +23,6 @@
   }
 }
 
-.landing-motion-controls { display: flex; justify-content: flex-end; margin-top: 12px; }
-.landing-motion-controls button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 6px; font-size: 12px; color: var(--text-secondary); }
-.landing-motion-controls button:hover { color: var(--text-primary); background: var(--studio-soft); }
-.landing-motion-controls button:focus-visible { outline: 2px solid var(--studio-ink); outline-offset: 3px; }
-@media (prefers-reduced-motion: reduce) {
-  .landing-motion-controls { display: none; }
-}
-
 @keyframes scene-arrive {
   0% { opacity: 0; transform: translateY(12px); }
   40%, 100% { opacity: 1; transform: translateY(0); }
