@@ -122,8 +122,9 @@ def test_seedream_lite_extreme_ratio_stays_within_aspect_range():
     assert 1 / 16 <= _size_ratio(resolved) <= 16
 
 
-def test_seedream_pro_4k_request_capped_to_2k_tier():
-    provider = _make_provider(model='doubao-seedream-5.0-pro')
+@pytest.mark.parametrize('model', ['doubao-seedream-5.0-pro', 'doubao-seedream-5-0-pro'])
+def test_seedream_pro_4k_request_capped_to_2k_tier(model):
+    provider = _make_provider(model=model)
     resolved = provider._resolve_size('16:9', '4K')
     # 5.0-pro accepts at most 4,624,220 px and has no 4K tier.
     assert 921_600 <= _size_pixels(resolved) <= 4_624_220

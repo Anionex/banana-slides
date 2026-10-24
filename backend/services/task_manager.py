@@ -1904,6 +1904,7 @@ def export_editable_pptx_with_recursive_analysis_task(
             
             # 初始化任务进度（包含消息日志）
             task = Task.query.get(task_id)
+            task.status = 'PROCESSING'
             task.set_progress({
                 "total": 100,  # 使用百分比
                 "completed": 0,
