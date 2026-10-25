@@ -11,7 +11,8 @@ env:
 jobs:
   quick-check:
     name: Quick Check (Lint + Unit Tests + Build)
-    runs-on: ubuntu-latest
+    # Playwright 1.57's browser dependencies support Ubuntu 24.04, not 26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: 12
 
     steps:
