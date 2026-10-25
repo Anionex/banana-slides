@@ -574,8 +574,7 @@ npm run dev
 새로운 기능 제안이나 피드백은 언제나 환영합니다~
 
 
-<img width="312" alt="image" src="https://github.com/user-attachments/assets/d50b6165-5b70-4d0d-bb3c-1798c1a6015a" />
-
+<img width="312" alt="image" src="https://github.com/user-attachments/assets/709642af-aef6-4318-9776-4e03b16b2ade" />
 
 
 

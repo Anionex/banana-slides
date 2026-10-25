@@ -594,8 +594,7 @@ Open your browser to access and use the application.
 Feel free to suggest new features or provide feedback in the group!
 
 
-<img width="312" alt="image" src="https://github.com/user-attachments/assets/d50b6165-5b70-4d0d-bb3c-1798c1a6015a" />
-
+<img width="312" alt="image" src="https://github.com/user-attachments/assets/709642af-aef6-4318-9776-4e03b16b2ade" />
 
 
 
