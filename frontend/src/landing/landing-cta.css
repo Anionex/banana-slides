@@ -17,8 +17,21 @@
 .landing-page .landing-cta-status[data-state="error"], .landing-page .landing-cta-status[data-state="invalid"], .landing-page .landing-cta-status[data-state="rate-limited"] { color: #b42318; }
 .landing-page .landing-cta .landing-cta-primary { margin-top: 24px; min-height: 44px; padding: 10px 22px; gap: 10px; border-radius: 999px; font-size: 15px; line-height: 22px; box-shadow: none; }
 .landing-page .landing-cta .landing-cta-primary svg { width: 16px; height: 16px; }
-.landing-page .landing-cta .landing-cta-alternative { margin: 24px 0 12px; font-size: 14px; line-height: 1.7; color: var(--text-secondary); }
+.landing-page .landing-cta .landing-cta-alternative { display: flex; align-items: center; justify-content: center; gap: 4px; margin: 24px 0 12px; font-size: 14px; line-height: 1.7; color: var(--text-secondary); }
 .landing-page .landing-cta .landing-cta-alternative + form { margin-top: 0; }
+.landing-page .landing-cta button.landing-waitlist-help { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border-radius: 50%; background: transparent; color: var(--text-secondary); cursor: help; }
+.landing-page .landing-cta button.landing-waitlist-help:hover { background: var(--studio-soft); color: var(--studio-ink); }
+/* Match the visible glyph centre of the landing font, not its line box. */
+.landing-page .landing-cta button.landing-waitlist-help svg { transform: translateY(-1.5px); }
+html[lang="en"] .landing-page .landing-cta button.landing-waitlist-help svg { transform: translateY(.5px); }
+.landing-waitlist-positioner { z-index: 80; }
+.landing-waitlist-tooltip { width: min(320px, calc(100vw - 32px)); padding: 16px 18px; border-radius: 12px; background: #fff; color: #292929; box-shadow: 0 6px 28px #0003; font-family: 'Banana Latin', 'Banana Rounded', sans-serif; font-size: 14px; line-height: 1.7; text-align: left; }
+.landing-waitlist-tooltip strong, .landing-waitlist-tooltip span { display: block; }
+.landing-waitlist-tooltip strong { margin-bottom: 6px; font-weight: 650; }
+.landing-waitlist-tooltip .landing-waitlist-features { margin-top: 8px; }
+.landing-waitlist-tooltip .landing-waitlist-status { margin-top: 10px; color: #686b74; }
+html[data-landing-theme="dark"] .landing-waitlist-tooltip { background: #303030; color: #f3f2ef; box-shadow: 0 6px 28px #0005; }
+html[data-landing-theme="dark"] .landing-waitlist-tooltip .landing-waitlist-status { color: #bbbab7; }
 .landing-page .landing-cta .landing-cta-note { max-width: 384px; margin: 12px auto 0; font-size: 13px; line-height: 1.7; color: var(--text-secondary); text-wrap: balance; }
 @media (max-width: 1023px) {
   .landing-page .landing-cta input { height: 48px; }
