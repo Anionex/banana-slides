@@ -20,7 +20,7 @@ export function LandingHeader({ language, currentPage = 'home' }: { language: 'z
       <a href={`${home}gallery/`} aria-current={currentPage === 'gallery' ? 'page' : undefined}>{zh ? '作品画廊' : 'Gallery'}</a>
       <a href={section('scenarios')}>{zh ? '使用场景' : 'Use cases'}</a>
       <a href={section('faq')}>{zh ? '常见问题' : 'FAQ'}</a>
-      <a href={section('landing-cta')}>{zh ? '在线版内测' : 'Hosted beta'}</a>
+      <a href={section('landing-cta')}>{zh ? '预约内测' : 'Join the waitlist'}</a>
       <a href="https://docs.bananaslides.online" target="_blank" rel="noopener noreferrer">{zh ? '文档' : 'Docs'}</a>
     </>}
     actions={<>

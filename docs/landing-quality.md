@@ -52,7 +52,7 @@ playwright-cli -s=landing-review run-code --filename frontend/scripts/landing-co
 - 中文标题为两行“让 PPT 创作 / 回归直觉”，保留 PPT 两侧空格，不加逗号或句号。“回归直觉”四字不改；本轮试验的 0.04em 字距不进入定稿。
 - 中文介绍为“Banana Slides 是一款一站式原生 AI PPT 应用。用自然语言描述想法即可生成或调整页面，几分钟内生成完整、精美的演示文稿。无需设计基础。”保留产品定位，用“应用”而非“工具”。仅将“无需”作为不可拆分词，空间不足时两个字一起换行，其余文字自然排版，不插入额外中文空格。
 - 英文标题为“Vibe your way / to great slides.”，呼应 GitHub slogan。介绍保留 all-in-one、AI-native presentation app、自然语言创作、complete, beautifully designed presentations 和 No design skills needed；首屏不再强调 image-generation models。
-- 按钮顺序固定为“体验演示 → 预约在线版内测 → GitHub”。保留原黑色 Demo、黄白动态内测按钮、带 star 数的 GitHub 样式。小屏沿用原两列布局，由第三项 GitHub 占整行。
+- 按钮顺序固定为“体验演示 → 预约内测 → GitHub”。保留原黑色 Demo、黄白动态内测按钮、带 star 数的 GitHub 样式。小屏沿用原两列布局，由第三项 GitHub 占整行。
 - “视觉设计”英文使用 visual design，而非 style。末屏采用“把你的下一个想法，变成精彩的演示。”／“Turn your next idea into stunning slides.”。
 - 淘汰“只改布局”及“布局和文案一起调整”两套实验；不把它们的 CSS 或对照入口带入发布。历史快照仅用于追溯，不再作为待选设计。
 
@@ -91,3 +91,9 @@ playwright-cli -s=landing-review run-code --filename frontend/scripts/landing-co
 本次验收：官网构建、修改文件 ESLint、publicLanding 的 5 项测试及浏览器验收通过。全仓 tsc 仍报 61 个错误；已在相同依赖下对比未修改的生产基线，输出完全相同，本次未新增。
 
 发布仅合入 `production/bananaslides-online`，以前端临时容器验收后替换线上前端镜像，保留后端与挂载配置。发布版本以生产分支提交及线上镜像记录为准。预存的 `src/i18n.ts` 工作区改动来自其他任务，不包含在本次提交内。
+
+## 内测预约文案（2026-10-24）
+
+- 中文导航、首屏和表单统一为“预约内测”；英文统一为“Join the waitlist”。邮箱说明与成功反馈明确开放后邮件通知，不暗示已经开放或登记即获得访问权限。
+- 邮箱说明后的问号提示介绍待开放的云端服务：无需自行部署、无需配置 API Key，可用自然语言创作和修改 PPT；提供独立账号与账号间数据隔离，并计划提供最新功能的抢先体验机会；明确现仅接受预约。
+- 提示复用 Base UI Tooltip，支持悬停、键盘聚焦、点击与触屏打开，Esc 或点击外部关闭，兼容中英文与明暗主题。FAQ 将自备 API Key 的配置要求明确限定为当前 Demo。

@@ -5,6 +5,7 @@ import './landing.css';
 import { GrainSteps } from './GrainSteps';
 import { GalleryCurvedShowcase } from './gallery/GalleryCurvedShowcase';
 import { BetaRibbon } from './BetaRibbon';
+import { WaitlistHelp } from './WaitlistHelp';
 import { GithubStars } from './GithubStars';
 import { LandingHeader } from './LandingHeader';
 import { ProductShowcase, AudienceShowcase } from './TemplateSections';
@@ -25,11 +26,11 @@ import { navigateSection } from './sectionNavigation';
 
 const copy = {
   zh: {
-    product: '产品能力', scenarios: '使用场景', faq: '常见问题', docs: '文档', enter: '体验演示', waitlistNav: '在线版内测',
+    product: '产品能力', scenarios: '使用场景', faq: '常见问题', docs: '文档', enter: '体验演示', waitlistNav: '预约内测',
     faqIntro: '关于创作、素材与导出',
-    ctaTitle: '把下一个想法，变成精彩的演示', ctaAlternative: '或留下邮箱，优先获得在线版内测邀请。',
+    ctaTitle: '把下一个想法，变成精彩的演示', ctaAlternative: '或留下邮箱预约内测，优先获得邮件通知',
     title: '让 PPT 创作', title2: '回归直觉',
-    intro: 'Banana Slides 是一款原生 AI PPT 生成应用。用自然语言描述想法即可生成或调整页面，几分钟内生成完整、精美的演示文稿。', introNote: '无需设计基础。', start: '体验演示', waitlistOpen: '预约在线版内测', waitlistPlaceholder: '你的邮箱地址', waitlistSubmit: '预约内测', waitlistSubmitting: '提交中…', waitlistSuccess: '已收到预约，内测开放时我们会通过邮件联系你。', waitlistError: '提交失败，请稍后重试。', waitlistInvalid: '请输入有效的邮箱地址。', waitlistRateLimited: '提交较频繁，请稍后再试。',
+    intro: 'Banana Slides 是一款原生 AI PPT 生成应用。用自然语言描述想法即可生成或调整页面，几分钟内生成完整、精美的演示文稿。', introNote: '无需设计基础。', start: '体验演示', waitlistOpen: '预约内测', waitlistPlaceholder: '你的邮箱地址', waitlistSubmit: '预约内测', waitlistSubmitting: '提交中…', waitlistSuccess: '已收到预约，内测开放时我们会通过邮件联系你。', waitlistError: '提交失败，请稍后重试。', waitlistInvalid: '请输入有效的邮箱地址。', waitlistRateLimited: '提交较频繁，请稍后再试。',
     strip1: '一句话生成', strip2: '资料智能解析', strip3: '自然语言修改', strip4: '多格式导出',
     featureTitle: '全新的 PPT 制作体验',
     featureIntro: '每一页都由 AI 原生渲染，让内容结构与视觉设计一起成型。',
@@ -48,14 +49,14 @@ const copy = {
     q1: '我需要会设计或排版吗？', a1: '不需要。你可以从一句话开始，让 AI 生成内容与页面；也可以提供更详细的大纲、描述和模板，掌握更多创作细节。',
     q2: '可以使用我自己的资料和模板吗？', a2: '可以。在创作页面上传参考资料、选择模板，或用文字描述视觉风格。已有的 PPTX/PDF 也可以通过 PPT 翻新流程重新制作。',
     q3: '导出的 PPTX 可以编辑吗？', a3: '普通 PPTX 导出以整页图片呈现。可编辑 PPTX（Beta）会提取文字和页面元素，便于继续修改；复杂版式的还原可能存在偏差，请在交付前检查。',
-    q4: '开始使用前需要配置什么？', a4: '在个人设置中选择 API 提供商并填写自己的 API Key，保存后即可返回创作。模型调用可能产生所选服务商的费用。',
+    q4: '体验 Demo 前需要配置什么？', a4: '当前 Demo 需要在个人设置中选择 API 提供商并填写自己的 API Key，保存后即可返回创作。模型调用可能产生所选服务商的费用。',
   },
   en: {
-    product: 'Product', scenarios: 'Use cases', faq: 'FAQ', docs: 'Docs', enter: 'Try the demo', waitlistNav: 'Hosted beta',
+    product: 'Product', scenarios: 'Use cases', faq: 'FAQ', docs: 'Docs', enter: 'Try the demo', waitlistNav: 'Join the waitlist',
     faqIntro: 'Answers to common questions about creating, using your materials, and exporting.',
-    ctaTitle: 'Turn your next idea into stunning slides.', ctaAlternative: 'Or leave your email for early access to the hosted version.',
+    ctaTitle: 'Turn your next idea into stunning slides.', ctaAlternative: 'Or join the waitlist. We’ll email you when the beta opens.',
     title: 'Vibe your way', title2: 'to great slides.',
-    intro: 'Banana Slides is an all-in-one, AI-native presentation app. Describe your ideas and refine slides with natural language to create complete, beautifully designed presentations in minutes.', introNote: 'No design skills needed.', start: 'Try the demo', waitlistOpen: 'Join the hosted beta', waitlistPlaceholder: 'Your email address', waitlistSubmit: 'Join the waitlist', waitlistSubmitting: 'Submitting…', waitlistSuccess: 'You are on the list. We will email you when the beta opens.', waitlistError: 'Could not submit. Please try again.', waitlistInvalid: 'Enter a valid email address.', waitlistRateLimited: 'Too many submissions. Please try again later.',
+    intro: 'Banana Slides is an all-in-one, AI-native presentation app. Describe your ideas and refine slides with natural language to create complete, beautifully designed presentations in minutes.', introNote: 'No design skills needed.', start: 'Try the demo', waitlistOpen: 'Join the waitlist', waitlistPlaceholder: 'Your email address', waitlistSubmit: 'Join the waitlist', waitlistSubmitting: 'Submitting…', waitlistSuccess: 'You are on the list. We will email you when the beta opens.', waitlistError: 'Could not submit. Please try again.', waitlistInvalid: 'Enter a valid email address.', waitlistRateLimited: 'Too many submissions. Please try again later.',
     strip1: 'Create from a prompt', strip2: 'AI-powered file parsing', strip3: 'Edit in natural language', strip4: 'Multi-format export',
     featureTitle: 'A new way to create presentations',
     featureIntro: 'Every slide is rendered by AI, bringing content structure and visual design together.',
@@ -74,7 +75,7 @@ const copy = {
     q1: 'Do I need design experience?', a1: 'No. Start with a simple idea and let AI help with content and slide creation. Add a detailed outline, descriptions, or a template whenever you want more control.',
     q2: 'Can I bring my own files and templates?', a2: 'Yes. Add reference documents, choose a template, or describe a visual style in the workspace. You can also rework existing PPTX/PDF files with the renovation flow.',
     q3: 'Can I edit the exported PPTX?', a3: 'Standard PPTX exports contain full-slide images. Editable PPTX (Beta) extracts text and page elements for further editing. Complex layouts may not reproduce exactly, so review the export before delivery.',
-    q4: 'What do I need to get started?', a4: 'Choose an API provider and enter your own API key in personal settings, then save and return to the workspace. Model calls may incur fees from your chosen provider.',
+    q4: 'What do I need to try the demo?', a4: 'The current demo requires your own API key. Choose an API provider and enter your own API key in personal settings, then save and return to the workspace. Model calls may incur fees from your chosen provider.',
   },
 };
 
@@ -156,7 +157,7 @@ function LandingContent() {
         title={t('ctaTitle')}
         beforeForm={<>
           <a href="/app" className="studio-button studio-button-dark landing-cta-primary">{t('start')}<ArrowRight size={18} aria-hidden="true" /></a>
-          <p id="landing-cta-alternative" className="landing-cta-alternative">{t('ctaAlternative')}</p>
+          <p id="landing-cta-alternative" className="landing-cta-alternative"><span>{t('ctaAlternative')}</span><WaitlistHelp language={language} /></p>
         </>}
         submitLabel={t(waitlistState === 'submitting' ? 'waitlistSubmitting' : 'waitlistSubmit')}
         submitting={waitlistState === 'submitting'}
