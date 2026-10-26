@@ -12,13 +12,27 @@ try {
   await writeFile('dist/stats/github.json', await readFile('src/landing/githubStats.snapshot.json'));
   const template = await readFile('dist/index.html', 'utf8');
   const manifest = JSON.parse(await readFile('dist/.vite/manifest.json', 'utf8'));
-  const styles = new Set();
-  const collect = key => { const entry = manifest[key]; if (!entry) return; entry.css?.forEach(css => styles.add(css)); entry.imports?.forEach(collect); };
-  collect('src/main.tsx'); collect('src/landing/Landing.tsx'); collect('src/landing/gallery/Gallery.tsx'); collect('src/landing/gallery/DeckDetail.tsx');
+  const templateStyles = new Set([...template.matchAll(/<link\b[^>]*rel="stylesheet"[^>]*href="([^"]+)"[^>]*>/g)].map(match => match[1]));
+  const stylesFor = page => {
+    const styles = new Set(), visited = new Set();
+    const collect = key => {
+      if (visited.has(key)) return;
+      visited.add(key);
+      const entry = manifest[key];
+      if (!entry) return;
+      entry.css?.forEach(css => styles.add(css));
+      entry.imports?.forEach(collect);
+    };
+    collect('index.html');
+    collect(page);
+    return [...styles].filter(file => !templateStyles.has(`/${file}`));
+  };
   const escape = text => text.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;');
   const routes = ['zh', 'en'].flatMap(language => [{ language, gallery: false }, { language, gallery: true }, ...decks.map(deck => ({ language, gallery: true, deck }))]);
   const paths = [];
   for (const { language, gallery, deck } of routes) {
+    const pageEntry = deck ? 'src/landing/gallery/DeckDetail.tsx' : gallery ? 'src/landing/gallery/Gallery.tsx' : 'src/landing/Landing.tsx';
+    const styles = stylesFor(pageEntry);
     const pagePath = lang => `${lang === 'en' ? '/en' : ''}${gallery ? `/gallery/${deck ? `${deck.id}/` : ''}` : '/'}`;
     const seo = deck ? { ...landingSeo[language], path: pagePath(language), title: `${deck.title[language]} | Banana Slides`, description: `${deck.title[language]} · ${deck.appearance[language]}` }
       : gallery ? { ...landingSeo[language], path: pagePath(language), title: language === 'zh' ? '作品画廊 | Banana Slides' : 'Presentation gallery | Banana Slides', description: language === 'zh' ? '使用 Banana Slides 制作的幻灯片，可按风格和用途筛选。' : 'Presentations made with Banana Slides. Filter by style and use case.' } : landingSeo[language];
@@ -35,7 +49,7 @@ try {
     <link rel="alternate" hreflang="en" href="${siteUrl}${pagePath('en')}" />
     <link rel="alternate" hreflang="x-default" href="${siteUrl}${pagePath('zh')}" />
     <script type="application/ld+json">${JSON.stringify(gallery ? { '@context': 'https://schema.org', '@type': deck ? 'WebPage' : 'CollectionPage', name: seo.title, url, description: seo.description } : structuredData).replaceAll('<', '\\u003c')}</script>
-    ${[...styles].map(file => `<link rel="stylesheet" href="/${file}" />`).join('\n')}
+    ${styles.map(file => `<link rel="stylesheet" crossorigin href="/${file}" />`).join('\n')}
     <script>(function(){if(!/^\\/(en\\/?|landing\\/?|(?:en\\/)?gallery(?:\\/[a-z0-9-]+)?\\/?)?$/.test(location.pathname)){document.documentElement.dataset.appShell='true';return;}try{var p=localStorage.getItem('banana-landing-theme');document.documentElement.dataset.landingTheme=p==='dark'||(p!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light'}catch(e){document.documentElement.dataset.landingTheme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}})();</script>
     <script>(${installMarketingScrollRestoration.toString()})();</script>
     <style>html[data-app-shell] #root > .landing-page{display:none}html[data-marketing-scroll="restoring"] #root{visibility:hidden}</style>

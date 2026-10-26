@@ -95,6 +95,8 @@ export function GalleryCurvedShowcase({ language }: { language: 'zh' | 'en' }) {
     <div className="curved-showcase-frame">
       <CurvedGallery decks={decks} active={active} onSelect={select} onCenterChange={setCentered} language={language}
         coverSource={item => `/gallery/overviews/${item.id}-${language}.webp`}
+        coverSrcSet={item => `/gallery/overviews/${item.id}-${language}-800.webp 800w, /gallery/overviews/${item.id}-${language}.webp 1600w`}
+        coverSizes="(max-width: 640px) 74vw, (max-width: 1180px) 39vw, 460px"
         label={zh ? '精选作品，左右键切换，回车逐页浏览' : 'Selected decks. Arrow keys to browse, Enter to read.'}
         reading={reading} expanded={reading} onRead={read} pan={pan} position={position} progress={progress} interaction="showcase">
         {reader && <WheelDeck key={deck.id} deck={deck} overviewSource={`/gallery/overviews/${deck.id}-${language}.webp`} language={language} enteredAt={reader.id} initialWheel={reader.initialWheel} returning={reader.returning} onExit={() => exitReading(reader.id)} onResume={() => resumeReading(reader.id)} onHorizontal={step} pan={pan} position={position} progress={progress} />}
