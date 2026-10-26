@@ -17,9 +17,11 @@ export interface GalleryPan {
 /** Reuse one motion axis for the DOM showcase and the experimental warped gallery.
  * The homepage always draws ordinary images, without a canvas or GPU setup.
  */
-export function CurvedGallery({ decks, active, onSelect, onCenterChange, label, reading, expanded, onRead, children, pan, position, progress, interaction = 'gallery', language = 'zh', coverSource }: {
+export function CurvedGallery({ decks, active, onSelect, onCenterChange, label, reading, expanded, onRead, children, pan, position, progress, interaction = 'gallery', language = 'zh', coverSource, coverSrcSet, coverSizes }: {
   decks: GalleryDeck[]; active: number; onSelect: (index: number) => void; label: string; reading: boolean; onRead: (index?: number, wheelDelta?: number) => void; children?: ReactNode; expanded: boolean; pan: MutableRefObject<GalleryPan | null>; position: MotionValue<number>; progress: MotionValue<number>; interaction?: 'gallery' | 'showcase'; language?: 'zh' | 'en'; coverSource?: (deck: GalleryDeck) => string;
   onCenterChange?: (index: number) => void;
+  coverSrcSet?: (deck: GalleryDeck) => string;
+  coverSizes?: string;
 }) {
   const stage = useRef<HTMLDivElement>(null);
   const track = useRef<HTMLDivElement>(null);
@@ -316,7 +318,7 @@ export function CurvedGallery({ decks, active, onSelect, onCenterChange, label, 
           if (slot % decks.length === active && Math.abs(position.get()) < 1) onRead();
           else select(slot % decks.length);
         }}>
-        <img src={coverSource ? coverSource(deck) : `/gallery/${deck.id}/cover.webp`} alt={deck.title[language]} width="800" height="450" draggable={false} loading="lazy" decoding="async" onLoad={schedulePaint} />
+        <img src={coverSource ? coverSource(deck) : `/gallery/${deck.id}/cover.webp`} srcSet={coverSrcSet?.(deck)} sizes={coverSizes} alt={deck.title[language]} width="800" height="450" draggable={false} loading="lazy" decoding="async" onLoad={schedulePaint} />
       </button>)}
     </div>
     {children}

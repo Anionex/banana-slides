@@ -621,6 +621,27 @@ export const Home: React.FC = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const verifyProjectApiKey = async (): Promise<boolean> => {
+    if (!isPublicDemo) return true;
+
+    const settingsResponse = await apiClient.get('/api/settings');
+    if (!settingsResponse.data.data?.api_key_length) {
+      navigate('/settings', { state: { needsApiKey: true } });
+      return false;
+    }
+    setIsVerifying(true);
+    try {
+      const verification = await verifyApiKey();
+      if (verification.data?.available) return true;
+    } catch {
+      // A failed verification must not create a project.
+    } finally {
+      setIsVerifying(false);
+    }
+    navigate('/settings', { state: { apiVerificationFailed: true } });
+    return false;
+  };
+
   const handleSubmit = async () => {
     // For ppt_renovation, validate file instead of content
     if (activeTab === 'ppt_renovation') {
@@ -647,26 +668,7 @@ export const Home: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      if (isPublicDemo) {
-        const settingsResponse = await apiClient.get('/api/settings');
-        if (!settingsResponse.data.data?.api_key_length) {
-          navigate('/settings', { state: { needsApiKey: true } });
-          return;
-        }
-        setIsVerifying(true);
-        try {
-          const verification = await verifyApiKey();
-          if (!verification.data?.available) {
-            navigate('/settings', { state: { apiVerificationFailed: true } });
-            return;
-          }
-        } catch {
-          navigate('/settings', { state: { apiVerificationFailed: true } });
-          return;
-        } finally {
-          setIsVerifying(false);
-        }
-      }
+      if (!await verifyProjectApiKey()) return;
       // PPT 翻新模式：走独立的上传+异步解析流程
       if (activeTab === 'ppt_renovation' && renovationFile) {
         const styleDesc = templateStyle.trim() ? templateStyle.trim() : undefined;
@@ -790,6 +792,7 @@ export const Home: React.FC = () => {
   const handleCreateBlank = async () => {
     setIsSubmitting(true);
     try {
+      if (!await verifyProjectApiKey()) return;
       const styleDesc = templateStyle.trim() ? templateStyle.trim() : undefined;
       await initializeProject('blank', '', selectedTemplate || undefined, styleDesc, undefined, aspectRatio);
 
