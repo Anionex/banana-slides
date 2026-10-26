@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button, useToast, MaterialSelector } from '@/components/shared';
 import { useT } from '@/hooks/useT';
 import { getImageUrl } from '@/api/client';
@@ -48,7 +48,8 @@ const publicAssetPath = (assetPath: string) => {
 };
 
 interface TemplateSelectorProps {
-  onSelect: (templateFile: File | null, templateId?: string) => void;
+  onSelect: (templateFile: File | null, templateId?: string) => void | Promise<void>;
+  onBusyChange?: (busy: boolean) => void;
   selectedTemplateId?: string | null;
   selectedPresetTemplateId?: string | null;
   showUpload?: boolean;
@@ -57,6 +58,7 @@ interface TemplateSelectorProps {
 
 export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
   onSelect,
+  onBusyChange,
   selectedTemplateId,
   selectedPresetTemplateId,
   showUpload = true,
@@ -68,6 +70,21 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
   const [isMaterialSelectorOpen, setIsMaterialSelectorOpen] = useState(false);
   const [deletingTemplateId, setDeletingTemplateId] = useState<string | null>(null);
   const [saveToLibrary, setSaveToLibrary] = useState(true);
+  const [isSelecting, setIsSelecting] = useState(false);
+  const selectionInFlight = useRef(false);
+  const runSelection = async (action: () => Promise<void>) => {
+    if (selectionInFlight.current) return;
+    selectionInFlight.current = true;
+    setIsSelecting(true);
+    onBusyChange?.(true);
+    try {
+      await action();
+    } finally {
+      selectionInFlight.current = false;
+      setIsSelecting(false);
+      onBusyChange?.(false);
+    }
+  };
   const { show, ToastContainer } = useToast();
 
   const presetTemplates = [
@@ -95,15 +112,16 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
   };
 
   const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
+    const input = e.currentTarget;
+    const file = input.files?.[0];
+    if (file) await runSelection(async () => {
       try {
         if (showUpload) {
           const response = await uploadUserTemplate(file);
           if (response.data) {
             const template = response.data;
             setUserTemplates(prev => [template, ...prev]);
-            onSelect(null, template.template_id);
+            await onSelect(null, template.template_id);
             show({ message: t('template.messages.uploadSuccess'), type: 'success' });
           }
         } else {
@@ -112,56 +130,58 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
             if (response.data) {
               const template = response.data;
               setUserTemplates(prev => [template, ...prev]);
-              onSelect(file, template.template_id);
+              await onSelect(file, template.template_id);
               show({ message: t('material.messages.savedToLibrary'), type: 'success' });
             }
           } else {
-            onSelect(file);
+            await onSelect(file);
           }
         }
       } catch (error: any) {
         console.error('Failed to upload template:', error);
         show({ message: t('template.messages.uploadFailed') + ': ' + (error.message || t('common.unknownError')), type: 'error' });
       }
-    }
-    e.target.value = '';
+    });
+    input.value = '';
   };
 
   const handleSelectUserTemplate = (template: UserTemplate) => {
-    onSelect(null, template.template_id);
+    void runSelection(async () => { await onSelect(null, template.template_id); });
   };
 
   const handleSelectPresetTemplate = (templateId: string, preview: string) => {
     if (!preview) return;
-    onSelect(null, templateId);
+    void runSelection(async () => { await onSelect(null, templateId); });
   };
 
   const handleSelectMaterials = async (materials: Material[], saveAsTemplate?: boolean) => {
     if (materials.length === 0) return;
-    
-    try {
-      const file = await materialUrlToFile(materials[0]);
-      
-      if (saveAsTemplate) {
-        const response = await uploadUserTemplate(file);
-        if (response.data) {
-          const template = response.data;
-          setUserTemplates(prev => [template, ...prev]);
-          onSelect(file, template.template_id);
-          show({ message: t('material.messages.savedToLibrary'), type: 'success' });
+    await runSelection(async () => {
+      try {
+        const file = await materialUrlToFile(materials[0]);
+
+        if (saveAsTemplate) {
+          const response = await uploadUserTemplate(file);
+          if (response.data) {
+            const template = response.data;
+            setUserTemplates(prev => [template, ...prev]);
+            await onSelect(file, template.template_id);
+            show({ message: t('material.messages.savedToLibrary'), type: 'success' });
+          }
+        } else {
+          await onSelect(file);
+          show({ message: t('material.messages.selectedAsTemplate'), type: 'success' });
         }
-      } else {
-        onSelect(file);
-        show({ message: t('material.messages.selectedAsTemplate'), type: 'success' });
+      } catch (error: any) {
+        console.error('Failed to load material:', error);
+        show({ message: t('material.messages.loadMaterialFailed') + ': ' + (error.message || t('common.unknownError')), type: 'error' });
       }
-    } catch (error: any) {
-      console.error('Failed to load material:', error);
-      show({ message: t('material.messages.loadMaterialFailed') + ': ' + (error.message || t('common.unknownError')), type: 'error' });
-    }
+    });
   };
 
   const handleDeleteUserTemplate = async (template: UserTemplate, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (selectionInFlight.current) return;
     if (selectedTemplateId === template.template_id) {
       show({ message: t('template.cannotDeleteInUse'), type: 'info' });
       return;
@@ -181,7 +201,7 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
 
   return (
     <>
-      <div className="space-y-4">
+      <fieldset disabled={isSelecting} aria-busy={isSelecting} className={`min-w-0 space-y-4 ${isSelecting ? 'pointer-events-none opacity-60' : ''}`}>
         {userTemplates.length > 0 && (
           <div>
             <h4 className="text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">{t('template.myTemplates')}</h4>
@@ -301,7 +321,7 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
             </Button>
           </div>
         )}
-      </div>
+      </fieldset>
       <ToastContainer />
       {projectId && (
         <MaterialSelector

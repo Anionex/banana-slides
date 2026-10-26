@@ -47,6 +47,7 @@ def test_editable_export_task_preserves_progress_and_structured_failure(
     )
 
     def fail_during_style_extraction(*_args, progress_callback=None, **_kwargs):
+        assert db.session.get(Task, task.id).status == "PROCESSING"
         progress_callback("样式提取", "正在分析 12 个文本元素...", 50)
         raise ExportError(
             message="文本样式提取失败：图片识别服务请求超时",

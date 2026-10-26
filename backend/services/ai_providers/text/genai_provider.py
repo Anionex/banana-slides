@@ -11,6 +11,7 @@ from google import genai
 from google.genai import types
 from tenacity import retry, stop_after_attempt, wait_exponential
 from .base import TextProvider, strip_think_tags
+from .stream_control import stream_timeout, stream_stopped
 from config import get_config
 from ..genai_client import make_genai_client
 
@@ -131,16 +132,26 @@ class GenAITextProvider(TextProvider):
 
     def generate_text_stream(self, prompt: str, thinking_budget: int = 0) -> Generator[str, None, None]:
         """Stream text using Google GenAI SDK's generate_content_stream."""
-        config_params = {}
-        if thinking_budget > 0:
-            config_params['thinking_config'] = types.ThinkingConfig(thinking_budget=thinking_budget)
-
+        config = (types.GenerateContentConfig(
+            thinking_config=types.ThinkingConfig(thinking_budget=thinking_budget)
+        ) if thinking_budget > 0 else None)
+        timeout = stream_timeout()
+        if timeout is not None:
+            config = config or types.GenerateContentConfig()
+            config.http_options = types.HttpOptions(
+                timeout=max(1, int(min(timeout, self.request_timeout_seconds) * 1000)),
+                retry_options=types.HttpRetryOptions(attempts=1),
+            )
         response = self.client.models.generate_content_stream(
             model=self.model,
             contents=prompt,
-            config=types.GenerateContentConfig(**config_params) if config_params else None,
+            config=config,
         )
-        for chunk in response:
-            # Skip thinking chunks, only yield text content
-            if chunk.text:
-                yield chunk.text
+        try:
+            for chunk in response:
+                if stream_stopped():
+                    break
+                if chunk.text:
+                    yield chunk.text
+        finally:
+            response.close()

@@ -1466,8 +1466,24 @@ class ExportService:
                 for item in all_text_items
             }
             
-            # 收集全局识别结果
-            for future in as_completed(global_futures):
+            # 按实际完成顺序统计两类任务；慢整页请求不能阻塞已完成元素的进度和心跳。
+            for future in as_completed({**global_futures, **local_futures}):
+                if future in local_futures:
+                    _, element_id = local_futures[future]
+                    notify_progress("单个元素识别")
+                    try:
+                        elem_id, style, error = future.result()
+                        if style is not None:
+                            local_results[elem_id] = style
+                        if error:
+                            failed_extractions.append((elem_id, error))
+                    except Exception as e:
+                        logger.error(f"单个识别任务失败: {e}")
+                        if fail_fast:
+                            raise
+                        failed_extractions.append((element_id, str(e)))
+                    continue
+
                 task_type, page_idx = global_futures[future]
                 notify_progress(f"全局识别第 {page_idx + 1} 页")
                 try:
@@ -1518,22 +1534,6 @@ class ExportService:
                         for element_id in expected_element_ids
                     )
             
-            # 收集单个裁剪识别结果
-            for future in as_completed(local_futures):
-                task_type, element_id = local_futures[future]
-                notify_progress("单个元素识别")
-                try:
-                    elem_id, style, error = future.result()
-                    if style is not None:
-                        local_results[elem_id] = style
-                    if error:
-                        failed_extractions.append((elem_id, error))
-                except Exception as e:
-                    logger.error(f"单个识别任务失败: {e}")
-                    if fail_fast:
-                        raise
-                    failed_extractions.append((element_id, str(e)))
-        
         # Step 3: 合并结果
         # 优先使用全局识别的布局属性，使用单个识别的颜色属性
         merged_results = {}
