@@ -1,0 +1,230 @@
+"""Text-only export keeps artwork in the background and never doubles failed text."""
+import io
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from unittest.mock import Mock
+
+import pytest
+from PIL import Image, ImageDraw
+from pptx import Presentation
+from pptx.enum.shapes import MSO_SHAPE_TYPE
+
+from models import Page, Project, Task, db
+from services.export_service import ExportError, ExportService
+from services.image_editability import ServiceConfig, ImageEditabilityService
+from services.image_editability.data_models import BBox, EditableElement, EditableImage
+from services.image_editability.extractors import BaiduAccurateOCRElementExtractor
+from services.image_editability.factories import ExtractorFactory, InpaintProviderFactory
+from services.prompts import get_clean_background_prompt
+
+
+@pytest.fixture
+def simple_services(tmp_path, monkeypatch):
+    source = tmp_path / 'slide.png'
+    image = Image.new('RGB', (320, 180), 'white')
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((200, 80, 280, 150), fill='blue')
+    draw.text((20, 20), 'Editable text', fill='black')
+    image.save(source)
+
+    ocr = Mock()
+    ocr.recognize.return_value = {
+        'image_size': image.size,
+        'text_lines': [{'text': 'Editable text', 'bbox': [20, 20, 120, 40]}],
+    }
+    inpaint = Mock()
+    # Deliberately changes the artwork too: text-only composition must preserve it.
+    inpaint.inpaint_regions.return_value = Image.new('RGB', image.size, 'white')
+    monkeypatch.setattr(ExtractorFactory, 'create_baidu_accurate_ocr_extractor',
+                        lambda: BaiduAccurateOCRElementExtractor(ocr))
+    monkeypatch.setattr(InpaintProviderFactory, 'create_generative_edit_provider',
+                        lambda **_kwargs: inpaint)
+    return source, ocr, inpaint
+
+
+def build_simple(simple_services, tmp_path):
+    source, _, _ = simple_services
+    config = ServiceConfig.from_defaults(
+        upload_folder=str(tmp_path), text_only=True, inpaint_method='generative',
+        max_depth=5, enable_icon_subject_extraction=True,
+    )
+    assert config.max_depth == 1
+    assert config.enable_icon_subject_extraction is False
+    return ImageEditabilityService(config).make_image_editable(str(source))
+
+
+def export_file(tmp_path, **options):
+    output = tmp_path / 'result.pptx'
+    _, warnings = ExportService.create_editable_pptx_with_recursive_analysis(
+        output_file=str(output), **options,
+    )
+    return output.read_bytes(), warnings
+
+
+def test_simple_ocr_without_mineru_preserves_artwork_and_exports_text(simple_services, tmp_path):
+    result = build_simple(simple_services, tmp_path)
+    _, ocr, inpaint = simple_services
+    ocr.recognize.assert_called_once()
+    assert inpaint.inpaint_regions.call_args.kwargs['types'] == ['text']
+    assert inpaint.inpaint_regions.call_args.kwargs['text_only'] is True
+    assert [elem.element_type for elem in result.elements] == ['text']
+    with Image.open(result.clean_background) as background:
+        assert background.getpixel((220, 100)) == (0, 0, 255)
+        assert background.crop((20, 20, 120, 40)).getextrema() == ((255, 255),) * 3
+
+    pptx, warnings = export_file(tmp_path,
+        editable_images=[result], slide_width_pixels=320, slide_height_pixels=180,
+        export_mode='simple',
+    )
+    prs = Presentation(io.BytesIO(pptx))
+    assert not warnings.has_warnings()
+    assert len(prs.slides[0].shapes) == 2
+    assert prs.slides[0].shapes[0].shape_type == MSO_SHAPE_TYPE.PICTURE
+    assert prs.slides[0].shapes[1].text == 'Editable text'
+    assert prs.slide_width / prs.slide_height == pytest.approx(16 / 9)
+    text_shape = prs.slides[0].shapes[1]
+    assert text_shape.left / prs.slide_width == pytest.approx(20 / 320, abs=.005)
+    assert text_shape.top / prs.slide_height == pytest.approx(20 / 180, abs=.005)
+
+
+@pytest.mark.parametrize('failure', ['none', 'exception', 'unchanged'])
+@pytest.mark.parametrize('fail_fast', [True, False])
+def test_failed_removal_never_overlays_original_text(simple_services, tmp_path, failure, fail_fast):
+    source, _, inpaint = simple_services
+    inpaint.inpaint_regions.return_value = None
+    if failure == 'exception':
+        inpaint.inpaint_regions.side_effect = RuntimeError('repair failed')
+    elif failure == 'unchanged':
+        inpaint.inpaint_regions.return_value = Image.open(source).copy()
+    result = build_simple(simple_services, tmp_path)
+    assert result.clean_background is None
+    options = dict(editable_images=[result], export_mode='simple', fail_fast=fail_fast)
+    if fail_fast:
+        with pytest.raises(ExportError, match='文字擦除失败') as error:
+            ExportService.create_editable_pptx_with_recursive_analysis(**options)
+        assert error.value.error_code == 'EXPORT_TEXT_REMOVAL_FAILED'
+    else:
+        pptx, warnings = export_file(tmp_path, **options)
+        shapes = Presentation(io.BytesIO(pptx)).slides[0].shapes
+        assert len(shapes) == 1
+        assert shapes[0].shape_type == MSO_SHAPE_TYPE.PICTURE
+        assert any('该页文字不可编辑' in warning for warning in warnings.to_summary())
+
+
+def test_no_text_keeps_original_without_inpainting(simple_services, tmp_path):
+    _, ocr, inpaint = simple_services
+    ocr.recognize.return_value['text_lines'] = []
+    result = build_simple(simple_services, tmp_path)
+    inpaint.inpaint_regions.assert_not_called()
+    pptx, warnings = export_file(tmp_path,
+        editable_images=[result], export_mode='simple',
+    )
+    assert len(Presentation(io.BytesIO(pptx)).slides[0].shapes) == 1
+    assert not warnings.has_warnings()
+
+
+def test_simple_requires_ocr_without_falling_back_to_layout(tmp_path, monkeypatch):
+    monkeypatch.setattr(ExtractorFactory, 'create_baidu_accurate_ocr_extractor', lambda: None)
+    with pytest.raises(ValueError, match='Baidu API Key'):
+        ServiceConfig.from_defaults(text_only=True, upload_folder=str(tmp_path))
+
+
+def test_simple_prompt_preserves_charts():
+    prompt = get_clean_background_prompt([{'element_type': 'text'}], text_only=True)
+    assert '保留所有图片、插画、图表' in prompt
+    assert '彻底移除页面中的所有文字、插画、图表' not in prompt
+    assert '彻底移除页面中的所有文字、插画、图表' in get_clean_background_prompt([])
+
+
+@pytest.mark.parametrize('sizes', [[(320, 180), (240, 180)], [(240, 180), (320, 180)]])
+def test_mixed_sizes_keep_text_aligned_with_scaled_background(tmp_path, sizes):
+    pages = []
+    for index, (width, height) in enumerate(sizes):
+        source = tmp_path / f'{index}.png'
+        Image.new('RGB', (width, height), 'white').save(source)
+        bbox = BBox(width * .1, height * .2, width * .4, height * .3)
+        pages.append(EditableImage(str(index), str(source), width, height,
+            clean_background=str(source), elements=[
+                EditableElement(str(index), 'text', bbox, bbox, content='Aligned'),
+            ]))
+    pptx, _ = export_file(tmp_path, editable_images=pages, export_mode='simple',
+                          slide_width_pixels=sizes[0][0], slide_height_pixels=sizes[0][1])
+    prs = Presentation(io.BytesIO(pptx))
+    assert prs.slide_width / prs.slide_height == pytest.approx(sizes[0][0] / sizes[0][1])
+    for slide, source_size in zip(prs.slides, sizes):
+        background, text = slide.shapes
+        assert background.image.size == source_size
+        assert (background.width, background.height) == (prs.slide_width, prs.slide_height)
+        assert text.left / background.width == pytest.approx(.1, abs=.005)
+        assert text.top / background.height == pytest.approx(.2, abs=.005)
+        assert text.width / background.width == pytest.approx(.3, abs=.005)
+        assert text.height / background.height == pytest.approx(.1, abs=.005)
+
+
+def test_simple_failure_does_not_wait_for_sibling_or_publish(tmp_path, monkeypatch):
+    started, release = threading.Event(), threading.Event()
+    bbox = BBox(0, 0, 10, 10)
+    failed = EditableImage('bad', 'bad.png', 100, 100, elements=[
+        EditableElement('text', 'text', bbox, bbox, content='failed'),
+    ])
+    monkeypatch.setattr(ServiceConfig, 'from_defaults', lambda **_kwargs: object())
+    monkeypatch.setattr(ImageEditabilityService, '__init__', lambda *_args: None)
+
+    def analyze(_self, path):
+        if path == 'slow.png':
+            started.set()
+            assert release.wait(5)
+            return EditableImage('slow', path, 100, 100)
+        assert started.wait(3)
+        return failed
+
+    monkeypatch.setattr(ImageEditabilityService, 'make_image_editable', analyze)
+    output = tmp_path / 'failed.pptx'
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(
+            ExportService.create_editable_pptx_with_recursive_analysis,
+            image_paths=['slow.png', 'bad.png'], output_file=str(output),
+            export_mode='simple', max_workers=2,
+        )
+        try:
+            with pytest.raises(ExportError, match='文字擦除失败'):
+                future.result(timeout=3)
+            assert not output.exists()
+        finally:
+            release.set()
+    assert not output.exists()
+
+
+def test_simple_endpoint_task_download_and_selected_pages(app, client, simple_services, monkeypatch):
+    source, ocr, _ = simple_services
+    project = Project(creation_type='idea', idea_prompt='simple export', export_inpaint_method='generative')
+    db.session.add(project)
+    db.session.flush()
+    selected = Page(project_id=project.id, order_index=0, generated_image_path=str(source))
+    db.session.add_all([selected, Page(project_id=project.id, order_index=1)])
+    db.session.commit()
+    project_id, page_id = project.id, selected.id
+    monkeypatch.setattr('services.file_service.FileService.get_absolute_path', lambda *_args: str(source))
+    monkeypatch.setattr('services.image_editability.TextAttributeExtractorFactory.create_caption_model_extractor', lambda: None)
+    monkeypatch.setattr('services.task_manager.task_manager.submit_task',
+                        lambda task_id, fn, **kwargs: fn(task_id, **kwargs))
+    response = client.post(f'/api/projects/{project_id}/export/editable-pptx', json={
+        'export_mode': 'simple', 'page_ids': [page_id],
+    })
+    assert response.status_code == 200
+    task = db.session.get(Task, response.json['data']['task_id'])
+    assert task.status == 'COMPLETED', task.error_message
+    progress = task.get_progress()
+    assert progress['export_mode'] == 'simple'
+    ocr.recognize.assert_called_once()
+    download = client.get(progress['download_url'])
+    assert download.status_code == 200
+    prs = Presentation(io.BytesIO(download.data))
+    assert len(prs.slides) == 1
+    assert prs.slides[0].shapes[1].text == 'Editable text'
+
+
+def test_endpoint_rejects_unknown_mode(client, sample_project):
+    response = client.post(f"/api/projects/{sample_project['project_id']}/export/editable-pptx",
+                           json={'export_mode': 'invalid'})
+    assert response.status_code == 400

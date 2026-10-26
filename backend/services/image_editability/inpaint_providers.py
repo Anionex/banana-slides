@@ -217,7 +217,9 @@ class GenerativeEditInpaintProvider(InpaintProvider):
             )
 
             # 获取清理背景的prompt
-            edit_instruction = get_clean_background_prompt(normalized_regions)
+            edit_instruction = get_clean_background_prompt(
+                normalized_regions, text_only=kwargs.get('text_only', False)
+            )
             
             # 保存临时图片文件（AI服务需要文件路径）
             with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:

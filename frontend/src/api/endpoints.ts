@@ -752,6 +752,7 @@ export const exportEditablePPTX = async (
   filename?: string,
   pageIds?: string[],
   clientTaskId?: string,
+  exportMode: 'full' | 'simple' = 'full',
 ): Promise<ApiResponse<{ task_id: string }>> => {
   const response = await apiClient.post<
     ApiResponse<{ task_id: string }>
@@ -759,6 +760,7 @@ export const exportEditablePPTX = async (
     filename,
     page_ids: pageIds,
     client_task_id: clientTaskId,
+    export_mode: exportMode,
   });
   return response.data;
 };

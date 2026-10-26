@@ -386,6 +386,7 @@ def export_editable_pptx(project_id):
             "filename": "optional_custom_name.pptx",
             "page_ids": ["id1", "id2"],  // 可选，要导出的页面ID列表（不提供则导出所有）
             "client_task_id": "uuid",     // 可选，用于安全重试创建请求
+            "export_mode": "full",       // full=完整模式，simple=仅文字可编辑
             "max_depth": 1,      // 可选，递归深度（默认1=不递归，2=递归一层）
             "max_workers": 4     // 可选，并发数（默认4）
         }
@@ -414,6 +415,10 @@ def export_editable_pptx(project_id):
         # Get parameters from request body
         data = request.get_json() or {}
 
+        export_mode = data.get('export_mode', 'full')
+        if export_mode not in ('full', 'simple'):
+            return bad_request("export_mode must be 'full' or 'simple'")
+
         client_task_id = data.get('client_task_id')
         if client_task_id is not None:
             try:
@@ -436,6 +441,7 @@ def export_editable_pptx(project_id):
                     data={
                         "task_id": existing_task.id,
                         "method": "recursive_analysis",
+                        "export_mode": existing_task.get_progress().get('export_mode', 'full'),
                         "reused": True,
                     },
                     message="Existing export task returned",
@@ -455,7 +461,8 @@ def export_editable_pptx(project_id):
         
         # Get parameters from request body
         data = request.get_json() or {}
-        filename = data.get('filename', f'presentation_editable_{project_id}.pptx')
+        mode_suffix = '_simple' if export_mode == 'simple' else ''
+        filename = data.get('filename', f'presentation_editable{mode_suffix}_{project_id}.pptx')
         if not filename.endswith('.pptx'):
             filename += '.pptx'
         
@@ -471,6 +478,9 @@ def export_editable_pptx(project_id):
         
         if not isinstance(max_workers, int) or max_workers < 1 or max_workers > 16:
             return bad_request("max_workers must be an integer between 1 and 16")
+
+        if export_mode == 'simple':
+            max_depth = 1
         
         # Create task record
         task_kwargs = {
@@ -481,6 +491,7 @@ def export_editable_pptx(project_id):
         if client_task_id:
             task_kwargs['id'] = client_task_id
         task = Task(**task_kwargs)
+        task.set_progress({'export_mode': export_mode})
         db.session.add(task)
         db.session.commit()
         
@@ -522,6 +533,7 @@ def export_editable_pptx(project_id):
                 export_extractor_method=export_extractor_method,
                 export_inpaint_method=export_inpaint_method,
                 enable_icon_subject_extraction=enable_icon_subject_extraction,
+                export_mode=export_mode,
                 app=app
             )
         except Exception as submission_error:
@@ -532,6 +544,7 @@ def export_editable_pptx(project_id):
             task.completed_at = datetime.utcnow()
             task.set_progress({
                 'total': 100,
+                'export_mode': export_mode,
                 'completed': 0,
                 'failed': 1,
                 'current_step': '任务提交失败',
@@ -556,6 +569,7 @@ def export_editable_pptx(project_id):
             data={
                 "task_id": task.id,
                 "method": "recursive_analysis",
+                "export_mode": export_mode,
                 "max_depth": max_depth,
                 "max_workers": max_workers
             },

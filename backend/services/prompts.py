@@ -969,8 +969,15 @@ def get_image_edit_prompt(edit_instruction: str, original_description: str = Non
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-def get_clean_background_prompt(removal_regions: Optional[List[Dict[str, Any]]] = None) -> str:
+def get_clean_background_prompt(removal_regions: Optional[List[Dict[str, Any]]] = None, text_only: bool = False) -> str:
     """生成纯背景图的 prompt（去除文字和插画）"""
+    if text_only:
+        return (
+            "只擦除以下区域内的文字，用周围背景自然填补。保留所有图片、插画、图表、线条、色块和布局，"
+            "不要删除任何非文字内容，不要添加文字或新元素。保持原图尺寸、配色和风格。"
+            "区域坐标已按图片宽高归一化到 0-1：\n"
+            + json.dumps(removal_regions or [], ensure_ascii=False)
+        )
     regions_info = ""
     if removal_regions:
         regions_json = json.dumps(removal_regions, ensure_ascii=False, indent=2)

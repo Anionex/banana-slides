@@ -1586,7 +1586,8 @@ class ExportService:
         export_extractor_method: str = 'hybrid',  # 组件提取方法: mineru, hybrid
         export_inpaint_method: str = 'hybrid',  # 背景修复方法: generative, baidu, hybrid
         enable_icon_subject_extraction: bool = False,  # 是否对小尺寸图标走百度智能抠图
-        fail_fast: bool = True  # 是否在遇到错误时立即停止（False则收集警告继续）
+        fail_fast: bool = True,  # 是否在遇到错误时立即停止（False则收集警告继续）
+        export_mode: str = 'full',
     ) -> Tuple[Optional[bytes], ExportWarnings]:
         """
         使用递归图片可编辑化服务创建可编辑PPTX
@@ -1614,6 +1615,7 @@ class ExportService:
             export_extractor_method: 组件提取方法 ('mineru' 或 'hybrid'，默认 'hybrid')
             export_inpaint_method: 背景修复方法 ('generative', 'baidu', 'hybrid'，默认 'hybrid')
             fail_fast: 是否在遇到错误时立即停止（默认 True）。设为 False 则收集警告继续导出。
+            export_mode: 'full' 拆分元素；'simple' 保留原图非文字内容，仅重建文字。
 
         Returns:
             (pptx_bytes, warnings): 元组，包含 PPTX 字节流和警告信息
@@ -1622,9 +1624,23 @@ class ExportService:
         """
         from services.image_editability import ServiceConfig, ImageEditabilityService
         from utils.pptx_builder import PPTXBuilder
+
+        if export_mode not in ('full', 'simple'):
+            raise ValueError("export_mode must be 'full' or 'simple'")
         
         # 初始化警告收集器
         warnings = ExportWarnings()
+
+        def validate_simple_background(editable_img, page_idx):
+            if export_mode != 'simple' or not editable_img.elements:
+                return
+            if editable_img.clean_background and os.path.exists(editable_img.clean_background):
+                return
+            raise ExportError(
+                message=f"第 {page_idx + 1} 页文字擦除失败", error_type='inpaint',
+                error_code='EXPORT_TEXT_REMOVAL_FAILED', stage='文字擦除',
+                help_text='请检查背景修复服务配置后重试。',
+            )
         
         # 辅助函数：报告进度
         def report_progress(step: str, message: str, percent: int):
@@ -1666,6 +1682,7 @@ class ExportService:
                 extractor_method=export_extractor_method,
                 inpaint_method=export_inpaint_method,
                 enable_icon_subject_extraction=enable_icon_subject_extraction,
+                text_only=export_mode == 'simple',
             )
             editability_service = ImageEditabilityService(config)
             
@@ -1675,7 +1692,8 @@ class ExportService:
             
             editable_images = []
             completed_count = 0
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            executor = ThreadPoolExecutor(max_workers=max_workers)
+            try:
                 futures = {
                     executor.submit(editability_service.make_image_editable, img_path): idx
                     for idx, img_path in enumerate(image_paths)
@@ -1686,6 +1704,8 @@ class ExportService:
                     idx = futures[future]
                     try:
                         results[idx] = future.result()
+                        if fail_fast:
+                            validate_simple_background(results[idx], idx)
                         completed_count += 1
                         beat("版面分析")
                         # 版面分析占 5% - 40% 的进度
@@ -1696,6 +1716,20 @@ class ExportService:
                         raise
                 
                 editable_images = results
+            finally:
+                # Failed simple exports cancel queued pages; late workers cannot publish a PPTX.
+                executor.shutdown(wait=export_mode != 'simple', cancel_futures=export_mode == 'simple')
+
+        if export_mode == 'simple':
+            for page_idx, editable_img in enumerate(editable_images):
+                try:
+                    validate_simple_background(editable_img, page_idx)
+                except ExportError as error:
+                    if fail_fast:
+                        raise
+                    # A partial page stays a single image; never overlay text on the source.
+                    editable_img.elements = []
+                    warnings.add_warning(f"{error.message}，已保留原图，该页文字不可编辑。")
         
         # 2.5. 使用混合策略提取所有文本元素的样式（如果提供了提取器）
         # 混合策略：全局识别（粗体/斜体/下划线/对齐）+ 单个裁剪识别（颜色）

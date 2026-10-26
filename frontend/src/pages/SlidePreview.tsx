@@ -79,6 +79,12 @@ const previewI18n = {
       videoCancel: "取消",
       editablePptxDialogTitle: "导出可编辑 PPTX",
       editablePptxDialogSubtitle: "选择本次导出的处理选项。",
+      editablePptxMode: "导出模式",
+      editablePptxSimple: "简单模式",
+      editablePptxSimpleDesc: "只让文字可编辑。擦除原图文字，再叠加识别出的文字；图片、图表保留在背景中。",
+      editablePptxFull: "完整模式",
+      editablePptxFullDesc: "使用现有流程拆分文字、图片、表格等元素，尽可能支持编辑。",
+      editablePptxSimpleHint: "使用已配置的百度 OCR 和背景修复服务，无需 MinerU 或图标抠图。",
       editablePptxIconTransparent: "图标透明背景",
       editablePptxIconTransparentDesc: "对识别为图标的图片调用本地 RMBG-2.0 模型抠出透明背景，避免原 PPT 底色与新底色冲突。",
       editablePptxModelHint: "首次启用会下载约 512MB 模型到 ~/.cache/banana-slides/models/，CPU 推理对内存要求较高，建议机器有 ≥ 16GB 可用内存。",
@@ -217,6 +223,12 @@ const previewI18n = {
       videoCancel: "Cancel",
       editablePptxDialogTitle: "Export Editable PPTX",
       editablePptxDialogSubtitle: "Choose processing options for this export.",
+      editablePptxMode: "Export mode",
+      editablePptxSimple: "Simple mode",
+      editablePptxSimpleDesc: "Make text editable by removing it from the image and overlaying recognized text. Images and charts stay in the background.",
+      editablePptxFull: "Full mode",
+      editablePptxFullDesc: "Use the existing workflow to separate text, images, tables, and other elements for editing where possible.",
+      editablePptxSimpleHint: "Uses your configured Baidu OCR and background repair services. No MinerU or icon cutout model needed.",
       editablePptxIconTransparent: "Icon Transparent Background",
       editablePptxIconTransparentDesc: "Run images classified as icons through the local RMBG-2.0 model to produce transparent-background PNGs, avoiding background color clashes.",
       editablePptxModelHint: "First use downloads a ~512MB model to ~/.cache/banana-slides/models/. CPU inference is memory-intensive; recommended: ≥16GB free memory.",
@@ -609,6 +621,7 @@ export const SlidePreview: React.FC = () => {
   const [showVideoExportDialog, setShowVideoExportDialog] = useState(false);
   const [isPreparingVideoExport, setIsPreparingVideoExport] = useState(false);
   const [showEditablePptxDialog, setShowEditablePptxDialog] = useState(false);
+  const [editablePptxMode, setEditablePptxMode] = useState<'full' | 'simple'>('full');
   const [editablePptxDialogIconTransparent, setEditablePptxDialogIconTransparent] = useState(true);
   const [pptxTransitionsEnabled, setPptxTransitionsEnabled] = useState(false);
   const [pptxTransitionEffects, setPptxTransitionEffects] = useState<PptxTransitionEffect[]>(['fade']);
@@ -1651,6 +1664,7 @@ export const SlidePreview: React.FC = () => {
     options?: {
       pptxTransitionEnabled?: boolean;
       pptxTransitionEffects?: PptxTransitionEffect[];
+      editableMode?: 'full' | 'simple';
     },
   ) => {
     setExportMenuOpen(false);
@@ -1698,7 +1712,7 @@ export const SlidePreview: React.FC = () => {
         
         show({ message: t('slidePreview.exportStarted'), type: 'success' });
         
-        const response = await apiExportEditablePPTX(projectId, undefined, pageIds, backendTaskId);
+        const response = await apiExportEditablePPTX(projectId, undefined, pageIds, backendTaskId, options?.editableMode);
         const taskId = response.data?.task_id;
         
         if (taskId) {
@@ -2740,10 +2754,56 @@ export const SlidePreview: React.FC = () => {
 
       {showEditablePptxDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowEditablePptxDialog(false)}>
-          <div className="bg-white dark:bg-background-secondary rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold">{t('preview.editablePptxDialogTitle')}</h3>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="editable-pptx-title"
+            className="bg-white dark:bg-background-secondary rounded-2xl p-6 w-full max-w-md mx-4 max-h-[90dvh] overflow-y-auto shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setShowEditablePptxDialog(false);
+              if (e.key === 'Tab') {
+                const controls = e.currentTarget.querySelectorAll<HTMLElement>(
+                  'input:not([type="radio"]), input[type="radio"]:checked, button:not(:disabled)',
+                );
+                const first = controls[0];
+                const last = controls[controls.length - 1];
+                if (e.shiftKey && document.activeElement === first) {
+                  e.preventDefault();
+                  last?.focus();
+                } else if (!e.shiftKey && document.activeElement === last) {
+                  e.preventDefault();
+                  first?.focus();
+                }
+              }
+            }}
+          >
+            <h3 id="editable-pptx-title" className="text-lg font-semibold">{t('preview.editablePptxDialogTitle')}</h3>
             <p className="text-sm text-gray-500 dark:text-foreground-tertiary mt-1 mb-5">{t('preview.editablePptxDialogSubtitle')}</p>
-            <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-background-hover">
+            <fieldset className="space-y-1 mb-4">
+              <legend className="text-sm font-medium mb-2">{t('preview.editablePptxMode')}</legend>
+              {(['simple', 'full'] as const).map((mode) => (
+                <label key={mode} className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-background-hover">
+                  <input
+                    type="radio"
+                    name="editable-pptx-mode"
+                    value={mode}
+                    checked={editablePptxMode === mode}
+                    autoFocus={editablePptxMode === mode}
+                    onChange={() => setEditablePptxMode(mode)}
+                    className="w-4 h-4 mt-0.5 border-gray-300 accent-banana-500 focus:ring-banana-500"
+                  />
+                  <span>
+                    <span className="block text-sm font-medium">{t(mode === 'simple' ? 'preview.editablePptxSimple' : 'preview.editablePptxFull')}</span>
+                    <span className="block text-xs text-gray-500 dark:text-foreground-tertiary mt-1 leading-relaxed">{t(mode === 'simple' ? 'preview.editablePptxSimpleDesc' : 'preview.editablePptxFullDesc')}</span>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+            {editablePptxMode === 'simple' ? (
+              <p className="px-3 text-xs text-gray-500 dark:text-foreground-tertiary leading-relaxed">{t('preview.editablePptxSimpleHint')}</p>
+            ) : (
+              <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-background-hover">
               <input
                 type="checkbox"
                 checked={editablePptxDialogIconTransparent}
@@ -2759,7 +2819,8 @@ export const SlidePreview: React.FC = () => {
                   </div>
                 )}
               </div>
-            </label>
+              </label>
+            )}
             {(() => {
               const totalPages = currentProject?.pages?.length ?? 0;
               const isPartial = isMultiSelectMode && selectedPageIds.size > 0;
@@ -2794,7 +2855,7 @@ export const SlidePreview: React.FC = () => {
               <button
                 onClick={async () => {
                   setShowEditablePptxDialog(false);
-                  if (projectId && (currentProject?.enable_icon_subject_extraction ?? true) !== editablePptxDialogIconTransparent) {
+                  if (editablePptxMode === 'full' && projectId && (currentProject?.enable_icon_subject_extraction ?? true) !== editablePptxDialogIconTransparent) {
                     try {
                       await updateProject(projectId, { enable_icon_subject_extraction: editablePptxDialogIconTransparent });
                       await syncProject(projectId);
@@ -2803,9 +2864,9 @@ export const SlidePreview: React.FC = () => {
                       return;
                     }
                   }
-                  handleExport('editable-pptx');
+                  handleExport('editable-pptx', { editableMode: editablePptxMode });
                 }}
-                className="px-4 py-2 text-sm bg-banana-500 text-white rounded-lg hover:bg-banana-600 transition-colors"
+                className="px-4 py-2 text-sm bg-banana-500 text-gray-900 rounded-lg hover:bg-banana-600 transition-colors"
               >
                 {t('preview.editablePptxStartExport')}
               </button>

@@ -14,7 +14,7 @@ from typing import List, Optional, Tuple
 
 import cv2
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageChops
 
 from .data_models import BBox, EditableElement, EditableImage
 from .coordinate_mapper import CoordinateMapper
@@ -70,6 +70,7 @@ class ImageEditabilityService:
         self._max_child_coverage_ratio = 0.85
         self._segmentation_provider = config.segmentation_provider
         self._enable_icon_subject_extraction = config.enable_icon_subject_extraction
+        self._text_only = config.text_only
         
         extractors = self._extractor_registry.get_all_extractors()
         inpaint_providers = self._inpaint_registry.get_all_providers()
@@ -450,11 +451,22 @@ class ImageEditabilityService:
                 expand_pixels=10,
                 save_mask_path=str(output_dir / 'mask.png'),
                 full_page_image=full_page_img,
-                crop_box=crop_box
+                crop_box=crop_box,
+                text_only=self._text_only,
             )
             
             if result_img is None:
                 return None
+
+            if self._text_only:
+                # Keep every pixel outside recognized text regions, including charts and images.
+                from utils.mask_utils import create_mask_from_bboxes
+                result_img = result_img.convert('RGB').resize(img.size)
+                mask = create_mask_from_bboxes(img.size, filtered_bboxes, expand_pixels=0)
+                result_img = Image.composite(result_img, img.convert('RGB'), mask.convert('L'))
+                if ImageChops.difference(result_img, img.convert('RGB')).getbbox() is None:
+                    logger.error("文字擦除返回原图，不能叠加可编辑文字")
+                    return None
             
             # 保存结果
             output_path = output_dir / 'clean_background.png'
