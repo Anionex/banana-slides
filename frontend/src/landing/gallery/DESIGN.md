@@ -25,6 +25,20 @@ style description form two columns until 640px, then a single reading order.
   and slide readiness. Similarity ranks matching style first, then use case; ties
   retain curated order. There are three recommendations, excluding the current work.
 
+## Resource delivery
+
+The homepage showcase uses the existing 800px and 1600px overview images through
+`srcset`. Its `sizes` follows the approved 74vw mobile / min(460px, 39vw) desktop
+layout. Keep the 1600px image for dense displays and the in-place reader; retain
+the same image nodes, aspect ratio, decode handling and interaction state.
+
+Prerender each route with only its own stylesheet dependency graph, excluding
+styles already emitted by Vite. Match Vite's anonymous cross-origin mode to avoid
+requesting the main stylesheet twice. Preserve hydration and the server-rendered
+DOM. An isolated experiment preloaded the route's hydration modules; it showed
+no meaningful LCP gain and worse FCP/blocking time, so those hints are not retained.
+Performance experiments must keep these visual and interaction decisions intact.
+
 ## Weight, shape, type and color
 
 - The main slide is the largest and most colorful element. Do not decorate its tray.
