@@ -10,7 +10,7 @@ from typing import Generator
 from google import genai
 from google.genai import types
 from tenacity import retry, stop_after_attempt, wait_exponential
-from .base import TextProvider, strip_think_tags
+from .base import get_text_output_limit, TextProvider, strip_think_tags
 from config import get_config
 from ..genai_client import make_genai_client
 
@@ -80,7 +80,7 @@ class GenAITextProvider(TextProvider):
             Generated text
         """
         # 构建配置，只有在 thinking_budget > 0 时才启用推理模式
-        config_params = {}
+        config_params = {'max_output_tokens': get_text_output_limit()}
         if thinking_budget > 0:
             config_params['thinking_config'] = types.ThinkingConfig(thinking_budget=thinking_budget)
         
@@ -118,7 +118,7 @@ class GenAITextProvider(TextProvider):
         contents = [img, prompt]
         
         # 构建配置，只有在 thinking_budget > 0 时才启用推理模式
-        config_params = {}
+        config_params = {'max_output_tokens': get_text_output_limit()}
         if thinking_budget > 0:
             config_params['thinking_config'] = types.ThinkingConfig(thinking_budget=thinking_budget)
         
@@ -131,7 +131,7 @@ class GenAITextProvider(TextProvider):
 
     def generate_text_stream(self, prompt: str, thinking_budget: int = 0) -> Generator[str, None, None]:
         """Stream text using Google GenAI SDK's generate_content_stream."""
-        config_params = {}
+        config_params = {'max_output_tokens': get_text_output_limit()}
         if thinking_budget > 0:
             config_params['thinking_config'] = types.ThinkingConfig(thinking_budget=thinking_budget)
 

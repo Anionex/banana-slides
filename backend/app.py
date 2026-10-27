@@ -357,6 +357,7 @@ def _load_settings_to_config(app):
         
         # Load reasoning mode settings (separate for text and image)
         app.config['ENABLE_TEXT_REASONING'] = settings.enable_text_reasoning
+        app.config['TEXT_MAX_OUTPUT_TOKENS'] = settings.text_max_output_tokens or Config.TEXT_MAX_OUTPUT_TOKENS
         app.config['TEXT_THINKING_BUDGET'] = settings.text_thinking_budget
         app.config['ENABLE_IMAGE_REASONING'] = settings.enable_image_reasoning
         app.config['IMAGE_THINKING_BUDGET'] = settings.image_thinking_budget

@@ -54,6 +54,7 @@ const baseSettings: SettingsType = {
   description_extra_fields: ['配图与素材', '版式与重点', '演讲者备注'],
   image_prompt_extra_fields: ['配图与素材', '版式与重点'],
   enable_text_reasoning: false,
+  text_max_output_tokens: 32768,
   text_thinking_budget: 1024,
   enable_image_reasoning: false,
   image_thinking_budget: 1024,
