@@ -80,11 +80,12 @@ const previewI18n = {
       editablePptxDialogTitle: "导出可编辑 PPTX",
       editablePptxDialogSubtitle: "选择本次导出的处理选项。",
       editablePptxMode: "导出模式",
-      editablePptxSimple: "简单模式",
-      editablePptxSimpleDesc: "只让文字可编辑。擦除原图文字，再叠加识别出的文字；图片、图表保留在背景中。",
+      editablePptxSimple: "仅文字可编辑模式",
+      editablePptxSimpleDesc: "表层文字可编辑，图标和图片保留为图片。",
       editablePptxFull: "完整模式",
       editablePptxFullDesc: "使用现有流程拆分文字、图片、表格等元素，尽可能支持编辑。",
-      editablePptxSimpleHint: "使用百度 OCR 识别文字，图像模型生成无字背景，再叠加可编辑文字。",
+      editablePptxSimpleHint: "仅将表层文字转为可编辑文字，尽可能还原原有样式和位置。图标、图片等其他内容仍以图片形式保留。相比完整模式，导出更快、更稳定。",
+      editablePptxSimpleHelp: "了解仅文字可编辑模式",
       editablePptxIconTransparent: "图标透明背景",
       editablePptxIconTransparentDesc: "对识别为图标的图片调用本地 RMBG-2.0 模型抠出透明背景，避免原 PPT 底色与新底色冲突。",
       editablePptxModelHint: "首次启用会下载约 512MB 模型到 ~/.cache/banana-slides/models/，CPU 推理对内存要求较高，建议机器有 ≥ 16GB 可用内存。",
@@ -224,11 +225,12 @@ const previewI18n = {
       editablePptxDialogTitle: "Export Editable PPTX",
       editablePptxDialogSubtitle: "Choose processing options for this export.",
       editablePptxMode: "Export mode",
-      editablePptxSimple: "Simple mode",
-      editablePptxSimpleDesc: "Make text editable by removing it from the image and overlaying recognized text. Images and charts stay in the background.",
+      editablePptxSimple: "Text-only editable mode",
+      editablePptxSimpleDesc: "Edit surface text while icons and images remain part of the image.",
       editablePptxFull: "Full mode",
       editablePptxFullDesc: "Use the existing workflow to separate text, images, tables, and other elements for editing where possible.",
-      editablePptxSimpleHint: "Uses Baidu OCR to recognize text and the image model to create a text-free background, then overlays editable text.",
+      editablePptxSimpleHint: "Only surface text becomes editable, with its original styling and position restored as closely as possible. Icons, images, and other content remain part of the image. Export is faster and more reliable than Full mode.",
+      editablePptxSimpleHelp: "About text-only editable mode",
       editablePptxIconTransparent: "Icon Transparent Background",
       editablePptxIconTransparentDesc: "Run images classified as icons through the local RMBG-2.0 model to produce transparent-background PNGs, avoiding background color clashes.",
       editablePptxModelHint: "First use downloads a ~512MB model to ~/.cache/banana-slides/models/. CPU inference is memory-intensive; recommended: ≥16GB free memory.",
@@ -320,6 +322,7 @@ import {
   FileText,
   Loader2,
   Info,
+  HelpCircle,
   LayoutTemplate,
   Presentation,
   AlertTriangle,
@@ -2783,7 +2786,8 @@ export const SlidePreview: React.FC = () => {
             <fieldset className="space-y-1 mb-4">
               <legend className="text-sm font-medium mb-2">{t('preview.editablePptxMode')}</legend>
               {(['simple', 'full'] as const).map((mode) => (
-                <label key={mode} className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-background-hover">
+                <div key={mode} className="flex items-start gap-2 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-background-hover">
+                <label className="flex flex-1 min-w-0 items-start gap-3 cursor-pointer">
                   <input
                     type="radio"
                     name="editable-pptx-mode"
@@ -2798,11 +2802,29 @@ export const SlidePreview: React.FC = () => {
                     <span className="block text-xs text-gray-500 dark:text-foreground-tertiary mt-1 leading-relaxed">{t(mode === 'simple' ? 'preview.editablePptxSimpleDesc' : 'preview.editablePptxFullDesc')}</span>
                   </span>
                 </label>
+                {mode === 'simple' && (
+                  <div className="relative group flex-shrink-0">
+                    <button
+                      type="button"
+                      aria-label={t('preview.editablePptxSimpleHelp')}
+                      aria-describedby="editable-pptx-text-only-tooltip"
+                      className="p-1 rounded-full text-gray-400 dark:text-foreground-tertiary hover:text-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-banana-500"
+                    >
+                      <HelpCircle size={16} />
+                    </button>
+                    <div
+                      id="editable-pptx-text-only-tooltip"
+                      role="tooltip"
+                      className="absolute right-0 top-full mt-2 w-64 max-w-[calc(100vw-4rem)] p-3 bg-gray-900 dark:bg-gray-700 text-white text-xs leading-relaxed rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-opacity z-50 pointer-events-none"
+                    >
+                      {t('preview.editablePptxSimpleHint')}
+                    </div>
+                  </div>
+                )}
+                </div>
               ))}
             </fieldset>
-            {editablePptxMode === 'simple' ? (
-              <p className="px-3 text-xs text-gray-500 dark:text-foreground-tertiary leading-relaxed">{t('preview.editablePptxSimpleHint')}</p>
-            ) : (
+            {editablePptxMode === 'full' && (
               <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-background-hover">
               <input
                 type="checkbox"

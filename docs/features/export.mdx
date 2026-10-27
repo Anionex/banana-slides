@@ -25,10 +25,10 @@ Regular PPTX export now opens a settings panel before generating the file. You c
 
 Choose **Export → Export Editable PPTX**, select a mode in the settings panel, then click **Start Export**:
 
-- **Simple mode** uses the configured image model to generate a text-free version of the whole slide, preserving its other content and layout, then overlays native text boxes recognized by Baidu OCR. Only text is editable. It uses the configured text style recognition service, without Baidu image repair, MinerU, or an icon cutout model. The project's background repair selection applies only to full mode.
+- **Text-only editable mode** uses the configured image model to generate a text-free version of the whole slide, preserving its other content and layout, then overlays native text boxes recognized by Baidu OCR. Only text is editable. It uses the configured text style recognition service, without Baidu image repair, MinerU, or an icon cutout model. The project's background repair selection applies only to full mode.
 - **Full mode** keeps the existing workflow for separating text, images, tables, and other elements. The **Icon Transparent Background** option remains available.
 
-The mode applies to this export without changing the project's element extraction or icon cutout settings. If text removal fails in simple mode, export stops. When partial results are enabled, the affected page keeps its original image without text overlays and includes a warning that its text is not editable.
+The mode applies to this export without changing the project's element extraction or icon cutout settings. If text removal fails in text-only editable mode, export stops. When partial results are enabled, the affected page keeps its original image without text overlays and includes a warning that its text is not editable.
 
 ## Exported Files
 
