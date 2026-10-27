@@ -15,6 +15,14 @@ Set `AI_PROVIDER_FORMAT` in `.env` to choose your provider:
 | `vertex` | Google Cloud Vertex AI |
 | `lazyllm` | Multi-vendor Chinese model routing |
 
+## Text output limit
+
+Under **Settings → Advanced Settings → Performance Configuration**, set **Maximum Output Tokens** (default **32768**). This is a global limit for text generation and image understanding, including streaming outlines and descriptions. Saving takes effect on subsequent requests; resetting restores the environment default.
+
+Set `TEXT_MAX_OUTPUT_TOKENS=32768` in `.env` to change the environment default. Existing explicit `ANTHROPIC_MAX_TOKENS` values remain a legacy fallback when the new variable is unset. A saved UI value takes precedence.
+
+OpenAI-compatible calls use `max_tokens` (GPT-5 and o1/o3/o4 models use `max_completion_tokens`), Anthropic and LazyLLM use `max_tokens`, and Gemini/Vertex use `max_output_tokens`. Codex OAuth retains its server-side limit. The configured value is an upper bound, not a requested response length; model/provider limits still apply. A longer response can cost more and take longer. If an upstream default truncates long descriptions, increasing this value can allow them to finish.
+
 ## Gemini (Default)
 
 ```env

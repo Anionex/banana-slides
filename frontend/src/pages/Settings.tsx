@@ -156,6 +156,7 @@ const initialFormData = {
   output_language: 'zh' as OutputLanguage,
   // 推理模式配置（分别控制文本和图像）
   enable_text_reasoning: false,
+  text_max_output_tokens: 32768,
   text_thinking_budget: 1024,
   enable_image_reasoning: false,
   image_thinking_budget: 1024,
@@ -588,6 +589,7 @@ const formDataFromSettings = (data: SettingsType): typeof initialFormData => {
     image_caption_model: data.image_caption_model || '',
     output_language: data.output_language || 'zh',
     enable_text_reasoning: data.enable_text_reasoning || false,
+    text_max_output_tokens: data.text_max_output_tokens ?? 32768,
     text_thinking_budget: data.text_thinking_budget || 1024,
     enable_image_reasoning: data.enable_image_reasoning || false,
     image_thinking_budget: data.image_thinking_budget || 1024,
@@ -863,6 +865,14 @@ export const Settings: React.FC = () => {
       title: t('settings.sections.performanceConfig'),
       icon: <Zap size={20} />,
       fields: [
+        {
+          key: 'text_max_output_tokens',
+          label: t('settings.fields.textMaxOutputTokens'),
+          type: 'number',
+          min: 1,
+          max: 2147483647,
+          description: t('settings.fields.textMaxOutputTokensDesc'),
+        },
         {
           key: 'max_description_workers',
           label: t('settings.fields.maxDescriptionWorkers'),
@@ -1249,6 +1259,7 @@ export const Settings: React.FC = () => {
       if (formData.enable_text_reasoning !== undefined) {
         testSettings.enable_text_reasoning = formData.enable_text_reasoning;
       }
+      testSettings.text_max_output_tokens = formData.text_max_output_tokens;
       if (formData.text_thinking_budget !== undefined) {
         testSettings.text_thinking_budget = formData.text_thinking_budget;
       }
