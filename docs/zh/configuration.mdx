@@ -15,6 +15,14 @@ description: "环境变量与服务商设置"
 | `vertex` | Google Cloud Vertex AI |
 | `lazyllm` | 多厂商国产模型路由 |
 
+## 文本输出上限
+
+在 **设置 → 高级设置 → 性能配置** 中设置 **文本最大输出 Token 数**，默认 **32768**。此全局上限用于文本生成和图片理解，包括流式大纲与描述；保存后对后续请求生效，重置设置后恢复环境默认值。
+
+可在 `.env` 中用 `TEXT_MAX_OUTPUT_TOKENS=32768` 指定环境默认值。未设置该变量时，兼容已有的 `ANTHROPIC_MAX_TOKENS` 配置；页面保存的值优先。
+
+OpenAI 兼容接口使用 `max_tokens`（GPT-5 和 o1/o3/o4 使用 `max_completion_tokens`），Anthropic 和 LazyLLM 使用 `max_tokens`，Gemini/Vertex 使用 `max_output_tokens`。Codex OAuth 保留服务端上限。这个值是允许输出的上限，不会强制模型生成到指定长度；实际支持范围仍由模型和服务商决定。实际输出更长时，费用和耗时也可能增加。长描述被上游默认额度截断时，可适当调大。
+
 ## Gemini（默认）
 
 ```env

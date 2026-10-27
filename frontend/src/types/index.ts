@@ -232,6 +232,7 @@ export interface Settings {
   image_prompt_extra_fields?: string[];
   // 推理模式配置（分别控制文本和图像）
   enable_text_reasoning: boolean;
+  text_max_output_tokens: number;
   text_thinking_budget: number;
   enable_image_reasoning: boolean;
   image_thinking_budget: number;

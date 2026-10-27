@@ -125,7 +125,7 @@ def config_overrides():
     result = {key: data[field] for field, key in CONFIG_FIELDS.items()}
     result.update(AI_PROVIDER_FORMAT=data['ai_provider_format'], TEXT_MODEL=data['text_model'],
                   IMAGE_MODEL=data['image_model'], IMAGE_CAPTION_MODEL=data['image_caption_model'],
-                  OPENAI_IMAGE_API_PROTOCOL='images', LAZYLLM_API_KEYS='{}')
+                  OPENAI_IMAGE_API_PROTOCOL='images', IMAGE_QUALITY='auto', LAZYLLM_API_KEYS='{}')
     for prefix in ('GOOGLE', 'OPENAI', 'VOLCENGINE', 'TEXT', 'IMAGE', 'IMAGE_CAPTION'):
         result[prefix + '_API_KEY'] = data['api_key']
         result[prefix + '_API_BASE'] = data['api_base_url']
