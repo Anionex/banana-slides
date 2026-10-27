@@ -1,4 +1,4 @@
-import { ArrowRight, ArrowUpRight, FileText, Layers, Download, Github, ChevronDown, Sparkles } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, Github, ChevronDown } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useT } from '@/hooks/useT';
 import './landing.css';
@@ -31,7 +31,6 @@ const copy = {
     ctaTitle: '把下一个想法，变成精彩的演示', ctaAlternative: '或留下邮箱预约内测，优先获得邮件通知',
     title: '让 PPT 创作', title2: '回归直觉',
     intro: 'Banana Slides 是一款原生 AI PPT 生成应用。用自然语言描述想法即可生成或调整页面，几分钟内生成完整、精美的演示文稿。', introNote: '无需设计基础。', start: '体验演示', waitlistOpen: '预约内测', waitlistPlaceholder: '你的邮箱地址', waitlistSubmit: '预约内测', waitlistSubmitting: '提交中…', waitlistSuccess: '已收到预约，内测开放时我们会通过邮件联系你。', waitlistError: '提交失败，请稍后重试。', waitlistInvalid: '请输入有效的邮箱地址。', waitlistRateLimited: '提交较频繁，请稍后再试。',
-    strip1: '一句话生成', strip2: '资料智能解析', strip3: '自然语言修改', strip4: '多格式导出',
     featureTitle: '全新的 PPT 制作体验',
     featureIntro: '每一页都由 AI 原生渲染，让内容结构与视觉设计一起成型。',
     f1: '原生渲染，视觉统一', f1Text: '基于图像生成模型，将文字、图形与布局作为整页画面生成。通过参考图或风格描述引导视觉方向，让整份演示保持一致。',
@@ -57,7 +56,6 @@ const copy = {
     ctaTitle: 'Turn your next idea into stunning slides.', ctaAlternative: 'Or join the waitlist. We’ll email you when the beta opens.',
     title: 'Vibe your way', title2: 'to great slides.',
     intro: 'Banana Slides is an all-in-one, AI-native presentation app. Describe your ideas and refine slides with natural language to create complete, beautifully designed presentations in minutes.', introNote: 'No design skills needed.', start: 'Try the demo', waitlistOpen: 'Join the waitlist', waitlistPlaceholder: 'Your email address', waitlistSubmit: 'Join the waitlist', waitlistSubmitting: 'Submitting…', waitlistSuccess: 'You are on the list. We will email you when the beta opens.', waitlistError: 'Could not submit. Please try again.', waitlistInvalid: 'Enter a valid email address.', waitlistRateLimited: 'Too many submissions. Please try again later.',
-    strip1: 'Create from a prompt', strip2: 'AI-powered file parsing', strip3: 'Edit in natural language', strip4: 'Multi-format export',
     featureTitle: 'A new way to create presentations',
     featureIntro: 'Every slide is rendered by AI, bringing content structure and visual design together.',
     f1: 'AI-rendered, visually consistent', f1Text: 'Image-generation models render text, graphics, and layout as a complete slide. Use reference images or a style description to guide the look across your deck.',
@@ -132,10 +130,8 @@ function LandingContent() {
       <section className="landing-hero">
         <Reveal className="landing-hero-copy"><h1>{t('title')}<br />{t('title2')}</h1><p className="landing-intro">{t('intro')}{language === 'en' ? <> {t('introNote')}</> : <><span style={{ whiteSpace: 'nowrap' }}>{t('introNote').slice(0, 2)}</span>{t('introNote').slice(2)}</>}</p>
           <div className="landing-hero-actions"><a href="/app" className="studio-button studio-button-dark">{t('start')}<ArrowRight size={17} /></a><a className="studio-button landing-beta-button" href="#landing-cta"><BetaRibbon /><span>{t('waitlistOpen')}</span><ArrowUpRight size={16} /></a><a className="studio-button landing-github-button" href={githubUrl} target="_blank" rel="noopener noreferrer"><Github size={18} aria-hidden="true" />GitHub<GithubStars /></a></div>
-          <a className="landing-gallery-link" href={language === 'zh' ? '/gallery/' : '/en/gallery/'}>{language === 'zh' ? '先逛逛作品画廊' : 'Explore the gallery'}<ArrowRight size={16} /></a>
         </Reveal>
         <Reveal className="landing-hero-art" index={1}><GrainSteps bitmapGrain interactive /><span className="landing-art-label">IDEA<br />OUTLINE<br />DESIGN<br />PRESENT<span /></span></Reveal>
-        <Reveal className="landing-strip" index={6}><div>{[FileText, Layers, Sparkles, Download].map((Icon, i) => <span key={i}><Icon size={20} />{t(`strip${i + 1}`)}</span>)}</div></Reveal>
       </section>
       <ProductShowcase t={t} />
       <GalleryCurvedShowcase language={language} />
