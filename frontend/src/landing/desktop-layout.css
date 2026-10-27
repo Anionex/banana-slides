@@ -23,8 +23,7 @@
     min-height: max(clamp(556px, 44.1vw, 665px), calc(100svh - 96px));
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-    row-gap: 80px;
+    justify-content: center;
     padding-top: 56px;
     padding-bottom: 104px;
   }
@@ -33,11 +32,6 @@
   .landing-page .landing-intro { font-size: 18px; line-height: 1.75; }
   .landing-page .landing-hero-actions { margin-top: 32px; }
   .landing-page .landing-hero-actions .studio-button { min-height: 48px; padding: 12px 20px; font-size: 14px; }
-  .landing-page .landing-strip {
-    position: relative; left: auto; bottom: auto;
-    width: min(100%, 51vw);
-  }
-  .landing-page .landing-strip > div > span { font-size: 13px; }
 
   .landing-page .landing-waymark,
   .landing-page .landing-waymark-features { padding: 72px var(--landing-gutter); }
@@ -82,5 +76,4 @@
   .landing-page .landing-nav-actions { gap: 12px; }
   .landing-page .landing-hero-actions { gap: 10px; }
   .landing-page .landing-hero-actions .studio-button { padding-inline: 16px; font-size: 13px; }
-  .landing-page .landing-strip > div { display: grid; grid-template-columns: repeat(2, max-content); gap: 12px 32px; }
 }
