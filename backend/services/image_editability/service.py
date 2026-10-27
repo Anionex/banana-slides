@@ -459,11 +459,8 @@ class ImageEditabilityService:
                 return None
 
             if self._text_only:
-                # Keep every pixel outside recognized text regions, including charts and images.
-                from utils.mask_utils import create_mask_from_bboxes
+                # Use the whole text-free image, including text missed by OCR.
                 result_img = result_img.convert('RGB').resize(img.size)
-                mask = create_mask_from_bboxes(img.size, filtered_bboxes, expand_pixels=0)
-                result_img = Image.composite(result_img, img.convert('RGB'), mask.convert('L'))
                 if ImageChops.difference(result_img, img.convert('RGB')).getbbox() is None:
                     logger.error("文字擦除返回原图，不能叠加可编辑文字")
                     return None

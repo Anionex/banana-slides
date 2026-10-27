@@ -509,7 +509,7 @@ def export_editable_pptx(project_id):
 
             # 读取项目的导出设置
             export_extractor_method = project.export_extractor_method or 'hybrid'
-            export_inpaint_method = project.export_inpaint_method or 'hybrid'
+            export_inpaint_method = 'generative' if export_mode == 'simple' else (project.export_inpaint_method or 'hybrid')
             enable_icon_subject_extraction = (
                 True if project.enable_icon_subject_extraction is None
                 else bool(project.enable_icon_subject_extraction)

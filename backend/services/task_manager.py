@@ -1992,7 +1992,10 @@ def export_editable_pptx_with_recursive_analysis_task(
             
             # Step 3: 调用导出方法（使用项目的导出设置）
             logger.info(f"Step 3: 创建可编辑PPTX (extractor={export_extractor_method}, inpaint={export_inpaint_method}, fail_fast={fail_fast})...")
-            progress_callback("配置", f"提取方法: {export_extractor_method}, 背景修复: {export_inpaint_method}", 6)
+            if export_mode == 'simple':
+                progress_callback("配置", "百度 OCR 识别文字，图像模型生成整张无字背景", 6)
+            else:
+                progress_callback("配置", f"提取方法: {export_extractor_method}, 背景修复: {export_inpaint_method}", 6)
 
             _, export_warnings = ExportService.create_editable_pptx_with_recursive_analysis(
                 image_paths=image_paths,

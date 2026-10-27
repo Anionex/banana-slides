@@ -15,6 +15,7 @@ from services.image_editability import ServiceConfig, ImageEditabilityService
 from services.image_editability.data_models import BBox, EditableElement, EditableImage
 from services.image_editability.extractors import BaiduAccurateOCRElementExtractor
 from services.image_editability.factories import ExtractorFactory, InpaintProviderFactory
+from services.image_editability.inpaint_providers import GenerativeEditInpaintProvider
 from services.prompts import get_clean_background_prompt
 
 
@@ -25,6 +26,7 @@ def simple_services(tmp_path, monkeypatch):
     draw = ImageDraw.Draw(image)
     draw.rectangle((200, 80, 280, 150), fill='blue')
     draw.text((20, 20), 'Editable text', fill='black')
+    draw.text((20, 80), 'Missed by OCR', fill='black')
     image.save(source)
 
     ocr = Mock()
@@ -33,8 +35,9 @@ def simple_services(tmp_path, monkeypatch):
         'text_lines': [{'text': 'Editable text', 'bbox': [20, 20, 120, 40]}],
     }
     inpaint = Mock()
-    # Deliberately changes the artwork too: text-only composition must preserve it.
-    inpaint.inpaint_regions.return_value = Image.new('RGB', image.size, 'white')
+    background = Image.new('RGB', image.size, 'white')
+    ImageDraw.Draw(background).rectangle((200, 80, 280, 150), fill='blue')
+    inpaint.inpaint_regions.return_value = background
     monkeypatch.setattr(ExtractorFactory, 'create_baidu_accurate_ocr_extractor',
                         lambda: BaiduAccurateOCRElementExtractor(ocr))
     monkeypatch.setattr(InpaintProviderFactory, 'create_generative_edit_provider',
@@ -45,7 +48,7 @@ def simple_services(tmp_path, monkeypatch):
 def build_simple(simple_services, tmp_path):
     source, _, _ = simple_services
     config = ServiceConfig.from_defaults(
-        upload_folder=str(tmp_path), text_only=True, inpaint_method='generative',
+        upload_folder=str(tmp_path), text_only=True, inpaint_method='hybrid',
         max_depth=5, enable_icon_subject_extraction=True,
     )
     assert config.max_depth == 1
@@ -71,6 +74,9 @@ def test_simple_ocr_without_mineru_preserves_artwork_and_exports_text(simple_ser
     with Image.open(result.clean_background) as background:
         assert background.getpixel((220, 100)) == (0, 0, 255)
         assert background.crop((20, 20, 120, 40)).getextrema() == ((255, 255),) * 3
+        # The whole model output is used: OCR omissions must not be pasted back.
+        assert background.crop((20, 80, 120, 100)).getextrema() == ((255, 255),) * 3
+        assert background.tobytes() == inpaint.inpaint_regions.return_value.tobytes()
 
     pptx, warnings = export_file(tmp_path,
         editable_images=[result], slide_width_pixels=320, slide_height_pixels=180,
@@ -132,8 +138,45 @@ def test_simple_requires_ocr_without_falling_back_to_layout(tmp_path, monkeypatc
 def test_simple_prompt_preserves_charts():
     prompt = get_clean_background_prompt([{'element_type': 'text'}], text_only=True)
     assert '保留所有图片、插画、图表' in prompt
+    assert '移除整张图中的所有文字' in prompt
+    assert '区域坐标' not in prompt
     assert '彻底移除页面中的所有文字、插画、图表' not in prompt
     assert '彻底移除页面中的所有文字、插画、图表' in get_clean_background_prompt([])
+
+
+@pytest.mark.parametrize('method', [None, 'hybrid', 'baidu', 'generative'])
+def test_simple_always_uses_image_model(simple_services, tmp_path, monkeypatch, method):
+    baidu = Mock(side_effect=AssertionError('Simple mode must not create Baidu repair'))
+    hybrid = Mock(side_effect=AssertionError('Simple mode must not create hybrid repair'))
+    monkeypatch.setattr(InpaintProviderFactory, 'create_baidu_inpaint_provider', baidu)
+    monkeypatch.setattr(InpaintProviderFactory, 'create_hybrid_inpaint_provider', hybrid)
+    config = ServiceConfig.from_defaults(
+        text_only=True, upload_folder=str(tmp_path), inpaint_method=method,
+    )
+    assert config.inpaint_registry.get_all_providers() == [simple_services[2]]
+    baidu.assert_not_called()
+    hybrid.assert_not_called()
+
+
+@pytest.mark.parametrize('size,ratio', [((320, 180), '16:9'), ((240, 180), '4:3'), ((180, 320), '9:16')])
+def test_simple_edit_uses_source_image_and_ratio(size, ratio):
+    source = Image.new('RGB', size, 'blue')
+    ai = Mock()
+
+    def edit_image(**kwargs):
+        with Image.open(kwargs['current_image_path']) as reference:
+            assert reference.size == size
+            assert reference.tobytes() == source.tobytes()
+        assert kwargs['aspect_ratio'] == ratio
+        assert '移除整张图中的所有文字' in kwargs['prompt']
+        return source.copy()
+
+    ai.edit_image.side_effect = edit_image
+    result = GenerativeEditInpaintProvider(ai).inpaint_regions(
+        source, [(10, 10, 50, 30)], types=['text'], text_only=True,
+    )
+    assert result.size == size
+    ai.edit_image.assert_called_once()
 
 
 @pytest.mark.parametrize('sizes', [[(320, 180), (240, 180)], [(240, 180), (320, 180)]])
@@ -197,7 +240,7 @@ def test_simple_failure_does_not_wait_for_sibling_or_publish(tmp_path, monkeypat
 
 def test_simple_endpoint_task_download_and_selected_pages(app, client, simple_services, monkeypatch):
     source, ocr, _ = simple_services
-    project = Project(creation_type='idea', idea_prompt='simple export', export_inpaint_method='generative')
+    project = Project(creation_type='idea', idea_prompt='simple export', export_inpaint_method='baidu')
     db.session.add(project)
     db.session.flush()
     selected = Page(project_id=project.id, order_index=0, generated_image_path=str(source))
@@ -216,6 +259,7 @@ def test_simple_endpoint_task_download_and_selected_pages(app, client, simple_se
     assert task.status == 'COMPLETED', task.error_message
     progress = task.get_progress()
     assert progress['export_mode'] == 'simple'
+    assert db.session.get(Project, project_id).export_inpaint_method == 'baidu'
     ocr.recognize.assert_called_once()
     download = client.get(progress['download_url'])
     assert download.status_code == 200

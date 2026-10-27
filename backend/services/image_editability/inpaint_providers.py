@@ -206,6 +206,9 @@ class GenerativeEditInpaintProvider(InpaintProvider):
         """
         aspect_ratio = kwargs.get('aspect_ratio', self.aspect_ratio)
         resolution = kwargs.get('resolution', self.resolution)
+        if kwargs.get('text_only', False):
+            from utils.validators import normalize_aspect_ratio
+            aspect_ratio = normalize_aspect_ratio(f"{image.width}:{image.height}")
         
         try:
             from services.prompts import get_clean_background_prompt

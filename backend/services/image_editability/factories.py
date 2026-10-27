@@ -630,7 +630,8 @@ class ServiceConfig:
         inpaint_registry = InpaintProviderRegistry()
         
         # 处理 inpaint_method 参数（优先于 use_hybrid_inpaint）
-        effective_inpaint_method = inpaint_method
+        # Simple export always asks the image model for a text-free slide.
+        effective_inpaint_method = 'generative' if text_only else inpaint_method
         if effective_inpaint_method is None:
             # 向后兼容：根据 use_hybrid_inpaint 转换
             effective_inpaint_method = 'hybrid' if use_hybrid_inpaint else 'generative'
