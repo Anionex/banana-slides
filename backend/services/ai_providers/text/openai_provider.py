@@ -5,7 +5,7 @@ import base64
 import logging
 from typing import Generator
 from openai import OpenAI
-from .base import TextProvider, strip_think_tags
+from .base import get_text_output_limit, TextProvider, strip_think_tags
 from config import get_config
 
 logger = logging.getLogger(__name__)
@@ -34,6 +34,13 @@ class OpenAITextProvider(TextProvider):
         self.request_timeout_seconds = config.OPENAI_TIMEOUT
         self.max_attempts = config.OPENAI_MAX_RETRIES + 1
     
+    def _output_limit_params(self) -> dict:
+        # OpenAI reasoning families use max_completion_tokens; compatible
+        # Claude/Gemini and older chat models use max_tokens.
+        model = self.model.lower().rsplit('/', 1)[-1]
+        key = 'max_completion_tokens' if model.startswith(('gpt-5', 'o1', 'o3', 'o4')) else 'max_tokens'
+        return {key: get_text_output_limit()}
+
     def generate_text(self, prompt: str, thinking_budget: int = 0) -> str:
         """
         Generate text using OpenAI SDK
@@ -47,6 +54,7 @@ class OpenAITextProvider(TextProvider):
         """
         response = self.client.chat.completions.create(
             model=self.model,
+            **self._output_limit_params(),
             messages=[
                 {"role": "user", "content": prompt}
             ],
@@ -58,6 +66,7 @@ class OpenAITextProvider(TextProvider):
         """Stream text using OpenAI SDK with stream=True."""
         response = self.client.chat.completions.create(
             model=self.model,
+            **self._output_limit_params(),
             messages=[{"role": "user", "content": prompt}],
             stream=True,
         )
@@ -73,6 +82,7 @@ class OpenAITextProvider(TextProvider):
 
         response = self.client.chat.completions.create(
             model=self.model,
+            **self._output_limit_params(),
             messages=[
                 {
                     "role": "user",

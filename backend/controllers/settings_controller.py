@@ -162,6 +162,13 @@ def temporary_settings_override(settings_override: dict):
             original_values["ENABLE_TEXT_REASONING"] = current_app.config.get("ENABLE_TEXT_REASONING")
             current_app.config["ENABLE_TEXT_REASONING"] = settings_override["enable_text_reasoning"]
 
+        if "text_max_output_tokens" in settings_override:
+            value = settings_override["text_max_output_tokens"]
+            if type(value) is not int or not 1 <= value <= 2147483647:
+                raise ValueError("text_max_output_tokens must be a positive 32-bit integer")
+            original_values["TEXT_MAX_OUTPUT_TOKENS"] = current_app.config.get("TEXT_MAX_OUTPUT_TOKENS")
+            current_app.config["TEXT_MAX_OUTPUT_TOKENS"] = value
+
         if "text_thinking_budget" in settings_override:
             original_values["TEXT_THINKING_BUDGET"] = current_app.config.get("TEXT_THINKING_BUDGET")
             current_app.config["TEXT_THINKING_BUDGET"] = settings_override["text_thinking_budget"]
@@ -323,6 +330,12 @@ def update_settings():
             else:
                 return bad_request("Output language must be 'zh', 'en', 'ja', or 'auto'")
 
+        if "text_max_output_tokens" in data:
+            value = data["text_max_output_tokens"]
+            if type(value) is not int or not 1 <= value <= 2147483647:
+                return bad_request("text_max_output_tokens must be a positive 32-bit integer")
+            settings.text_max_output_tokens = value
+
         # Update description generation mode
         if "description_generation_mode" in data:
             mode = data["description_generation_mode"]
@@ -461,6 +474,7 @@ def reset_settings():
         settings.image_caption_model = None
         settings.output_language = None
         settings.enable_text_reasoning = False
+        settings.text_max_output_tokens = None
         settings.text_thinking_budget = 1024
         settings.enable_image_reasoning = False
         settings.image_thinking_budget = 1024
@@ -773,6 +787,7 @@ def _sync_settings_to_config(settings: Settings):
         logger.info(f"Reasoning config changed: text={old_text_reasoning}({old_text_budget})->{settings.enable_text_reasoning}({settings.text_thinking_budget}), image={old_image_reasoning}({old_image_budget})->{settings.enable_image_reasoning}({settings.image_thinking_budget})")
     
     current_app.config["ENABLE_TEXT_REASONING"] = settings.enable_text_reasoning
+    current_app.config["TEXT_MAX_OUTPUT_TOKENS"] = getattr(settings, "text_max_output_tokens", None) or Config.TEXT_MAX_OUTPUT_TOKENS
     current_app.config["TEXT_THINKING_BUDGET"] = settings.text_thinking_budget
     current_app.config["ENABLE_IMAGE_REASONING"] = settings.enable_image_reasoning
     current_app.config["IMAGE_THINKING_BUDGET"] = settings.image_thinking_budget
@@ -1272,6 +1287,7 @@ def run_settings_test(test_name: str):
         )
         # 推理模式设置
         test_settings["enable_text_reasoning"] = global_settings.enable_text_reasoning
+        test_settings["text_max_output_tokens"] = global_settings.text_max_output_tokens or Config.TEXT_MAX_OUTPUT_TOKENS
         test_settings["text_thinking_budget"] = global_settings.text_thinking_budget
         test_settings["enable_image_reasoning"] = global_settings.enable_image_reasoning
         test_settings["image_thinking_budget"] = global_settings.image_thinking_budget
