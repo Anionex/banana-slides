@@ -11,7 +11,8 @@ env:
 jobs:
   quick-check:
     name: Quick Check (Lint + Unit Tests + Build)
-    runs-on: ubuntu-latest
+    # Playwright 1.57 does not support Ubuntu 26.04 yet.
+    runs-on: ubuntu-24.04
     timeout-minutes: 12
 
     steps:
