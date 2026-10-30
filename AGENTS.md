@@ -1,6 +1,6 @@
 # Project notes
 
-- 安装 Playwright 浏览器依赖的 CI job 须固定到锁定版本支持的 OS；升级 runner 前核对兼容性，避免 `ubuntu-latest` 漂移导致浏览器安装失败。
+- 安装 Playwright 浏览器依赖的 CI job 须固定到锁定版本支持的 OS；修复须扫描全部工作流（含 PR、nightly、发布），运行 `scripts/check_browser_runners.py`，不能只修改当前失败入口。升级 runner 前核对兼容性，避免 `ubuntu-latest` 漂移导致浏览器安装失败。
 
 - Docker E2E 在环境测试重建容器后，须让宿主 runner 可写 `uploads`、`backend/instance` 及 SQLite 文件，并验证实际写事务；PPTX 下载须在点击前监听 Page 的 `download`，保存文件验收，不能用接口 200 代替。
 - nightly 的官方 PyPI 配置须在测试和发布两个 job 中通过 `scripts/prepare_nightly_lock.py` 同步锁文件 URL；`uv sync --frozen` 不会用索引环境变量覆盖锁定的下载地址，不能通过重新解析或升级依赖规避镜像 403。
