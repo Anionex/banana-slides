@@ -34,6 +34,8 @@ def simple_services(tmp_path, monkeypatch):
         'image_size': image.size,
         'text_lines': [{'text': 'Editable text', 'bbox': [20, 20, 120, 40]}],
     }
+    original_ocr = ocr.recognize.return_value
+    ocr.recognize.side_effect = lambda image_path, **kwargs: (original_ocr if image_path == str(source) else {'image_size': image.size, 'text_lines': []})
     inpaint = Mock()
     background = Image.new('RGB', image.size, 'white')
     ImageDraw.Draw(background).rectangle((200, 80, 280, 150), fill='blue')
@@ -67,7 +69,7 @@ def export_file(tmp_path, **options):
 def test_simple_ocr_without_mineru_preserves_artwork_and_exports_text(simple_services, tmp_path):
     result = build_simple(simple_services, tmp_path)
     _, ocr, inpaint = simple_services
-    ocr.recognize.assert_called_once()
+    assert ocr.recognize.call_count == 2
     assert inpaint.inpaint_regions.call_args.kwargs['types'] == ['text']
     assert inpaint.inpaint_regions.call_args.kwargs['text_only'] is True
     assert [elem.element_type for elem in result.elements] == ['text']
@@ -127,6 +129,34 @@ def test_no_text_keeps_original_without_inpainting(simple_services, tmp_path):
     )
     assert len(Presentation(io.BytesIO(pptx)).slides[0].shapes) == 1
     assert not warnings.has_warnings()
+
+
+@pytest.mark.parametrize('failure', ['residual', 'ocr_error'])
+@pytest.mark.parametrize('fail_fast', [True, False])
+def test_unverified_background_never_overlays_text(simple_services, tmp_path, failure, fail_fast):
+    _, ocr, _ = simple_services
+    original = ocr.recognize.return_value
+    ocr.recognize.side_effect = [original, original if failure == 'residual' else RuntimeError('OCR unavailable')]
+    result = build_simple(simple_services, tmp_path)
+    assert result.clean_background is None
+    if fail_fast:
+        with pytest.raises(ExportError, match='文字擦除失败'):
+            export_file(tmp_path, editable_images=[result], export_mode='simple', fail_fast=True)
+    else:
+        data, warnings = export_file(tmp_path, editable_images=[result], export_mode='simple', fail_fast=False)
+        shapes = Presentation(io.BytesIO(data)).slides[0].shapes
+        assert len(shapes) == 1 and shapes[0].shape_type == MSO_SHAPE_TYPE.PICTURE
+        assert warnings.has_warnings()
+
+
+def test_preserved_icon_ocr_outside_text_boxes_does_not_block_export(simple_services, tmp_path):
+    _, ocr, _ = simple_services
+    original = ocr.recognize.return_value
+    ocr.recognize.side_effect = [original, {'image_size': (320, 180), 'text_lines': [
+        {'text': 'A', 'bbox': [210, 80, 240, 110]},
+    ]}]
+    result = build_simple(simple_services, tmp_path)
+    assert result.clean_background is not None
 
 
 def test_simple_requires_ocr_without_falling_back_to_layout(tmp_path, monkeypatch):
@@ -260,7 +290,7 @@ def test_simple_endpoint_task_download_and_selected_pages(app, client, simple_se
     progress = task.get_progress()
     assert progress['export_mode'] == 'simple'
     assert db.session.get(Project, project_id).export_inpaint_method == 'baidu'
-    ocr.recognize.assert_called_once()
+    assert ocr.recognize.call_count == 2
     download = client.get(progress['download_url'])
     assert download.status_code == 200
     prs = Presentation(io.BytesIO(download.data))

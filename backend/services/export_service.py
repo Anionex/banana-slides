@@ -1853,10 +1853,26 @@ class ExportService:
                 fail_fast=fail_fast,  # 传递 fail_fast 参数
                 on_element=on_element  # 元素级心跳/进度
             )
+
+            if export_mode == 'simple':
+                from utils.text_only_layout import fit_text_shape
+                from utils.text_style_clustering import consolidate_text_styles
+                for shape in slide.shapes:
+                    if shape.has_text_frame and shape.text.strip():
+                        fit_text_shape(shape, initialize=True)
+                clustering = consolidate_text_styles(slide, builder.prs.slide_width)
+                for shape in slide.shapes:
+                    if shape.has_text_frame and shape.text.strip():
+                        fit_text_shape(shape)
+                logger.info("Text-only style clustering page %s: %s", page_idx + 1,
+                            json.dumps(clustering, ensure_ascii=False))
             
             logger.info(f"    ✓ 第 {page_idx + 1} 页完成，添加了 {len(editable_img.elements)} 个元素")
         
         # 5. 保存或返回字节流
+        if export_mode == 'simple':
+            from utils.pptx_font_embedding import embed_text_font
+            embed_text_font(builder.prs)
         report_progress("保存文件", "正在保存PPTX文件...", 95)
         if output_file:
             builder.save(output_file)

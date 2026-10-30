@@ -468,6 +468,33 @@ class ImageEditabilityService:
             # 保存结果
             output_path = output_dir / 'clean_background.png'
             result_img.save(str(output_path))
+            if self._text_only:
+                # A successful image request does not prove text was removed.
+                # Reuse the same OCR provider; never overlay text on a failed
+                # or unverified background (including partial-export mode).
+                check = self._extract_elements(str(output_path), element_type, depth)
+                if check.error:
+                    raise RuntimeError(f"去字结果校验失败: {check.error}")
+                remaining = []
+                for detected in check.elements:
+                    if not str(detected.get('content') or '').strip():
+                        continue
+                    x0, y0, x1, y1 = detected['bbox']
+                    area = max(1, (x1 - x0) * (y1 - y0))
+                    # OCR can mistake preserved birds/mountains for characters.
+                    # Reject residuals where editable text will actually overlay.
+                    for element in elements:
+                        box = element.bbox
+                        overlap = (
+                            max(0, min(x1, box.x1) - max(x0, box.x0))
+                            * max(0, min(y1, box.y1) - max(y0, box.y0))
+                        )
+                        if overlap / area >= .25:
+                            remaining.append(detected)
+                            break
+                if remaining:
+                    logger.error("去字背景仍识别到 %s 处文字，不能叠加可编辑文字", len(remaining))
+                    return None
             return str(output_path)
         
         except Exception as e:
