@@ -876,12 +876,25 @@ class OpenAIImageProvider(ImageProvider):
             return self._poll_image_task(task_id)
         return self._extract_from_images_result(payload)
 
+    @property
+    def supports_mask_edit(self) -> bool:
+        return (_is_gpt_image_model(self.model) and not self._is_apimart()
+                and self.image_api_protocol != 'chat')
+
+    def edit_image_with_mask(self, prompt, image, mask, aspect_ratio="16:9", resolution="2K"):
+        if not self.supports_mask_edit:
+            raise ValueError("The configured image endpoint does not support native mask edits")
+        if mask.size != image.size or 'A' not in mask.getbands():
+            raise ValueError("Edit mask must have an alpha channel and match the source image size")
+        return self._generate_with_images_api(prompt, [image], aspect_ratio, resolution, mask=mask)
+
     def _generate_with_images_api(
         self,
         prompt: str,
         ref_images: Optional[List[Image.Image]],
         aspect_ratio: str,
         resolution: str = '2K',
+        mask: Optional[Image.Image] = None,
     ) -> Optional[Image.Image]:
         """Use the native OpenAI images API (gpt-image-* / dall-e-*)."""
         if self._is_apimart() and _is_gpt_image_model(self.model):
@@ -958,6 +971,12 @@ class OpenAIImageProvider(ImageProvider):
                 size,
             )
             kwargs = dict(model=self.model, image=image_input, prompt=prompt, n=1, size=size)
+            if mask is not None:
+                prepared_mask = mask.convert('RGBA').resize((w, h), Image.Resampling.NEAREST)
+                mask_file = BytesIO(self._pil_to_png_bytes(prepared_mask))
+                mask_file.name = 'mask.png'
+                kwargs['mask'] = mask_file
+                logger.info("Native image edit includes alpha mask, size=%sx%s", w, h)
             if quality:
                 kwargs['quality'] = quality
             if response_format:

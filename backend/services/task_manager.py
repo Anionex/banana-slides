@@ -1796,7 +1796,8 @@ def export_editable_pptx_with_recursive_analysis_task(
     export_extractor_method: str = 'hybrid',
     export_inpaint_method: str = 'hybrid',
     enable_icon_subject_extraction: bool = True,
-    app=None
+    app=None,
+    export_mode: str = 'full',
 ):
     """
     使用递归图片可编辑化分析导出可编辑PPTX的后台任务
@@ -1819,6 +1820,7 @@ def export_editable_pptx_with_recursive_analysis_task(
         max_workers: 并发处理数
         export_extractor_method: 组件提取方法 ('mineru' 或 'hybrid')
         export_inpaint_method: 背景修复方法 ('generative', 'baidu', 'hybrid')
+        export_mode: 'full' 使用现有元素拆分流程，'simple' 仅文字可编辑
         app: Flask应用实例
     """
     logger.info(f"🚀 Task {task_id} started: export_editable_pptx_with_recursive_analysis (project={project_id}, depth={max_depth}, workers={max_workers}, extractor={export_extractor_method}, inpaint={export_inpaint_method}, icon_subject_extraction={enable_icon_subject_extraction})")
@@ -1906,6 +1908,7 @@ def export_editable_pptx_with_recursive_analysis_task(
             task = Task.query.get(task_id)
             task.set_progress({
                 "total": 100,  # 使用百分比
+                "export_mode": export_mode,
                 "completed": 0,
                 "failed": 0,
                 "current_step": "准备中...",
@@ -1938,6 +1941,7 @@ def export_editable_pptx_with_recursive_analysis_task(
                     if task:
                         task.set_progress({
                             "total": 100,
+                            "export_mode": export_mode,
                             "completed": percent,
                             "failed": 0,
                             "current_step": message,
@@ -1988,7 +1992,10 @@ def export_editable_pptx_with_recursive_analysis_task(
             
             # Step 3: 调用导出方法（使用项目的导出设置）
             logger.info(f"Step 3: 创建可编辑PPTX (extractor={export_extractor_method}, inpaint={export_inpaint_method}, fail_fast={fail_fast})...")
-            progress_callback("配置", f"提取方法: {export_extractor_method}, 背景修复: {export_inpaint_method}", 6)
+            if export_mode == 'simple':
+                progress_callback("配置", "百度 OCR 识别文字，图像模型生成整张无字背景", 6)
+            else:
+                progress_callback("配置", f"提取方法: {export_extractor_method}, 背景修复: {export_inpaint_method}", 6)
 
             _, export_warnings = ExportService.create_editable_pptx_with_recursive_analysis(
                 image_paths=image_paths,
@@ -2003,6 +2010,7 @@ def export_editable_pptx_with_recursive_analysis_task(
                 export_extractor_method=export_extractor_method,
                 export_inpaint_method=export_inpaint_method,
                 enable_icon_subject_extraction=enable_icon_subject_extraction,
+                export_mode=export_mode,
                 fail_fast=fail_fast
             )
             
@@ -2038,6 +2046,7 @@ def export_editable_pptx_with_recursive_analysis_task(
                     "download_url": download_path,
                     "filename": filename,
                     "method": "recursive_analysis",
+                    "export_mode": export_mode,
                     "max_depth": max_depth,
                     "warnings": warning_messages,  # 单独的警告列表
                     "warning_details": export_warnings.to_dict() if export_warnings else {}  # 详细警告信息

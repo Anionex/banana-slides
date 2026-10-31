@@ -79,6 +79,13 @@ const previewI18n = {
       videoCancel: "取消",
       editablePptxDialogTitle: "导出可编辑 PPTX",
       editablePptxDialogSubtitle: "选择本次导出的处理选项。",
+      editablePptxMode: "导出模式",
+      editablePptxSimple: "仅文字可编辑模式",
+      editablePptxSimpleDesc: "表层文字可编辑，图标和图片保留为图片。",
+      editablePptxFull: "完整模式",
+      editablePptxFullDesc: "使用现有流程拆分文字、图片、表格等元素，尽可能支持编辑。",
+      editablePptxSimpleHint: "仅将表层文字转为可编辑文字，尽可能还原原有样式和位置。图标、图片等其他内容仍以图片形式保留。相比完整模式，导出更快、更稳定。",
+      editablePptxSimpleHelp: "了解仅文字可编辑模式",
       editablePptxIconTransparent: "图标透明背景",
       editablePptxIconTransparentDesc: "对识别为图标的图片调用本地 RMBG-2.0 模型抠出透明背景，避免原 PPT 底色与新底色冲突。",
       editablePptxModelHint: "首次启用会下载约 512MB 模型到 ~/.cache/banana-slides/models/，CPU 推理对内存要求较高，建议机器有 ≥ 16GB 可用内存。",
@@ -217,6 +224,13 @@ const previewI18n = {
       videoCancel: "Cancel",
       editablePptxDialogTitle: "Export Editable PPTX",
       editablePptxDialogSubtitle: "Choose processing options for this export.",
+      editablePptxMode: "Export mode",
+      editablePptxSimple: "Text-only editable mode",
+      editablePptxSimpleDesc: "Edit surface text while icons and images remain part of the image.",
+      editablePptxFull: "Full mode",
+      editablePptxFullDesc: "Use the existing workflow to separate text, images, tables, and other elements for editing where possible.",
+      editablePptxSimpleHint: "Only surface text becomes editable, with its original styling and position restored as closely as possible. Icons, images, and other content remain part of the image. Export is faster and more reliable than Full mode.",
+      editablePptxSimpleHelp: "About text-only editable mode",
       editablePptxIconTransparent: "Icon Transparent Background",
       editablePptxIconTransparentDesc: "Run images classified as icons through the local RMBG-2.0 model to produce transparent-background PNGs, avoiding background color clashes.",
       editablePptxModelHint: "First use downloads a ~512MB model to ~/.cache/banana-slides/models/. CPU inference is memory-intensive; recommended: ≥16GB free memory.",
@@ -308,6 +322,7 @@ import {
   FileText,
   Loader2,
   Info,
+  HelpCircle,
   LayoutTemplate,
   Presentation,
   AlertTriangle,
@@ -609,6 +624,7 @@ export const SlidePreview: React.FC = () => {
   const [showVideoExportDialog, setShowVideoExportDialog] = useState(false);
   const [isPreparingVideoExport, setIsPreparingVideoExport] = useState(false);
   const [showEditablePptxDialog, setShowEditablePptxDialog] = useState(false);
+  const [editablePptxMode, setEditablePptxMode] = useState<'full' | 'simple'>('simple');
   const [editablePptxDialogIconTransparent, setEditablePptxDialogIconTransparent] = useState(true);
   const [pptxTransitionsEnabled, setPptxTransitionsEnabled] = useState(false);
   const [pptxTransitionEffects, setPptxTransitionEffects] = useState<PptxTransitionEffect[]>(['fade']);
@@ -1651,6 +1667,7 @@ export const SlidePreview: React.FC = () => {
     options?: {
       pptxTransitionEnabled?: boolean;
       pptxTransitionEffects?: PptxTransitionEffect[];
+      editableMode?: 'full' | 'simple';
     },
   ) => {
     setExportMenuOpen(false);
@@ -1698,7 +1715,7 @@ export const SlidePreview: React.FC = () => {
         
         show({ message: t('slidePreview.exportStarted'), type: 'success' });
         
-        const response = await apiExportEditablePPTX(projectId, undefined, pageIds, backendTaskId);
+        const response = await apiExportEditablePPTX(projectId, undefined, pageIds, backendTaskId, options?.editableMode);
         const taskId = response.data?.task_id;
         
         if (taskId) {
@@ -2740,10 +2757,75 @@ export const SlidePreview: React.FC = () => {
 
       {showEditablePptxDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowEditablePptxDialog(false)}>
-          <div className="bg-white dark:bg-background-secondary rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold">{t('preview.editablePptxDialogTitle')}</h3>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="editable-pptx-title"
+            className="bg-white dark:bg-background-secondary rounded-2xl p-6 w-full max-w-md mx-4 max-h-[90dvh] overflow-y-auto shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setShowEditablePptxDialog(false);
+              if (e.key === 'Tab') {
+                const controls = e.currentTarget.querySelectorAll<HTMLElement>(
+                  'input:not([type="radio"]), input[type="radio"]:checked, button:not(:disabled)',
+                );
+                const first = controls[0];
+                const last = controls[controls.length - 1];
+                if (e.shiftKey && document.activeElement === first) {
+                  e.preventDefault();
+                  last?.focus();
+                } else if (!e.shiftKey && document.activeElement === last) {
+                  e.preventDefault();
+                  first?.focus();
+                }
+              }
+            }}
+          >
+            <h3 id="editable-pptx-title" className="text-lg font-semibold">{t('preview.editablePptxDialogTitle')}</h3>
             <p className="text-sm text-gray-500 dark:text-foreground-tertiary mt-1 mb-5">{t('preview.editablePptxDialogSubtitle')}</p>
-            <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-background-hover">
+            <fieldset className="space-y-1 mb-4">
+              <legend className="text-sm font-medium mb-2">{t('preview.editablePptxMode')}</legend>
+              {(['simple', 'full'] as const).map((mode) => (
+                <div key={mode} className="flex items-start gap-2 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-background-hover">
+                <label className="flex flex-1 min-w-0 items-start gap-3 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="editable-pptx-mode"
+                    value={mode}
+                    checked={editablePptxMode === mode}
+                    autoFocus={editablePptxMode === mode}
+                    onChange={() => setEditablePptxMode(mode)}
+                    className="w-4 h-4 mt-0.5 border-gray-300 accent-banana-500 focus:ring-banana-500"
+                  />
+                  <span>
+                    <span className="block text-sm font-medium">{t(mode === 'simple' ? 'preview.editablePptxSimple' : 'preview.editablePptxFull')}</span>
+                    <span className="block text-xs text-gray-500 dark:text-foreground-tertiary mt-1 leading-relaxed">{t(mode === 'simple' ? 'preview.editablePptxSimpleDesc' : 'preview.editablePptxFullDesc')}</span>
+                  </span>
+                </label>
+                {mode === 'simple' && (
+                  <div className="relative group flex-shrink-0">
+                    <button
+                      type="button"
+                      aria-label={t('preview.editablePptxSimpleHelp')}
+                      aria-describedby="editable-pptx-text-only-tooltip"
+                      className="p-1 rounded-full text-gray-400 dark:text-foreground-tertiary hover:text-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-banana-500"
+                    >
+                      <HelpCircle size={16} />
+                    </button>
+                    <div
+                      id="editable-pptx-text-only-tooltip"
+                      role="tooltip"
+                      className="absolute right-0 top-full mt-2 w-64 max-w-[calc(100vw-4rem)] p-3 bg-gray-900 dark:bg-gray-700 text-white text-xs leading-relaxed rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-opacity z-50 pointer-events-none"
+                    >
+                      {t('preview.editablePptxSimpleHint')}
+                    </div>
+                  </div>
+                )}
+                </div>
+              ))}
+            </fieldset>
+            {editablePptxMode === 'full' && (
+              <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-background-hover">
               <input
                 type="checkbox"
                 checked={editablePptxDialogIconTransparent}
@@ -2759,7 +2841,8 @@ export const SlidePreview: React.FC = () => {
                   </div>
                 )}
               </div>
-            </label>
+              </label>
+            )}
             {(() => {
               const totalPages = currentProject?.pages?.length ?? 0;
               const isPartial = isMultiSelectMode && selectedPageIds.size > 0;
@@ -2794,7 +2877,7 @@ export const SlidePreview: React.FC = () => {
               <button
                 onClick={async () => {
                   setShowEditablePptxDialog(false);
-                  if (projectId && (currentProject?.enable_icon_subject_extraction ?? true) !== editablePptxDialogIconTransparent) {
+                  if (editablePptxMode === 'full' && projectId && (currentProject?.enable_icon_subject_extraction ?? true) !== editablePptxDialogIconTransparent) {
                     try {
                       await updateProject(projectId, { enable_icon_subject_extraction: editablePptxDialogIconTransparent });
                       await syncProject(projectId);
@@ -2803,9 +2886,9 @@ export const SlidePreview: React.FC = () => {
                       return;
                     }
                   }
-                  handleExport('editable-pptx');
+                  handleExport('editable-pptx', { editableMode: editablePptxMode });
                 }}
-                className="px-4 py-2 text-sm bg-banana-500 text-white rounded-lg hover:bg-banana-600 transition-colors"
+                className="px-4 py-2 text-sm bg-banana-500 text-gray-900 rounded-lg hover:bg-banana-600 transition-colors"
               >
                 {t('preview.editablePptxStartExport')}
               </button>
