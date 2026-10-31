@@ -453,6 +453,9 @@ class ImageEditabilityService:
                 full_page_image=full_page_img,
                 crop_box=crop_box,
                 text_only=self._text_only,
+                **({'text_targets': [dict(text=e.content, bbox=list(e.bbox.to_tuple()))
+                                     for e in elements if e.content]}
+                   if self._text_only else {}),
             )
             
             if result_img is None:

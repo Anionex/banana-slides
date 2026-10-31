@@ -72,6 +72,9 @@ def test_simple_ocr_without_mineru_preserves_artwork_and_exports_text(simple_ser
     assert ocr.recognize.call_count == 2
     assert inpaint.inpaint_regions.call_args.kwargs['types'] == ['text']
     assert inpaint.inpaint_regions.call_args.kwargs['text_only'] is True
+    assert inpaint.inpaint_regions.call_args.kwargs['text_targets'] == [
+        {'text': 'Editable text', 'bbox': [20, 20, 120, 40]},
+    ]
     assert [elem.element_type for elem in result.elements] == ['text']
     with Image.open(result.clean_background) as background:
         assert background.getpixel((220, 100)) == (0, 0, 255)
@@ -129,6 +132,35 @@ def test_no_text_keeps_original_without_inpainting(simple_services, tmp_path):
     )
     assert len(Presentation(io.BytesIO(pptx)).slides[0].shapes) == 1
     assert not warnings.has_warnings()
+
+
+@pytest.mark.parametrize('masked', [False, True])
+@pytest.mark.parametrize('explicit', [False, True])
+def test_targeted_erasure_uses_overlay_text_and_optional_alpha_mask(tmp_path, masked, explicit):
+    import json
+    ai = Mock()
+    ai.image_provider.supports_mask_edit = masked
+    source = Image.new('RGB', (320, 180), 'blue')
+    ai.edit_image.return_value = source.copy()
+    targets = [{'text': '① 删除指定文字', 'bbox': [20, 20, 120, 40]}]
+    result = GenerativeEditInpaintProvider(ai).inpaint_regions(
+        source, [targets[0]['bbox']], text_only=True, text_targets=targets,
+        save_mask_path=str(tmp_path / 'mask.png'),
+        **({'use_text_mask': masked} if explicit else {}),
+    )
+    assert result is not None
+    request = ai.edit_image.call_args.kwargs
+    assert '① 删除指定文字' in request['prompt']
+    assert '[0.0625,0.11111,0.375,0.22222]' in request['prompt']
+    assert ('mask_image' in request) is masked
+    if masked:
+        mask = request['mask_image']
+        assert mask.size == source.size
+        assert mask.getpixel((30, 30))[3] == 0
+        assert mask.getpixel((200, 100))[3] == 255
+    audit = json.loads((tmp_path / 'text_edit_request.json').read_text())
+    assert audit['targets'] == targets
+    assert audit['mask_supplied'] is masked
 
 
 @pytest.mark.parametrize('failure', ['residual', 'ocr_error'])

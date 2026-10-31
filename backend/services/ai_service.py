@@ -1194,7 +1194,8 @@ class AIService:
     def edit_image(self, prompt: str, current_image_path: str,
                   aspect_ratio: str = "16:9", resolution: str = "2K",
                   original_description: str = None,
-                  additional_ref_images: Optional[List[Union[str, Image.Image]]] = None) -> Optional[Image.Image]:
+                  additional_ref_images: Optional[List[Union[str, Image.Image]]] = None,
+                  mask_image: Optional[Image.Image] = None) -> Optional[Image.Image]:
         """
         Edit existing image with natural language instruction
         Uses current image as reference
@@ -1205,6 +1206,7 @@ class AIService:
             aspect_ratio: Image aspect ratio
             resolution: Image resolution
             original_description: Original page description to include in prompt
+            mask_image: 原生编辑的 RGBA 掩码，透明区域允许编辑；尺寸须与原图一致
             additional_ref_images: 额外的参考图片列表，可以是本地路径、URL 或 PIL Image 对象
         
         Returns:
@@ -1215,6 +1217,12 @@ class AIService:
             edit_instruction=prompt,
             original_description=original_description
         )
+        if mask_image is not None:
+            if additional_ref_images:
+                raise ValueError("Masked editing accepts one source image")
+            with Image.open(current_image_path) as source:
+                return self.image_provider.edit_image_with_mask(
+                    edit_instruction, source, mask_image, aspect_ratio, resolution)
         return self.generate_image(edit_instruction, current_image_path, aspect_ratio, resolution, additional_ref_images)
     
     def parse_description_to_outline(self, project_context: ProjectContext, language='zh') -> List[Dict]:

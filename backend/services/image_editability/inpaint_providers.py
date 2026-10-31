@@ -11,10 +11,12 @@ Inpaint提供者 - 抽象不同的inpaint实现
 - InpaintProviderRegistry - 元素类型到重绘方法的映射注册表
 """
 import logging
+import json
 import tempfile
+from pathlib import Path
 from abc import ABC, abstractmethod
 from typing import List, Optional, Dict
-from PIL import Image
+from PIL import Image, ImageOps
 
 from utils.mask_utils import create_mask_from_bboxes
 
@@ -146,6 +148,13 @@ class GenerativeEditInpaintProvider(InpaintProvider):
         self.resolution = resolution
 
     @staticmethod
+    def build_text_mask(image_size, targets):
+        regions = create_mask_from_bboxes(image_size, [t['bbox'] for t in targets], expand_pixels=2)
+        mask = Image.new('RGBA', image_size, (255, 255, 255, 255))
+        mask.putalpha(ImageOps.invert(regions.convert('L')))
+        return mask
+
+    @staticmethod
     def _build_normalized_removal_regions(
         image_size: tuple[int, int],
         bboxes: List[tuple],
@@ -198,11 +207,13 @@ class GenerativeEditInpaintProvider(InpaintProvider):
         """
         使用生成式大模型编辑生成干净背景
         
-        注意：此方法不会直接用 bbox 做 mask，但会把 bbox 转成 0-1 归一化 JSON 写进 prompt，提示大模型重点移除这些区域
+        仅文字模式使用 OCR 文字清单定位；支持原生 mask 的图片提供者同时接收透明区域掩码。
+        其他模式使用归一化 bbox 提示词。
         
         支持的kwargs参数：
         - aspect_ratio: str, 宽高比，默认使用初始化时的值
         - resolution: str, 分辨率，默认使用初始化时的值
+        - use_text_mask: bool, 覆盖仅文字模式的原生 mask 能力选择
         """
         aspect_ratio = kwargs.get('aspect_ratio', self.aspect_ratio)
         resolution = kwargs.get('resolution', self.resolution)
@@ -223,6 +234,24 @@ class GenerativeEditInpaintProvider(InpaintProvider):
             edit_instruction = get_clean_background_prompt(
                 normalized_regions, text_only=kwargs.get('text_only', False)
             )
+            edit_options = {}
+            targets = kwargs.get('text_targets') if kwargs.get('text_only', False) else None
+            if targets:
+                from services.prompts import get_targeted_text_removal_prompt
+                use_mask = kwargs.get('use_text_mask',
+                    getattr(self.ai_service.image_provider, 'supports_mask_edit', False) is True)
+                edit_instruction = get_targeted_text_removal_prompt(targets, image.size, masked=use_mask)
+                if use_mask:
+                    edit_options['mask_image'] = self.build_text_mask(image.size, targets)
+                if kwargs.get('save_mask_path'):
+                    audit_dir = Path(kwargs['save_mask_path']).parent
+                    audit_dir.mkdir(parents=True, exist_ok=True)
+                    if use_mask:
+                        edit_options['mask_image'].save(kwargs['save_mask_path'])
+                    (audit_dir / 'text_edit_request.json').write_text(json.dumps({
+                        'prompt': edit_instruction, 'targets': targets, 'mask_supplied': use_mask,
+                        'source_size': list(image.size),
+                    }, ensure_ascii=False, indent=2))
             
             # 保存临时图片文件（AI服务需要文件路径）
             with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
@@ -238,7 +267,8 @@ class GenerativeEditInpaintProvider(InpaintProvider):
                 aspect_ratio=aspect_ratio,
                 resolution=resolution,
                 original_description=None,
-                additional_ref_images=None
+                additional_ref_images=None,
+                **edit_options,
             )
             
             if not clean_bg_image:
