@@ -597,7 +597,7 @@ npm run dev
 欢迎在群中提出新功能建议或反馈～
 
 
-<img width="312" alt="image" src="https://github.com/user-attachments/assets/709642af-aef6-4318-9776-4e03b16b2ade" />
+<img width="312" alt="image" src="https://github.com/user-attachments/assets/4cfe7ce6-875f-4b68-bb9f-d304c7a5efa0" />
 
 
 
