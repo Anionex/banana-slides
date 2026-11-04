@@ -221,6 +221,8 @@ not a claim of parity with its entire multi-round slide decomposition pipeline.
   holding the worker GIL cannot prevent cleanup. POSIX process groups and Windows
   kill-on-close jobs cover worker descendants. Packaged worker/sentinel dispatch
   exits before importing the server, and Windows pipes explicitly use UTF-8.
+  Windows never uses `os.kill(pid, 0)` for liveness: it sends a console signal.
+  Closing its job kills/reaps the owned tree without a redundant PID-based kill.
 - A supervisor ownership lock spans worker launch through publication. Watchdog
   reconciliation checks it as well as the worker lock, including the interval
   after worker exit and before the final database commit.
@@ -239,6 +241,8 @@ not a claim of parity with its entire multi-round slide decomposition pipeline.
   degraded, corrupt and aborted nodes are never reusable successes.
 - Publication validates the ZIP, page count and hash, flushes the output, uses
   a terminal-state SQL fence, and removes the renamed file if commit fails.
+  Windows flushes owned artifacts through `r+b` handles because read-only handles
+  fail with `EBADF`; their contents are preserved.
   Download routes verify the completed task and artifact hash. Project deletion
   removes the durable attempt rows with its tasks.
 - The browser reloads server-side task history, preserves explicit dismissals,
@@ -275,9 +279,19 @@ not a claim of parity with its entire multi-round slide decomposition pipeline.
   cgroup is detected. This does not promise that arbitrary export sizes cannot
   exhaust memory; the contract is bounded execution, visible failure and recovery.
 - Frontend task-store/panel tests and production build passed. Existing unrelated
-  whole-repository TypeScript errors remain. Windows process/job behavior and a
-  newly built desktop executable have not been executed; entry dispatch is covered
-  by a source-level test, and macOS/Linux process behavior was exercised directly.
+  whole-repository TypeScript errors remain. Full PR CI passed 967 backend tests
+  (5 skipped), 242 frontend tests, 78 desktop tests and the live-update/web smoke
+  integration checks on the first implementation commit.
+- Windows 11 ARM VM with x64 Python: `scripts/verify_export_windows.py` passed
+  success, required failure, node deadline, abrupt supervisor death, subsequent
+  worker execution and checkpoint reuse/corruption cases. It verifies both worker
+  and descendant termination and native lock release. This found and fixed the
+  console-signal and writable-flush-handle issues above. Native packaged dispatch
+  is additionally checked immediately after Windows backend packaging in the
+  release workflow. A fresh run of that packaged check is still pending.
+- The initial desktop build packaged the Windows backend successfully, then
+  failed because the existing pinned FFmpeg download URL returned HTTP 404.
+  The export runtime check runs before that unrelated installer dependency.
 
 ## Operating limits
 

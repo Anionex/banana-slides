@@ -131,7 +131,9 @@ def supervise(payload, *, on_event, is_active, command=None):
         finally:
             if job:
                 job.close()
-            terminate_tree(process)
+                process.wait(timeout=10)
+            else:
+                terminate_tree(process)
             try:
                 process.stdin.close()
             except BrokenPipeError:
@@ -161,10 +163,13 @@ def sentinel_main(worker_pid, process_group):
     while not closed.wait(.1):
         if time.monotonic() - last_pulse[0] > 15:
             break
-        try:
-            os.kill(worker_pid, 0)
-        except ProcessLookupError:
-            return
+        # Windows interprets signal 0 as CTRL_C_EVENT, not a liveness probe.
+        # Its job object already owns the worker/sentinel lifetime together.
+        if os.name != 'nt':
+            try:
+                os.kill(worker_pid, 0)
+            except ProcessLookupError:
+                return
     if os.name == 'nt':
         subprocess.run(['taskkill', '/PID', str(worker_pid), '/T', '/F'],
                        capture_output=True, timeout=10, check=False)

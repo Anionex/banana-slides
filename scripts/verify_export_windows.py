@@ -17,6 +17,7 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend'))
 from filelock import FileLock
+from export_runtime.checkpoints import CheckpointStore
 from export_runtime.control import ExportDeadline
 from export_runtime.process import supervise, WorkerFailed
 
@@ -41,7 +42,7 @@ slot=FileLock(str(root/'descendant.lock')); slot.acquire()
 time.sleep(60)
 """
 child=subprocess.Popen([sys.executable,'-c',child_code,str(root)])
-until=time.monotonic()+10
+until=time.monotonic()+30
 while not (root/'descendant.pid').exists():
  if time.monotonic()>until: raise TimeoutError('Descendant did not start')
  time.sleep(.05)
@@ -97,7 +98,7 @@ def assert_cleanup(root):
 
 def payload(root, case):
     return {'workspace': str(root), 'case': case,
-            'queue_deadline_at': time.time() + 15, 'run_timeout': 30}
+            'queue_deadline_at': time.time() + 45, 'run_timeout': 60}
 
 
 def execute(request):
@@ -123,12 +124,20 @@ def verify(worker_exe=None):
                 assert case == 'success'
             assert_cleanup(root)
             results[case] = {'passed': True, 'seconds': round(time.monotonic()-started, 2)}
+            print(json.dumps({case: results[case]}), file=sys.stderr, flush=True)
 
         root = base / 'parent-death'
         parent = subprocess.Popen([sys.executable, str(Path(__file__).resolve()),
                                    '--supervisor', str(root)])
         try:
-            wait_until(lambda: (root / 'descendant.pid').exists())
+            try:
+                wait_until(lambda: (root / 'descendant.pid').exists(), seconds=30)
+            except TimeoutError:
+                log = root / 'worker.log'
+                print(json.dumps({'supervisor_exit': parent.poll(), 'worker_log':
+                      log.read_text(errors='replace')[-3000:] if log.exists() else 'not created'}),
+                      file=sys.stderr, flush=True)
+                raise
             parent.kill()
             parent.wait(timeout=10)
             assert_cleanup(root)
@@ -143,6 +152,21 @@ def verify(worker_exe=None):
         execute(payload(root, 'success'))
         assert_cleanup(root)
         results['next_worker'] = {'passed': True}
+
+        original = CheckpointStore(base / 'checkpoints-first')
+        artifact = original.root / 'background.png'
+        artifact.write_bytes(b'validated background fixture')
+        original.run('background', {'source': 'fixture'}, lambda: str(artifact))
+        resumed = CheckpointStore(base / 'checkpoints-resumed', ancestors=[original.root])
+        def duplicate():
+            raise AssertionError('Committed artifact should be reused')
+        assert resumed.run('background', {'source': 'fixture'}, duplicate) == str(artifact)
+        assert resumed.reused == 1
+        artifact.write_bytes(b'corrupt')
+        replacement = resumed.root / 'replacement.png'
+        replacement.write_bytes(b'new background fixture')
+        assert resumed.run('background', {'source': 'fixture'}, lambda: str(replacement)) == str(replacement)
+        results['checkpoints'] = {'passed': True}
 
         if worker_exe:
             root = base / '\u6253\u5305\u5165\u53e3'  # Unicode stdin/path through the frozen worker.

@@ -8,7 +8,7 @@ import zipfile
 
 from filelock import FileLock, Timeout
 
-from .checkpoints import file_hash
+from .checkpoints import file_hash, sync_file
 from .control import ExportAborted, ExportDeadline, DEFAULT_LIMITS
 
 ACTIVE = ('PENDING', 'RUNNING', 'PROCESSING')
@@ -136,8 +136,7 @@ def publish(app, run, result, page_count):
         slides = [p for p in deck.namelist() if p.startswith('ppt/slides/slide') and p.endswith('.xml')]
         if len(slides) != page_count:
             raise ValueError('Export slide count does not match the selected pages')
-    with source.open('rb') as stream:
-        os.fsync(stream.fileno())
+    sync_file(source)
     destination = Path(app.config['UPLOAD_FOLDER']) / run.project_id / 'exports' / run.artifact_filename
     destination.parent.mkdir(parents=True, exist_ok=True)
     db.session.expire_all()

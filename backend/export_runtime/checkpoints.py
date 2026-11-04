@@ -21,6 +21,13 @@ def file_hash(path):
     return digest.hexdigest()
 
 
+def sync_file(path):
+    # Windows _commit/FlushFileBuffers requires a writable handle. These are
+    # owned staging artifacts; opening r+b preserves their existing contents.
+    with Path(path).open('r+b' if os.name == 'nt' else 'rb') as stream:
+        os.fsync(stream.fileno())
+
+
 def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False,
                                      separators=(',', ':'), allow_nan=False).encode()).hexdigest()
@@ -163,8 +170,7 @@ class CheckpointStore:
         for path in artifact_paths(encoded, 'path' if stage in ('background', 'candidate') else None):
             if not any(path.is_relative_to(p) for p in [self.root, *self.ancestors]):
                 raise ValueError('Checkpoint artifact must belong to an export workspace')
-            with path.open('rb') as stream:
-                os.fsync(stream.fileno())
+            sync_file(path)
             artifacts[str(path)] = file_hash(path)
         check()
         atomic_json(self.root / 'nodes' / stage / f'{key}.json', {
