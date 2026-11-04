@@ -281,14 +281,17 @@ not a claim of parity with its entire multi-round slide decomposition pipeline.
 - Frontend task-store/panel tests and production build passed. Existing unrelated
   whole-repository TypeScript errors remain. Full PR CI passed 967 backend tests
   (5 skipped), 242 frontend tests, 78 desktop tests and the live-update/web smoke
-  integration checks on the first implementation commit.
+  integration checks on the first implementation commit. The same unit/build
+  suites passed again on `5eebe76b`, including both Windows fixes.
 - Windows 11 ARM VM with x64 Python: `scripts/verify_export_windows.py` passed
   success, required failure, node deadline, abrupt supervisor death, subsequent
   worker execution and checkpoint reuse/corruption cases. It verifies both worker
   and descendant termination and native lock release. This found and fixed the
   console-signal and writable-flush-handle issues above. Native packaged dispatch
-  is additionally checked immediately after Windows backend packaging in the
-  release workflow. A fresh run of that packaged check is still pending.
+  also passed against the freshly built Windows executable on commit `5eebe76b`
+  in CI run `41879320689`, including pipeline/dependency imports and Unicode
+  worker communication. This check runs immediately after backend packaging;
+  it does not claim a complete Windows PPTX export with real providers.
 - The initial desktop build packaged the Windows backend successfully, then
   failed because the existing pinned FFmpeg download URL returned HTTP 404.
   The export runtime check runs before that unrelated installer dependency.
