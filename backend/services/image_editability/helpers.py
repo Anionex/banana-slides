@@ -52,6 +52,16 @@ def crop_element_from_image(
     # 裁剪
     crop_box = (int(bbox.x0), int(bbox.y0), int(bbox.x1), int(bbox.y1))
     cropped = img.crop(crop_box)
+    from export_runtime.control import current
+    control = current()
+    if control and control.store:
+        from export_runtime.checkpoints import digest, file_hash
+        directory = control.store.root / 'crops'
+        directory.mkdir(parents=True, exist_ok=True)
+        output = directory / (digest({'source': file_hash(source_image_path), 'bbox': crop_box}) + '.png')
+        cropped.save(output)
+        img.close()
+        return str(output)
     
     # 保存到临时文件
     with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:

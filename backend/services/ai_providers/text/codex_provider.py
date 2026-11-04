@@ -7,6 +7,8 @@ Auth:     Bearer <oauth_access_token>
 This provider converts prompts into the Responses API format (not Chat
 Completions) and supports both streaming and non-streaming generation.
 """
+
+from export_runtime.control import export_call
 import json
 import logging
 from typing import Generator
@@ -84,6 +86,7 @@ class CodexTextProvider(TextProvider):
             "stream": True,
         }
 
+    @export_call('caption')
     @retry(
         stop=stop_after_attempt(5),
         wait=wait_exponential(multiplier=2, min=4, max=60),

@@ -18,6 +18,8 @@ def make_genai_client(
 ) -> genai.Client:
     """Construct a ``genai.Client`` for either AI Studio or Vertex AI."""
     timeout_ms = int(get_config().GENAI_TIMEOUT * 1000)
+    from export_runtime.control import current
+    retry_options = types.HttpRetryOptions(attempts=1) if current() else None
 
     if vertexai:
         logger.info("Creating GenAI client (Vertex AI) — project=%s, location=%s", project_id, location)
@@ -25,8 +27,8 @@ def make_genai_client(
             vertexai=True,
             project=project_id,
             location=location or "us-central1",
-            http_options=types.HttpOptions(timeout=timeout_ms),
+            http_options=types.HttpOptions(timeout=timeout_ms, retry_options=retry_options),
         )
 
-    opts = types.HttpOptions(timeout=timeout_ms, base_url=api_base)
+    opts = types.HttpOptions(timeout=timeout_ms, base_url=api_base, retry_options=retry_options)
     return genai.Client(http_options=opts, api_key=api_key)

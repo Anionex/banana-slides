@@ -1,20 +1,24 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { act } from '@testing-library/react'
+import { act, waitFor } from '@testing-library/react'
 import { activePolls, useExportTasksStore } from '@/store/useExportTasksStore'
 import * as api from '@/api/endpoints'
 import i18n from '@/i18n'
 
 vi.mock('@/api/endpoints', () => ({
   getTaskStatus: vi.fn(),
+  listEditableExportTasks: vi.fn(),
+  resumeEditableExport: vi.fn(),
 }))
 
 describe('useExportTasksStore', () => {
   beforeEach(async () => {
     vi.useRealTimers()
     vi.mocked(api.getTaskStatus).mockReset()
+    vi.mocked(api.listEditableExportTasks).mockReset()
+    vi.mocked(api.resumeEditableExport).mockReset()
     activePolls.clear()
     act(() => {
-      useExportTasksStore.setState({ tasks: [] })
+      useExportTasksStore.setState({ tasks: [], hiddenTaskIds: [] })
     })
     window.localStorage.clear()
     await i18n.changeLanguage('zh')
@@ -22,6 +26,38 @@ describe('useExportTasksStore', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('restores server checkpoints after refresh without resurrecting dismissed history', async () => {
+    vi.mocked(api.listEditableExportTasks).mockResolvedValue({ data: { tasks: [{
+      task_id: 'server-failed', status: 'FAILED', task_type: 'EXPORT_EDITABLE_PPTX',
+      progress: { resumable: true, reused_nodes: 12, page_ids: ['page-10'] },
+      created_at: '2026-11-04T10:00:00', error_message: 'Interrupted',
+    }] } } as any)
+    await Promise.all([useExportTasksStore.getState().loadServerTasks('project-a'),
+                       useExportTasksStore.getState().loadServerTasks('project-a')])
+    expect(useExportTasksStore.getState().tasks).toHaveLength(1)
+    expect(useExportTasksStore.getState().tasks[0].progress?.resumable).toBe(true)
+    expect(useExportTasksStore.getState().tasks[0].pageIds).toEqual(['page-10'])
+    useExportTasksStore.getState().clearCompleted('project-a')
+    await useExportTasksStore.getState().loadServerTasks('project-a')
+    expect(useExportTasksStore.getState().tasks).toHaveLength(0)
+  })
+
+  it('resumes with a new task ID and polls the successor while preserving the failed attempt', async () => {
+    useExportTasksStore.getState().addTask({ id: 'failed', taskId: 'failed', projectId: 'project-a',
+      type: 'editable-pptx', status: 'FAILED', pageIds: ['page-10'], progress: { total: 100, completed: 0, resumable: true } })
+    vi.mocked(api.resumeEditableExport).mockResolvedValue({ data: { task_id: 'successor' } } as any)
+    vi.mocked(api.getTaskStatus).mockResolvedValue({ data: { status: 'COMPLETED',
+      progress: { reused_nodes: 12, download_url: '/files/resumed.pptx' } } } as any)
+    await useExportTasksStore.getState().resumeTask(useExportTasksStore.getState().tasks[0])
+    await Promise.resolve()
+    expect(api.resumeEditableExport).toHaveBeenCalledWith('project-a', 'failed', expect.any(String))
+    expect(api.getTaskStatus).toHaveBeenCalledWith('project-a', 'successor')
+    expect(useExportTasksStore.getState().tasks.find(task => task.id === 'failed')?.status).toBe('FAILED')
+    await waitFor(() => expect(useExportTasksStore.getState().tasks.find(task => task.id === 'successor')).toMatchObject({
+      status: 'COMPLETED', pageIds: ['page-10'], downloadUrl: '/files/resumed.pptx', progress: { reused_nodes: 12 },
+    }))
   })
 
   it('clears completed export tasks only for the selected project', () => {

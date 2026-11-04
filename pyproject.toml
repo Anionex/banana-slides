@@ -44,6 +44,7 @@ dependencies = [
     "elevenlabs>=2.45.0",
     "onnxruntime>=1.18.0",
     "fonttools>=4.0",
+    "filelock>=3.16",
 ]
 
 [project.optional-dependencies]

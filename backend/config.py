@@ -64,6 +64,18 @@ class Config:
     OPENAI_TIMEOUT = float(os.getenv('OPENAI_TIMEOUT', '480.0'))  # 8 分钟：留出 gpt-image-2 生图(~225s)+传输的余量
     OPENAI_MAX_RETRIES = int(os.getenv('OPENAI_MAX_RETRIES', '2'))  # 减少重试次数，避免过多重试导致累积超时
 
+    # Editable export deployment budgets (shared local storage across workers).
+    EXPORT_QUEUE_LIMIT = int(os.getenv('EXPORT_QUEUE_LIMIT', '16'))
+    EXPORT_QUEUE_TIMEOUT = float(os.getenv('EXPORT_QUEUE_TIMEOUT', '900'))
+    EXPORT_RUN_TIMEOUT = float(os.getenv('EXPORT_RUN_TIMEOUT', '3600'))
+    EXPORT_NODE_TIMEOUT = float(os.getenv('EXPORT_NODE_TIMEOUT', '600'))
+    EXPORT_LIMIT_EXPORTS = int(os.getenv('EXPORT_LIMIT_EXPORTS', '1'))
+    EXPORT_LIMIT_PAGES = int(os.getenv('EXPORT_LIMIT_PAGES', '4'))
+    EXPORT_LIMIT_CAPTION = int(os.getenv('EXPORT_LIMIT_CAPTION', '8'))
+    EXPORT_LIMIT_IMAGE = int(os.getenv('EXPORT_LIMIT_IMAGE', '4'))
+    EXPORT_LIMIT_OCR = int(os.getenv('EXPORT_LIMIT_OCR', '2'))
+    EXPORT_LIMIT_INFERENCE = int(os.getenv('EXPORT_LIMIT_INFERENCE', '1'))
+
     # Global output limit for text and image-understanding responses.
     TEXT_MAX_OUTPUT_TOKENS = int(os.getenv("TEXT_MAX_OUTPUT_TOKENS", os.getenv("ANTHROPIC_MAX_TOKENS", "32768")))
 

@@ -44,6 +44,8 @@ def _get_openai_oauth_token() -> Optional[str]:
         from flask import current_app
         if not current_app:
             return None
+        if current_app.config.get('EXPORT_WORKER'):
+            return current_app.config.get('EXPORT_OAUTH_TOKEN')
         from models import Settings
         settings = Settings.get_settings()
         return settings.get_openai_oauth_token()

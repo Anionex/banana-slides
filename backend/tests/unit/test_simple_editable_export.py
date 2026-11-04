@@ -313,12 +313,30 @@ def test_simple_endpoint_task_download_and_selected_pages(app, client, simple_se
     monkeypatch.setattr('services.image_editability.TextAttributeExtractorFactory.create_caption_model_extractor', lambda: None)
     monkeypatch.setattr('services.task_manager.task_manager.submit_task',
                         lambda task_id, fn, **kwargs: fn(task_id, **kwargs))
+    # Unit boundary: actual worker composition/build, in this process so the
+    # injected OCR/image adapters remain isolated from external services.
+    from export_runtime.pipeline import execute
+    def inline_worker(payload, on_event, is_active):
+        def emit(event):
+            with app.app_context():
+                on_event(event)
+        from config import get_config
+        config = get_config()
+        with monkeypatch.context() as patch:
+            # The real worker exits; inline unit composition must also restore
+            # its provider configuration rather than leak retry policy to tests.
+            for key in {*payload['config'], 'OPENAI_MAX_RETRIES', 'GENAI_MAX_RETRIES'}:
+                patch.setattr(config, key, getattr(config, key, None), raising=False)
+            return execute(payload, emit)
+    monkeypatch.setattr('export_runtime.process.supervise', inline_worker)
+    original_ocr = ocr.recognize.return_value
+    ocr.recognize.side_effect = lambda path, **kw: (original_ocr if '/sources/' in path else {'image_size': (320, 180), 'text_lines': []})
     response = client.post(f'/api/projects/{project_id}/export/editable-pptx', json={
         'export_mode': 'simple', 'page_ids': [page_id],
     })
     assert response.status_code == 200
     task = db.session.get(Task, response.json['data']['task_id'])
-    assert task.status == 'COMPLETED', task.error_message
+    assert task.status == 'COMPLETED', task.get_progress()
     progress = task.get_progress()
     assert progress['export_mode'] == 'simple'
     assert db.session.get(Project, project_id).export_inpaint_method == 'baidu'

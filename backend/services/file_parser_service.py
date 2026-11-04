@@ -12,6 +12,7 @@ import tempfile
 from typing import Optional, List, Union
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from export_runtime.control import export_call, check, sleep, current, permanent_error, RemoteJobFailed
 from PIL import Image
 from markitdown import MarkItDown
 from services.ai_providers.text import strip_think_tags
@@ -152,7 +153,9 @@ class FileParserService:
         except (ValueError, ImportError):
             return False
     
-    def parse_file(self, file_path: str, filename: str) -> tuple[Optional[str], Optional[str], Optional[str], Optional[str], int]:
+    @export_call('ocr')
+    def parse_file(self, file_path: str, filename: str, *, enhance_captions: bool = True,
+                   checkpoint_source: Optional[str] = None) -> tuple[Optional[str], Optional[str], Optional[str], Optional[str], int]:
         """
         Parse a file using MinerU service and enhance with image captions
         
@@ -186,7 +189,11 @@ class FileParserService:
             
             # Step 1: Get upload URL
             logger.info(f"Step 1/4: Requesting upload URL for {filename}...")
-            batch_id, upload_url, error = self._get_upload_url(filename)
+            from export_runtime.checkpoints import cached
+            submission_input = {'source': checkpoint_source or file_path, 'endpoint': self.mineru_api_base,
+                                'model': self.mineru_model_version}
+            batch_id, upload_url, error = cached('mineru_submission', submission_input,
+                lambda: self._get_upload_url(filename), lambda result: bool(result[0]) and result[2] is None)
             if error:
                 return None, None, None, error, 0
             
@@ -194,7 +201,9 @@ class FileParserService:
             
             # Step 2: Upload file
             logger.info(f"Step 2/4: Uploading file {filename}...")
-            error = self._upload_file(file_path, upload_url)
+            uploaded = cached('mineru_upload', {'batch_id': batch_id, 'source': checkpoint_source or file_path},
+                lambda: {'error': self._upload_file(file_path, upload_url)}, lambda result: result['error'] is None)
+            error = uploaded['error']
             if error:
                 return batch_id, None, None, error, 0
             
@@ -202,14 +211,20 @@ class FileParserService:
             
             # Step 3: Poll for parsing result
             logger.info("Step 3/4: Waiting for parsing to complete...")
-            markdown_content, extract_id, error = self._poll_result(batch_id)
+            try:
+                markdown_content, extract_id, error = self._poll_result(batch_id)
+            except RemoteJobFailed:
+                control = current()
+                if control and control.store:
+                    control.store.invalidate('mineru_submission', submission_input)
+                raise
             if error:
                 return batch_id, None, None, error, 0
             
             logger.info("File parsed successfully.")
             
             # Step 4: Enhance markdown with image captions
-            if markdown_content and self._can_generate_captions():
+            if markdown_content and enhance_captions and self._can_generate_captions():
                 logger.info("Step 4/4: Enhancing markdown with image captions...")
                 enhanced_content, failed_count = self._enhance_markdown_with_captions(markdown_content)
                 if failed_count > 0:
@@ -222,6 +237,9 @@ class FileParserService:
                 return batch_id, markdown_content, extract_id, None, 0
             
         except Exception as e:
+            check()
+            if current():
+                raise
             error_msg = f"Unexpected error during file parsing: {str(e)}"
             logger.error(error_msg, exc_info=True)
             return None, None, None, error_msg, 0
@@ -382,8 +400,10 @@ class FileParserService:
         
         result_url = self.get_result_api_template.format(batch_id)
         start_time = time.time()
+        consecutive_errors = 0
         
         while True:
+            check()
             if time.time() - start_time > max_wait_time:
                 error_msg = f"Parsing timeout after {max_wait_time} seconds"
                 logger.error(error_msg)
@@ -393,6 +413,7 @@ class FileParserService:
                 response = requests.get(result_url, headers=headers, timeout=30)
                 response.raise_for_status()
                 task_info = response.json()
+                consecutive_errors = 0
                 
                 if task_info.get("code") != 0:
                     error_msg = f"Failed to query task status: {task_info.get('msg')}"
@@ -409,13 +430,18 @@ class FileParserService:
                 elif task_status == "failed":
                     err_msg = task_info["data"]["extract_result"][0].get("err_msg", "Unknown error")
                     error_msg = f"File parsing failed: {err_msg}"
+                    if current():
+                        raise RemoteJobFailed(error_msg)
                     logger.error(error_msg)
                     return None, None, error_msg
                 else:
                     logger.debug(f"Current task status: {task_status}, waiting...")
-                    time.sleep(2)  # Wait 2 seconds before next poll
+                    sleep(2)  # Wait 2 seconds before next poll
                     
             except requests.exceptions.HTTPError as e:
+                consecutive_errors += 1
+                if current() and (permanent_error(e) or consecutive_errors >= 3):
+                    raise
                 status_code = getattr(e.response, 'status_code', None)
                 if status_code in (401, 403):
                     error_msg = (
@@ -425,10 +451,13 @@ class FileParserService:
                     logger.error(error_msg)
                     return None, None, error_msg
                 logger.warning(f"HTTP error while polling result: {str(e)}, retrying...")
-                time.sleep(2)
+                sleep(2)
             except requests.exceptions.RequestException as e:
+                consecutive_errors += 1
+                if current() and consecutive_errors >= 3:
+                    raise
                 logger.warning(f"Network error while polling result: {str(e)}, retrying...")
-                time.sleep(2)
+                sleep(2)
     
     def _download_markdown(self, zip_url: str) -> tuple[Optional[str], Optional[str], Optional[str]]:
         """Download and extract markdown from result zip, save images to local server

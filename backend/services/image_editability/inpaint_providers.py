@@ -253,6 +253,9 @@ class GenerativeEditInpaintProvider(InpaintProvider):
                         'source_size': list(image.size),
                     }, ensure_ascii=False, indent=2))
             
+            if kwargs.get('retry_feedback'):
+                edit_instruction += '\nCorrection from the previous review: ' + kwargs['retry_feedback']
+
             # 保存临时图片文件（AI服务需要文件路径）
             with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
                 tmp_path = tmp_file.name
@@ -289,6 +292,10 @@ class GenerativeEditInpaintProvider(InpaintProvider):
         
         except Exception as e:
             logger.error(f"GenerativeEditInpaintProvider处理失败: {e}", exc_info=True)
+            from export_runtime.control import current, check
+            check()
+            if current():
+                raise
             return None
 
 
@@ -351,6 +358,10 @@ class BaiduInpaintProvider(InpaintProvider):
         
         except Exception as e:
             logger.error(f"BaiduInpaintProvider处理失败: {e}", exc_info=True)
+            from export_runtime.control import check, current
+            check()
+            if current():
+                raise
             return None
 
 
@@ -441,6 +452,9 @@ class HybridInpaintProvider(InpaintProvider):
                     logger.info("HybridInpaintProvider: 画质提升完成")
                     return enhanced_image
                 else:
+                    from export_runtime.control import current, StageFailure
+                    if current():
+                        raise StageFailure('已启用的背景画质提升未返回结果')
                     logger.warning("HybridInpaintProvider: 画质提升失败，返回百度修复结果")
                     return repaired_image
             else:
@@ -449,6 +463,10 @@ class HybridInpaintProvider(InpaintProvider):
         
         except Exception as e:
             logger.error(f"HybridInpaintProvider处理失败: {e}", exc_info=True)
+            from export_runtime.control import check, current
+            check()
+            if current():
+                raise
             return None
     
     def _enhance_image_quality(
@@ -534,6 +552,10 @@ class HybridInpaintProvider(InpaintProvider):
         
         except Exception as e:
             logger.error(f"画质提升失败: {e}", exc_info=True)
+            from export_runtime.control import check, current
+            check()
+            if current():
+                raise
             return None
 
 

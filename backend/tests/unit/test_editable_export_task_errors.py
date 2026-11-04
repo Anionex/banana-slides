@@ -1,9 +1,11 @@
 from pathlib import Path
+import json
+import time
 import uuid
 
 from PIL import Image
 
-from models import Page, Project, Task, db
+from models import Page, Project, Task, ExportRun, db
 from services.export_service import ExportError, ExportService
 from services.task_manager import export_editable_pptx_with_recursive_analysis_task
 
@@ -40,6 +42,11 @@ def test_editable_export_task_preserves_progress_and_structured_failure(
     )
     db.session.add(task)
     db.session.commit()
+    db.session.add(ExportRun(task_id=task.id, project_id=project.id,
+        request_json=json.dumps({'pages': [{'id': 'page'}], 'options': {'export_mode': 'full'}}),
+        request_hash='a' * 64, artifact_filename=f'editable-run-{task.id}-demo.pptx',
+        queue_deadline_at=time.time() + 30))
+    db.session.commit()
 
     monkeypatch.setattr(
         "services.image_editability.TextAttributeExtractorFactory.create_caption_model_extractor",
@@ -68,6 +75,14 @@ def test_editable_export_task_preserves_progress_and_structured_failure(
         "create_editable_pptx_with_recursive_analysis",
         fail_during_style_extraction,
     )
+    from export_runtime.process import WorkerFailed
+    def worker(_payload, on_event, is_active):
+        try:
+            fail_during_style_extraction(progress_callback=lambda step, message, percent: on_event(
+                {'event': 'progress', 'stage': step, 'label': message, 'percent': percent}))
+        except ExportError as error:
+            raise WorkerFailed({'message': str(error), 'details': error.to_dict()}) from error
+    monkeypatch.setattr('export_runtime.process.supervise', worker)
 
     export_editable_pptx_with_recursive_analysis_task(
         task_id=task.id,
@@ -91,7 +106,8 @@ def test_editable_export_task_preserves_progress_and_structured_failure(
     assert progress["error_stage"] == "style_extraction"
     assert progress["error_details"]["provider"] == "CodexTextProvider"
     assert progress["error_details"]["model"] == "gpt-5.4"
-    assert progress["help_text"] == "请稍后重试。"
+    assert progress["help_text"].startswith("请稍后重试。")
+    assert progress['resumable'] is True
 
 
 def test_editable_export_creation_is_idempotent_with_client_task_id(
@@ -110,6 +126,9 @@ def test_editable_export_creation_is_idempotent_with_client_task_id(
         ))
         db.session.commit()
         project_id = project.id
+        image_path = Path(app.config['UPLOAD_FOLDER']) / project_id / 'pages/slide.png'
+        image_path.parent.mkdir(parents=True, exist_ok=True)
+        Image.new('RGB', (320, 180), 'white').save(image_path)
 
     submitted = []
     monkeypatch.setattr(
@@ -166,6 +185,9 @@ def test_editable_export_records_task_submission_failure(
         ))
         db.session.commit()
         project_id = project.id
+        image_path = Path(app.config['UPLOAD_FOLDER']) / project_id / 'pages/slide.png'
+        image_path.parent.mkdir(parents=True, exist_ok=True)
+        Image.new('RGB', (320, 180), 'white').save(image_path)
 
     def reject_submission(*_args, **_kwargs):
         raise RuntimeError("executor rejected task with access_token=secret-value")

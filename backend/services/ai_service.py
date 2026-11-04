@@ -3,6 +3,8 @@ AI Service - handles all AI model interactions
 Based on demo.py and gemini_genai.py
 TODO: use structured output API
 """
+
+from export_runtime.control import export_call
 import os
 import json
 import re
@@ -265,6 +267,7 @@ class AIService:
             logger.warning(f"JSON解析失败，将重新生成。原始文本: {cleaned_text[:200]}... 错误: {str(e)}")
             raise
     
+    @export_call('caption')
     @retry(
         stop=stop_after_attempt(3),
         retry=retry_if_exception_type((json.JSONDecodeError, ValueError)),
@@ -1191,6 +1194,7 @@ class AIService:
             logger.error(error_detail, exc_info=True)
             raise Exception(error_detail) from e
     
+    @export_call('image')
     def edit_image(self, prompt: str, current_image_path: str,
                   aspect_ratio: str = "16:9", resolution: str = "2K",
                   original_description: str = None,

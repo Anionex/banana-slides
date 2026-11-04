@@ -9,6 +9,8 @@ Two code paths:
 
 Resolution validation is handled at the task_manager level for all providers.
 """
+
+from export_runtime.control import export_call, check, sleep, current, RemoteJobFailed
 import logging
 import base64
 import math
@@ -470,6 +472,7 @@ class OpenAIImageProvider(ImageProvider):
         image.save(buf, format='PNG', optimize=True, compress_level=9)
         return buf.getvalue()
 
+    @export_call('image')
     @retry(
         stop=stop_after_attempt(_SENSENOVA_MAX_ATTEMPTS),
         wait=wait_exponential(multiplier=1, min=1, max=10),
@@ -799,6 +802,7 @@ class OpenAIImageProvider(ImageProvider):
         deadline = time.monotonic() + APIMART_TASK_TIMEOUT
 
         while True:
+            check()
             response = requests.get(
                 endpoint,
                 headers=headers,
@@ -825,14 +829,41 @@ class OpenAIImageProvider(ImageProvider):
                 return self._decode_apimart_task_result(payload)
             if status in {"failed", "error", "cancelled", "canceled", "timeout"}:
                 detail = self._apimart_error_message(payload) or "unknown error"
-                raise RuntimeError(f"apimart image task failed for {task_id}: {detail}")
+                raise RemoteJobFailed(f"apimart image task failed for {task_id}: {detail}")
             if status and status not in {"submitted", "queued", "pending", "processing", "running", "in_progress"}:
                 raise RuntimeError(f"apimart image task returned unsupported status for {task_id}: {status}")
             if time.monotonic() >= deadline:
                 raise TimeoutError(f"apimart image task timed out after {APIMART_TASK_TIMEOUT:.0f}s")
 
             logger.debug("apimart image task %s still running (status=%s)", task_id, status or "unknown")
-            time.sleep(APIMART_TASK_POLL_INTERVAL)
+            sleep(APIMART_TASK_POLL_INTERVAL)
+
+    def _images_response(self, action, kwargs, ref_images=None, mask=None):
+        """Commit async job identity before polling; retry a known job in place."""
+        from hashlib import sha256
+        from export_runtime.checkpoints import cached
+        identity = {'endpoint': self.api_base, 'action': action,
+                    'parameters': {key: value for key, value in kwargs.items()
+                                   if key not in ('image', 'mask', 'extra_body')},
+                    'extra_body': {key: value for key, value in kwargs.get('extra_body', {}).items()
+                                   if key != 'image_urls'},
+                    'images': [sha256(self._pil_to_png_bytes(image)).hexdigest() for image in (ref_images or [])],
+                    'mask_sha256': sha256(self._pil_to_png_bytes(mask)).hexdigest() if mask else None}
+        def submit():
+            raw = getattr(self.client.images.with_raw_response, action)(**kwargs)
+            payload = self._raw_response_payload(raw)
+            task_id = self._image_task_id(payload)
+            return {'task_id': task_id} if task_id else {'response': payload}
+        submitted = cached('image_submission', identity, submit, lambda value: bool(value.get('task_id')))
+        if not submitted.get('task_id'):
+            return self._extract_from_images_result(submitted['response'])
+        try:
+            return self._poll_image_task(submitted['task_id'])
+        except RemoteJobFailed:
+            control = current()
+            if control and control.store:
+                control.store.invalidate('image_submission', identity)
+            raise
 
     def _generate_with_apimart_images_api(
         self,
@@ -869,12 +900,7 @@ class OpenAIImageProvider(ImageProvider):
             quality,
             len(ref_images) if ref_images else 0,
         )
-        raw_response = self.client.images.with_raw_response.generate(**kwargs)
-        payload = self._raw_response_payload(raw_response)
-        task_id = self._image_task_id(payload)
-        if task_id:
-            return self._poll_image_task(task_id)
-        return self._extract_from_images_result(payload)
+        return self._images_response('generate', kwargs, ref_images)
 
     @property
     def supports_mask_edit(self) -> bool:
@@ -981,7 +1007,7 @@ class OpenAIImageProvider(ImageProvider):
                 kwargs['quality'] = quality
             if response_format:
                 kwargs['response_format'] = response_format
-            raw_response = self.client.images.with_raw_response.edit(**kwargs)
+            return self._images_response('edit', kwargs, selected_ref_images, mask)
         else:
             if ref_images:
                 logger.warning("dall-e-3 does not support images.edit; ignoring ref_images")
@@ -991,14 +1017,7 @@ class OpenAIImageProvider(ImageProvider):
                 kwargs['quality'] = quality
             if response_format:
                 kwargs['response_format'] = response_format
-            raw_response = self.client.images.with_raw_response.generate(**kwargs)
-
-        payload = self._raw_response_payload(raw_response)
-        task_id = self._image_task_id(payload)
-        if task_id:
-            return self._poll_image_task(task_id)
-
-        return self._extract_from_images_result(payload)
+            return self._images_response('generate', kwargs)
 
     def _generate_with_sensenova_images_api(
         self,

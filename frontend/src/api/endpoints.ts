@@ -781,6 +781,18 @@ export const listExports = async (
   return response.data;
 };
 
+export const resumeEditableExport = async (projectId: string, taskId: string, clientTaskId: string): Promise<ApiResponse<{ task_id: string }>> => {
+  const response = await apiClient.post(`/api/projects/${projectId}/export/editable-pptx`, {
+    resume_from_task_id: taskId, client_task_id: clientTaskId,
+  });
+  return response.data;
+};
+
+export const listEditableExportTasks = async (projectId: string): Promise<ApiResponse<{ tasks: Task[] }>> => {
+  const response = await apiClient.get(`/api/projects/${projectId}/export/editable-tasks`);
+  return response.data;
+};
+
 /**
  * 删除项目已导出的文件
  */

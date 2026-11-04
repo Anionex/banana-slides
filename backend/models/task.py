@@ -13,6 +13,7 @@ class Task(db.Model):
     Task model - tracks asynchronous generation tasks
     """
     __tablename__ = 'tasks'
+    export_run = db.relationship('ExportRun', uselist=False, cascade='all, delete-orphan', back_populates='task')
 
     # 任务被看门狗判定失败后，这些进度键不允许被后续的进度写入覆盖，
     # 否则前端会丢掉失败原因（见 services/task_watchdog.py）

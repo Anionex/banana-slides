@@ -28,6 +28,9 @@ from .helpers import (
     should_extract_subject,
 )
 
+from export_runtime.control import current as current_export, check as check_export, StageFailure, ExportAborted, dependency_failed
+from export_runtime.checkpoints import cached, file_hash, digest
+
 logger = logging.getLogger(__name__)
 
 
@@ -80,7 +83,29 @@ class ImageEditabilityService:
             f"max_depth={self._max_depth}"
         )
     
-    def make_image_editable(
+    def make_image_editable(self, image_path, depth=0, parent_id=None, parent_bbox=None,
+                            root_image_size=None, element_type=None, root_image_path=None):
+        inputs = dict(image_path=image_path, depth=depth, parent_id=parent_id,
+                      parent_bbox=parent_bbox, root_image_size=root_image_size,
+                      element_type=element_type, root_image_path=root_image_path)
+        try:
+            from contextlib import nullcontext
+            control = current_export()
+            with control.node('page_analysis') if control else nullcontext(), \
+                    control.resource('pages') if control else nullcontext():
+                return cached('analysis', inputs, lambda: self._make_image_editable(**inputs),
+                              lambda result: not result.metadata.get('degraded'))
+        except Exception as exc:
+            check_export()
+            control = current_export()
+            if depth or not control or control.strict or isinstance(exc, ExportAborted):
+                raise
+            with Image.open(image_path) as image:
+                width, height = image.size
+            return EditableImage(file_hash(image_path)[:16], image_path, width, height,
+                                 metadata={'degraded': str(exc)})
+
+    def _make_image_editable(
         self,
         image_path: str,
         depth: int = 0,
@@ -111,7 +136,9 @@ class ImageEditabilityService:
             FileNotFoundError: 图片文件不存在
             ValueError: 图片格式不支持
         """
-        image_id = str(uuid.uuid4())[:8]
+        check_export()
+        image_id = digest({'source': file_hash(image_path), 'depth': depth,
+                           'parent': parent_id, 'region': parent_bbox.to_dict() if parent_bbox else None})[:24]
         logger.info(f"{'  ' * depth}[{image_id}] 开始处理")
         
         # 1. 加载图片
@@ -136,7 +163,7 @@ class ImageEditabilityService:
         )
 
         # 检查提取是否有错误（根层级必须成功，否则报错）
-        if extraction_result.has_error and depth == 0:
+        if extraction_result.has_error:
             raise RuntimeError(f"版面分析失败: {extraction_result.error}")
 
         # 从context获取image_size（提取器自己获取）
@@ -175,6 +202,9 @@ class ImageEditabilityService:
                 element_type=element_type  # 传递元素类型以选择对应的重绘方法
             )
         
+        if current_export() and elements and not clean_background:
+            raise StageFailure('背景擦除失败，不能在原图上叠加可编辑元素')
+
         # 4. 递归处理子元素
         # max_depth 语义：max_depth=1 表示只处理1层不递归，max_depth=2 递归一次
         if depth + 1 < self._max_depth:
@@ -216,12 +246,14 @@ class ImageEditabilityService:
         extractor = self._select_extractor(element_type)
         
         # 调用提取器（提取器自己处理所有细节，包括获取image_size）
-        return extractor.extract(
-            image_path=image_path,
-            element_type=element_type,
-            depth=depth
-        )
+        result = cached('extract', dict(image_path=image_path, element_type=element_type, depth=depth),
+                        lambda: extractor.extract(image_path=image_path, element_type=element_type, depth=depth,
+                                                  **({'recognize_granularity': 'small'} if self._text_only else {})),
+                        lambda result: not result.has_error)
+        check_export()
+        return result
     
+
     def _select_extractor(self, element_type: Optional[str]) -> ElementExtractor:
         """根据元素类型从注册表选择对应的提取器"""
         extractor = self._extractor_registry.get_extractor(element_type)
@@ -361,10 +393,10 @@ class ImageEditabilityService:
                 with Image.open(elem.image_path) as src:
                     cutout = self._segmentation_provider.extract_subject(src)
             except Exception as e:
-                logger.warning(f"{'  ' * depth}  ✗ 图标 {elem.element_id} 主体抠图异常: {e}")
-                continue
+                check_export()
+                raise StageFailure(f'图标主体抠图失败: {e}') from e
             if cutout is None:
-                continue
+                raise StageFailure('图标主体抠图未返回结果')
             cutout_path = output_dir / f"{elem.element_id}.png"
             cutout.save(str(cutout_path))
             elem.image_path = str(cutout_path)
@@ -373,7 +405,16 @@ class ImageEditabilityService:
 
         logger.info(f"{'  ' * depth}🎨 主体抠图: {success}/{len(icons)} 成功")
 
-    def _generate_clean_background(
+    def _generate_clean_background(self, image_path, elements, image_id, depth,
+                                   parent_bbox, root_image_path, image_size, element_type=None):
+        inputs = dict(image_path=image_path, elements=elements, image_id=image_id,
+                      depth=depth, parent_bbox=parent_bbox, root_image_path=root_image_path,
+                      image_size=image_size, element_type=element_type)
+        if self._text_only:
+            return self._generate_clean_background_uncached(**inputs)
+        return cached('background', inputs, lambda: self._generate_clean_background_uncached(**inputs))
+
+    def _generate_clean_background_uncached(
         self,
         image_path: str,
         elements: List[EditableElement],
@@ -398,6 +439,15 @@ class ImageEditabilityService:
         if inpaint_provider is None:
             logger.warning(f"{'  ' * depth}未找到重绘方法，跳过")
             return None
+
+        from .inpaint_providers import GenerativeEditInpaintProvider
+        if self._text_only and isinstance(inpaint_provider, GenerativeEditInpaintProvider):
+            from .text_restoration import restore_text_background
+            return restore_text_background(
+                image_path, elements, inpaint_provider,
+                lambda path: self._extract_elements(path, element_type, depth),
+                self._upload_folder / 'editable_images' / image_id / 'erasure',
+            )
         
         try:
             bboxes = collect_bboxes_from_elements(elements)
@@ -501,6 +551,9 @@ class ImageEditabilityService:
             return str(output_path)
         
         except Exception as e:
+            check_export()
+            if current_export():
+                raise
             logger.error(f"生成clean background失败: {e}", exc_info=True)
             return None
     
@@ -532,9 +585,6 @@ class ImageEditabilityService:
         if not elements_to_process:
             return
         
-        # 并行处理多个子元素
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-        
         def process_single_element(element):
             """处理单个子元素"""
             try:
@@ -561,17 +611,10 @@ class ImageEditabilityService:
         
         logger.info(f"{'  ' * depth}  并行处理 {len(elements_to_process)} 个子元素...")
         
-        # 使用线程池并行处理
-        max_workers = min(8, len(elements_to_process))  # 限制并发数
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {executor.submit(process_single_element, elem): elem for elem in elements_to_process}
-            
-            for future in as_completed(futures):
-                element, child_editable, error = future.result()
-                
-                if error:
-                    logger.error(f"{'  ' * depth}  ✗ {element.element_id} 失败: {error}")
-                else:
-                    element.children = child_editable.elements
-                    element.inpainted_background_path = child_editable.clean_background
-                    logger.info(f"{'  ' * depth}  ✓ {element.element_id} 完成: {len(child_editable.elements)} 个子元素")
+        for element in elements_to_process:
+            check_export()
+            element, child_editable, error = process_single_element(element)
+            if error:
+                raise StageFailure(f'子元素还原失败: {error}') from error
+            element.children = child_editable.elements
+            element.inpainted_background_path = child_editable.clean_background

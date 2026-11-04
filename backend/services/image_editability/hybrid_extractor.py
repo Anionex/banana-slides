@@ -10,7 +10,7 @@
 """
 import logging
 from typing import Dict, Any, List, Optional, Tuple
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from export_runtime.control import ExportExecutor as ThreadPoolExecutor, as_completed
 from PIL import Image
 
 from .extractors import (
@@ -230,10 +230,18 @@ class HybridElementExtractor(ElementExtractor):
         baidu_error = None
 
         def run_mineru():
-            return self._mineru_extractor.extract(image_path, element_type, **kwargs)
+            result = self._mineru_extractor.extract(image_path, element_type, **kwargs)
+            from export_runtime.control import current, StageFailure
+            if current() and result.has_error:
+                raise StageFailure(f'MinerU: {result.error}')
+            return result
 
         def run_baidu_ocr():
-            return self._baidu_ocr_extractor.extract(image_path, element_type, **kwargs)
+            result = self._baidu_ocr_extractor.extract(image_path, element_type, **kwargs)
+            from export_runtime.control import current, StageFailure
+            if current() and result.has_error:
+                raise StageFailure(f'百度 OCR: {result.error}')
+            return result
 
         with ThreadPoolExecutor(max_workers=2) as executor:
             future_mineru = executor.submit(run_mineru)
@@ -258,6 +266,8 @@ class HybridElementExtractor(ElementExtractor):
                         else:
                             logger.info(f"{indent}  ✅ 百度OCR识别到 {len(baidu_result.elements)} 个元素")
                 except Exception as e:
+                    from export_runtime.control import check
+                    check()
                     if future == future_mineru:
                         mineru_error = str(e)
                         logger.error(f"{indent}  ❌ MinerU提取失败: {e}")
