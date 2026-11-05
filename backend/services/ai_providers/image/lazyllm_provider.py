@@ -13,6 +13,7 @@ Support models:
 - ...
 """
 import re
+import base64
 import tempfile
 import os
 import logging
@@ -22,7 +23,10 @@ from typing import Optional, List, Tuple
 from urllib.parse import urlparse
 from PIL import Image
 from .base import ImageProvider
-from ..lazyllm_env import ensure_lazyllm_namespace_key, ensure_lazyllm_suppliers, resolve_lazyllm_source
+from ..lazyllm_env import (
+    ensure_lazyllm_namespace_key, ensure_lazyllm_suppliers,
+    get_lazyllm_api_key, resolve_lazyllm_source,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -243,6 +247,7 @@ class LazyLLMImageProvider(ImageProvider):
         source = resolve_lazyllm_source(source, registry_name='text2image')
         ensure_lazyllm_namespace_key(source, namespace='BANANA')
         self._source = source
+        self.model = model
         self.client = lazyllm.namespace('BANANA').OnlineModule(
             source=source,
             model=model,
@@ -252,6 +257,41 @@ class LazyLLMImageProvider(ImageProvider):
         # Patch: remove 'guidance_scale' for Seedream 5.0+ models that don't support it
         if source == 'doubao' and 'seedream-5' in model:
             _patch_doubao_remove_guidance_scale(self.client)
+
+    def _generate_qwen_image_21(self, prompt, ref_images, size):
+        """Use Bailian's synchronous multimodal endpoint for Qwen Image 2.1.
+
+        LazyLLM's Qwen text2image mode calls the legacy asynchronous endpoint,
+        which only supports qwen-image and qwen-image-plus.
+        """
+        from dashscope import MultiModalConversation
+
+        content = []
+        for image in ref_images or []:
+            prepared = _prepare_reference_image_for_vendor(image, 'qwen')
+            buffer = BytesIO()
+            prepared.save(buffer, format='PNG')
+            encoded = base64.b64encode(buffer.getvalue()).decode('ascii')
+            content.append({'image': f'data:image/png;base64,{encoded}'})
+        content.append({'text': prompt})
+        response = MultiModalConversation.call(
+            model=self.model,
+            messages=[{'role': 'user', 'content': content}],
+            api_key=get_lazyllm_api_key('qwen'),
+            size=size,
+            n=1,
+        )
+        if response.status_code != 200:
+            raise RuntimeError(
+                f'Qwen Image 2.1 request failed (HTTP {response.status_code}): '
+                f'{response.message}'
+            )
+        for item in response.output.choices[0].message.content:
+            if image_url := item.get('image'):
+                image_bytes = self.client._load_images([image_url])[0][1]
+                with Image.open(BytesIO(image_bytes)) as image:
+                    return image.copy()
+        raise ValueError('Qwen Image 2.1 returned no image')
 
     def generate_image(self, prompt: str = None,
                        ref_images: Optional[List[Image.Image]] = None,
@@ -263,6 +303,10 @@ class LazyLLMImageProvider(ImageProvider):
         # Calculate vendor-specific image dimensions
         w, h, size_str = _calculate_image_dimensions(resolution, aspect_ratio, self._source)
         logger.info(f"[LazyLLM] aspect_ratio={aspect_ratio}, resolution={resolution}, size={size_str}")
+        if self._source == 'qwen' and (
+            self.model == 'qwen-image-2.1' or self.model.startswith('qwen-image-2.1-')
+        ):
+            return self._generate_qwen_image_21(prompt, ref_images, size_str)
         # Convert a PIL Image object to a file path: When passing a reference image to lazyllm, you need to input a path in string format.
         file_paths = None
         temp_paths = []
