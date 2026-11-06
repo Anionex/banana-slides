@@ -9,7 +9,7 @@ from pathlib import Path
 import re
 import unicodedata
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 from export_runtime.checkpoints import cached, digest, atomic_json, file_hash
 from export_runtime.control import check, StageFailure, current
@@ -93,8 +93,11 @@ class ErasureReview:
 
 
 def _review_prompt(targets):
-    return '''Review presentation text removal. The LEFT image is BEFORE, with red
-target boxes; the RIGHT image is AFTER. Only the listed text glyphs should be
+    return '''Review presentation text removal. The LEFT panel labeled BEFORE is
+the original, with red target boxes. The RIGHT panel labeled AFTER is the edited
+candidate. Judge residual text ONLY in AFTER; text visible in BEFORE is expected
+and is not a failure. Compare BEFORE only to assess preservation of artwork.
+Only the listed text glyphs should be
 removed. Filled number badges, circles, icons, borders, panels, pictures and
 background geometry are non-text artwork: preserve them. Outline marker circles
 and bullet dots may remain or be removed; report their actual state so the text
@@ -141,18 +144,82 @@ def residuals(ocr_result, targets, markers):
 
 def restore_text_background(image_path, elements, provider, ocr, output_dir):
     targets = [TextTarget.from_element(element) for element in elements if element.content]
-    plan = [target.to_dict() for target in targets]
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    # OCR can read a profile icon as "8" or a drawing as a single letter.
+    # Resolve ambiguous glyphs before erasure, so icons are neither erased nor
+    # duplicated as editable text. Numbered badges remain real text targets.
+    ambiguous = [target for target in targets if not target.marker
+                 and len(''.join(ch for ch in target.text if ch.isalnum())) <= 1]
+    if ambiguous:
+        def classify_targets():
+            columns = min(4, len(ambiguous))
+            tile_width, tile_height = 320, 280
+            grid = Image.new('RGB', (columns * tile_width,
+                ((len(ambiguous) + columns - 1) // columns) * tile_height), 'white')
+            labels = ImageDraw.Draw(grid)
+            with Image.open(image_path) as source:
+                for index, target in enumerate(ambiguous):
+                    x0, y0, x1, y1 = target.bbox
+                    padding = max(24, round(max(x1 - x0, y1 - y0) * .5))
+                    box = (max(0, x0 - padding), max(0, y0 - padding),
+                           min(source.width, x1 + padding), min(source.height, y1 + padding))
+                    crop = source.crop(box).convert('RGB')
+                    draw = ImageDraw.Draw(crop)
+                    draw.rectangle((x0 - box[0], y0 - box[1], x1 - box[0], y1 - box[1]),
+                                   outline='red', width=1)
+                    scale = min((tile_width - 16) / crop.width, (tile_height - 40) / crop.height)
+                    crop = crop.resize((max(1, round(crop.width * scale)),
+                                        max(1, round(crop.height * scale))), Image.Resampling.LANCZOS)
+                    left, top = index % columns * tile_width, index // columns * tile_height
+                    grid.paste(crop, (left + (tile_width - crop.width) // 2, top + 32))
+                    labels.text((left + 8, top + 8), f'Detection {index}', fill='black',
+                                font=ImageFont.load_default(size=18))
+            classification_path = output_dir / 'target-review-input.png'
+            grid.save(classification_path)
+            prompt = (
+                'Classify these ambiguous OCR detections in crops from the original slide. '
+                'Each numbered tile shows ONE detection inside a red box with surrounding context. '
+                'Inspect that boxed shape, not other text in the crop. OCR may be wrong. '
+                'A profile/person icon resembling 8, pictograms, arrows and decoration are artwork. '
+                'Actual letters and digits, including numbering inside badges, are text. '
+                'Keep a detection as text when uncertain. Return JSON {"targets":'
+                '[{"id":"exact supplied id","kind":"text or artwork","reason":"visual evidence"}]} '
+                'for EVERY supplied detection. Detections: '
+                + json.dumps([{'detection': index, **target.to_dict()}
+                              for index, target in enumerate(ambiguous)], ensure_ascii=False)
+            )
+            result = provider.ai_service.generate_json_with_image(prompt, str(classification_path))
+            entries = result.get('targets') if isinstance(result, dict) else None
+            ids = {target.target_id for target in ambiguous}
+            if (not isinstance(entries, list) or len(entries) != len(ids)
+                    or any(not isinstance(item, dict) or item.get('kind') not in ('text', 'artwork')
+                           or not isinstance(item.get('id'), str) for item in entries)
+                    or {item['id'] for item in entries} != ids):
+                raise StageFailure('文字与图形识别结果不完整')
+            return result
+
+        classification = cached('target_review', {'source': image_path, 'crop_version': 1,
+            'targets': [target.to_dict() for target in ambiguous]}, classify_targets)
+        artwork = {item['id'] for item in classification['targets'] if item['kind'] == 'artwork'}
+        elements[:] = [element for element in elements if element.element_id not in artwork]
+        targets = [target for target in targets if target.target_id not in artwork]
+    plan = [target.to_dict() for target in targets]
     atomic_json(output_dir / 'targets.json', plan)
+    if not targets:
+        return str(image_path)
     source_hash = file_hash(image_path)
     feedback = ''
     max_attempts = 2
+    rejected = []
     for attempt in range(1, max_attempts + 1):
         check()
         attempt_dir = output_dir / f'attempt-{attempt}-{digest(feedback)[:12]}'
         attempt_dir.mkdir(parents=True, exist_ok=True)
         candidate_input = {'source': image_path, 'targets': plan, 'feedback': feedback}
+        if feedback:
+            # Older retries could narrow the full inventory to residual text.
+            candidate_input['retry_policy'] = 2
 
         def generate():
             # Never pass a previous generated candidate to the image model.
@@ -175,7 +242,8 @@ def restore_text_background(image_path, elements, provider, ocr, output_dir):
             return str(path)
 
         candidate = cached('candidate', candidate_input, generate)
-        review_input = {'source': image_path, 'candidate': candidate, 'targets': plan}
+        review_input = {'source': image_path, 'candidate': candidate, 'targets': plan,
+                        'comparison_version': 3}
 
         def review():
             with Image.open(image_path) as before, Image.open(candidate) as after:
@@ -183,9 +251,16 @@ def restore_text_background(image_path, elements, provider, ocr, output_dir):
                 draw = ImageDraw.Draw(marked)
                 for target in targets:
                     draw.rectangle(target.bbox, outline='red', width=2)
-                comparison = Image.new('RGB', (before.width * 2, before.height), 'white')
-                comparison.paste(marked, (0, 0))
-                comparison.paste(after.convert('RGB'), (before.width, 0))
+                header = max(32, before.height // 16)
+                gap = max(8, before.width // 128)
+                comparison = Image.new('RGB', (before.width * 2 + gap, before.height + header), 'white')
+                comparison.paste(marked, (0, header))
+                comparison.paste(after.convert('RGB'), (before.width + gap, header))
+                labels = ImageDraw.Draw(comparison)
+                font = ImageFont.load_default(size=max(16, header // 2))
+                labels.text((12, header // 4), 'BEFORE - original (reference only)', fill='black', font=font)
+                labels.text((before.width + gap + 12, header // 4), 'AFTER - evaluate this result', fill='black', font=font)
+                labels.rectangle((before.width, 0, before.width + gap - 1, comparison.height), fill='black')
                 comparison_path = attempt_dir / 'review-input.png'
                 comparison.save(comparison_path)
             result = provider.ai_service.generate_json_with_image(_review_prompt(targets), str(comparison_path))
@@ -195,6 +270,27 @@ def restore_text_background(image_path, elements, provider, ocr, output_dir):
                 result = {**result, 'pass': False, 'target_removed': False,
                           'reason': '目标区域仍有文字：' + ', '.join(remaining),
                           'retry_prompt_supplement': 'Remove these remaining text glyphs completely: ' + ', '.join(remaining)}
+            elif not parsed.accepted and result['non_target_unchanged'] is True:
+                # Side-by-side QA can mistake the reference's text for residue.
+                # With clean OCR, resolve that disagreement against AFTER alone;
+                # keep the comparative artwork/marker verdict unchanged.
+                confirmation = provider.ai_service.generate_json_with_image(
+                    'This image is the edited slide AFTER text erasure, not the source image. '
+                    'Inspect this image only for readable target text and letter-shaped ghosts, '
+                    'smears or removal artifacts. The inventory names text intended to be absent; '
+                    'do not infer its presence from the list. Empty badges and decorative symbols '
+                    'are artwork. Return JSON with actual booleans target_removed and artifact_free, '
+                    'plus a reason string. Target inventory: ' + json.dumps(plan, ensure_ascii=False),
+                    candidate,
+                )
+                if not isinstance(confirmation, dict) or any(
+                        type(confirmation.get(key)) is not bool for key in ('target_removed', 'artifact_free')):
+                    raise StageFailure('去字复核必须返回布尔判断')
+                result = {**result, 'candidate_only_review': confirmation,
+                          'target_removed': confirmation['target_removed'],
+                          'artifact_free': confirmation['artifact_free'],
+                          'pass': confirmation['target_removed'] and confirmation['artifact_free'],
+                          'reason': str(confirmation.get('reason', ''))}
             atomic_json(attempt_dir / 'review.json', result)
             return result
 
@@ -218,8 +314,19 @@ def restore_text_background(image_path, elements, provider, ocr, output_dir):
                             source.crop(element.bbox.to_tuple()).save(crop)
                         element.image_path = str(crop)
             return candidate
-        feedback = verdict.feedback or verdict.reason
-        if current():
+        # QA describes defects; it must not replace the original-image edit's
+        # full target inventory with instructions to edit only remaining text.
+        feedback = verdict.reason or verdict.feedback
+        rejected.append((candidate_input, review_input))
+        if current() and attempt < max_attempts:
             current().emit({'event': 'retry', 'label': f'文字擦除校验未通过：{verdict.reason}',
                             'attempt': attempt + 1, 'max_attempts': max_attempts})
+    control = current()
+    if control and control.store:
+        # An explicit resume must generate new candidates for this failed page,
+        # rather than replaying the same exhausted chain of rejected decisions.
+        # Transport/QA exceptions above keep their candidate for a cheap resume.
+        for candidate_input, review_input in rejected:
+            control.store.invalidate('candidate', candidate_input)
+            control.store.invalidate('review', review_input)
     raise StageFailure(f'文字擦除校验未通过（{max_attempts} 次）：{feedback}')

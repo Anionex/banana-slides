@@ -23,8 +23,9 @@ def fingerprints(config, options):
     background = {'image': image, 'caption': caption, 'mode': options['export_mode'],
                   'method': options['export_inpaint_method']}
     return {'extract': extraction, 'candidate': image, 'review': caption,
-            'background': background, 'global_style': caption, 'local_style': caption,
-            'analysis': {'extract': extraction, 'background': background, 'options': {
+            'background': background, 'target_review': caption, 'global_style': caption, 'local_style': caption,
+            'analysis': {'extract': extraction, 'background': background,
+                         'text_restoration_revision': 3 if options['export_mode'] == 'simple' else 0, 'options': {
                 key: options[key] for key in ('max_depth', 'enable_icon_subject_extraction', 'export_mode')}}}
 
 
@@ -61,7 +62,7 @@ def execute(payload, emit):
     identities = fingerprints(config, options)
     with app.app_context():
         from services.ai_providers import _get_model_type_provider_config
-        for role, stages in [('image', ('candidate',)), ('image_caption', ('review', 'global_style', 'local_style'))]:
+        for role, stages in [('image', ('candidate',)), ('image_caption', ('review', 'target_review', 'global_style', 'local_style'))]:
             resolved = _get_model_type_provider_config(role)
             identity = {key: resolved.get(key) for key in
                         ('format', 'api_base', 'project_id', 'location', 'text_source', 'image_source')}

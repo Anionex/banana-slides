@@ -157,7 +157,7 @@ def test_style_extraction_reports_progress_per_task(tmp_path):
     style_messages = [m for step, m, _ in progress if step == '样式提取']
     total_tasks = 1 + element_count  # 1 个全局识别 + N 个单元素识别
     assert len(style_messages) >= 2, '样式提取阶段应多次上报进度'
-    assert any(f'（{total_tasks}/{total_tasks}）' in m for m in style_messages)
+    assert any(f'{total_tasks}/{total_tasks}' in m for m in style_messages)
     assert heartbeats.count('样式提取') >= total_tasks
 
 
@@ -206,6 +206,8 @@ def test_export_task_writes_heartbeat_into_progress(app, db_session, tmp_path, m
         from pptx import Presentation
         from export_runtime.checkpoints import file_hash
         on_event({'event': 'progress', 'stage': '构建PPTX', 'label': '构建第 1/1 页...', 'percent': 88})
+        on_event({'event': 'node_started', 'label': 'caption'})
+        on_event({'event': 'checkpoint', 'reused': 0})
         deck = Presentation()
         deck.slides.add_slide(deck.slide_layouts[6])
         output = Path(payload['workspace']) / 'result.pptx'
@@ -226,6 +228,7 @@ def test_export_task_writes_heartbeat_into_progress(app, db_session, tmp_path, m
     stored = Task.query.get(task_id)
     progress = stored.get_progress()
     assert progress['heartbeat_at']
+    assert progress['messages'] == ['构建第 1/1 页...']
     heartbeat = datetime.fromisoformat(progress['heartbeat_at'])
     assert (datetime.utcnow() - heartbeat).total_seconds() < 60
     assert stored.status == 'COMPLETED'

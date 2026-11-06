@@ -240,7 +240,10 @@ class GenerativeEditInpaintProvider(InpaintProvider):
                 from services.prompts import get_targeted_text_removal_prompt
                 use_mask = kwargs.get('use_text_mask',
                     getattr(self.ai_service.image_provider, 'supports_mask_edit', False) is True)
-                edit_instruction = get_targeted_text_removal_prompt(targets, image.size, masked=use_mask)
+                edit_instruction = get_targeted_text_removal_prompt(
+                    targets, image.size, masked=use_mask,
+                    retry_feedback=kwargs.get('retry_feedback', ''),
+                )
                 if use_mask:
                     edit_options['mask_image'] = self.build_text_mask(image.size, targets)
                 if kwargs.get('save_mask_path'):
@@ -253,7 +256,7 @@ class GenerativeEditInpaintProvider(InpaintProvider):
                         'source_size': list(image.size),
                     }, ensure_ascii=False, indent=2))
             
-            if kwargs.get('retry_feedback'):
+            if kwargs.get('retry_feedback') and not targets:
                 edit_instruction += '\nCorrection from the previous review: ' + kwargs['retry_feedback']
 
             # 保存临时图片文件（AI服务需要文件路径）

@@ -163,6 +163,33 @@ def test_targeted_erasure_uses_overlay_text_and_optional_alpha_mask(tmp_path, ma
     assert audit['mask_supplied'] is masked
 
 
+def test_original_image_retry_keeps_full_inventory_after_qa_feedback(tmp_path):
+    import json
+    ai = Mock()
+    ai.image_provider.supports_mask_edit = True
+    original = Image.new('RGB', (320, 180), 'blue')
+    ai.edit_image.return_value = original.copy()
+    targets = [
+        {'text': 'Previously removed title', 'bbox': [20, 20, 180, 40]},
+        {'text': 'Remaining label', 'bbox': [20, 90, 120, 110]},
+    ]
+    GenerativeEditInpaintProvider(ai).inpaint_regions(
+        original, [target['bbox'] for target in targets], text_only=True,
+        text_targets=targets, retry_feedback='Remove only the remaining label.',
+        save_mask_path=str(tmp_path / 'mask.png'),
+    )
+    request = ai.edit_image.call_args.kwargs
+    prompt = request['prompt']
+    inventory = json.loads(prompt.split('文字清单：\n')[1])
+    assert [target['text'] for target in inventory] == [target['text'] for target in targets]
+    assert prompt.index('Remove only the remaining label.') < prompt.index('必须重新擦除')
+    assert '本次输入是未经擦除的原图' in prompt
+    assert request['mask_image'].getpixel((50, 30))[3] == 0
+    assert request['mask_image'].getpixel((50, 100))[3] == 0
+    audit = json.loads((tmp_path / 'text_edit_request.json').read_text())
+    assert audit['prompt'] == prompt
+
+
 @pytest.mark.parametrize('failure', ['residual', 'ocr_error'])
 @pytest.mark.parametrize('fail_fast', [True, False])
 def test_unverified_background_never_overlays_text(simple_services, tmp_path, failure, fail_fast):

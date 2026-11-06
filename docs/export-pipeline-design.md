@@ -73,8 +73,17 @@ billable restart. A new browser can retrieve resumable task records from API.
 
 Simple mode uses explicit text targets + optional native mask, then checks OCR
 residuals and visual QA (target removal, unchanged non-targets, artifacts).
-Rejected results retry from the original image with review feedback, never from
-the previous generated image. Store target plan, attempt images, review verdicts
+Ambiguous isolated OCR glyphs are reviewed in enlarged context crops before
+building the target plan, so a profile icon read as "8" stays artwork. Comparative
+QA uses labeled BEFORE/AFTER panels. When OCR is clean but visual QA reports text
+or removal artifacts, an AFTER-only review resolves reference-side confusion;
+it cannot override OCR residue or a changed-artwork verdict.
+
+Rejected results retry from the original image with the complete target inventory
+and diagnostic feedback, never from the previous generated image or only the
+residual subset. Exhausting quality retries invalidates rejected candidates and
+reviews, so an explicit resume can generate a fresh candidate. A transport/QA
+exception retains the candidate for reuse. Store target plan, attempt images, review verdicts
 and accepted background. Keep filled shapes; represent circled-number glyphs
 and bullet markers separately and reconcile editable content against retained
 marks. This coordination is new Banana work, not claimed as existing Restore.

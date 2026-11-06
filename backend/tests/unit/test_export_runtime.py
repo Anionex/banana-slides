@@ -75,7 +75,7 @@ def test_caption_endpoint_change_retains_image_identity():
     original = fingerprints(config, options)
     updated = fingerprints({**config, 'IMAGE_CAPTION_API_BASE': 'http://caption-new'}, options)
     assert original['candidate'] == updated['candidate']
-    for stage in ('review', 'global_style', 'local_style', 'background', 'analysis'):
+    for stage in ('review', 'target_review', 'global_style', 'local_style', 'background', 'analysis'):
         assert original[stage] != updated[stage]
     assert 'fixture-secret' not in json.dumps(original)
 

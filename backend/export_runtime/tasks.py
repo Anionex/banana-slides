@@ -238,6 +238,7 @@ def _run_owned_task(task_id, app):
                     pending['percent'] = max(pending['percent'], min(99, item['percent']))
                     pending['completed'] = pending['percent']
                     pending['current_step'] = item['label']
+                    pending['messages'] = [item['label']]
                 elif kind == 'checkpoint':
                     pending['reused_nodes'] = item['reused']
                 elif kind in ('waiting', 'retry'):
@@ -245,6 +246,7 @@ def _run_owned_task(task_id, app):
                 elif kind == 'node_started':
                     pending['current_step'] = {
                         'extract': '识别页面元素', 'candidate': '生成无字背景', 'review': '校验去字结果',
+                        'target_review': '区分文字与图标',
                         'analysis': '分析页面', 'page_analysis': '分析页面', 'global_style': '识别整页文字样式',
                         'local_style': '识别文字颜色', 'ocr': '识别文字', 'caption': '识别文字与校验',
                         'image': '生成背景', 'image_submission': '生成背景',

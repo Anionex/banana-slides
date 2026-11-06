@@ -1795,7 +1795,7 @@ class ExportService:
                     beat("样式提取")
                     if done % 10 == 0 or done >= total:
                         percent = 50 + int(20 * done / max(total, 1))
-                        report_progress("样式提取", f"{label}（{done}/{total}）", min(percent, 70))
+                        report_progress("样式提取", f"文本样式 {done}/{total}：{label}", min(percent, 70))
 
                 text_styles_cache, failed_extractions = ExportService._batch_extract_text_styles_hybrid(
                     editable_images=editable_images,
