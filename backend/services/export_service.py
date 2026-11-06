@@ -314,6 +314,17 @@ class ExportService:
                 False,
             ),
             (
+                'quota_exhausted',
+                (
+                    'daily request limit', 'daily quota', 'total request limit',
+                    'insufficient_quota', 'quota exhausted', '额度耗尽',
+                    'baidu api error [17]', 'baidu api error [19]',
+                ),
+                'QUOTA_EXHAUSTED',
+                '导出依赖服务的调用额度已耗尽',
+                False,
+            ),
+            (
                 'authentication',
                 (
                     '401', '403', 'unauthorized', 'forbidden', 'authentication',
@@ -465,6 +476,10 @@ class ExportService:
                 '图片识别服务的认证信息无效或已过期。请在设置中检查 image caption provider，'
                 '如果使用 Codex，请重新登录 OpenAI 账号。'
             )
+        elif reason == 'quota_exhausted':
+            help_text = (
+                '请在对应服务控制台检查调用额度，补充额度或等待配额恢复后，再从断点继续。'
+            )
         elif reason == 'rate_limit':
             help_text = (
                 '图片识别服务当前请求过于频繁。系统已完成自动重试；请稍后再次导出，'
@@ -510,6 +525,10 @@ class ExportService:
         if classification['reason'] == 'configuration_missing':
             help_text = (
                 '请在设置中补全 image caption provider、模型和 API Key，保存并验证配置后重新导出。'
+            )
+        elif classification['reason'] == 'quota_exhausted':
+            help_text = (
+                '请在对应服务控制台检查调用额度，补充额度或等待配额恢复后，再从断点继续。'
             )
         else:
             help_text = (

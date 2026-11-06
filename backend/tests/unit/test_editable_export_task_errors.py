@@ -4,6 +4,7 @@ import time
 import uuid
 
 from PIL import Image
+import pytest
 
 from models import Page, Project, Task, ExportRun, db
 from services.export_service import ExportError, ExportService
@@ -213,3 +214,61 @@ def test_editable_export_records_task_submission_failure(
         assert progress["error_stage"] == "queue_submission"
         assert progress["error_details"]["retryable"] is True
         assert "secret-value" not in progress["error_details"]["technical_message"]
+
+
+@pytest.mark.parametrize('message', [
+    'Baidu API error [17]: Open api daily request limit reached',
+    'Baidu API error [19]: Open api total request limit reached',
+    'Error code: 429 - insufficient_quota',
+])
+def test_exhausted_quota_has_actionable_nonretryable_error(message):
+    error = ExportService._build_unexpected_export_error(message, 'export_pipeline')
+    assert error.error_code == 'EXPORT_QUOTA_EXHAUSTED'
+    assert error.error_type == 'service'
+    assert error.details['retryable'] is False
+    assert '额度已耗尽' in str(error)
+    assert '配额恢复' in error.help_text
+    style_error = ExportService._build_style_extraction_error(message)
+    assert style_error.error_code == 'EXPORT_STYLE_QUOTA_EXHAUSTED'
+    assert style_error.details['retryable'] is False
+    assert '配额恢复' in style_error.help_text
+
+
+def test_qps_limit_remains_transient():
+    error = ExportService._build_unexpected_export_error(
+        'Baidu API error [18]: Open api qps request limit reached', 'export_pipeline')
+    assert error.error_code == 'EXPORT_RATE_LIMIT'
+    assert error.details['retryable'] is True
+
+
+def test_daily_quota_stops_after_one_call_and_preserves_resume(app, db_session, tmp_path):
+    from export_runtime.control import ExportControl, request
+    from export_runtime.process import WorkerFailed
+    from export_runtime.tasks import fail
+
+    project = Project(creation_type='idea', idea_prompt='quota failure')
+    db.session.add(project)
+    db.session.flush()
+    task = Task(project_id=project.id, task_type='EXPORT_EDITABLE_PPTX', status='RUNNING')
+    task.set_progress({'percent': 5, 'completed': 5, 'total': 100})
+    db.session.add(task)
+    db.session.commit()
+    calls = []
+
+    def upstream():
+        calls.append(1)
+        raise RuntimeError('Baidu API error [17]: Open api daily request limit reached')
+
+    with ExportControl(tmp_path).bind(), pytest.raises(RuntimeError) as caught:
+        request('image', upstream, attempts=3)
+    assert len(calls) == 1
+    fail(task.id, WorkerFailed({'message': str(caught.value)}))
+    db.session.expire_all()
+    failed = db.session.get(Task, task.id)
+    progress = failed.get_progress()
+    assert failed.status == 'FAILED'
+    assert progress['error_code'] == 'EXPORT_QUOTA_EXHAUSTED'
+    assert progress['error_details']['retryable'] is False
+    assert progress['percent'] == 5
+    assert progress['resumable'] is True
+    assert progress['download_url'] is None

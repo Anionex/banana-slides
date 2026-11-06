@@ -260,8 +260,15 @@ not a claim of parity with its entire multi-round slide decomposition pipeline.
   matching/visual fidelity limitations remain separate from runtime reliability.
 - Real full mode with the existing hybrid settings: MinerU rejected the configured
   token with HTTP 401. The task promptly became a resumable authentication failure
-  without an artifact. The locally registered token was the same and also failed.
-  A successful real full-mode export remains to be repeated with valid credentials.
+  without an artifact. On 2026-11-07, a replacement token passed authentication
+  and the browser resumed that failed task. MinerU submission, upload and extraction
+  checkpoints committed. Baidu image repair then rejected the request with error
+  17 (daily request limit reached); the worker exited without publishing an artifact.
+  Quota exhaustion now has a non-retryable, actionable error instead of being
+  classified as an internal failure. The associated 43-test regression suite passed,
+  including a single-attempt quota failure and the distinct transient QPS case.
+  Successful full-mode export remains blocked by the image-repair quota. Text-only
+  mode uses Baidu OCR and generative editing, without Baidu image repair or MinerU.
 - Real disposable workers and local HTTP provider fixtures: two simultaneous
   24-page exports in each editable mode, shared image/caption/OCR limits, ordered
   slides, checkpoint recovery and no surviving worker processes. These tests use
