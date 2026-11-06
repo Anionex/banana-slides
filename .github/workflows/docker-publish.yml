@@ -20,8 +20,12 @@ env:
   UV_INDEX_URL: https://pypi.org/simple
 
 jobs:
+  workflow-check:
+    uses: ./.github/workflows/check-browser-runners.yml
+
   validate:
     name: Validate Version Format
+    needs: workflow-check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -95,7 +99,8 @@ jobs:
   e2e-test:
     name: E2E Tests
     needs: test
-    runs-on: ubuntu-latest
+    # Keep browser jobs aligned with the locked Playwright version.
+    runs-on: ubuntu-24.04
     env:
       GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
     steps:

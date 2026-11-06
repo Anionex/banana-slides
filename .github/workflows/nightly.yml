@@ -15,9 +15,14 @@ env:
   PYPI_INDEX_URL: ${{ vars.NIGHTLY_PYPI_INDEX_URL || 'https://pypi.org/simple' }}
 
 jobs:
+  workflow-check:
+    uses: ./.github/workflows/check-browser-runners.yml
+
   e2e-test:
     name: Docker E2E Tests
-    runs-on: ubuntu-latest
+    needs: workflow-check
+    # Keep browser jobs aligned with the locked Playwright version.
+    runs-on: ubuntu-24.04
     env:
       GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
