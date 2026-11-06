@@ -36,6 +36,7 @@ const exportI18n = {
       retryPolicy: "单次最长 {{seconds}} 秒，最多 {{attempts}} 次",
       technicalReason: "技术原因",
       styleExtractionStage: "文本样式提取",
+      textErasureStage: "背景去字校验",
       queueSubmissionStage: "后台任务提交",
       textRenderStage: "内容写入",
       taskWatchdogStage: "任务状态对账",
@@ -75,6 +76,7 @@ const exportI18n = {
       retryPolicy: "Up to {{seconds}}s per request, {{attempts}} attempts",
       technicalReason: "Technical reason",
       styleExtractionStage: "Text style extraction",
+      textErasureStage: "Background text removal validation",
       queueSubmissionStage: "Background task submission",
       textRenderStage: "Content rendering",
       taskWatchdogStage: "Task status reconciliation",
@@ -285,6 +287,7 @@ const TaskItem: React.FC<{
   const errorStageLabels: Record<string, string> = {
     export_pipeline: t('export.pipelineStage'),
     style_extraction: t('export.styleExtractionStage'),
+    text_erasure: t('export.textErasureStage'),
     queue_submission: t('export.queueSubmissionStage'),
     text_render: t('export.textRenderStage'),
     task_watchdog: t('export.taskWatchdogStage'),

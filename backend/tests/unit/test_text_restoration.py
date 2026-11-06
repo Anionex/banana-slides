@@ -127,6 +127,25 @@ def test_candidate_only_review_cannot_override_changed_artwork(tmp_path):
     assert provider.confirmation_calls == 0
 
 
+def test_candidate_only_review_cannot_override_comparative_artifacts(tmp_path):
+    path = source(tmp_path)
+    damaged = {**verdict(accepted=False), 'artifact_free': False}
+    provider = FakeProvider([damaged, damaged], confirmation=verdict())
+    with pytest.raises(StageFailure, match='校验未通过'):
+        run(tmp_path, path, provider)
+    assert provider.confirmation_calls == 0
+
+
+def test_candidate_only_review_checks_text_not_existing_backgrounds(tmp_path):
+    path = source(tmp_path)
+    provider = FakeProvider([verdict(accepted=False)], confirmation={'target_removed': True})
+    assert Path(run(tmp_path, path, provider)).exists()
+    audit = next((tmp_path / 'erase').glob('*/review.json'))
+    review = json.loads(audit.read_text())
+    assert review['comparative_review']['artifact_free'] is True
+    assert review['artifact_free'] is True
+
+
 def test_residual_ocr_cannot_be_overridden_by_candidate_only_review(tmp_path):
     path = source(tmp_path)
     provider = FakeProvider([verdict(), verdict()], confirmation=verdict())

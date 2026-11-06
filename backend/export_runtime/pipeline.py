@@ -25,7 +25,7 @@ def fingerprints(config, options):
     return {'extract': extraction, 'candidate': image, 'review': caption,
             'background': background, 'target_review': caption, 'global_style': caption, 'local_style': caption,
             'analysis': {'extract': extraction, 'background': background,
-                         'text_restoration_revision': 3 if options['export_mode'] == 'simple' else 0, 'options': {
+                         'text_restoration_revision': 4 if options['export_mode'] == 'simple' else 0, 'options': {
                 key: options[key] for key in ('max_depth', 'enable_icon_subject_extraction', 'export_mode')}}}
 
 

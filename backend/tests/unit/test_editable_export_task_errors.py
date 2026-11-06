@@ -241,6 +241,35 @@ def test_qps_limit_remains_transient():
     assert error.details['retryable'] is True
 
 
+def test_erasure_quality_failure_survives_worker_serialization(app, db_session):
+    from export_runtime.process import WorkerFailed
+    from export_runtime.tasks import fail
+    from services.image_editability.text_restoration import TextErasureQualityFailure
+
+    project = Project(creation_type='idea', idea_prompt='quality failure')
+    db.session.add(project)
+    db.session.flush()
+    task = Task(project_id=project.id, task_type='EXPORT_EDITABLE_PPTX', status='RUNNING')
+    task.set_progress({'percent': 22, 'completed': 22, 'total': 100})
+    db.session.add(task)
+    db.session.commit()
+    error = TextErasureQualityFailure(2, '目标区域仍有文字：Hello')
+    fail(task.id, WorkerFailed({'message': str(error), 'details': error.to_dict()}))
+    db.session.expire_all()
+    failed = db.session.get(Task, task.id)
+    progress = failed.get_progress()
+    assert failed.status == 'FAILED'
+    assert failed.error_message == '自动重试后仍未通过背景去字校验'
+    assert progress['error_code'] == 'EXPORT_TEXT_ERASURE_QUALITY'
+    assert progress['error_stage'] == 'text_erasure'
+    assert progress['error_details']['attempts'] == 2
+    assert 'Hello' in progress['error_details']['technical_message']
+    assert progress['percent'] == 22
+    assert progress['resumable'] is True
+    assert progress['download_url'] is None
+    assert '断点继续' in progress['help_text']
+
+
 def test_daily_quota_stops_after_one_call_and_preserves_resume(app, db_session, tmp_path):
     from export_runtime.control import ExportControl, request
     from export_runtime.process import WorkerFailed

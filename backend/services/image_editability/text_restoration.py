@@ -17,6 +17,25 @@ from export_runtime.control import check, StageFailure, current
 _BULLETS = '•·●○▪▫◦‣'
 
 
+class TextErasureQualityFailure(StageFailure):
+    """A rejected background is a recoverable quality failure, not a crash."""
+
+    def __init__(self, attempts, reason):
+        super().__init__(f'文字擦除校验未通过（{attempts} 次）：{reason}')
+        self.attempts = attempts
+
+    def to_dict(self):
+        return {
+            'message': '自动重试后仍未通过背景去字校验',
+            'error_type': 'quality',
+            'error_code': 'EXPORT_TEXT_ERASURE_QUALITY',
+            'stage': 'text_erasure',
+            'details': {'reason': 'quality_rejected', 'retryable': True,
+                        'attempts': self.attempts, 'technical_message': str(self)},
+            'help_text': '失败页面需要重新生成背景，已通过校验的步骤会保留。',
+        }
+
+
 @dataclass(frozen=True)
 class TextTarget:
     target_id: str
@@ -106,6 +125,8 @@ or circle is not residual text. Reject remaining letters/digits, ghosts, smears,
 changed non-target artwork, or invented shapes. For each listed marker classify
 the circle/bullet itself as retained, removed, or uncertain; a digit inside a
 circle must be removed regardless. Never classify a solid badge as a text glyph.
+Judge artifact_free by comparison with BEFORE: existing solid backplates,
+including irregular white title stickers, are not new smears when left empty.
 For a retained bullet whose target has no body_bbox, return body_bboxes with the
 bounding box of its text body EXCLUDING the bullet, in BEFORE-image pixels.
 Return JSON with actual booleans: {"target_removed":true,
@@ -243,7 +264,7 @@ def restore_text_background(image_path, elements, provider, ocr, output_dir):
 
         candidate = cached('candidate', candidate_input, generate)
         review_input = {'source': image_path, 'candidate': candidate, 'targets': plan,
-                        'comparison_version': 3}
+                        'comparison_version': 4}
 
         def review():
             with Image.open(image_path) as before, Image.open(candidate) as after:
@@ -270,26 +291,27 @@ def restore_text_background(image_path, elements, provider, ocr, output_dir):
                 result = {**result, 'pass': False, 'target_removed': False,
                           'reason': '目标区域仍有文字：' + ', '.join(remaining),
                           'retry_prompt_supplement': 'Remove these remaining text glyphs completely: ' + ', '.join(remaining)}
-            elif not parsed.accepted and result['non_target_unchanged'] is True:
+            elif (not parsed.accepted and result['non_target_unchanged'] is True
+                  and result['artifact_free'] is True):
                 # Side-by-side QA can mistake the reference's text for residue.
                 # With clean OCR, resolve that disagreement against AFTER alone;
                 # keep the comparative artwork/marker verdict unchanged.
                 confirmation = provider.ai_service.generate_json_with_image(
                     'This image is the edited slide AFTER text erasure, not the source image. '
-                    'Inspect this image only for readable target text and letter-shaped ghosts, '
-                    'smears or removal artifacts. The inventory names text intended to be absent; '
+                    'Inspect this image only for readable target text and letter-shaped ghosts. '
+                    'The inventory names text intended to be absent; '
                     'do not infer its presence from the list. Empty badges and decorative symbols '
-                    'are artwork. Return JSON with actual booleans target_removed and artifact_free, '
+                    'and solid title backplates are artwork, not text residue. '
+                    'Return JSON with an actual boolean target_removed, '
                     'plus a reason string. Target inventory: ' + json.dumps(plan, ensure_ascii=False),
                     candidate,
                 )
-                if not isinstance(confirmation, dict) or any(
-                        type(confirmation.get(key)) is not bool for key in ('target_removed', 'artifact_free')):
+                if (not isinstance(confirmation, dict)
+                        or type(confirmation.get('target_removed')) is not bool):
                     raise StageFailure('去字复核必须返回布尔判断')
-                result = {**result, 'candidate_only_review': confirmation,
+                result = {**result, 'comparative_review': dict(result), 'candidate_only_review': confirmation,
                           'target_removed': confirmation['target_removed'],
-                          'artifact_free': confirmation['artifact_free'],
-                          'pass': confirmation['target_removed'] and confirmation['artifact_free'],
+                          'pass': confirmation['target_removed'],
                           'reason': str(confirmation.get('reason', ''))}
             atomic_json(attempt_dir / 'review.json', result)
             return result
@@ -329,4 +351,4 @@ def restore_text_background(image_path, elements, provider, ocr, output_dir):
         for candidate_input, review_input in rejected:
             control.store.invalidate('candidate', candidate_input)
             control.store.invalidate('review', review_input)
-    raise StageFailure(f'文字擦除校验未通过（{max_attempts} 次）：{feedback}')
+    raise TextErasureQualityFailure(max_attempts, feedback)

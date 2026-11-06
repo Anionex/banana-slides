@@ -75,9 +75,12 @@ Simple mode uses explicit text targets + optional native mask, then checks OCR
 residuals and visual QA (target removal, unchanged non-targets, artifacts).
 Ambiguous isolated OCR glyphs are reviewed in enlarged context crops before
 building the target plan, so a profile icon read as "8" stays artwork. Comparative
-QA uses labeled BEFORE/AFTER panels. When OCR is clean but visual QA reports text
-or removal artifacts, an AFTER-only review resolves reference-side confusion;
-it cannot override OCR residue or a changed-artwork verdict.
+QA uses labeled BEFORE/AFTER panels. When OCR is clean and comparative QA accepts
+artwork preservation/artifact checks but reports text, an AFTER-only text check
+resolves reference-side confusion. It cannot override OCR residue, changed
+artwork or comparative artifact rejection. Existing solid title backplates are
+judged against the original, not mistaken for smears in an isolated candidate.
+Quality exhaustion has its own structured error, stage and checkpoint guidance.
 
 Rejected results retry from the original image with the complete target inventory
 and diagnostic feedback, never from the previous generated image or only the
