@@ -479,6 +479,12 @@ def evaluate_task_liveness(task) -> bool:
     if task is None or task.status not in ACTIVE_TASK_STATUSES:
         return False
 
+    if task.get_progress().get('pipeline_version') == 1:
+        from flask import current_app
+        from export_runtime.tasks import reconcile
+        reconcile(task, current_app._get_current_object())
+        return task.status == 'FAILED'
+
     if _is_owned_by_this_process(task.id):
         stall_timeout = get_stall_timeout_seconds()
         if stall_timeout <= 0:
@@ -565,6 +571,12 @@ def reconcile_orphaned_tasks() -> int:
         return 0
 
     for task in candidates:
+        if task.get_progress().get('pipeline_version') == 1:
+            from flask import current_app
+            from export_runtime.tasks import reconcile
+            reconcile(task, current_app._get_current_object())
+            reconciled += int(task.status == 'FAILED')
+            continue
         if _is_owned_by_this_process(task.id):
             continue
         age = progress_age_seconds(task)

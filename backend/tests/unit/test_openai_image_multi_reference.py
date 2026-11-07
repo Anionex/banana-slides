@@ -39,6 +39,39 @@ def _read_color(image_file: BytesIO) -> tuple[int, int, int]:
     return Image.open(image_file).convert('RGB').getpixel((0, 0))
 
 
+def test_native_mask_is_uploaded_with_matching_size_and_alpha():
+    provider = _make_provider('gpt-image-2.5-flare')
+    source = Image.new('RGB', (80, 40), 'red')
+    mask = Image.new('RGBA', source.size, (255, 255, 255, 255))
+    mask.paste((255, 255, 255, 0), (0, 0, 40, 40))
+    provider.edit_image_with_mask('Erase listed text', source, mask, '2:1', '1K')
+    request = provider.client.images.with_raw_response.edit.call_args.kwargs
+    actual = Image.open(request['mask'])
+    reference = Image.open(request['image'])
+    assert actual.size == reference.size
+    assert actual.getpixel((0, 0))[3] == 0
+    assert actual.getpixel((actual.width - 1, 0))[3] == 255
+    assert reference.convert('RGB').getpixel((0, 0)) == (255, 0, 0)
+    assert request['mask'].name == 'mask.png'
+
+
+@pytest.mark.parametrize('mask', [Image.new('RGB', (80, 40)), Image.new('RGBA', (40, 40))])
+def test_invalid_native_mask_is_rejected_before_request(mask):
+    provider = _make_provider()
+    with pytest.raises(ValueError, match='alpha channel'):
+        provider.edit_image_with_mask('Erase', Image.new('RGB', (80, 40)), mask)
+    provider.client.images.with_raw_response.edit.assert_not_called()
+
+
+def test_chat_protocol_does_not_silently_drop_explicit_mask():
+    provider = _make_provider()
+    provider.image_api_protocol = 'chat'
+    assert not provider.supports_mask_edit
+    with pytest.raises(ValueError, match='does not support'):
+        provider.edit_image_with_mask('Erase', Image.new('RGB', (80, 40)), Image.new('RGBA', (80, 40)))
+    provider.client.images.with_raw_response.edit.assert_not_called()
+
+
 def test_gpt_image_forwards_template_and_material_references_in_order():
     provider = _make_provider()
     template = Image.new('RGB', (8, 8), color='red')

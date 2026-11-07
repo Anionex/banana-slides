@@ -7,10 +7,12 @@
 """
 from datetime import datetime
 from pathlib import Path
+import json
+import time
 
 from PIL import Image
 
-from models import Page, Project, Task, db
+from models import Page, Project, Task, ExportRun, db
 from services.export_service import ELEMENT_PROGRESS_INTERVAL, ExportService
 from services.image_editability.data_models import BBox, EditableElement, EditableImage
 from services.image_editability.text_attribute_extractors import TextStyleResult
@@ -155,7 +157,7 @@ def test_style_extraction_reports_progress_per_task(tmp_path):
     style_messages = [m for step, m, _ in progress if step == '样式提取']
     total_tasks = 1 + element_count  # 1 个全局识别 + N 个单元素识别
     assert len(style_messages) >= 2, '样式提取阶段应多次上报进度'
-    assert any(f'（{total_tasks}/{total_tasks}）' in m for m in style_messages)
+    assert any(f'{total_tasks}/{total_tasks}' in m for m in style_messages)
     assert heartbeats.count('样式提取') >= total_tasks
 
 
@@ -175,6 +177,11 @@ def test_export_task_writes_heartbeat_into_progress(app, db_session, tmp_path, m
     db.session.add(task)
     db.session.commit()
     task_id = task.id
+    db.session.add(ExportRun(task_id=task_id, project_id=project.id,
+        request_json=json.dumps({'pages': [{'id': 'page'}], 'options': {'export_mode': 'full'}}),
+        request_hash='b' * 64, artifact_filename=f'editable-run-{task_id}-demo.pptx',
+        queue_deadline_at=time.time() + 30))
+    db.session.commit()
 
     class FileServiceStub:
         def get_absolute_path(self, _relative_path):
@@ -195,6 +202,19 @@ def test_export_task_writes_heartbeat_into_progress(app, db_session, tmp_path, m
         'create_editable_pptx_with_recursive_analysis',
         staticmethod(fake_export),
     )
+    def worker(payload, on_event, is_active):
+        from pptx import Presentation
+        from export_runtime.checkpoints import file_hash
+        on_event({'event': 'progress', 'stage': '构建PPTX', 'label': '构建第 1/1 页...', 'percent': 88})
+        on_event({'event': 'node_started', 'label': 'caption'})
+        on_event({'event': 'checkpoint', 'reused': 0})
+        deck = Presentation()
+        deck.slides.add_slide(deck.slide_layouts[6])
+        output = Path(payload['workspace']) / 'result.pptx'
+        deck.save(output)
+        return {'path': str(output), 'sha256': file_hash(output), 'pages': 1,
+                'warnings': [], 'warning_details': {}, 'reused_nodes': 0}
+    monkeypatch.setattr('export_runtime.process.supervise', worker)
 
     export_editable_pptx_with_recursive_analysis_task(
         task_id=task_id,
@@ -208,6 +228,7 @@ def test_export_task_writes_heartbeat_into_progress(app, db_session, tmp_path, m
     stored = Task.query.get(task_id)
     progress = stored.get_progress()
     assert progress['heartbeat_at']
+    assert progress['messages'] == ['构建第 1/1 页...']
     heartbeat = datetime.fromisoformat(progress['heartbeat_at'])
     assert (datetime.utcnow() - heartbeat).total_seconds() < 60
     assert stored.status == 'COMPLETED'

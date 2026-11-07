@@ -27,6 +27,9 @@ import tempfile
 import img2pdf
 import fitz  # PyMuPDF
 from utils.pptx_math import latex_to_display_text, looks_like_latex_math
+from export_runtime.control import operation, current as current_export, check as check_export, ExportAborted, StageFailure, sleep as export_sleep, permanent_error
+from export_runtime.checkpoints import cached
+
 logger = logging.getLogger(__name__)
 
 # 构建阶段每处理多少个元素上报一次页内进度（同时作为看门狗心跳）
@@ -311,6 +314,17 @@ class ExportService:
                 False,
             ),
             (
+                'quota_exhausted',
+                (
+                    'daily request limit', 'daily quota', 'total request limit',
+                    'insufficient_quota', 'quota exhausted', '额度耗尽',
+                    'baidu api error [17]', 'baidu api error [19]',
+                ),
+                'QUOTA_EXHAUSTED',
+                '导出依赖服务的调用额度已耗尽',
+                False,
+            ),
+            (
                 'authentication',
                 (
                     '401', '403', 'unauthorized', 'forbidden', 'authentication',
@@ -462,6 +476,10 @@ class ExportService:
                 '图片识别服务的认证信息无效或已过期。请在设置中检查 image caption provider，'
                 '如果使用 Codex，请重新登录 OpenAI 账号。'
             )
+        elif reason == 'quota_exhausted':
+            help_text = (
+                '请在对应服务控制台检查调用额度，补充额度或等待配额恢复后，再从断点继续。'
+            )
         elif reason == 'rate_limit':
             help_text = (
                 '图片识别服务当前请求过于频繁。系统已完成自动重试；请稍后再次导出，'
@@ -507,6 +525,10 @@ class ExportService:
         if classification['reason'] == 'configuration_missing':
             help_text = (
                 '请在设置中补全 image caption provider、模型和 API Key，保存并验证配置后重新导出。'
+            )
+        elif classification['reason'] == 'quota_exhausted':
+            help_text = (
+                '请在对应服务控制台检查调用额度，补充额度或等待配额恢复后，再从断点继续。'
             )
         else:
             help_text = (
@@ -1077,7 +1099,7 @@ class ExportService:
         Returns:
             字典，key为element_id，value为TextStyleResult
         """
-        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from export_runtime.control import ExportExecutor as ThreadPoolExecutor, as_completed
         
         if not text_items or not text_attribute_extractor:
             return {}
@@ -1174,7 +1196,7 @@ class ExportService:
         Returns:
             字典，key为element_id，value为TextStyleResult
         """
-        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from export_runtime.control import ExportExecutor as ThreadPoolExecutor, as_completed
         
         if not editable_images or not text_attribute_extractor:
             return {}
@@ -1251,6 +1273,7 @@ class ExportService:
         return all_results
     
     @staticmethod
+    @operation
     def _batch_extract_text_styles_hybrid(
         editable_images: List,  # List[EditableImage]
         text_attribute_extractor,
@@ -1279,7 +1302,7 @@ class ExportService:
             - results: 字典，key为element_id，value为TextStyleResult（合并后的结果）
             - failed_extractions: 失败列表，每项为 (element_id, error_reason)
         """
-        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from export_runtime.control import ExportExecutor as ThreadPoolExecutor, as_completed
         from services.image_editability.text_attribute_extractors import TextStyleResult
         
         if not editable_images or not text_attribute_extractor:
@@ -1327,7 +1350,7 @@ class ExportService:
         global_results = {}  # 全局识别结果
         local_results = {}   # 单个裁剪识别结果
         
-        def extract_global_for_page(page_idx, page_data):
+        def extract_global_uncached(page_idx, page_data):
             """全局识别单页，并对异常或缺失结果做页级重试。"""
             max_global_attempts = 3
             expected_element_ids = {
@@ -1339,7 +1362,7 @@ class ExportService:
 
             for attempt in range(1, max_global_attempts + 1):
                 if attempt > 1:
-                    time.sleep(1)
+                    export_sleep(1)
                 try:
                     raw_results = text_attribute_extractor.extract_batch_with_full_image(
                         full_image=page_data['image_path'],
@@ -1378,7 +1401,10 @@ class ExportService:
                         list(missing_element_ids)[:5],
                     )
                 except Exception as e:
+                    check_export()
                     last_exception = str(e)
+                    if permanent_error(e) or not isinstance(e, ValueError):
+                        break  # transport retries already belong to the adapter
                     logger.warning(
                         "全局识别页面 %s 第 %s/%s 次失败，将重试: %s",
                         page_idx + 1,
@@ -1397,10 +1423,21 @@ class ExportService:
             page_error = last_exception if (not best_results or not had_model_response) else None
             return page_idx, best_results, page_error
         
+        def extract_global_for_page(page_idx, page_data):
+            expected = {e['element_id'] for e in page_data['elements']}
+            result = cached('global_style', page_data,
+                          lambda: extract_global_uncached(page_idx, page_data),
+                          lambda result: result[2] is None and expected <= set(result[1]))
+            if fail_fast and (result[2] or not expected <= set(result[1])):
+                raise ExportService._build_style_extraction_error(
+                    result[2] or '全局识别未返回完整结果', page_idx=page_idx,
+                    text_attribute_extractor=text_attribute_extractor, operation='global_page_style')
+            return result
+
         # 收集失败信息
         failed_extractions = []  # [(element_id, reason), ...]
         
-        def extract_local_single(item):
+        def extract_local_uncached(item):
             """单个裁剪识别"""
             element_id, image_path, text_content = item
             try:
@@ -1438,6 +1475,11 @@ class ExportService:
                     )
                 return element_id, None, str(e)
         
+        def extract_local_single(item):
+            return cached('local_style', {'element_id': item[0], 'image_path': item[1], 'text': item[2]},
+                          lambda: extract_local_uncached(item),
+                          lambda result: result[1] is not None and result[2] is None)
+
         # 并发执行全局识别和单个裁剪识别
         logger.info(f"  并发执行: 全局识别 {len(page_text_elements)} 页 + 单个识别 {len(all_text_items)} 个元素...")
 
@@ -1454,86 +1496,83 @@ class ExportService:
                     logger.debug(f"样式提取进度回调失败: {exc}")
         
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # 提交全局识别任务
-            global_futures = {
-                executor.submit(extract_global_for_page, idx, data): ('global', idx)
-                for idx, data in page_text_elements.items()
-            }
+            # Interleave page and crop work so one class cannot occupy the
+            # entire queue while an already-submitted dependency is failing.
+            from itertools import zip_longest
+            global_futures, local_futures = {}, {}
+            for global_item, local_item in zip_longest(page_text_elements.items(), all_text_items):
+                if global_item is not None:
+                    idx, data = global_item
+                    global_futures[executor.submit(extract_global_for_page, idx, data)] = ('global', idx)
+                if local_item is not None:
+                    local_futures[executor.submit(extract_local_single, local_item)] = ('local', local_item[0])
             
-            # 提交单个裁剪识别任务
-            local_futures = {
-                executor.submit(extract_local_single, item): ('local', item[0])
-                for item in all_text_items
-            }
-            
-            # 收集全局识别结果
-            for future in as_completed(global_futures):
-                task_type, page_idx = global_futures[future]
-                notify_progress(f"全局识别第 {page_idx + 1} 页")
-                try:
-                    _, page_results, page_error = future.result()
-                    global_results.update(page_results)
-                    expected_element_ids = {
-                        element['element_id'] for element in page_text_elements[page_idx]['elements']
-                    }
-                    missing_element_ids = expected_element_ids - set(page_results.keys())
-                    if page_error:
+            for future in as_completed({**global_futures, **local_futures}):
+                if future in global_futures:
+                    task_type, page_idx = global_futures[future]
+                    notify_progress(f"全局识别第 {page_idx + 1} 页")
+                    try:
+                        _, page_results, page_error = future.result()
+                        global_results.update(page_results)
+                        expected_element_ids = {
+                            element['element_id'] for element in page_text_elements[page_idx]['elements']
+                        }
+                        missing_element_ids = expected_element_ids - set(page_results.keys())
+                        if page_error:
+                            if fail_fast:
+                                raise ExportService._build_style_extraction_error(
+                                    page_error,
+                                    page_idx=page_idx,
+                                    text_attribute_extractor=text_attribute_extractor,
+                                    operation='global_page_style',
+                                )
+                            failed_extractions.extend(
+                                (element_id, f"全局识别失败: {page_error}")
+                                for element_id in expected_element_ids
+                            )
+                        elif missing_element_ids:
+                            reason = "全局识别未返回完整结果"
+                            if fail_fast:
+                                raise ExportService._build_style_extraction_error(
+                                    reason,
+                                    page_idx=page_idx,
+                                    text_attribute_extractor=text_attribute_extractor,
+                                    operation='global_page_style',
+                                )
+                            failed_extractions.extend((element_id, reason) for element_id in missing_element_ids)
+                    except Exception as e:
+                        logger.error(f"全局识别任务失败: {e}")
                         if fail_fast:
+                            if isinstance(e, ExportError):
+                                raise
                             raise ExportService._build_style_extraction_error(
-                                page_error,
+                                str(e),
                                 page_idx=page_idx,
                                 text_attribute_extractor=text_attribute_extractor,
                                 operation='global_page_style',
-                            )
+                            ) from e
+                        expected_element_ids = [
+                            element['element_id'] for element in page_text_elements[page_idx]['elements']
+                        ]
                         failed_extractions.extend(
-                            (element_id, f"全局识别失败: {page_error}")
+                            (element_id, f"全局识别失败: {e}")
                             for element_id in expected_element_ids
                         )
-                    elif missing_element_ids:
-                        reason = "全局识别未返回完整结果"
+                else:
+                    task_type, element_id = local_futures[future]
+                    notify_progress("单个元素识别")
+                    try:
+                        elem_id, style, error = future.result()
+                        if style is not None:
+                            local_results[elem_id] = style
+                        if error:
+                            failed_extractions.append((elem_id, error))
+                    except Exception as e:
+                        logger.error(f"单个识别任务失败: {e}")
                         if fail_fast:
-                            raise ExportService._build_style_extraction_error(
-                                reason,
-                                page_idx=page_idx,
-                                text_attribute_extractor=text_attribute_extractor,
-                                operation='global_page_style',
-                            )
-                        failed_extractions.extend((element_id, reason) for element_id in missing_element_ids)
-                except Exception as e:
-                    logger.error(f"全局识别任务失败: {e}")
-                    if fail_fast:
-                        if isinstance(e, ExportError):
                             raise
-                        raise ExportService._build_style_extraction_error(
-                            str(e),
-                            page_idx=page_idx,
-                            text_attribute_extractor=text_attribute_extractor,
-                            operation='global_page_style',
-                        ) from e
-                    expected_element_ids = [
-                        element['element_id'] for element in page_text_elements[page_idx]['elements']
-                    ]
-                    failed_extractions.extend(
-                        (element_id, f"全局识别失败: {e}")
-                        for element_id in expected_element_ids
-                    )
-            
-            # 收集单个裁剪识别结果
-            for future in as_completed(local_futures):
-                task_type, element_id = local_futures[future]
-                notify_progress("单个元素识别")
-                try:
-                    elem_id, style, error = future.result()
-                    if style is not None:
-                        local_results[elem_id] = style
-                    if error:
-                        failed_extractions.append((elem_id, error))
-                except Exception as e:
-                    logger.error(f"单个识别任务失败: {e}")
-                    if fail_fast:
-                        raise
-                    failed_extractions.append((element_id, str(e)))
-        
+                        failed_extractions.append((element_id, str(e)))
+
         # Step 3: 合并结果
         # 优先使用全局识别的布局属性，使用单个识别的颜色属性
         merged_results = {}
@@ -1572,6 +1611,7 @@ class ExportService:
         return merged_results, failed_extractions
     
     @staticmethod
+    @operation
     def create_editable_pptx_with_recursive_analysis(
         image_paths: List[str] = None,
         output_file: str = None,
@@ -1586,7 +1626,8 @@ class ExportService:
         export_extractor_method: str = 'hybrid',  # 组件提取方法: mineru, hybrid
         export_inpaint_method: str = 'hybrid',  # 背景修复方法: generative, baidu, hybrid
         enable_icon_subject_extraction: bool = False,  # 是否对小尺寸图标走百度智能抠图
-        fail_fast: bool = True  # 是否在遇到错误时立即停止（False则收集警告继续）
+        fail_fast: bool = True,  # 是否在遇到错误时立即停止（False则收集警告继续）
+        export_mode: str = 'full',
     ) -> Tuple[Optional[bytes], ExportWarnings]:
         """
         使用递归图片可编辑化服务创建可编辑PPTX
@@ -1614,6 +1655,7 @@ class ExportService:
             export_extractor_method: 组件提取方法 ('mineru' 或 'hybrid'，默认 'hybrid')
             export_inpaint_method: 背景修复方法 ('generative', 'baidu', 'hybrid'，默认 'hybrid')
             fail_fast: 是否在遇到错误时立即停止（默认 True）。设为 False 则收集警告继续导出。
+            export_mode: 'full' 拆分元素；'simple' 保留原图非文字内容，仅重建文字。
 
         Returns:
             (pptx_bytes, warnings): 元组，包含 PPTX 字节流和警告信息
@@ -1622,9 +1664,23 @@ class ExportService:
         """
         from services.image_editability import ServiceConfig, ImageEditabilityService
         from utils.pptx_builder import PPTXBuilder
+
+        if export_mode not in ('full', 'simple'):
+            raise ValueError("export_mode must be 'full' or 'simple'")
         
         # 初始化警告收集器
         warnings = ExportWarnings()
+
+        def validate_simple_background(editable_img, page_idx):
+            if export_mode != 'simple' or not editable_img.elements:
+                return
+            if editable_img.clean_background and os.path.exists(editable_img.clean_background):
+                return
+            raise ExportError(
+                message=f"第 {page_idx + 1} 页文字擦除失败", error_type='inpaint',
+                error_code='EXPORT_TEXT_REMOVAL_FAILED', stage='文字擦除',
+                help_text='请检查背景修复服务配置后重试。',
+            )
         
         # 辅助函数：报告进度
         def report_progress(step: str, message: str, percent: int):
@@ -1666,16 +1722,18 @@ class ExportService:
                 extractor_method=export_extractor_method,
                 inpaint_method=export_inpaint_method,
                 enable_icon_subject_extraction=enable_icon_subject_extraction,
+                text_only=export_mode == 'simple',
             )
             editability_service = ImageEditabilityService(config)
             
             # 2. 并发处理所有页面，生成EditableImage结构
             report_progress("版面分析", f"开始分析 {total_pages} 张图片（并发数: {max_workers}）...", 5)
-            from concurrent.futures import ThreadPoolExecutor, as_completed
+            from export_runtime.control import ExportExecutor as ThreadPoolExecutor, as_completed
             
             editable_images = []
             completed_count = 0
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            executor = ThreadPoolExecutor(max_workers=min(max_workers, current_export().limits['pages']))
+            try:
                 futures = {
                     executor.submit(editability_service.make_image_editable, img_path): idx
                     for idx, img_path in enumerate(image_paths)
@@ -1686,6 +1744,8 @@ class ExportService:
                     idx = futures[future]
                     try:
                         results[idx] = future.result()
+                        if fail_fast:
+                            validate_simple_background(results[idx], idx)
                         completed_count += 1
                         beat("版面分析")
                         # 版面分析占 5% - 40% 的进度
@@ -1696,6 +1756,24 @@ class ExportService:
                         raise
                 
                 editable_images = results
+            finally:
+                # Failed simple exports cancel queued pages; late workers cannot publish a PPTX.
+                executor.shutdown(wait=False, cancel_futures=True)
+
+        for page_idx, editable_img in enumerate(editable_images):
+            if editable_img.metadata.get('degraded'):
+                warnings.add_warning(f"第 {page_idx + 1} 页已保留原图，不可编辑：{editable_img.metadata['degraded']}")
+
+        if export_mode == 'simple':
+            for page_idx, editable_img in enumerate(editable_images):
+                try:
+                    validate_simple_background(editable_img, page_idx)
+                except ExportError as error:
+                    if fail_fast:
+                        raise
+                    # A partial page stays a single image; never overlay text on the source.
+                    editable_img.elements = []
+                    warnings.add_warning(f"{error.message}，已保留原图，该页文字不可编辑。")
         
         # 2.5. 使用混合策略提取所有文本元素的样式（如果提供了提取器）
         # 混合策略：全局识别（粗体/斜体/下划线/对齐）+ 单个裁剪识别（颜色）
@@ -1717,12 +1795,12 @@ class ExportService:
                     beat("样式提取")
                     if done % 10 == 0 or done >= total:
                         percent = 50 + int(20 * done / max(total, 1))
-                        report_progress("样式提取", f"{label}（{done}/{total}）", min(percent, 70))
+                        report_progress("样式提取", f"文本样式 {done}/{total}：{label}", min(percent, 70))
 
                 text_styles_cache, failed_extractions = ExportService._batch_extract_text_styles_hybrid(
                     editable_images=editable_images,
                     text_attribute_extractor=text_attribute_extractor,
-                    max_workers=max_workers * 2,
+                    max_workers=min(max_workers * 2, current_export().limits['caption']),
                     fail_fast=fail_fast,
                     on_progress=style_progress
                 )
@@ -1749,6 +1827,7 @@ class ExportService:
         # 5. 为每个页面构建幻灯片
         total_pages = len(editable_images)
         for page_idx, editable_img in enumerate(editable_images):
+            check_export()
             # 构建PPTX占 75% - 95% 的进度
             percent = 75 + int(20 * page_idx / total_pages)
             report_progress("构建PPTX", f"构建第 {page_idx + 1}/{total_pages} 页...", percent)
@@ -1819,10 +1898,26 @@ class ExportService:
                 fail_fast=fail_fast,  # 传递 fail_fast 参数
                 on_element=on_element  # 元素级心跳/进度
             )
+
+            if export_mode == 'simple':
+                from utils.text_only_layout import fit_text_shape
+                from utils.text_style_clustering import consolidate_text_styles
+                for shape in slide.shapes:
+                    if shape.has_text_frame and shape.text.strip():
+                        fit_text_shape(shape, initialize=True)
+                clustering = consolidate_text_styles(slide, builder.prs.slide_width)
+                for shape in slide.shapes:
+                    if shape.has_text_frame and shape.text.strip():
+                        fit_text_shape(shape)
+                logger.info("Text-only style clustering page %s: %s", page_idx + 1,
+                            json.dumps(clustering, ensure_ascii=False))
             
             logger.info(f"    ✓ 第 {page_idx + 1} 页完成，添加了 {len(editable_img.elements)} 个元素")
         
         # 5. 保存或返回字节流
+        if export_mode == 'simple':
+            from utils.pptx_font_embedding import embed_text_font
+            embed_text_font(builder.prs)
         report_progress("保存文件", "正在保存PPTX文件...", 95)
         if output_file:
             builder.save(output_file)
@@ -1903,6 +1998,18 @@ class ExportService:
 
         def add_text_or_formula(elem, text, bbox_list, text_level='default', align='left'):
             text_style = text_styles_cache.get(elem.element_id)
+            if text_style and elem.metadata.get('retained_marker') and text_style.colored_segments:
+                # Style extraction sees the original glyph. It must not put a
+                # retained background circle/bullet back into the text layer.
+                from copy import deepcopy
+                import unicodedata
+                text_style = deepcopy(text_style)
+                first = text_style.colored_segments[0]
+                leading = first.text.lstrip()
+                if leading and elem.metadata['retained_marker'] == 'circle' and 'CIRCLED' in unicodedata.name(leading[0], ''):
+                    first.text = str(int(unicodedata.numeric(leading[0]))) + leading[1:]
+                elif leading and elem.metadata['retained_marker'] == 'bullet' and leading[0] in '•·●○▪▫◦‣':
+                    first.text = leading[1:].lstrip()
             if text_style:
                 logger.debug(f"{'  ' * depth}  使用缓存的文字样式: color={text_style.font_color_rgb}, bold={text_style.is_bold}")
 

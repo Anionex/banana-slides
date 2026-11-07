@@ -25,6 +25,9 @@ const exportI18n = {
       monitoringInterrupted: "状态查询暂时中断",
       backendNotFailed: "这不代表后台导出失败",
       retryStatus: "重新查询",
+      resumeExport: "从断点继续", resumingExport: "正在恢复…", reusedNodes: "已复用 {{count}} 个步骤",
+      pipelineStage: "导出执行", interrupted: "导出进程已中断，已完成的步骤已保存。",
+      checkpointHelp: "点击「从断点继续」恢复导出，已完成并校验通过的步骤会复用。",
       retryCount: "已自动重连 {{count}} 次",
       failureStage: "失败阶段",
       errorCode: "错误代码",
@@ -33,6 +36,7 @@ const exportI18n = {
       retryPolicy: "单次最长 {{seconds}} 秒，最多 {{attempts}} 次",
       technicalReason: "技术原因",
       styleExtractionStage: "文本样式提取",
+      textErasureStage: "背景去字校验",
       queueSubmissionStage: "后台任务提交",
       textRenderStage: "内容写入",
       taskWatchdogStage: "任务状态对账",
@@ -61,6 +65,9 @@ const exportI18n = {
       monitoringInterrupted: "Status checks interrupted",
       backendNotFailed: "This does not mean the backend export failed",
       retryStatus: "Check Again",
+      resumeExport: "Resume from checkpoint", resumingExport: "Resuming…", reusedNodes: "Reused {{count}} steps",
+      pipelineStage: "Export execution", interrupted: "The export process was interrupted. Completed steps have been saved.",
+      checkpointHelp: "Resume from checkpoint to reuse completed, verified steps.",
       retryCount: "{{count}} automatic reconnect attempts",
       failureStage: "Failed stage",
       errorCode: "Error code",
@@ -69,6 +76,7 @@ const exportI18n = {
       retryPolicy: "Up to {{seconds}}s per request, {{attempts}} attempts",
       technicalReason: "Technical reason",
       styleExtractionStage: "Text style extraction",
+      textErasureStage: "Background text removal validation",
       queueSubmissionStage: "Background task submission",
       textRenderStage: "Content rendering",
       taskWatchdogStage: "Task status reconciliation",
@@ -238,6 +246,15 @@ const TaskItem: React.FC<{
 }> = ({ task, pages, onRemove, onRetryMonitoring }) => {
   const t = useT(exportI18n);
   const [showWarningsModal, setShowWarningsModal] = useState(false);
+  const [resuming, setResuming] = useState(false);
+  const [resumeError, setResumeError] = useState<string | null>(null);
+  const resume = async () => {
+    setResuming(true);
+    setResumeError(null);
+    try { await useExportTasksStore.getState().resumeTask(task); }
+    catch (error: any) { setResumeError(error?.response?.data?.error?.message || error.message); }
+    finally { setResuming(false); }
+  };
   
   const taskTypeLabels: Record<ExportTaskType, string> = {
     'pptx': t('export.exportPptx'),
@@ -268,7 +285,9 @@ const TaskItem: React.FC<{
   const errorDetails = task.progress?.error_details;
   const errorStage = task.progress?.error_stage || errorDetails?.stage;
   const errorStageLabels: Record<string, string> = {
+    export_pipeline: t('export.pipelineStage'),
     style_extraction: t('export.styleExtractionStage'),
+    text_erasure: t('export.textErasureStage'),
     queue_submission: t('export.queueSubmissionStage'),
     text_render: t('export.textRenderStage'),
     task_watchdog: t('export.taskWatchdogStage'),
@@ -280,7 +299,8 @@ const TaskItem: React.FC<{
     : task.progress?.error_code === 'TASK_STALLED'
       ? 'export.taskStalledHelp'
       : undefined;
-  const helpText = watchdogHelpKey ? t(watchdogHelpKey) : task.progress?.help_text;
+  const interrupted = task.progress?.error_code === 'EXPORT_INTERRUPTED';
+  const helpText = interrupted ? t('export.checkpointHelp') : watchdogHelpKey ? t(watchdogHelpKey) : task.progress?.help_text;
   
   const hasWarnings = task.status === 'COMPLETED' && task.progress?.warnings && task.progress.warnings.length > 0;
 
@@ -386,7 +406,7 @@ const TaskItem: React.FC<{
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-red-700 font-medium">{t('export.exportFailed')}</p>
                   <p className="text-xs text-red-600 mt-1 whitespace-pre-wrap break-words">
-                    {task.errorMessage}
+                    {interrupted ? t('export.interrupted') : task.errorMessage}
                   </p>
                   {(task.progress?.error_code || errorStageLabel || errorDetails?.provider || errorDetails?.model) && (
                     <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 text-[11px] text-red-700">
@@ -445,10 +465,10 @@ const TaskItem: React.FC<{
               </div>
             )}
 
-            <div className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-foreground-tertiary">
+            {!interrupted && <div className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-foreground-tertiary">
               <Settings size={12} />
               <span>{t('export.settingsTip')}</span>
-            </div>
+            </div>}
 
             {(task.errorMessage.toLowerCase().includes('codex') || errorDetails?.provider?.toLowerCase().includes('codex')) && (
               <div className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-foreground-tertiary">
@@ -499,6 +519,17 @@ const TaskItem: React.FC<{
           </Button>
         )}
         
+        {task.status === 'FAILED' && task.type === 'editable-pptx' && task.progress?.resumable && (
+          <div className="flex flex-col items-end gap-1">
+            <Button size="sm" variant="secondary" onClick={resume} disabled={resuming}>
+              {resuming ? t('export.resumingExport') : t('export.resumeExport')}
+            </Button>
+            {resumeError && <span role="alert" className="text-xs text-red-600">{resumeError}</span>}
+          </div>
+        )}
+        {!!task.progress?.reused_nodes && (
+          <span className="text-xs text-gray-500">{t('export.reusedNodes', { count: task.progress.reused_nodes })}</span>
+        )}
         <button
           onClick={onRemove}
           className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
@@ -564,6 +595,10 @@ export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, p
   useEffect(() => {
     restoreActiveTasks();
   }, []);
+
+  useEffect(() => {
+    if (projectId) void useExportTasksStore.getState().loadServerTasks(projectId);
+  }, [projectId]);
 
   // 从服务端加载已导出文件列表
   useEffect(() => {

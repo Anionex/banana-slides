@@ -1,5 +1,7 @@
 # Project notes
 
+- 去字从原图重试时必须保持完整文字清单，校验反馈只能补充缺陷；质量重试耗尽须使失败候选失效，显式断点恢复不能反复复用已拒绝的结果。OCR 孤立字符须结合局部图形核验，避免将图标当成数字擦除和重叠。
+
 - 安装 Playwright 浏览器依赖的 CI job 须固定到锁定版本支持的 OS；修复须扫描全部工作流（含 PR、nightly、发布），运行 `scripts/check_browser_runners.py`，不能只修改当前失败入口。升级 runner 前核对兼容性，避免 `ubuntu-latest` 漂移导致浏览器安装失败。
 
 - Docker E2E 在环境测试重建容器后，须让宿主 runner 可写 `uploads`、`backend/instance` 及 SQLite 文件，并验证实际写事务；PPTX 下载须在点击前监听 Page 的 `download`，保存文件验收，不能用接口 200 代替。

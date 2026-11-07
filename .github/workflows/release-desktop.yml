@@ -91,6 +91,11 @@ jobs:
       - name: Package backend
         run: cd backend && uv run pyinstaller banana-slides.spec --noconfirm
 
+      - name: Verify Windows editable export worker
+        if: matrix.platform == 'win'
+        timeout-minutes: 3
+        run: uv run python scripts/verify_export_windows.py --worker-exe backend/dist/banana-backend/banana-backend.exe
+
       - name: Cache Windows FFmpeg download
         if: matrix.os == 'windows-latest'
         uses: actions/cache@v4

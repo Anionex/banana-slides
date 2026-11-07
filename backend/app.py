@@ -1,4 +1,9 @@
 import sys
+if __name__ == '__main__' and '--editable-export-worker' in sys.argv:
+    from export_worker import main as run_export_worker
+    run_export_worker()
+    raise SystemExit(0)
+
 if sys.platform == 'win32':
     if sys.stdout is not None and hasattr(sys.stdout, 'reconfigure'):
         sys.stdout.reconfigure(encoding='utf-8', errors='replace')

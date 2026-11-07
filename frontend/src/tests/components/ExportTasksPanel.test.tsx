@@ -7,10 +7,12 @@ import { useExportTasksStore } from '@/store/useExportTasksStore';
 const mockListExports = vi.fn();
 const mockTriggerDownload = vi.fn();
 const originalRestoreActiveTasks = useExportTasksStore.getState().restoreActiveTasks;
+const originalResumeTask = useExportTasksStore.getState().resumeTask;
 
 vi.mock('@/api/endpoints', () => ({
   listExports: (...args: unknown[]) => mockListExports(...args),
   deleteExport: vi.fn(),
+  listEditableExportTasks: vi.fn().mockResolvedValue({ data: { tasks: [] } }),
 }));
 
 vi.mock('@/api/client', () => ({
@@ -23,8 +25,26 @@ describe('ExportTasksPanel', () => {
     mockTriggerDownload.mockReset();
     useExportTasksStore.setState({
       tasks: [],
+      hiddenTaskIds: [],
+      resumeTask: originalResumeTask,
       restoreActiveTasks: originalRestoreActiveTasks,
     });
+  });
+
+  it('shows saved progress and allows an explicitly failed export to resume', async () => {
+    const resume = vi.fn().mockRejectedValue(new Error('Worker is still stopping'));
+    useExportTasksStore.setState({ resumeTask: resume, restoreActiveTasks: vi.fn(), tasks: [{
+      id: 'failed', taskId: 'failed', projectId: 'project-1', type: 'editable-pptx',
+      status: 'FAILED', createdAt: new Date().toISOString(),
+      progress: { total: 100, completed: 0, resumable: true, reused_nodes: 12 }, errorMessage: 'Interrupted',
+    }] });
+    mockListExports.mockResolvedValue({ data: { files: [] } });
+    render(<ExportTasksPanel projectId="project-1" />);
+    expect(await screen.findByText(/已复用 12 个步骤|Reused 12 steps/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /从断点继续|Resume from checkpoint/ }));
+    expect(resume).toHaveBeenCalledTimes(1);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Worker is still stopping');
+    expect(screen.queryByRole('button', { name: /^下载$|^Download$/ })).not.toBeInTheDocument();
   });
 
   it('routes task and exported-file downloads through the shared desktop-aware helper', async () => {

@@ -5,6 +5,8 @@ Operates in two authentication modes selected at construction time:
   * API-key mode  (Google AI Studio or compatible proxy)
   * Vertex AI mode (GCP service-account credentials via GOOGLE_APPLICATION_CREDENTIALS)
 """
+
+from export_runtime.control import export_call
 import logging
 from typing import Generator
 from google import genai
@@ -62,6 +64,7 @@ class GenAITextProvider(TextProvider):
         self.request_timeout_seconds = config.GENAI_TIMEOUT
         self.max_attempts = config.GENAI_MAX_RETRIES + 1
     
+    @export_call('caption')
     @retry(
         stop=stop_after_attempt(get_config().GENAI_MAX_RETRIES + 1),
         wait=wait_exponential(multiplier=1, min=2, max=10),
@@ -91,6 +94,7 @@ class GenAITextProvider(TextProvider):
         )
         return _validate_response(response)
     
+    @export_call('caption')
     @retry(
         stop=stop_after_attempt(get_config().GENAI_MAX_RETRIES + 1),
         wait=wait_exponential(multiplier=1, min=2, max=10),

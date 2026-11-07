@@ -24,6 +24,10 @@ def serve_file(project_id, file_type, filename):
     try:
         if file_type not in ['template', 'pages', 'materials', 'exports']:
             return not_found('File')
+        if file_type == 'exports':
+            from export_runtime.tasks import artifact_allowed
+            if not artifact_allowed(project_id, filename, verify=True):
+                return not_found('File')
         
         # Construct file path
         file_dir = os.path.join(

@@ -5,6 +5,8 @@ Operates in two authentication modes selected at construction time:
   * API-key mode  (Google AI Studio or compatible proxy)
   * Vertex AI mode (GCP service-account credentials via GOOGLE_APPLICATION_CREDENTIALS)
 """
+
+from export_runtime.control import export_call
 import logging
 from typing import Optional, List
 from google import genai
@@ -40,6 +42,7 @@ class GenAIImageProvider(ImageProvider):
         )
         self.model = model
 
+    @export_call('image')
     @retry(
         stop=stop_after_attempt(get_config().GENAI_MAX_RETRIES + 1),
         wait=wait_exponential(multiplier=1, min=2, max=10),

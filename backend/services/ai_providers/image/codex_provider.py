@@ -8,6 +8,8 @@ Image generation is done by sending a Responses API request with
 tools=[{"type": "image_generation", ...}] and tool_choice={"type": "image_generation"}.
 The result contains a base64-encoded image in the output.
 """
+
+from export_runtime.control import export_call
 import base64
 import io
 import json
@@ -143,6 +145,7 @@ class CodexImageProvider(ImageProvider):
     # Public interface
     # ------------------------------------------------------------------
 
+    @export_call('image')
     @retry(
         stop=stop_after_attempt(5),
         wait=wait_exponential(multiplier=2, min=4, max=60),

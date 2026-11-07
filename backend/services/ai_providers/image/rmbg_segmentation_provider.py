@@ -6,6 +6,8 @@
 
 注意：模型为 non-commercial license，仅用于本地推理。
 """
+
+from export_runtime.control import export_call
 import logging
 import os
 import threading
@@ -120,6 +122,7 @@ class RmbgSegmentationProvider:
             )
             self._input_name = self._session.get_inputs()[0].name
 
+    @export_call('inference', attempts=1)
     def extract_subject(self, image: Image.Image) -> Optional[Image.Image]:
         """对输入 PIL Image 抠出主体，返回 RGBA；失败返回 None。"""
         try:

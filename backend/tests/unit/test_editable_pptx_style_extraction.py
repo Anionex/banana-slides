@@ -238,7 +238,7 @@ def test_hybrid_style_extraction_preserves_best_partial_global_results_after_lat
         fail_fast=False,
     )
 
-    assert extractor.calls == 3
+    assert extractor.calls == 2  # Semantic retry, then final transport error; no second retry owner.
     assert results["text_0"].is_bold is True
     assert "text_1" in results
     assert failures == [("text_1", "全局识别未返回完整结果")]
@@ -257,7 +257,7 @@ def test_hybrid_style_extraction_keeps_last_error_when_no_global_results(tmp_pat
         )
         assert False, "expected ExportError"
     except ExportError as exc:
-        assert extractor.calls == 3
+        assert extractor.calls == 2
         assert exc.error_type == "style_extraction"
         assert exc.error_code == "EXPORT_STYLE_TIMEOUT"
         assert exc.details["reason"] == "timeout"
