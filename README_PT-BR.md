@@ -586,7 +586,8 @@ Abra o navegador e acesse para usar a aplicação.
 Sinta-se à vontade para sugerir novas funcionalidades ou dar feedback no grupo~
 
 
-<img width="312" alt="image" src="https://github.com/user-attachments/assets/709642af-aef6-4318-9776-4e03b16b2ade" />
+<img width="312" alt="image" src="https://github.com/user-attachments/assets/4bebb367-771d-4b0a-a574-719364c4dc09" />
+
 
 
 
