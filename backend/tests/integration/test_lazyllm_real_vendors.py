@@ -28,6 +28,24 @@ class TestLazyLLMRealVendors:
 
     @pytest.mark.integration
     @pytest.mark.skipif(
+        not (os.getenv('QWEN_API_KEY') and os.getenv('RUN_QWEN_IMAGE_21_API') == '1'),
+        reason="Requires a valid QWEN_API_KEY and RUN_QWEN_IMAGE_21_API=1",
+    )
+    def test_qwen_image_21_generation_and_editing(self):
+        """Exercise both Qwen image modes against Bailian when the model is available."""
+        from PIL import Image
+        from services.ai_providers.image.lazyllm_provider import LazyLLMImageProvider
+
+        provider = LazyLLMImageProvider(source='qwen', model='qwen-image-2.1')
+        generated = provider.generate_image('一只橙色小猫，白色背景', aspect_ratio='1:1', resolution='1K')
+        assert isinstance(generated, Image.Image)
+        edited = provider.generate_image(
+            '把猫变成蓝色', ref_images=[generated], aspect_ratio='1:1', resolution='1K',
+        )
+        assert isinstance(edited, Image.Image)
+
+    @pytest.mark.integration
+    @pytest.mark.skipif(
         not os.getenv('DEEPSEEK_API_KEY'),
         reason="Requires DEEPSEEK_API_KEY for real API testing",
     )
