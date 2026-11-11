@@ -1,7 +1,8 @@
 import i18n from '@/i18n';
+import { resolveUiLanguage } from '@/utils/uiLanguage';
 
 type NestedRecord = Record<string, unknown>;
-type Translations = { zh: NestedRecord; en: NestedRecord };
+type Translations = { zh: NestedRecord; en: NestedRecord; vi?: NestedRecord };
 
 function getNestedValue(obj: NestedRecord, path: string): string | undefined {
   let current: unknown = obj;
@@ -21,8 +22,8 @@ function getNestedValue(obj: NestedRecord, path: string): string | undefined {
  */
 export function getT<T extends Translations>(translations: T) {
   return (key: string, params?: Record<string, string | number>): string => {
-    const lang = i18n.language?.startsWith('zh') ? 'zh' : 'en';
-    const dict = translations[lang] || translations['zh'];
+    const lang = resolveUiLanguage(i18n.language);
+    const dict = translations[lang] || translations.en;
     const localValue = getNestedValue(dict, key);
 
     if (localValue !== undefined) {
@@ -33,6 +34,19 @@ export function getT<T extends Translations>(translations: T) {
         });
       }
       return text;
+    }
+
+    if (lang === 'vi' && dict !== translations.en) {
+      const englishValue = getNestedValue(translations.en, key);
+      if (englishValue !== undefined) {
+        let text = englishValue;
+        if (params) {
+          Object.entries(params).forEach(([k, v]) => {
+            text = text.replace(new RegExp(`{{${k}}}`, 'g'), String(v));
+          });
+        }
+        return text;
+      }
     }
 
     // Fallback to global i18n

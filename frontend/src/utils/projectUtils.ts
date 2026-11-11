@@ -101,7 +101,7 @@ export const getFirstPageImage = (project: Project): string | null => {
  */
 export const formatDate = (dateString: string): string => {
   const date = new Date(dateString);
-  const locale = i18n.language?.startsWith('zh') ? 'zh-CN' : 'en-US';
+  const locale = i18n.language?.startsWith('zh') ? 'zh-CN' : i18n.language?.startsWith('vi') ? 'vi-VN' : 'en-US';
   return date.toLocaleString(locale, {
     year: 'numeric',
     month: '2-digit',
@@ -232,7 +232,7 @@ const pageToMarkdown = (page: Page, index: number, opts: ExportOptions = {}): st
 };
 
 export const exportProjectToMarkdown = (project: Project, opts?: ExportOptions): void => {
-  const locale = i18n.language?.startsWith('zh') ? 'zh-CN' : 'en-US';
+  const locale = i18n.language?.startsWith('zh') ? 'zh-CN' : i18n.language?.startsWith('vi') ? 'vi-VN' : 'en-US';
   let md = `# ${getProjectTitle(project)}\n\n`;
   md += `> ${t('projectUtils.generatedAt')}: ${new Date().toLocaleString(locale)}\n\n---\n\n`;
   project.pages.forEach((page, i) => { md += pageToMarkdown(page, i, opts); });

@@ -12,6 +12,7 @@ import * as api from '@/api/endpoints';
 import { normalizeProject } from '@/utils';
 import { getProjectTitle, getProjectRoute } from '@/utils/projectUtils';
 import type { Project } from '@/types';
+import { nextUiLanguage, uiLanguageShortLabel } from '@/utils/uiLanguage';
 
 // 页面特有翻译 - AI 可以直接看到所有文案
 const historyI18n = {
@@ -69,6 +70,34 @@ const historyI18n = {
       titleEmpty: 'Project name cannot be empty',
       titleUpdated: 'Project name updated',
       titleUpdateFailed: 'Failed to update project name',
+    },
+  },
+  vi: {
+    home: { title: 'Banana Slides', actions: { createProject: 'Tạo dự án mới' } },
+    nav: { home: 'Trang chủ' },
+    settings: { language: { label: 'Ngôn ngữ giao diện' }, theme: { light: 'Sáng', dark: 'Tối' } },
+    history: {
+      title: 'Lịch sử dự án',
+      subtitle: 'Xem và quản lý tất cả dự án của bạn',
+      noProjects: 'Chưa có dự án nào',
+      createFirst: 'Tạo dự án đầu tiên để bắt đầu',
+      selectedCount: 'Đã chọn {{count}} mục',
+      cancelSelect: 'Hủy chọn',
+      batchDelete: 'Xóa hàng loạt',
+      confirmDelete: 'Bạn có chắc muốn xóa dự án "{{title}}"? Hành động này không thể hoàn tác.',
+      confirmBatchDelete: 'Bạn có chắc muốn xóa {{count}} dự án đã chọn? Hành động này không thể hoàn tác.',
+      deleteTitle: 'Xác nhận xóa',
+      batchDeleteTitle: 'Xác nhận xóa hàng loạt',
+      deleteSuccess: 'Đã xóa {{count}} dự án',
+      deletePartial: 'Đã xóa {{success}} dự án, {{fail}} dự án thất bại',
+      deleteCurrentProject: 'Đã xóa cả dự án đang mở',
+      deleteFailed: 'Không thể xóa dự án',
+      openFailed: 'Không thể mở dự án',
+      loadFailed: 'Không thể tải lịch sử dự án',
+      perPage: '/ trang',
+      titleEmpty: 'Tên dự án không được để trống',
+      titleUpdated: 'Đã cập nhật tên dự án',
+      titleUpdateFailed: 'Không thể cập nhật tên dự án',
     },
   },
 };
@@ -394,11 +423,11 @@ export const History: React.FC = () => {
             <div className="h-5 w-px bg-gray-300 dark:bg-border-primary" />
             {/* 语言切换按钮 */}
             <button
-              onClick={() => i18n.changeLanguage(i18n.language?.startsWith('zh') ? 'en' : 'zh')}
+              onClick={() => i18n.changeLanguage(nextUiLanguage(i18n.language))}
               className="px-2 py-1 text-xs font-medium text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-gray-100 hover:bg-banana-100/60 dark:hover:bg-background-hover rounded-md transition-all"
               title={t('settings.language.label')}
             >
-              {i18n.language?.startsWith('zh') ? 'EN' : '中'}
+              {uiLanguageShortLabel(nextUiLanguage(i18n.language))}
             </button>
             {/* 主题切换按钮 */}
             <button

@@ -1,10 +1,12 @@
 import { useTranslation } from 'react-i18next';
+import { resolveUiLanguage } from '@/utils/uiLanguage';
 
 type NestedRecord = Record<string, unknown>;
 
 type Translations = {
   zh: NestedRecord;
   en: NestedRecord;
+  vi?: NestedRecord;
 };
 
 /**
@@ -59,8 +61,10 @@ function getNestedValue(obj: NestedRecord, path: string): string | undefined {
  */
 export function useT<T extends Translations>(translations: T) {
   const { t: globalT, i18n } = useTranslation();
-  const lang = i18n.language?.startsWith('zh') ? 'zh' : 'en';
-  const dict = translations[lang] || translations['zh'];
+  const lang = resolveUiLanguage(i18n.language);
+  // Vietnamese is being introduced incrementally. A component without its own
+  // Vietnamese dictionary deliberately falls back to English rather than to Chinese.
+  const dict = translations[lang] || translations.en;
 
   // 兼容 react-i18next 的多种调用方式：
   // t('key') / t('key', '默认值') / t('key', { param: value })
@@ -80,6 +84,19 @@ export function useT<T extends Translations>(translations: T) {
         });
       }
       return text;
+    }
+
+    if (lang === 'vi' && dict !== translations.en) {
+      const englishValue = getNestedValue(translations.en, key);
+      if (englishValue !== undefined) {
+        let text = englishValue;
+        if (params) {
+          Object.entries(params).forEach(([k, v]) => {
+            text = text.replace(new RegExp(`{{${k}}}`, 'g'), String(v));
+          });
+        }
+        return text;
+      }
     }
     
     // 组件内没找到，fallback 到全局翻译（保持原始参数传递）
