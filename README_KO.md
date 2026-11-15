@@ -569,14 +569,11 @@ npm run dev
 
 <a name="community"></a>
 
-<p align="right"><a href="#user-content-readme-top">↑ 맨 위로</a></p>
+<p align="right"><a href="#user-content-readme-top"> ↑ 맨 위로 </a></p>
 
 새로운 기능 제안이나 피드백은 언제나 환영합니다~
 
-
-<img width="312" alt="image" src="https://github.com/user-attachments/assets/4bebb367-771d-4b0a-a574-719364c4dc09" />
-
-
+<img width="312" alt="image" src="https://github.com/user-attachments/assets/28210fdb-a72e-47f6-8e9c-6fb721928732" />
 
 
 

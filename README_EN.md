@@ -593,10 +593,7 @@ Open your browser to access and use the application.
 
 Feel free to suggest new features or provide feedback in the group!
 
-
-<img width="312" alt="image" src="https://github.com/user-attachments/assets/4bebb367-771d-4b0a-a574-719364c4dc09" />
-
-
+<img width="312" alt="image" src="https://github.com/user-attachments/assets/28210fdb-a72e-47f6-8e9c-6fb721928732" />
 
 
 
