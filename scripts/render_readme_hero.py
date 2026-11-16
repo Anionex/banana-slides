@@ -55,7 +55,7 @@ def assets(languages):
         save('section-rule',svg(620,20,f'<path d="M0 10H620" fill="none" stroke="{muted}" stroke-opacity="0.22"/>',''))
         save('docker',svg(99,20,icon('docker',muted,0,2,15)+text('Docker Build',21,14,11,muted,400,'start'),'Docker Build'))
         save('deepwiki',svg(112,20,icon('sparkles',muted,0,2,15)+text('Ask DeepWiki',22,14,11,muted,400,'start'),'Ask DeepWiki'))
-        save('version',svg(96,20,icon('tag',muted,0,2,15)+text('v0.9.0-rc.7',21,14,11,muted,400,'start'),'v0.9.0-rc.7'))
+        save('version',svg(96,20,icon('tag',muted,0,2,15)+text('v0.9.0-rc.8',21,14,11,muted,400,'start'),'v0.9.0-rc.8'))
         save('license',svg(78,22,text('AGPL-3.0',39,16,13,ink),'AGPL-3.0'))
         for name in ['star','fork','eye','license']:
             save('icon-'+name,svg(18,24,icon(name,muted,1,4,16),''))
@@ -75,7 +75,7 @@ def template(action_urls):
     metrics=[]
     for name, label, destination, _, width in METRICS:
         metrics.append(f'<a href="{REPO}/{destination}">'+local('icon-'+name,'',24,32)+local('metric-'+name,'GitHub '+label,width,26)+'</a>')
-    tech = [f'<a href="{action_urls["desktop"]}">'+local('version','v0.9.0-rc.7',106,22)+'</a>',
+    tech = [f'<a href="{action_urls["desktop"]}">'+local('version','v0.9.0-rc.8',106,22)+'</a>',
             f'<a href="{REPO}/blob/main/LICENSE">'+local('icon-license','',20,27)+local('license','AGPL-3.0',78,22)+'</a>',
             local('docker','Docker Build',109,22),
             '<a href="https://deepwiki.com/Anionex/banana-slides">'+local('deepwiki','Ask DeepWiki',123,22)+'</a>']
@@ -111,7 +111,7 @@ def text_fallback(language, languages, action_urls, sponsor):
         actions += ' · ' + community
     project_links = ' · '.join(link(url, label) for url, label in [
         (REPO+'/stargazers', 'Stars'), (REPO+'/forks', 'Forks'),
-        (REPO+'/watchers', 'Watchers'), (action_urls['desktop'], 'v0.9.0-rc.7'),
+        (REPO+'/watchers', 'Watchers'), (action_urls['desktop'], 'v0.9.0-rc.8'),
         (REPO+'/blob/main/LICENSE', 'AGPL-3.0'),
         ('https://deepwiki.com/Anionex/banana-slides', 'Ask DeepWiki'),
         ('https://trendshift.io/repositories/22056', 'Trendshift'),
