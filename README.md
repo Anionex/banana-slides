@@ -110,7 +110,7 @@
 <details open>
 <summary>点击折叠</summary>
 
-- **[2026-11-16]** [0.9.0 RC8 发布](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.8)。导出 PPTX 时可选「仅文字可编辑」，导出中断后可从断点继续。首页新增「日常汇报」，素材工具箱支持同时生成多张图。Windows 打包已修复，Windows、macOS 和 Linux 桌面版均通过启动测试。
+- **[2026-11-16]** [0.9.0 RC8 发布](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.8)。可编辑 PPTX 新增「仅文字可编辑」模式，导出中断后可以接着做。首页可用「日常汇报」制作周报和项目汇报，素材工具箱可以同时生成多张配图。修复了导出失败后进度仍停在 88%、网页下载被弹窗拦截，以及刚上传的模板选了却用不上的问题。
 - **[2026-09-05]**：0.9.0 候选版本 7 发布，修复 Codex（OpenAI OAuth）已连接但生图返回 400 的问题：内部调用主模型从 `gpt-5.4` 更新为 `gpt-5.6-terra`，图片模型仍保留 `gpt-image-2`，无需把图片模型改成文本模型。此版本还包含 RC6 之后的内容驱动风格描述与 SenseNova U1 生图支持；[查看下载与安装说明](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.7)
 - **[2026-08-30]**：0.9.0 候选版本 6 发布，新增可开关的桌面启动更新检查、包含更新摘要与完整日志链接的更新卡片，以及下载进度、失败重试和重启安装；同时修复 APIMart OpenAI-compatible 异步图片任务、非流式请求及 1K/2K/4K 分辨率传递；[查看下载与安装说明](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.6)
 - **[2026-08-29]**：0.9.0 候选版本 5 发布，新增沉浸式在线幻灯片播放器与 APIMart OpenAI-compatible Provider 预设，桌面版更新检查现可正确跟随 RC 通道；同时改进 PPT 改造的 MinerU 凭据错误提示、修复参考文档远程图片 SSRF 风险，并让图片编辑默认进入框选状态；[查看下载与安装说明](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.5)
