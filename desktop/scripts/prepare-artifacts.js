@@ -19,9 +19,10 @@ const repoRoot = path.resolve(desktopDir, '..');
 const generatedFfmpegDir = path.join(desktopDir, 'ffmpeg');
 const ffmpegCacheDir = path.join(desktopDir, '.cache', 'ffmpeg');
 
+// BtbN prunes daily builds. RC7 contains the exact pair from the original verified ZIP.
 const windowsFfmpegArchive = {
-  url: 'https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-08-16-13-00/ffmpeg-n7.1.5-16-g9a4bb2c579-win64-gpl-7.1.zip',
-  sha256: '907ae59ae94d39561b9e03f6d5b0ec4a2778df1e75c763c9a0ddbae266415860',
+  url: 'https://github.com/Anionex/banana-slides/releases/download/v0.9.0-rc.7/BananaSlides-0.9.0-rc.7-win-x64-Setup.exe',
+  sha256: '97f45c9f1aab3e343c9a0108383292ce2379f185eb8b1dce9e999e0f6240de3c',
 };
 
 function copyDir(src, dest) {
@@ -270,6 +271,16 @@ async function prepareWindowsFfmpegArtifacts() {
   }
 
   const archivePath = await ensureDownloadedArchive(downloadUrl, expectedSha256);
+  if (!customDownloadUrl) {
+    // Windows bsdtar can read the embedded 7z payload without running the installer.
+    const tar = path.join(process.env.SystemRoot, 'System32', 'tar.exe');
+    execFileSync(tar, [
+      '-xf', archivePath, '-C', generatedFfmpegDir, '--strip-components', '2',
+      'resources/ffmpeg/ffmpeg.exe', 'resources/ffmpeg/ffprobe.exe',
+    ], { stdio: 'inherit' });
+    return;
+  }
+
   const extractedDir = path.join(ffmpegCacheDir, expectedSha256, 'extracted');
   extractWindowsZip(archivePath, extractedDir);
 

@@ -101,7 +101,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: desktop/.cache/ffmpeg
-          key: windows-ffmpeg-btbn-7.1-907ae59ae94d39561b9e03f6d5b0ec4a2778df1e75c763c9a0ddbae266415860
+          key: windows-ffmpeg-rc7-97f45c9f1aab3e343c9a0108383292ce2379f185eb8b1dce9e999e0f6240de3c
 
       - name: Install Electron dependencies
         run: cd desktop && npm ci
