@@ -25,7 +25,7 @@
   &nbsp;
   <a href="https://docs.bananaslides.online/#gh-light-mode-only"><img src="./assets/buttons/docs-ko.svg" alt="문서" width="105" height="38"></a><a href="https://docs.bananaslides.online/#gh-dark-mode-only"><img src="./assets/buttons/docs-ko-dark.svg" alt="문서" width="105" height="38"></a>
   &nbsp;
-  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.7#gh-light-mode-only"><img src="./assets/buttons/desktop-ko.svg" alt="데스크톱 RC7" width="167" height="38"></a><a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.7#gh-dark-mode-only"><img src="./assets/buttons/desktop-ko-dark.svg" alt="데스크톱 RC7" width="167" height="38"></a>
+  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.8#gh-light-mode-only"><img src="./assets/buttons/desktop-ko.svg" alt="데스크톱 RC8" width="167" height="38"></a><a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.8#gh-dark-mode-only"><img src="./assets/buttons/desktop-ko-dark.svg" alt="데스크톱 RC8" width="167" height="38"></a>
   &nbsp;
   <a href="https://github.com/Anionex/banana-slides#user-content--%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95#gh-light-mode-only"><img src="./assets/buttons/deploy-ko.svg" alt="배포 방법" width="137" height="38"></a><a href="https://github.com/Anionex/banana-slides#user-content--%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95#gh-dark-mode-only"><img src="./assets/buttons/deploy-ko-dark.svg" alt="배포 방법" width="137" height="38"></a>
 </p>
@@ -55,7 +55,7 @@
 </p>
 
 <p>
-  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.7#gh-light-mode-only"><img src="./assets/readme/version-light.svg" alt="v0.9.0-rc.7" width="106" height="22"></a><a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.7#gh-dark-mode-only"><img src="./assets/readme/version-dark.svg" alt="v0.9.0-rc.7" width="106" height="22"></a>
+  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.8#gh-light-mode-only"><img src="./assets/readme/version-light.svg" alt="v0.9.0-rc.8" width="106" height="22"></a><a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.8#gh-dark-mode-only"><img src="./assets/readme/version-dark.svg" alt="v0.9.0-rc.8" width="106" height="22"></a>
   &nbsp;
   <a href="https://github.com/Anionex/banana-slides/blob/main/LICENSE#gh-light-mode-only"><img src="./assets/readme/icon-license-light.svg" alt="" width="20" height="27"><img src="./assets/readme/license-light.svg" alt="AGPL-3.0" width="78" height="22"></a><a href="https://github.com/Anionex/banana-slides/blob/main/LICENSE#gh-dark-mode-only"><img src="./assets/readme/icon-license-dark.svg" alt="" width="20" height="27"><img src="./assets/readme/license-dark.svg" alt="AGPL-3.0" width="78" height="22"></a>
   &nbsp;
@@ -649,9 +649,9 @@ DeepWiki에서 직접 질문하실 수도 있습니다.
 
 <p><a href="README.md">简体中文</a> · <a href="README_EN.md">English</a> · <a href="README_PT-BR.md">Português</a> · <a href="README_JA.md">日本語</a> · <a href="README_KO.md">한국어</a></p>
 
-<p><a href="https://bananaslides.online/">온라인 데모</a> · <a href="https://docs.bananaslides.online/">문서</a> · <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.7">데스크톱 RC7</a> · <a href="https://github.com/Anionex/banana-slides#-%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95">배포 방법</a> · <a href="https://x.com/anion_ex">anion_ex</a> · <a href="#user-content-community">WeChat 그룹</a></p>
+<p><a href="https://bananaslides.online/">온라인 데모</a> · <a href="https://docs.bananaslides.online/">문서</a> · <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.8">데스크톱 RC8</a> · <a href="https://github.com/Anionex/banana-slides#-%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95">배포 방법</a> · <a href="https://x.com/anion_ex">anion_ex</a> · <a href="#user-content-community">WeChat 그룹</a></p>
 
-<p><a href="https://github.com/Anionex/banana-slides/stargazers">Stars</a> · <a href="https://github.com/Anionex/banana-slides/forks">Forks</a> · <a href="https://github.com/Anionex/banana-slides/watchers">Watchers</a> · <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.7">v0.9.0-rc.7</a> · <a href="https://github.com/Anionex/banana-slides/blob/main/LICENSE">AGPL-3.0</a> · <a href="https://deepwiki.com/Anionex/banana-slides">Ask DeepWiki</a> · <a href="https://trendshift.io/repositories/22056">Trendshift</a> · <a href="https://hellogithub.com/repository/Anionex/banana-slides">HelloGitHub</a></p>
+<p><a href="https://github.com/Anionex/banana-slides/stargazers">Stars</a> · <a href="https://github.com/Anionex/banana-slides/forks">Forks</a> · <a href="https://github.com/Anionex/banana-slides/watchers">Watchers</a> · <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.8">v0.9.0-rc.8</a> · <a href="https://github.com/Anionex/banana-slides/blob/main/LICENSE">AGPL-3.0</a> · <a href="https://deepwiki.com/Anionex/banana-slides">Ask DeepWiki</a> · <a href="https://trendshift.io/repositories/22056">Trendshift</a> · <a href="https://hellogithub.com/repository/Anionex/banana-slides">HelloGitHub</a></p>
 
 <br>
 
