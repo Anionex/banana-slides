@@ -227,10 +227,8 @@ def test_doubao_seedream_auto_protocol_uses_native_images_api():
     mock_client.chat.completions.create.assert_not_called()
 
 
-def test_doubao_seedream_forced_images_protocol_keeps_references_on_chat_path():
-    """Seedream + reference images must never call images.edit, even when the
-    images protocol is forced ('images'): images.edit is SeedEdit-only and the
-    Agent Plans recommended models save openai_image_api_protocol=images."""
+def test_custom_seedream_proxy_keeps_references_on_chat_path():
+    """Keep the legacy chat path for third-party Seedream proxies."""
     from io import BytesIO
 
     from PIL import Image
@@ -254,7 +252,7 @@ def test_doubao_seedream_forced_images_protocol_keeps_references_on_chat_path():
     with patch('services.ai_providers.image.openai_provider.OpenAI'):
         provider = OpenAIImageProvider(
             api_key='volcengine-key',
-            api_base='https://ark.cn-beijing.volces.com/api/plan/v3',
+            api_base='https://proxy.example/v1',
             model='doubao-seedream-5.0-lite',
             image_api_protocol='images',
         )

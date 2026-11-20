@@ -19,6 +19,7 @@ import requests
 import time
 from io import BytesIO
 from typing import Optional, List
+from urllib.parse import urlparse
 from openai import OpenAI
 from PIL import Image
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
@@ -368,6 +369,29 @@ class OpenAIImageProvider(ImageProvider):
             or model.startswith(_DOUBAO_SEEDREAM_PREFIX)
             or self._is_sensenova_image_model()
         )
+
+    def _is_ark_seedream(self) -> bool:
+        return (
+            urlparse(self.api_base).hostname == 'ark.cn-beijing.volces.com'
+            and self.model.lower().startswith(_DOUBAO_SEEDREAM_PREFIX)
+        )
+
+    def _generate_with_ark_api(self, prompt, ref_images, aspect_ratio, resolution):
+        """Ark accepts reference images as data URLs in JSON generations."""
+        extra_body = {}
+        if ref_images:
+            extra_body['image'] = [
+                'data:image/png;base64,' + base64.b64encode(
+                    self._pil_to_png_bytes(image)
+                ).decode('ascii')
+                for image in ref_images
+            ]
+        kwargs = dict(
+            model=self.model, prompt=prompt,
+            size=self._resolve_size(aspect_ratio, resolution),
+            response_format='b64_json', extra_body=extra_body,
+        )
+        return self._images_response('generate', kwargs, ref_images)
 
     def _is_sensenova_image_model(self) -> bool:
         """Return True for SenseNova U1 image-generation models."""
@@ -1149,6 +1173,11 @@ class OpenAIImageProvider(ImageProvider):
                     aspect_ratio,
                     resolution,
                 )
+
+            # Official Ark Seedream uses generations for both text and images.
+            # Neither OpenAI multipart edits nor chat completions is compatible.
+            if self._is_ark_seedream():
+                return self._generate_with_ark_api(prompt, ref_images, aspect_ratio, resolution)
 
             # Route based on image_api_protocol setting
             # Doubao Seedream keeps the chat-completions path when reference images are
