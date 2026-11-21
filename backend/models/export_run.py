@@ -8,6 +8,7 @@ class ExportRun(db.Model):
 
     task_id = db.Column(db.String(36), db.ForeignKey('tasks.id', ondelete='CASCADE'), primary_key=True)
     project_id = db.Column(db.String(36), db.ForeignKey('projects.id', ondelete='CASCADE'), nullable=False, index=True)
+    visitor_id = db.Column(db.String(64), nullable=True)
     parent_task_id = db.Column(db.String(36), nullable=True, unique=True)
     request_json = db.Column(db.Text, nullable=False)
     request_hash = db.Column(db.String(64), nullable=False)

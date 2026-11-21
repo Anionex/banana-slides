@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+import hashlib
 import json
 from pathlib import Path
 import threading
@@ -55,14 +56,17 @@ def test_idempotent_submission_rejects_changed_parameters(client, export_project
 
 def test_public_export_defaults_to_text_only_and_rejects_full(client, app, monkeypatch, export_project):
     project, _, dispatched = export_project
+    token = 'public-visitor-export-test-108'
     full_response = create(client, project, export_mode='full')
     assert full_response.status_code == 200
     full_task_id = full_response.json['data']['task_id']
+    db.session.get(ExportRun, full_task_id).visitor_id = hashlib.sha256(token.encode()).hexdigest()
+    db.session.commit()
     fail(full_task_id, RuntimeError('old full export'))
     monkeypatch.setitem(app.config, 'PUBLIC_DEMO', True)
 
     endpoint = f'/api/projects/{project.id}/export/editable-pptx'
-    headers = {'X-User-Token': 'public-visitor-export-test-108'}
+    headers = {'X-User-Token': token}
     assert client.post(endpoint, json={'export_mode': 'full'}, headers=headers).status_code == 400
     assert client.post(endpoint, json={'resume_from_task_id': full_task_id}, headers=headers).status_code == 400
 
@@ -74,6 +78,43 @@ def test_public_export_defaults_to_text_only_and_rejects_full(client, app, monke
     assert options['export_inpaint_method'] == 'generative'
     assert options['enable_icon_subject_extraction'] is False
     assert dispatched == [full_task_id, task_id]
+
+
+def test_public_visitor_only_sees_and_resumes_own_durable_tasks(client, app, monkeypatch, export_project):
+    project, _, dispatched = export_project
+    legacy = Task(project_id=project.id, task_type='EXPORT_EDITABLE_PPTX', status='COMPLETED')
+    db.session.add(legacy)
+    db.session.commit()
+    monkeypatch.setitem(app.config, 'PUBLIC_DEMO', True)
+    token = 'public-visitor-export-owner-token'
+    owner = {'X-User-Token': token}
+    guest = {'X-User-Token': 'public-visitor-export-guest-token'}
+    project_path = f'/api/projects/{project.id}'
+    export_path = project_path + '/export/editable-pptx'
+    list_path = project_path + '/export/editable-tasks'
+    request_id = str(uuid.uuid4())
+    start = {'client_task_id': request_id}
+    assert client.post(export_path, json=start, headers=owner).status_code == 200
+    run = db.session.get(ExportRun, request_id)
+    assert run.visitor_id == hashlib.sha256(token.encode()).hexdigest()
+    assert token not in run.request_json
+    fail(request_id, RuntimeError('private test diagnostic'))
+
+    assert client.get(project_path, headers=guest).status_code == 200
+    assert client.get(project_path + f'/tasks/{legacy.id}', headers=guest).status_code == 200
+    assert client.get(project_path + f'/tasks/{request_id}', headers=guest).status_code == 404
+    assert client.get(list_path, headers=guest).json['data']['tasks'] == []
+    assert client.post(export_path, json=start, headers=guest).status_code == 404
+    assert client.post(export_path, json={'resume_from_task_id': request_id}, headers=guest).status_code == 404
+    listed = client.get(list_path, headers=owner).json['data']['tasks']
+    assert [task['task_id'] for task in listed] == [request_id]
+    assert client.get(project_path + f'/tasks/{request_id}', headers=owner).status_code == 200
+    assert client.post(export_path, json=start, headers=owner).json['data']['reused']
+
+    resumed = client.post(export_path, json={'resume_from_task_id': request_id}, headers=owner)
+    successor_id = resumed.json['data']['task_id']
+    assert db.session.get(ExportRun, successor_id).visitor_id == run.visitor_id
+    assert dispatched == [request_id, successor_id]
 
 
 def test_dedicated_supervisors_isolate_visitor_configuration(app, monkeypatch):
@@ -260,6 +301,31 @@ def test_published_artifact_requires_manifest_hash_and_exact_slide_count(client,
     destination = Path(app.config['UPLOAD_FOLDER']) / project.id / 'exports' / run.artifact_filename
     destination.write_bytes(b'corrupted')
     assert client.get(f'/files/{project.id}/exports/{run.artifact_filename}').status_code == 404
+
+
+def test_deleted_artifact_no_longer_has_a_task_download_link(client, app, monkeypatch, export_project):
+    project, _, _ = export_project
+    monkeypatch.setitem(app.config, 'PUBLIC_DEMO', True)
+    owner = {'X-User-Token': 'public-visitor-export-delete-owner'}
+    guest = {'X-User-Token': 'public-visitor-export-delete-guest'}
+    project_path = f'/api/projects/{project.id}'
+    start = client.post(project_path + '/export/editable-pptx', json={}, headers=owner)
+    task_id = start.json['data']['task_id']
+    run = db.session.get(ExportRun, task_id)
+    publish(app, run, result_file(app, run), 2)
+    status_path = project_path + f'/tasks/{task_id}'
+    list_path = project_path + '/export/editable-tasks'
+    download_url = client.get(status_path, headers=owner).json['data']['progress']['download_url']
+    assert client.get(download_url).status_code == 200
+    files = client.get(project_path + '/exports', headers=guest).json['data']['files']
+    assert any(file['download_url'] == download_url for file in files)
+
+    assert client.delete(project_path + f'/exports/{run.artifact_filename}', headers=owner).status_code == 200
+    assert client.get(download_url).status_code == 404
+    listed = client.get(list_path, headers=owner).json['data']['tasks']
+    assert len(listed) == 1 and listed[0]['status'] == 'COMPLETED'
+    assert 'download_url' not in listed[0]['progress']
+    assert 'download_url' not in client.get(status_path, headers=owner).json['data']['progress']
 
 
 def test_admission_cap_returns_bounded_queue_error(client, app, monkeypatch, export_project):

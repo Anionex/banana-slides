@@ -17,6 +17,7 @@ def upgrade():
         op.create_table('export_runs',
             sa.Column('task_id', sa.String(36), sa.ForeignKey('tasks.id', ondelete='CASCADE'), primary_key=True),
             sa.Column('project_id', sa.String(36), sa.ForeignKey('projects.id', ondelete='CASCADE'), nullable=False),
+            sa.Column('visitor_id', sa.String(64), nullable=True),
             sa.Column('parent_task_id', sa.String(36), unique=True),
             sa.Column('request_json', sa.Text, nullable=False),
             sa.Column('request_hash', sa.String(64), nullable=False),
@@ -25,6 +26,8 @@ def upgrade():
             sa.Column('queue_deadline_at', sa.Float, nullable=False),
         )
         op.create_index('ix_export_runs_project_id', 'export_runs', ['project_id'])
+    elif 'visitor_id' not in {column['name'] for column in sa.inspect(op.get_bind()).get_columns('export_runs')}:
+        op.add_column('export_runs', sa.Column('visitor_id', sa.String(64), nullable=True))
 
 
 def downgrade():

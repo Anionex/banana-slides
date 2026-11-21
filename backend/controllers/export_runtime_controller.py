@@ -13,7 +13,23 @@ from models import db, Project, Page, Task, ExportRun
 from utils import bad_request, not_found, error_response, success_response, get_filtered_pages
 from export_runtime.checkpoints import digest, file_hash
 from export_runtime.tasks import ACTIVE, PREFIX, runtime_root, workspace, owner_alive, reconcile
-from services.public_demo import enabled as public_demo_enabled
+from services.public_demo import enabled as public_demo_enabled, visitor
+
+
+def run_visible(run):
+    if not public_demo_enabled():
+        return True
+    current = visitor()
+    return current is not None and run.visitor_id == current['token']
+
+
+def task_payload(task, run):
+    payload = task.to_dict()
+    if run and task.status == 'COMPLETED':
+        artifact = Path(current_app.config['UPLOAD_FOLDER']) / run.project_id / 'exports' / run.artifact_filename
+        if not run.artifact_sha256 or not artifact.is_file():
+            payload['progress'].pop('download_url', None)
+    return payload
 
 
 def create_export(project_id):
@@ -22,6 +38,9 @@ def create_export(project_id):
     if not isinstance(data, dict):
         return bad_request('Expected a JSON object')
     public_demo = public_demo_enabled()
+    current_visitor = visitor() if public_demo else None
+    if public_demo and current_visitor is None:
+        return error_response('VISITOR_REQUIRED', '缺少有效的访客标识，请刷新页面。', 401)
     if public_demo and data.get('export_mode', 'simple') != 'simple':
         return bad_request('官网仅支持仅文字可编辑模式')
     project = db.session.get(Project, project_id)
@@ -45,6 +64,8 @@ def create_export(project_id):
             existing = db.session.get(Task, task_id)
             if existing:
                 prior = db.session.get(ExportRun, task_id)
+                if prior is not None and not run_visible(prior):
+                    return not_found('Export task')
                 if (existing.project_id != project_id or existing.task_type != 'EXPORT_EDITABLE_PPTX'
                         or prior is None or prior.request_hash != request_hash):
                     return error_response('EXPORT_TASK_ID_CONFLICT', 'Task ID is already used by a different request', 409)
@@ -53,7 +74,7 @@ def create_export(project_id):
             if parent_id:
                 parent = db.session.get(Task, parent_id)
                 prior = db.session.get(ExportRun, parent_id)
-                if parent is None or prior is None or parent.project_id != project_id:
+                if parent is None or prior is None or parent.project_id != project_id or not run_visible(prior):
                     return not_found('Resumable export')
                 original = json.loads(prior.request_json)
                 if public_demo and original['options']['export_mode'] != 'simple':
@@ -61,6 +82,8 @@ def create_export(project_id):
                 reconcile(parent, app)
                 successor = ExportRun.query.filter_by(parent_task_id=parent_id).first()
                 if successor:
+                    if not run_visible(successor):
+                        return not_found('Resumable export')
                     return response(db.session.get(Task, successor.task_id), True)
                 if parent.status != 'FAILED' or owner_alive(workspace(app, project_id, parent_id)):
                     return error_response('EXPORT_NOT_RESUMABLE', 'Export must be failed and stopped before resuming', 409)
@@ -124,6 +147,7 @@ def create_export(project_id):
                                'resumable': True, 'page_ids': [p.id for p in pages],
                                'current_step': '等待导出执行额度', 'total': 100, 'completed': 0})
             run = ExportRun(task_id=task_id, project_id=project_id, parent_task_id=parent_id,
+                            visitor_id=current_visitor['token'] if current_visitor else None,
                             request_json=json.dumps({'pages': inputs, 'options': options, 'filename': filename}),
                             request_hash=request_hash,
                             artifact_filename=f'{PREFIX}{task_id}-{filename[:160]}',
@@ -156,8 +180,15 @@ def create_export(project_id):
 def list_tasks(project_id):
     if db.session.get(Project, project_id) is None:
         return not_found('Project')
-    tasks = Task.query.join(ExportRun, ExportRun.task_id == Task.id).filter(
-        Task.project_id == project_id).order_by(Task.created_at.desc()).limit(50).all()
-    for task in tasks:
+    tasks = db.session.query(Task, ExportRun).join(ExportRun, ExportRun.task_id == Task.id).filter(
+        Task.project_id == project_id)
+    if public_demo_enabled():
+        current = visitor()
+        if current is None:
+            return error_response('VISITOR_REQUIRED', '缺少有效的访客标识，请刷新页面。', 401)
+        tasks = tasks.filter(ExportRun.visitor_id == current['token'])
+    payloads = []
+    for task, run in tasks.order_by(Task.created_at.desc()).limit(50).all():
         reconcile(task, current_app._get_current_object())
-    return success_response(data={'tasks': [task.to_dict() for task in tasks]})
+        payloads.append(task_payload(task, run))
+    return success_response(data={'tasks': payloads})
