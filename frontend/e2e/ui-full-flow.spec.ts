@@ -33,6 +33,7 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
   test.setTimeout(25 * 60 * 1000)
   
   test('User Full Flow: Create and export PPT in browser', async ({ page }) => {
+    const nightly = process.env.NIGHTLY_E2E === '1'
     console.log('\n========================================')
     console.log('🌐 Starting UI-driven E2E test (via frontend interface)')
     console.log('========================================\n')
@@ -71,7 +72,10 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     console.log('✍️  Step 3: Entering idea content...')
     const ideaInput = page.locator('[role="textbox"], textarea, input[type="text"]').first()
     await ideaInput.click()
-    await ideaInput.pressSequentially('创建一份关于人工智能基础的简短PPT，包含3页：什么是AI、AI的应用、AI的未来')
+    const idea = nightly
+      ? '创建恰好2页的人工智能基础PPT。第1页介绍什么是AI，第2页介绍AI的应用。每页一个简短要点。这两页是全部页面，封面和结语也计入总页数。'
+      : '创建一份关于人工智能基础的简短PPT，包含3页：什么是AI、AI的应用、AI的未来'
+    await ideaInput.pressSequentially(idea)
     
     console.log('🚀 Clicking "Next" button...')
     await page.click('button:has-text("下一步")')
@@ -140,6 +144,22 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
 
     // Wait for streaming to finish (button reverts from "生成中...")
     await expect(streamingBtn).toBeHidden({ timeout: 300000 })
+
+    if (nightly) {
+      // A model may add a cover or conclusion despite the requested page count.
+      const projectId = new URL(page.url()).pathname.split('/')[2]
+      const projectUrl = `/api/projects/${projectId}`
+      const project = await page.request.get(projectUrl)
+      await expect(project).toBeOK()
+      const { data: { pages } } = await project.json() as { data: { pages: { id: string }[] } }
+      for (const { id } of pages.slice(2)) {
+        await expect(await page.request.delete(`${projectUrl}/pages/${id}`)).toBeOK()
+      }
+      if (pages.length > 2) {
+        await page.reload()
+      }
+      await expect(outlineItems).toHaveCount(2)
+    }
     
     // Verify outline content
     outlineCount = await outlineItems.count()
@@ -446,13 +466,17 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     
     if (await generateImageBtn.count() > 0) {
       await generateImageBtn.first().click()
+      if (nightly) {
+        const warning = page.getByRole('dialog', { name: '1K分辨率警告' })
+        await warning.getByRole('button', { name: '仍然生成', exact: true }).click()
+      }
       console.log('✓ Clicked batch generate images button\n')
       
       // Wait for images to generate (should complete within 5 minutes)
       console.log('⏳ Step 13: Waiting for images to generate (should complete within 5 minutes)...')
       
       // Get expected page count from the button text (e.g., "批量生成图片 (3)")
-      let pageCount = 3 // default
+      let pageCount = nightly ? 2 : 3
       try {
         const buttonText = await generateImageBtn.first().textContent()
         const match = buttonText?.match(/\((\d+)\)/)
@@ -628,7 +652,8 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     console.log('📦 Step 14: Exporting PPT file...')
     
     const download = await downloadPptx(page)
-    const downloadPath = path.join('test-results', path.basename(download.suggestedFilename()))
+    const filename = nightly ? 'nightly.pptx' : path.basename(download.suggestedFilename())
+    const downloadPath = path.join('test-results', filename)
     await download.saveAs(downloadPath)
     expect(await download.failure()).toBeNull()
 
@@ -643,22 +668,23 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     console.log(`  Path: ${downloadPath}`)
     console.log(`  Size: ${(fileStats.size / 1024).toFixed(2)} KB\n`)
     
-    // Validate PPTX file content using python-pptx
-    console.log('🔍 Validating PPTX file content...')
-    const { execSync } = await import('child_process')
-    const { fileURLToPath } = await import('url')
-    try {
-      // Get current directory (ES module compatible)
-      const currentDir = path.dirname(fileURLToPath(import.meta.url))
-      const validateScript = path.join(currentDir, 'validate_pptx.py')
-      const result = execSync(
-        `python3 "${validateScript}" "${downloadPath}" 3 "人工智能" "AI"`,
-        { encoding: 'utf-8', stdio: 'pipe' }
-      )
-      console.log(`✓ ${result.trim()}\n`)
-    } catch (error: any) {
-      console.warn(`⚠️  PPTX validation warning: ${error.stdout || error.message}`)
-      console.log('  (Continuing test, but PPTX content validation had issues)\n')
+    // Nightly validates the downloaded deck in the backend container.
+    if (!nightly) {
+      console.log('🔍 Validating PPTX file content...')
+      const { execSync } = await import('child_process')
+      const { fileURLToPath } = await import('url')
+      try {
+        const currentDir = path.dirname(fileURLToPath(import.meta.url))
+        const validateScript = path.join(currentDir, 'validate_pptx.py')
+        const result = execSync(
+          `python3 "${validateScript}" "${downloadPath}" 3 "人工智能" "AI"`,
+          { encoding: 'utf-8', stdio: 'pipe' }
+        )
+        console.log(`✓ ${result.trim()}\n`)
+      } catch (error: any) {
+        console.warn(`⚠️  PPTX validation warning: ${error.stdout || error.message}`)
+        console.log('  (Continuing test, but PPTX content validation had issues)\n')
+      }
     }
     
     // ====================================
