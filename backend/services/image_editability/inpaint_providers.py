@@ -11,10 +11,12 @@ Inpaint提供者 - 抽象不同的inpaint实现
 - InpaintProviderRegistry - 元素类型到重绘方法的映射注册表
 """
 import logging
+import json
 import tempfile
+from pathlib import Path
 from abc import ABC, abstractmethod
 from typing import List, Optional, Dict
-from PIL import Image
+from PIL import Image, ImageOps
 
 from utils.mask_utils import create_mask_from_bboxes
 
@@ -123,7 +125,7 @@ class GenerativeEditInpaintProvider(InpaintProvider):
     - DefaultInpaintProvider: 基于mask的精确区域重绘（需要准确的bbox）
     - GenerativeEditInpaintProvider: 整图生成式编辑（通过prompt描述要移除的内容）
     
-    优点：不需要精确的bbox，大模型自动理解并移除相关元素
+    优点：不依赖 mask，可结合 bbox 提示让大模型更准确地移除相关元素
     缺点：可能改变背景细节，生成速度较慢，消耗更多token
     
     适用场景：
@@ -144,6 +146,56 @@ class GenerativeEditInpaintProvider(InpaintProvider):
         self.ai_service = ai_service
         self.aspect_ratio = aspect_ratio
         self.resolution = resolution
+
+    @staticmethod
+    def build_text_mask(image_size, targets):
+        regions = create_mask_from_bboxes(image_size, [t['bbox'] for t in targets], expand_pixels=2)
+        mask = Image.new('RGBA', image_size, (255, 255, 255, 255))
+        mask.putalpha(ImageOps.invert(regions.convert('L')))
+        return mask
+
+    @staticmethod
+    def _build_normalized_removal_regions(
+        image_size: tuple[int, int],
+        bboxes: List[tuple],
+        types: Optional[List[str]] = None,
+    ) -> List[Dict]:
+        """把像素 bbox 转成 0-1 归一化 JSON，供 prompt 明确指定待移除区域。"""
+        image_width, image_height = image_size
+        if image_width <= 0 or image_height <= 0:
+            return []
+
+        def clamp_01(value: float) -> float:
+            return max(0.0, min(1.0, value))
+
+        removal_regions = []
+        for index, bbox in enumerate(bboxes):
+            if not isinstance(bbox, (tuple, list)) or len(bbox) != 4:
+                continue
+
+            raw_x0, raw_y0, raw_x1, raw_y1 = [float(v) for v in bbox]
+            x0, x1 = sorted((raw_x0, raw_x1))
+            y0, y1 = sorted((raw_y0, raw_y1))
+
+            nx0 = round(clamp_01(x0 / image_width), 6)
+            ny0 = round(clamp_01(y0 / image_height), 6)
+            nx1 = round(clamp_01(x1 / image_width), 6)
+            ny1 = round(clamp_01(y1 / image_height), 6)
+
+            removal_regions.append({
+                'region_id': index + 1,
+                'element_type': types[index] if types and index < len(types) else 'unknown',
+                'bbox': {
+                    'x0': nx0,
+                    'y0': ny0,
+                    'x1': nx1,
+                    'y1': ny1,
+                    'width': round(nx1 - nx0, 6),
+                    'height': round(ny1 - ny0, 6),
+                }
+            })
+
+        return removal_regions
     
     def inpaint_regions(
         self,
@@ -155,21 +207,58 @@ class GenerativeEditInpaintProvider(InpaintProvider):
         """
         使用生成式大模型编辑生成干净背景
         
-        注意：此方法忽略bboxes参数，通过大模型自动识别并移除所有文字和图标
+        仅文字模式使用 OCR 文字清单定位；支持原生 mask 的图片提供者同时接收透明区域掩码。
+        其他模式使用归一化 bbox 提示词。
         
         支持的kwargs参数：
         - aspect_ratio: str, 宽高比，默认使用初始化时的值
         - resolution: str, 分辨率，默认使用初始化时的值
+        - use_text_mask: bool, 覆盖仅文字模式的原生 mask 能力选择
         """
         aspect_ratio = kwargs.get('aspect_ratio', self.aspect_ratio)
         resolution = kwargs.get('resolution', self.resolution)
+        if kwargs.get('text_only', False):
+            from utils.validators import normalize_aspect_ratio
+            aspect_ratio = normalize_aspect_ratio(f"{image.width}:{image.height}")
         
         try:
             from services.prompts import get_clean_background_prompt
-            
+
+            normalized_regions = self._build_normalized_removal_regions(
+                image.size,
+                bboxes,
+                types,
+            )
+
             # 获取清理背景的prompt
-            edit_instruction = get_clean_background_prompt()
+            edit_instruction = get_clean_background_prompt(
+                normalized_regions, text_only=kwargs.get('text_only', False)
+            )
+            edit_options = {}
+            targets = kwargs.get('text_targets') if kwargs.get('text_only', False) else None
+            if targets:
+                from services.prompts import get_targeted_text_removal_prompt
+                use_mask = kwargs.get('use_text_mask',
+                    getattr(self.ai_service.image_provider, 'supports_mask_edit', False) is True)
+                edit_instruction = get_targeted_text_removal_prompt(
+                    targets, image.size, masked=use_mask,
+                    retry_feedback=kwargs.get('retry_feedback', ''),
+                )
+                if use_mask:
+                    edit_options['mask_image'] = self.build_text_mask(image.size, targets)
+                if kwargs.get('save_mask_path'):
+                    audit_dir = Path(kwargs['save_mask_path']).parent
+                    audit_dir.mkdir(parents=True, exist_ok=True)
+                    if use_mask:
+                        edit_options['mask_image'].save(kwargs['save_mask_path'])
+                    (audit_dir / 'text_edit_request.json').write_text(json.dumps({
+                        'prompt': edit_instruction, 'targets': targets, 'mask_supplied': use_mask,
+                        'source_size': list(image.size),
+                    }, ensure_ascii=False, indent=2))
             
+            if kwargs.get('retry_feedback') and not targets:
+                edit_instruction += '\nCorrection from the previous review: ' + kwargs['retry_feedback']
+
             # 保存临时图片文件（AI服务需要文件路径）
             with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
                 tmp_path = tmp_file.name
@@ -184,7 +273,8 @@ class GenerativeEditInpaintProvider(InpaintProvider):
                 aspect_ratio=aspect_ratio,
                 resolution=resolution,
                 original_description=None,
-                additional_ref_images=None
+                additional_ref_images=None,
+                **edit_options,
             )
             
             if not clean_bg_image:
@@ -205,6 +295,10 @@ class GenerativeEditInpaintProvider(InpaintProvider):
         
         except Exception as e:
             logger.error(f"GenerativeEditInpaintProvider处理失败: {e}", exc_info=True)
+            from export_runtime.control import current, check
+            check()
+            if current():
+                raise
             return None
 
 
@@ -267,6 +361,10 @@ class BaiduInpaintProvider(InpaintProvider):
         
         except Exception as e:
             logger.error(f"BaiduInpaintProvider处理失败: {e}", exc_info=True)
+            from export_runtime.control import check, current
+            check()
+            if current():
+                raise
             return None
 
 
@@ -357,6 +455,9 @@ class HybridInpaintProvider(InpaintProvider):
                     logger.info("HybridInpaintProvider: 画质提升完成")
                     return enhanced_image
                 else:
+                    from export_runtime.control import current, StageFailure
+                    if current():
+                        raise StageFailure('已启用的背景画质提升未返回结果')
                     logger.warning("HybridInpaintProvider: 画质提升失败，返回百度修复结果")
                     return repaired_image
             else:
@@ -365,6 +466,10 @@ class HybridInpaintProvider(InpaintProvider):
         
         except Exception as e:
             logger.error(f"HybridInpaintProvider处理失败: {e}", exc_info=True)
+            from export_runtime.control import check, current
+            check()
+            if current():
+                raise
             return None
     
     def _enhance_image_quality(
@@ -450,6 +555,10 @@ class HybridInpaintProvider(InpaintProvider):
         
         except Exception as e:
             logger.error(f"画质提升失败: {e}", exc_info=True)
+            from export_runtime.control import check, current
+            check()
+            if current():
+                raise
             return None
 
 
@@ -607,4 +716,3 @@ class InpaintProviderRegistry:
                    f"图片->{image_provider.__class__.__name__ if image_provider else 'None'}")
         
         return registry
-

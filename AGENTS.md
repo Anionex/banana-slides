@@ -1,0 +1,23 @@
+# Project notes
+
+- 去字从原图重试时必须保持完整文字清单，校验反馈只能补充缺陷；质量重试耗尽须使失败候选失效，显式断点恢复不能反复复用已拒绝的结果。OCR 孤立字符须结合局部图形核验，避免将图标当成数字擦除和重叠。
+
+- 安装 Playwright 浏览器依赖的 CI job 须固定到锁定版本支持的 OS；修复须扫描全部工作流（含 PR、nightly、发布），运行 `scripts/check_browser_runners.py`，不能只修改当前失败入口。升级 runner 前核对兼容性，避免 `ubuntu-latest` 漂移导致浏览器安装失败。
+
+- Docker E2E 在环境测试重建容器后，须让宿主 runner 可写 `uploads`、`backend/instance` 及 SQLite 文件，并验证实际写事务；PPTX 下载须在点击前监听 Page 的 `download`，保存文件验收，不能用接口 200 代替。
+- nightly 的官方 PyPI 配置须在测试和发布两个 job 中通过 `scripts/prepare_nightly_lock.py` 同步锁文件 URL；`uv sync --frozen` 不会用索引环境变量覆盖锁定的下载地址，不能通过重新解析或升级依赖规避镜像 403。
+
+- README 翻译以 `docs/i18n/readme-state.json` 的成功同步快照为基线；保留 `i18n` 章节 ID，译文与状态一起提交。不可用干净 CI 工作区的 `git diff HEAD` 判断增量，也不可用中英文标题文字匹配章节。维护说明见 `docs/readme-i18n.md`。桌面发版须同时核对五种语言的下载入口和「最新动态」首条记录。「最新动态」只写用户可感知的新功能和关键修复，省略构建、测试和验收过程。
+
+- 同一项目的素材工具箱会从多个入口同时挂载；任务列表和轮询必须按项目共享，验收跨入口提交、关闭其中一个入口及重新挂载，避免覆盖任务或重复轮询。
+
+- `main` 只承载通用开源功能。`bananaslides.online` 专属的 Landing、内测预约、站内反馈、公开 Demo、访客隔离、管理员入口及其配置/迁移只能进入 `production/bananaslides-online`；默认关闭的开关不等于分支隔离。官网任务创建分支和 PR 前必须核对基线与目标分支，未经用户明确要求不得“同步主线”。
+
+- `bananaslides.online` 的正式源码基线为 `origin/production/bananaslides-online`（2026-09-27 建立，包含当时线上首页与后端补丁）；官网改动从该分支出发，发布前重新核对线上镜像及差异，不把旧 `feat/sponsor` 或独立 `feat/public-site-landing` 当作完整线上代码。
+- `bananaslides.online` 经 Cloudflare 访问时，服务器内 Python `urllib` 可能被返回 403，即使源站和浏览器正常。发布验收分别核对源站构建哈希与公网 `curl`/真实浏览器结果；不要仅因 `urllib` 的边缘拦截判定部署失败。
+- 官网发布含数据库迁移时，先用真实 SQLite 库的在线备份预演，再核对该备份的 `alembic_version`、新表和原有数据行数；镜像中的 `alembic.ini` 不得指向占位数据库。
+- 官网前端使用 `npm run build:online`（启用 `VITE_PUBLIC_LANDING=true`）；验收实际发布产物和公网根路径的 landing 标题及 Demo 跳转，不能只检查 HTTP 200。
+
+- 下架赞助商须移除所有品牌入口、提供商预设、注册链接和获取密钥引导，并按新访客及已有配置验收；不能只删除广告卡片。保留底层兼容不得变成继续展示或引流。
+
+- Windows 打包的 FFmpeg/FFprobe 须固定到持久可下载的产物并校验哈希；更换下载来源要验证空缓存打包，不能依赖上游会清理的每日构建。

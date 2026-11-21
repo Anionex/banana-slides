@@ -62,13 +62,17 @@ test.describe('Settings: Per-model provider integration (real backend)', () => {
     const apiKeyInput = textGroup.locator('input[type="password"]')
     const placeholder = await apiKeyInput.getAttribute('placeholder')
     expect(placeholder).toMatch(/长度|length/i)
+    await expect(page.getByTestId('per-model-provider-override-alert')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /全部跟随默认配置/ })).toHaveCount(0)
   })
 
   test('reset clears per-model config from backend', async ({ page }) => {
     await page.goto('/settings')
 
-    // Verify we start with per-model config
     const textGroup = getModelGroup(page, 0)
+    await textGroup.locator('select').selectOption('openai')
+    await page.getByRole('button', { name: /保存/ }).click()
+    await expect(page.locator('text=保存成功').or(page.locator('text=saved'))).toBeVisible({ timeout: 5000 })
     await expect(textGroup.locator('select')).toHaveValue('openai')
 
     // Click reset

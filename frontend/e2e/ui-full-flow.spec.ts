@@ -26,12 +26,14 @@
 import { test, expect } from '@playwright/test'
 import * as fs from 'fs'
 import * as path from 'path'
+import { downloadPptx } from './helpers/download-pptx'
 
 test.describe('UI-driven E2E test: From user interface to PPT export', () => {
   // Increase timeout to 25 minutes (image generation may need retries on API disconnects)
   test.setTimeout(25 * 60 * 1000)
   
   test('User Full Flow: Create and export PPT in browser', async ({ page }) => {
+    const nightly = process.env.NIGHTLY_E2E === '1'
     console.log('\n========================================')
     console.log('🌐 Starting UI-driven E2E test (via frontend interface)')
     console.log('========================================\n')
@@ -45,7 +47,7 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     await page.addInitScript(() => {
       localStorage.setItem('hasSeenHelpModal', 'true')
     })
-    await page.goto('http://localhost:3000')
+    await page.goto('http://localhost:3011')
 
     // Verify page loaded
     await expect(page).toHaveTitle(/蕉幻|Banana/i)
@@ -70,7 +72,10 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     console.log('✍️  Step 3: Entering idea content...')
     const ideaInput = page.locator('[role="textbox"], textarea, input[type="text"]').first()
     await ideaInput.click()
-    await ideaInput.pressSequentially('创建一份关于人工智能基础的简短PPT，包含3页：什么是AI、AI的应用、AI的未来')
+    const idea = nightly
+      ? '创建恰好2页的人工智能基础PPT。第1页介绍什么是AI，第2页介绍AI的应用。每页一个简短要点。这两页是全部页面，封面和结语也计入总页数。'
+      : '创建一份关于人工智能基础的简短PPT，包含3页：什么是AI、AI的应用、AI的未来'
+    await ideaInput.pressSequentially(idea)
     
     console.log('🚀 Clicking "Next" button...')
     await page.click('button:has-text("下一步")')
@@ -83,12 +88,42 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     // Step 4: Click batch generate outline button on outline editor page
     // ====================================
     console.log('⏳ Step 4: Waiting for outline editor page to load...')
-    await page.waitForSelector('button:has-text("自动生成大纲"), button:has-text("重新生成大纲")', { timeout: 10000 })
-    
-    console.log('📋 Step 4: Clicking batch generate outline button...')
-    const generateOutlineBtn = page.locator('button:has-text("自动生成大纲"), button:has-text("重新生成大纲")')
-    await generateOutlineBtn.first().click()
-    console.log('✓ Clicked batch generate outline button\n')
+    const outlineItems = page.locator('span').filter({ hasText: /^第 \d+ 页$/ })
+    const generatingOutlineBtn = page.locator('button').filter({ hasText: '生成中...' })
+    const generateOutlineBtn = page.locator('button').filter({ hasText: /^(自动生成大纲|重新生成大纲)$/ })
+    const outlineReadyState = page
+      .locator('button').filter({ hasText: /^(自动生成大纲|重新生成大纲)$/ })
+      .or(generatingOutlineBtn)
+      .or(outlineItems.first())
+    await expect(outlineReadyState.first()).toBeVisible({ timeout: 10000 })
+
+    // Fresh projects auto-start outline generation on mount. Give that effect a
+    // short window so the test does not race it by clicking regenerate.
+    await generatingOutlineBtn
+      .or(outlineItems.first())
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(() => undefined)
+
+    let outlineCount = await outlineItems.count()
+    const isOutlineGenerating = await generatingOutlineBtn.isVisible().catch(() => false)
+
+    if (outlineCount > 0) {
+      console.log(`✓ Outline already available from auto-generation, total ${outlineCount} pages\n`)
+    } else if (isOutlineGenerating) {
+      console.log('✓ Outline auto-generation already in progress\n')
+    } else {
+      console.log('📋 Step 4: Clicking batch generate outline button...')
+      await generateOutlineBtn.first().click()
+
+      const regenerateDialog = page.locator('div[role="dialog"]').filter({ hasText: '确认重新生成' })
+      if (await regenerateDialog.waitFor({ state: 'visible', timeout: 1500 }).then(() => true).catch(() => false)) {
+        console.log('  Regenerate confirmation appeared, confirming...')
+        await regenerateDialog.locator('button').filter({ hasText: '确定' }).click()
+        await regenerateDialog.waitFor({ state: 'hidden', timeout: 5000 })
+      }
+
+      console.log('✓ Clicked batch generate outline button\n')
+    }
     
     // ====================================
     // Step 5: Wait for outline generation to complete (smart wait)
@@ -109,10 +144,25 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
 
     // Wait for streaming to finish (button reverts from "生成中...")
     await expect(streamingBtn).toBeHidden({ timeout: 300000 })
+
+    if (nightly) {
+      // A model may add a cover or conclusion despite the requested page count.
+      const projectId = new URL(page.url()).pathname.split('/')[2]
+      const projectUrl = `/api/projects/${projectId}`
+      const project = await page.request.get(projectUrl)
+      await expect(project).toBeOK()
+      const { data: { pages } } = await project.json() as { data: { pages: { id: string }[] } }
+      for (const { id } of pages.slice(2)) {
+        await expect(await page.request.delete(`${projectUrl}/pages/${id}`)).toBeOK()
+      }
+      if (pages.length > 2) {
+        await page.reload()
+      }
+      await expect(outlineItems).toHaveCount(2)
+    }
     
     // Verify outline content
-    const outlineItems = page.locator('text=/第 \\d+ 页/')
-    const outlineCount = await outlineItems.count()
+    outlineCount = await outlineItems.count()
     
     expect(outlineCount).toBeGreaterThan(0)
     console.log(`✓ Outline generated successfully, total ${outlineCount} pages\n`)
@@ -300,7 +350,7 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
       const match = urlBeforeClick.match(/\/project\/([^/]+)\//)
       if (match) {
         const projectId = match[1]
-        const targetUrl = `http://localhost:3000/project/${projectId}/preview`
+        const targetUrl = `http://localhost:3011/project/${projectId}/preview`
         console.log(`  Navigating to: ${targetUrl}`)
         await page.goto(targetUrl, { waitUntil: 'domcontentloaded' })
       } else {
@@ -318,8 +368,8 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     // ====================================
     console.log('🎨 Step 11: Selecting template...')
     
-    // Click "更换模板" button to open template selection modal
-    // The button might be hidden on small screens, so try multiple selectors
+    // Open the template menu, then click "更换模板" to open the template selection modal
+    await page.getByTestId('template-menu').click()
     const changeTemplateBtn = page.locator('button:has-text("更换模板"), button[title="更换模板"]').first()
     await changeTemplateBtn.waitFor({ state: 'visible', timeout: 10000 })
     await changeTemplateBtn.scrollIntoViewIfNeeded()
@@ -416,13 +466,17 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     
     if (await generateImageBtn.count() > 0) {
       await generateImageBtn.first().click()
+      if (nightly) {
+        const warning = page.getByRole('dialog', { name: '1K分辨率警告' })
+        await warning.getByRole('button', { name: '仍然生成', exact: true }).click()
+      }
       console.log('✓ Clicked batch generate images button\n')
       
       // Wait for images to generate (should complete within 5 minutes)
       console.log('⏳ Step 13: Waiting for images to generate (should complete within 5 minutes)...')
       
       // Get expected page count from the button text (e.g., "批量生成图片 (3)")
-      let pageCount = 3 // default
+      let pageCount = nightly ? 2 : 3
       try {
         const buttonText = await generateImageBtn.first().textContent()
         const match = buttonText?.match(/\((\d+)\)/)
@@ -450,11 +504,11 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
       // Helper: Precise selector for "生成中" StatusBadge (orange background)
       // StatusBadge structure: <span class="bg-orange-100 text-orange-600 animate-pulse ...">生成中</span>
       // We use CSS class selector which is more reliable than text matching
-      const generatingBadgeSelector = 'span.bg-orange-100.text-orange-600'
+      const generatingBadgeSelector = 'aside:first-of-type span.bg-orange-100.text-orange-600'
       // Helper: Selector for failed status badges (red background)
-      const failedBadgeSelector = 'span.bg-red-100.text-red-600'
+      const failedBadgeSelector = 'aside:first-of-type span.bg-red-100.text-red-600'
       // Helper: Selector for completed status badges (green background)
-      const _completedBadgeSelector = 'span.bg-green-100.text-green-600'
+      const _completedBadgeSelector = 'aside:first-of-type span.bg-green-100.text-green-600'
       // Helper: Image selector for generated slide images
       // Generated images are stored at: /files/{project_id}/pages/{page_id}_v{version}.png
       // Template images are at: /files/{project_id}/template/template.png (excluded)
@@ -597,34 +651,12 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     // ====================================
     console.log('📦 Step 14: Exporting PPT file...')
     
-    // Setup download handler
-    const downloadPromise = page.waitForEvent('download', { timeout: 60000 })
-    
-    // Step 1: Wait for export button to be enabled (it's disabled until all images are generated)
-    const exportBtn = page.locator('button:has-text("导出")')
-    await exportBtn.waitFor({ state: 'visible', timeout: 10000 })
-    await expect(exportBtn).toBeEnabled({ timeout: 5000 })
-    
-    await exportBtn.first().click()
-    console.log('✓ Clicked export button, opening menu...')
-    
-    // Wait for dropdown menu to appear
-    await page.waitForTimeout(500)
-    
-    // Step 2: Click "导出为 PPTX" in the dropdown menu
-    const exportPptxBtn = page.locator('button:has-text("导出为 PPTX")')
-    await exportPptxBtn.waitFor({ state: 'visible', timeout: 5000 })
-    await exportPptxBtn.click()
-    console.log('✓ Clicked "导出为 PPTX" button\n')
-    
-    // Wait for download to complete
-    console.log('⏳ Waiting for PPT file download...')
-    const download = await downloadPromise
-    
-    // Save file
-    const downloadPath = path.join('test-results', 'e2e-test-output.pptx')
+    const download = await downloadPptx(page)
+    const filename = nightly ? 'nightly.pptx' : path.basename(download.suggestedFilename())
+    const downloadPath = path.join('test-results', filename)
     await download.saveAs(downloadPath)
-    
+    expect(await download.failure()).toBeNull()
+
     // Verify file exists and is not empty
     const fileExists = fs.existsSync(downloadPath)
     expect(fileExists).toBeTruthy()
@@ -636,22 +668,23 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     console.log(`  Path: ${downloadPath}`)
     console.log(`  Size: ${(fileStats.size / 1024).toFixed(2)} KB\n`)
     
-    // Validate PPTX file content using python-pptx
-    console.log('🔍 Validating PPTX file content...')
-    const { execSync } = await import('child_process')
-    const { fileURLToPath } = await import('url')
-    try {
-      // Get current directory (ES module compatible)
-      const currentDir = path.dirname(fileURLToPath(import.meta.url))
-      const validateScript = path.join(currentDir, 'validate_pptx.py')
-      const result = execSync(
-        `python3 "${validateScript}" "${downloadPath}" 3 "人工智能" "AI"`,
-        { encoding: 'utf-8', stdio: 'pipe' }
-      )
-      console.log(`✓ ${result.trim()}\n`)
-    } catch (error: any) {
-      console.warn(`⚠️  PPTX validation warning: ${error.stdout || error.message}`)
-      console.log('  (Continuing test, but PPTX content validation had issues)\n')
+    // Nightly validates the downloaded deck in the backend container.
+    if (!nightly) {
+      console.log('🔍 Validating PPTX file content...')
+      const { execSync } = await import('child_process')
+      const { fileURLToPath } = await import('url')
+      try {
+        const currentDir = path.dirname(fileURLToPath(import.meta.url))
+        const validateScript = path.join(currentDir, 'validate_pptx.py')
+        const result = execSync(
+          `python3 "${validateScript}" "${downloadPath}" 3 "人工智能" "AI"`,
+          { encoding: 'utf-8', stdio: 'pipe' }
+        )
+        console.log(`✓ ${result.trim()}\n`)
+      } catch (error: any) {
+        console.warn(`⚠️  PPTX validation warning: ${error.stdout || error.message}`)
+        console.log('  (Continuing test, but PPTX content validation had issues)\n')
+      }
     }
     
     // ====================================
@@ -679,7 +712,7 @@ test.describe('UI E2E - Simplified (skip long waits)', () => {
     await page.addInitScript(() => {
       localStorage.setItem('hasSeenHelpModal', 'true')
     })
-    await page.goto('http://localhost:3000')
+    await page.goto('http://localhost:3011')
     console.log('✓ Homepage loaded')
 
     // Ensure "一句话生成" tab is selected (it's selected by default)
@@ -726,4 +759,3 @@ test.describe('UI E2E - Simplified (skip long waits)', () => {
     console.log('\n✅ UI flow verification passed!\n')
   })
 })
-

@@ -3,7 +3,9 @@
 import json
 import logging
 import os
+import re
 import shutil
+import sys
 import tempfile
 from pathlib import Path
 from datetime import datetime, timezone
@@ -19,13 +21,40 @@ from services.ai_providers.ocr.baidu_accurate_ocr_provider import create_baidu_a
 from services.ai_providers.image.baidu_inpainting_provider import create_baidu_inpainting_provider
 from services.ai_providers import LAZYLLM_VENDORS
 from services.task_manager import task_manager
+from services.update_check_service import check_for_update
 
 logger = logging.getLogger(__name__)
-ALLOWED_PROVIDER_FORMATS = {"openai", "gemini", "lazyllm"} | LAZYLLM_VENDORS
+ALLOWED_PROVIDER_FORMATS = {"openai", "gemini", "volcengine", "lazyllm", "codex"} | LAZYLLM_VENDORS
+# OpenAI 兼容图片模型的质量档位；xhigh / max 需要 gpt-image-2.5 及更新模型
+ALLOWED_IMAGE_QUALITIES = ("auto", "low", "medium", "high", "xhigh", "max")
 
 settings_bp = Blueprint(
     "settings", __name__, url_prefix="/api/settings"
 )
+
+
+PROVIDER_API_CONFIG_KEYS = {
+    "gemini": ("GOOGLE_API_KEY", "GOOGLE_API_BASE"),
+    "openai": ("OPENAI_API_KEY", "OPENAI_API_BASE"),
+    "volcengine": ("VOLCENGINE_API_KEY", "VOLCENGINE_API_BASE"),
+}
+
+
+def _provider_api_config_keys(provider_format):
+    """Return provider-specific config keys for the global API key/base override."""
+    return PROVIDER_API_CONFIG_KEYS.get((provider_format or "").lower())
+
+
+def _provider_api_env_defaults():
+    """Return provider API config values from .env-backed Config defaults."""
+    return {
+        "GOOGLE_API_KEY": Config.GOOGLE_API_KEY,
+        "OPENAI_API_KEY": Config.OPENAI_API_KEY,
+        "VOLCENGINE_API_KEY": Config.VOLCENGINE_API_KEY,
+        "GOOGLE_API_BASE": Config.GOOGLE_API_BASE,
+        "OPENAI_API_BASE": Config.OPENAI_API_BASE,
+        "VOLCENGINE_API_BASE": Config.VOLCENGINE_API_BASE,
+    }
 
 
 @contextmanager
@@ -47,18 +76,23 @@ def temporary_settings_override(settings_override: dict):
     original_values = {}
 
     try:
-        # 应用覆盖设置
-        if settings_override.get("api_key"):
-            original_values["GOOGLE_API_KEY"] = current_app.config.get("GOOGLE_API_KEY")
-            original_values["OPENAI_API_KEY"] = current_app.config.get("OPENAI_API_KEY")
-            current_app.config["GOOGLE_API_KEY"] = settings_override["api_key"]
-            current_app.config["OPENAI_API_KEY"] = settings_override["api_key"]
+        active_format = (
+            settings_override.get("ai_provider_format")
+            or current_app.config.get("AI_PROVIDER_FORMAT")
+            or Config.AI_PROVIDER_FORMAT
+        )
+        provider_keys = _provider_api_config_keys(active_format)
 
-        if settings_override.get("api_base_url"):
-            original_values["GOOGLE_API_BASE"] = current_app.config.get("GOOGLE_API_BASE")
-            original_values["OPENAI_API_BASE"] = current_app.config.get("OPENAI_API_BASE")
-            current_app.config["GOOGLE_API_BASE"] = settings_override["api_base_url"]
-            current_app.config["OPENAI_API_BASE"] = settings_override["api_base_url"]
+        # 应用覆盖设置
+        if settings_override.get("api_key") and provider_keys:
+            key_config, _ = provider_keys
+            original_values[key_config] = current_app.config.get(key_config)
+            current_app.config[key_config] = settings_override["api_key"]
+
+        if settings_override.get("api_base_url") and provider_keys:
+            _, base_config = provider_keys
+            original_values[base_config] = current_app.config.get(base_config)
+            current_app.config[base_config] = settings_override["api_base_url"]
 
         if settings_override.get("ai_provider_format"):
             original_values["AI_PROVIDER_FORMAT"] = current_app.config.get("AI_PROVIDER_FORMAT")
@@ -120,9 +154,20 @@ def temporary_settings_override(settings_override: dict):
             original_values["DEFAULT_RESOLUTION"] = current_app.config.get("DEFAULT_RESOLUTION")
             current_app.config["DEFAULT_RESOLUTION"] = settings_override["image_resolution"]
 
+        if settings_override.get("image_quality"):
+            original_values["IMAGE_QUALITY"] = current_app.config.get("IMAGE_QUALITY")
+            current_app.config["IMAGE_QUALITY"] = settings_override["image_quality"]
+
         if "enable_text_reasoning" in settings_override:
             original_values["ENABLE_TEXT_REASONING"] = current_app.config.get("ENABLE_TEXT_REASONING")
             current_app.config["ENABLE_TEXT_REASONING"] = settings_override["enable_text_reasoning"]
+
+        if "text_max_output_tokens" in settings_override:
+            value = settings_override["text_max_output_tokens"]
+            if type(value) is not int or not 1 <= value <= 2147483647:
+                raise ValueError("text_max_output_tokens must be a positive 32-bit integer")
+            original_values["TEXT_MAX_OUTPUT_TOKENS"] = current_app.config.get("TEXT_MAX_OUTPUT_TOKENS")
+            current_app.config["TEXT_MAX_OUTPUT_TOKENS"] = value
 
         if "text_thinking_budget" in settings_override:
             original_values["TEXT_THINKING_BUDGET"] = current_app.config.get("TEXT_THINKING_BUDGET")
@@ -135,6 +180,10 @@ def temporary_settings_override(settings_override: dict):
         if "image_thinking_budget" in settings_override:
             original_values["IMAGE_THINKING_BUDGET"] = current_app.config.get("IMAGE_THINKING_BUDGET")
             current_app.config["IMAGE_THINKING_BUDGET"] = settings_override["image_thinking_budget"]
+
+        if "openai_image_api_protocol" in settings_override:
+            original_values["OPENAI_IMAGE_API_PROTOCOL"] = current_app.config.get("OPENAI_IMAGE_API_PROTOCOL")
+            current_app.config["OPENAI_IMAGE_API_PROTOCOL"] = settings_override["openai_image_api_protocol"]
 
         yield
 
@@ -161,6 +210,22 @@ def get_settings():
             "GET_SETTINGS_ERROR",
             f"Failed to get settings: {str(e)}",
             500,
+        )
+
+
+@settings_bp.route("/check-update", methods=["GET"], strict_slashes=False)
+def check_update():
+    """
+    GET /api/settings/check-update - Check Docker Hub for a newer image.
+    """
+    try:
+        return success_response(check_for_update())
+    except Exception as e:
+        logger.error(f"Error checking for updates: {str(e)}")
+        return error_response(
+            "CHECK_UPDATE_ERROR",
+            f"Failed to check updates: {str(e)}",
+            502,
         )
 
 
@@ -212,6 +277,15 @@ def update_settings():
                 return bad_request("Resolution must be 1K, 2K, or 4K")
             settings.image_resolution = resolution
 
+        if "image_quality" in data:
+            quality = data["image_quality"]
+            if quality not in ALLOWED_IMAGE_QUALITIES:
+                allowed_values = "', '".join(ALLOWED_IMAGE_QUALITIES)
+                return bad_request(f"image_quality must be one of '{allowed_values}'")
+            # Store 'auto' literally: an explicit choice in the UI must override
+            # an IMAGE_QUALITY value coming from .env, unlike NULL (= follow env).
+            settings.image_quality = quality
+
         if "image_aspect_ratio" in data:
             aspect_ratio = data["image_aspect_ratio"]
             settings.image_aspect_ratio = aspect_ratio
@@ -255,6 +329,12 @@ def update_settings():
                 settings.output_language = language
             else:
                 return bad_request("Output language must be 'zh', 'en', 'ja', or 'auto'")
+
+        if "text_max_output_tokens" in data:
+            value = data["text_max_output_tokens"]
+            if type(value) is not int or not 1 <= value <= 2147483647:
+                return bad_request("text_max_output_tokens must be a positive 32-bit integer")
+            settings.text_max_output_tokens = value
 
         # Update description generation mode
         if "description_generation_mode" in data:
@@ -300,9 +380,20 @@ def update_settings():
                 return bad_request("Image thinking budget must be between 1 and 8192")
             settings.image_thinking_budget = budget
 
+        if "enable_image_quality_control" in data:
+            settings.enable_image_quality_control = bool(data["enable_image_quality_control"])
+
         # Update Baidu OCR configuration
         if "baidu_api_key" in data:
             settings.baidu_api_key = data["baidu_api_key"] or None
+
+        # Update ElevenLabs TTS configuration
+        if "elevenlabs_enabled" in data:
+            settings.elevenlabs_enabled = bool(data["elevenlabs_enabled"])
+        if "elevenlabs_api_key" in data:
+            settings.elevenlabs_api_key = data["elevenlabs_api_key"] or None
+        if "elevenlabs_voice_id" in data:
+            settings.elevenlabs_voice_id = (data["elevenlabs_voice_id"] or "").strip() or None
 
         # Update per-model provider source configuration
         if "text_model_source" in data:
@@ -310,6 +401,12 @@ def update_settings():
 
         if "image_model_source" in data:
             settings.image_model_source = (data["image_model_source"] or "").strip() or None
+
+        if "openai_image_api_protocol" in data:
+            protocol = data["openai_image_api_protocol"]
+            if protocol not in ("auto", "images", "chat"):
+                return bad_request("openai_image_api_protocol must be 'auto', 'images', or 'chat'")
+            settings.openai_image_api_protocol = protocol if protocol != "auto" else None
 
         if "image_caption_model_source" in data:
             settings.image_caption_model_source = (data["image_caption_model_source"] or "").strip() or None
@@ -377,16 +474,23 @@ def reset_settings():
         settings.image_caption_model = None
         settings.output_language = None
         settings.enable_text_reasoning = False
+        settings.text_max_output_tokens = None
         settings.text_thinking_budget = 1024
         settings.enable_image_reasoning = False
         settings.image_thinking_budget = 1024
+        settings.enable_image_quality_control = False
         settings.description_generation_mode = None
         settings.description_extra_fields = None
         settings.image_prompt_extra_fields = None
         settings.baidu_api_key = None
+        settings.elevenlabs_enabled = False
+        settings.elevenlabs_api_key = None
+        settings.elevenlabs_voice_id = None
         settings.text_model_source = None
         settings.image_model_source = None
         settings.image_caption_model_source = None
+        settings.openai_image_api_protocol = None
+        settings.image_quality = None
         settings.lazyllm_api_keys = None
         for model_type in ('text', 'image', 'image_caption'):
             setattr(settings, f'{model_type}_api_key', None)
@@ -417,6 +521,64 @@ def reset_settings():
         )
 
 
+@settings_bp.route("/elevenlabs-voices", methods=["GET"], strict_slashes=False)
+def get_elevenlabs_voices():
+    """GET /api/settings/elevenlabs-voices - 用存储的 API Key 拉取可用声音列表"""
+    from models import Settings
+    db.session.expire_all()
+    settings = Settings.get_settings()
+    api_key = settings.elevenlabs_api_key
+    if not api_key:
+        return error_response("ELEVENLABS_KEY_MISSING", "ElevenLabs API Key 未配置", 400)
+    try:
+        from elevenlabs.client import ElevenLabs
+        from elevenlabs.core import ApiError as ElevenLabsApiError
+        client = ElevenLabs(api_key=api_key)
+        try:
+            voices_response = client.voices.get_all()
+        except ElevenLabsApiError as e:
+            body = getattr(e, 'body', None) or {}
+            detail = body.get('detail', {}) if isinstance(body, dict) else {}
+            status = detail.get('status', '') if isinstance(detail, dict) else ''
+            msg = (detail.get('message') if isinstance(detail, dict) else None) or str(e)
+            if status == 'missing_permissions':
+                return error_response(
+                    "ELEVENLABS_KEY_MISSING_PERMISSION",
+                    "ElevenLabs API Key 缺少 voices_read 权限。请到 ElevenLabs Dashboard 编辑该 Key 并勾选 Voices: Read，或创建 'Has access to all' 的 Key 后重新保存。",
+                    400,
+                )
+            if status == 'invalid_api_key' or e.status_code == 401:
+                return error_response("ELEVENLABS_KEY_INVALID", f"ElevenLabs API Key 无效：{msg}", 400)
+            return error_response("ELEVENLABS_VOICES_ERROR", f"ElevenLabs 错误 (HTTP {e.status_code})：{msg}", 500)
+        voices = []
+        for v in voices_response.voices:
+            labels = getattr(v, "labels", None) or {}
+            verified = getattr(v, "verified_languages", None) or []
+            languages = []
+            seen = set()
+            primary = labels.get("language") if isinstance(labels, dict) else None
+            if primary and primary not in seen:
+                languages.append(primary)
+                seen.add(primary)
+            for entry in verified:
+                lang = entry.get("language") if isinstance(entry, dict) else getattr(entry, "language", None)
+                if lang and lang not in seen:
+                    languages.append(lang)
+                    seen.add(lang)
+            voices.append({
+                "id": v.voice_id,
+                "name": v.name,
+                "category": getattr(v, "category", "premade"),
+                "languages": languages,
+                "accent": labels.get("accent") if isinstance(labels, dict) else None,
+            })
+        voices.sort(key=lambda v: v["name"])
+        return success_response({"voices": voices})
+    except Exception as e:
+        logger.exception("[elevenlabs-voices] 获取声音列表失败")
+        return error_response("ELEVENLABS_VOICES_ERROR", f"获取 ElevenLabs 声音列表失败: {e}", 500)
+
+
 @settings_bp.route("/active-config", methods=["GET"], strict_slashes=False)
 def get_active_config():
     """
@@ -429,6 +591,7 @@ def get_active_config():
         "image_model": current_app.config.get("IMAGE_MODEL"),
         "output_language": current_app.config.get("OUTPUT_LANGUAGE"),
         "image_caption_model": current_app.config.get("IMAGE_CAPTION_MODEL"),
+        "enable_image_quality_control": current_app.config.get("ENABLE_IMAGE_QUALITY_CONTROL", False),
     })
 
 
@@ -547,41 +710,25 @@ def _sync_settings_to_config(settings: Settings):
         logger.info(f"AI provider format changed: {old_format} -> {new_format}")
     current_app.config["AI_PROVIDER_FORMAT"] = new_format
     
-    # Sync API configuration (sync to both GOOGLE_* and OPENAI_* to ensure DB settings override env vars)
-    if settings.api_base_url is not None:
-        old_base = current_app.config.get("GOOGLE_API_BASE")
-        if old_base != settings.api_base_url:
-            ai_config_changed = True
-            logger.info(f"API base URL changed: {old_base} -> {settings.api_base_url}")
-        current_app.config["GOOGLE_API_BASE"] = settings.api_base_url
-        current_app.config["OPENAI_API_BASE"] = settings.api_base_url
-    else:
-        # Restore .env defaults (pop would permanently lose .env values)
-        env_base_google = Config.GOOGLE_API_BASE
-        env_base_openai = Config.OPENAI_API_BASE
-        if current_app.config.get("GOOGLE_API_BASE") != env_base_google or current_app.config.get("OPENAI_API_BASE") != env_base_openai:
-            ai_config_changed = True
-            logger.info("API base URL cleared, falling back to .env defaults")
-        current_app.config["GOOGLE_API_BASE"] = env_base_google
-        current_app.config["OPENAI_API_BASE"] = env_base_openai
+    env_api_defaults = _provider_api_env_defaults()
+    provider_keys = _provider_api_config_keys(new_format)
 
-    if settings.api_key is not None:
-        old_key = current_app.config.get("GOOGLE_API_KEY")
-        # Compare actual values to detect any change (but don't log the keys for security)
-        if old_key != settings.api_key:
+    target_api_config = dict(env_api_defaults)
+    if provider_keys:
+        key_config, base_config = provider_keys
+        if settings.api_key is not None:
+            target_api_config[key_config] = settings.api_key
+        if settings.api_base_url is not None:
+            target_api_config[base_config] = settings.api_base_url
+
+    for config_key, target_value in target_api_config.items():
+        if current_app.config.get(config_key) != target_value:
             ai_config_changed = True
-            logger.info("API key updated")
-        current_app.config["GOOGLE_API_KEY"] = settings.api_key
-        current_app.config["OPENAI_API_KEY"] = settings.api_key
-    else:
-        # Restore .env defaults (pop would permanently lose .env values)
-        env_key_google = Config.GOOGLE_API_KEY
-        env_key_openai = Config.OPENAI_API_KEY
-        if current_app.config.get("GOOGLE_API_KEY") != env_key_google or current_app.config.get("OPENAI_API_KEY") != env_key_openai:
-            ai_config_changed = True
-            logger.info("API key cleared, falling back to .env defaults")
-        current_app.config["GOOGLE_API_KEY"] = env_key_google
-        current_app.config["OPENAI_API_KEY"] = env_key_openai
+            if config_key.endswith("_API_KEY"):
+                logger.info(f"{config_key} updated")
+            else:
+                logger.info(f"{config_key} changed: {current_app.config.get(config_key)} -> {target_value}")
+        current_app.config[config_key] = target_value
     
     # Check model changes
     new_text_model = settings.text_model or Config.TEXT_MODEL
@@ -601,10 +748,22 @@ def _sync_settings_to_config(settings: Settings):
     # Sync image generation settings (fall back to Config when NULL)
     current_app.config["DEFAULT_RESOLUTION"] = settings.image_resolution or Config.DEFAULT_RESOLUTION
     current_app.config["DEFAULT_ASPECT_RATIO"] = settings.image_aspect_ratio or Config.DEFAULT_ASPECT_RATIO
+    new_quality = getattr(settings, "image_quality", None) or Config.IMAGE_QUALITY
+    if current_app.config.get("IMAGE_QUALITY") != new_quality:
+        # Image providers are cached per model name, so a quality change must
+        # invalidate the cache or generation keeps using the previous tier.
+        ai_config_changed = True
+        logger.info(f"Image quality changed: {current_app.config.get('IMAGE_QUALITY')} -> {new_quality}")
+    current_app.config["IMAGE_QUALITY"] = new_quality
 
     # Sync worker settings (fall back to Config when NULL)
     current_app.config["MAX_DESCRIPTION_WORKERS"] = settings.max_description_workers or Config.MAX_DESCRIPTION_WORKERS
     current_app.config["MAX_IMAGE_WORKERS"] = settings.max_image_workers or Config.MAX_IMAGE_WORKERS
+    from services.task_manager import sync_resource_limits
+    sync_resource_limits(
+        current_app.config["MAX_DESCRIPTION_WORKERS"],
+        current_app.config["MAX_IMAGE_WORKERS"],
+    )
     logger.info(f"Updated worker settings: desc={current_app.config['MAX_DESCRIPTION_WORKERS']}, img={current_app.config['MAX_IMAGE_WORKERS']}")
 
     # Sync MinerU settings (fall back to Config defaults when NULL)
@@ -628,9 +787,11 @@ def _sync_settings_to_config(settings: Settings):
         logger.info(f"Reasoning config changed: text={old_text_reasoning}({old_text_budget})->{settings.enable_text_reasoning}({settings.text_thinking_budget}), image={old_image_reasoning}({old_image_budget})->{settings.enable_image_reasoning}({settings.image_thinking_budget})")
     
     current_app.config["ENABLE_TEXT_REASONING"] = settings.enable_text_reasoning
+    current_app.config["TEXT_MAX_OUTPUT_TOKENS"] = getattr(settings, "text_max_output_tokens", None) or Config.TEXT_MAX_OUTPUT_TOKENS
     current_app.config["TEXT_THINKING_BUDGET"] = settings.text_thinking_budget
     current_app.config["ENABLE_IMAGE_REASONING"] = settings.enable_image_reasoning
     current_app.config["IMAGE_THINKING_BUDGET"] = settings.image_thinking_budget
+    current_app.config["ENABLE_IMAGE_QUALITY_CONTROL"] = getattr(settings, "enable_image_quality_control", False)
     
     # Sync Baidu OCR settings (fall back to Config default when NULL)
     current_app.config["BAIDU_API_KEY"] = settings.baidu_api_key or Config.BAIDU_API_KEY
@@ -664,6 +825,18 @@ def _sync_settings_to_config(settings: Settings):
                     ai_config_changed = True
                 current_app.config.pop(config_key, None)
 
+    # Sync OpenAI image API protocol
+    config_key = 'OPENAI_IMAGE_API_PROTOCOL'
+    val = settings.openai_image_api_protocol
+    if val:
+        if current_app.config.get(config_key) != val:
+            ai_config_changed = True
+        current_app.config[config_key] = val
+    else:
+        if config_key in current_app.config:
+            ai_config_changed = True
+        current_app.config.pop(config_key, None)
+
     # Sync LazyLLM vendor API keys to environment variables
     # (lazyllm_env.py reads from os.environ via {SOURCE}_API_KEY)
     if settings.lazyllm_api_keys:
@@ -689,10 +862,23 @@ def _sync_settings_to_config(settings: Settings):
 
 
 def _get_test_image_path() -> Path:
-    test_image = Path(PROJECT_ROOT) / "assets" / "test_img.png"
-    if not test_image.exists():
-        raise FileNotFoundError("未找到 test_img.png，请确认已放在项目根目录 assets 下")
-    return test_image
+    candidates = [Path(PROJECT_ROOT) / "assets" / "test_img.png"]
+
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).resolve().parent
+        pyinstaller_root = getattr(sys, "_MEIPASS", None)
+        if pyinstaller_root:
+            candidates.append(Path(pyinstaller_root) / "assets" / "test_img.png")
+        candidates.extend([
+            exe_dir / "assets" / "test_img.png",
+            exe_dir / "_internal" / "assets" / "test_img.png",
+        ])
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    raise FileNotFoundError("未找到 test_img.png，请确认打包资源或项目根目录 assets 下存在该文件")
 
 
 def _get_baidu_credentials():
@@ -717,6 +903,8 @@ def _create_file_parser():
             caption_format = 'gemini'
         elif source_lower == 'openai':
             caption_format = 'openai'
+        elif source_lower == 'codex':
+            caption_format = 'codex'
         elif source_lower in LAZYLLM_VENDORS:
             caption_format = 'lazyllm'
         else:
@@ -735,6 +923,11 @@ def _create_file_parser():
         google_base = ""
         openai_key = current_app.config.get("IMAGE_CAPTION_API_KEY") or current_app.config.get("OPENAI_API_KEY", "")
         openai_base = current_app.config.get("IMAGE_CAPTION_API_BASE") or current_app.config.get("OPENAI_API_BASE", "")
+    elif caption_format == 'codex':
+        google_key = ""
+        google_base = ""
+        openai_key = ""
+        openai_base = ""
     else:
         # lazyllm or global fallback
         google_key = current_app.config.get("GOOGLE_API_KEY", "")
@@ -848,9 +1041,11 @@ def _test_image_model():
     test_image_path = _get_test_image_path()
     prompt = "生成一张简洁、明亮、适合演示文稿的背景图。"
     settings = Settings.get_settings()
+    image_model = (current_app.config.get("IMAGE_MODEL", "") or "").lower()
+    ref_image_path = None if image_model.startswith("gpt-image-") else str(test_image_path)
     result = ai_service.generate_image(
         prompt=prompt,
-        ref_image_path=str(test_image_path),
+        ref_image_path=ref_image_path,
         aspect_ratio=settings.image_aspect_ratio or "16:9",
         resolution=settings.image_resolution or "2K"
     )
@@ -919,6 +1114,50 @@ TEST_FUNCTIONS = {
 }
 
 
+def _is_codex_settings_test(test_name: str, test_settings: dict, error_text: str) -> bool:
+    test_source_keys = {
+        "text-model": "text_model_source",
+        "image-model": "image_model_source",
+        "caption-model": "image_caption_model_source",
+    }
+    source_key = test_source_keys.get(test_name)
+    if source_key:
+        source = test_settings.get(source_key)
+        if source is None:
+            source = test_settings.get("ai_provider_format")
+        is_codex_test = str(source).lower() == "codex" if source else False
+    else:
+        is_codex_test = False
+    is_codex_endpoint = "chatgpt.com/backend-api/codex" in error_text or "/codex/responses" in error_text
+    return is_codex_test or is_codex_endpoint
+
+
+def _is_codex_oauth_unauthorized(error: Exception, test_name: str, test_settings: dict) -> bool:
+    """Return True when a settings test failed because the Codex OAuth token is invalid."""
+    response = getattr(error, "response", None)
+    status_code = getattr(response, "status_code", None)
+    error_text = str(error).lower()
+    if not _is_codex_settings_test(test_name, test_settings, error_text):
+        return False
+
+    unauthorized = (
+        status_code == 401
+        or bool(re.search(r"\b401\b", error_text))
+        or "unauthorized" in error_text
+    )
+    oauth_not_connected = (
+        "openai oauth is not connected" in error_text
+        or "please log in with your openai account" in error_text
+    )
+    return unauthorized or oauth_not_connected
+
+
+def _disconnect_expired_openai_oauth() -> None:
+    settings = Settings.get_settings()
+    settings.clear_openai_oauth()
+    db.session.flush()
+
+
 def _run_test_async(task_id: str, test_name: str, test_settings: dict, app):
     """
     在后台异步执行测试任务
@@ -966,8 +1205,19 @@ def _run_test_async(task_id: str, test_name: str, test_settings: dict, app):
             logger.error(f"Test task {task_id} failed: {error_msg}", exc_info=True)
             task = Task.query.get(task_id)
             if task:
+                progress = {}
+                if _is_codex_oauth_unauthorized(e, test_name, test_settings):
+                    _disconnect_expired_openai_oauth()
+                    error_msg = "Codex 登录已过期或无效，已断开 OpenAI 账号连接。请重新登录 OpenAI 后再测试。"
+                    progress = {
+                        "openai_oauth_disconnected": True,
+                        "message": error_msg,
+                    }
+                    logger.info("OpenAI OAuth disconnected after Codex settings test reported invalid credentials")
+
                 task.status = 'FAILED'
                 task.error_message = error_msg
+                task.set_progress(progress)
                 task.completed_at = datetime.now(timezone.utc)
                 db.session.commit()
 
@@ -1030,11 +1280,18 @@ def run_settings_test(test_name: str):
             test_settings["baidu_api_key"] = global_settings.baidu_api_key
         if global_settings.image_resolution:
             test_settings["image_resolution"] = global_settings.image_resolution
+        test_settings["image_quality"] = (
+            global_settings.image_quality
+            or current_app.config.get('IMAGE_QUALITY')
+            or 'auto'
+        )
         # 推理模式设置
         test_settings["enable_text_reasoning"] = global_settings.enable_text_reasoning
+        test_settings["text_max_output_tokens"] = global_settings.text_max_output_tokens or Config.TEXT_MAX_OUTPUT_TOKENS
         test_settings["text_thinking_budget"] = global_settings.text_thinking_budget
         test_settings["enable_image_reasoning"] = global_settings.enable_image_reasoning
         test_settings["image_thinking_budget"] = global_settings.image_thinking_budget
+        test_settings["openai_image_api_protocol"] = global_settings.openai_image_api_protocol or current_app.config.get('OPENAI_IMAGE_API_PROTOCOL') or 'auto'
 
         # 应用前端发送的覆盖参数（如果有的话，用于测试未保存的配置）
         override_settings = request.get_json() or {}
@@ -1098,6 +1355,10 @@ def get_test_status(task_id: str):
         if not task:
             return error_response("TASK_NOT_FOUND", "测试任务不存在", 404)
 
+        # 与项目任务接口一致：进程重启/任务卡死时不要让前端一直显示"进行中"
+        from services.task_watchdog import reconcile_task_for_response
+        reconcile_task_for_response(task)
+
         # 构建响应数据
         response_data = {
             'status': task.status,
@@ -1114,7 +1375,16 @@ def get_test_status(task_id: str):
 
         # 如果任务失败，包含错误信息
         elif task.status == 'FAILED':
-            response_data['error'] = task.error_message
+            progress = task.get_progress()
+            from services.task_watchdog import localize_watchdog_payload
+            localized = localize_watchdog_payload({
+                'error_message': task.error_message,
+                'progress': dict(progress or {}),
+            })
+            response_data['error'] = localized['error_message']
+            progress = localized['progress']
+            if progress:
+                response_data.update(progress)
 
         return success_response(response_data)
 

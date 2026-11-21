@@ -1,0 +1,3 @@
+job_id,job_type,creation_type,idea_prompt,outline_text,description_text,project_id,template_image_path,template_style,export_formats,options_json
+job-csv-001,full_generation,idea,请生成一份关于新能源行业趋势的 6 页 PPT,,,,,商务简洁，浅色背景,pptx;pdf,"{""language"": ""zh"", ""max_description_workers"": 4, ""max_image_workers"": 4, ""use_template"": true, ""reference_files"": [], ""material_files"": [], ""export"": {""filename_prefix"": ""new-energy"", ""page_ids"": [], ""editable_max_depth"": 1, ""editable_max_workers"": 4}, ""policy"": {""continue_on_error"": true, ""timeout_sec"": 1800}}"
+job-csv-002,export_only,,,,,REPLACE_WITH_REAL_PROJECT_ID,,,images,"{""export"": {""filename_prefix"": ""existing-export"", ""page_ids"": []}, ""policy"": {""continue_on_error"": true, ""timeout_sec"": 600}}"

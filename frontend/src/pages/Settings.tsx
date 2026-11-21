@@ -1,214 +1,27 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain, ArrowUp, HelpCircle } from 'lucide-react';
+import { SettingsAdvanced, SettingsServiceRow, SettingsActions } from '@/components/settings/SettingsLayout';
+import { SettingsPageFrame } from '@/components/settings/SettingsPageFrame';
+import { SettingsProviderPicker } from '@/components/settings/SettingsProviderPicker';
+import { SettingsApiGuidance } from '@/components/settings/SettingsApiGuidance';
+import { SettingsField } from '@/components/settings/SettingsField';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain, ArrowUp, ArrowUpRight, Link2, Volume2, Info, RefreshCw, CheckCircle, Lightbulb } from 'lucide-react';
 import { useT } from '@/hooks/useT';
+import { appVersion } from '@/utils/appVersion';
+import { isDesktop } from '@/utils';
+import { startOpenAIOAuthMonitor } from '@/utils/openaiOAuthMonitor';
+import { DataStorageSettings } from '@/components/settings/DataStorageSettings';
+import type {
+  DesktopAutoUpdateSettings,
+  DesktopUpdateCheckResult,
+  DesktopUpdateElectronApi,
+} from '@/types/desktopUpdate';
 
 // 组件内翻译
-const settingsI18n = {
-  zh: {
-    nav: { backToHome: '返回首页' },
-    settings: {
-      title: "系统设置",
-      subtitle: "配置应用的各项参数",
-      sections: {
-        appearance: "外观设置", language: "界面语言", apiConfig: "默认 API 配置",
-        apiConfigDesc: "下方模型未单独指定提供商时，将使用此处的配置",
-        modelConfig: "模型配置", mineruConfig: "MinerU 配置", imageConfig: "图像生成配置",
-        performanceConfig: "性能配置", outputLanguage: "输出语言设置",
-        textReasoning: "文本推理模式", imageReasoning: "图像推理模式",
-        baiduOcr: "百度配置", serviceTest: "服务测试", lazyllmConfig: "LazyLLM 厂商配置",
-        vendorApiKeys: "厂商 API Key 配置"
-      },
-      theme: { label: "主题模式", light: "浅色", dark: "深色", system: "跟随系统" },
-      language: { label: "界面语言", zh: "中文", en: "English" },
-      fields: {
-        aiProviderFormat: "AI 提供商格式",
-        aiProviderFormatDesc: "选择 API 请求格式，影响后端如何构造和发送请求。保存设置后生效。",
-        openaiFormat: "OpenAI 格式", geminiFormat: "Gemini 格式", lazyllmFormat: "LazyLLM 格式",
-        apiBaseUrl: "API Base URL", apiBaseUrlPlaceholder: "https://api.example.com",
-        apiBaseUrlDesc: "设置大模型提供商 API 的基础 URL",
-        apiKey: "API Key", apiKeyPlaceholder: "输入新的 API Key",
-        apiKeyDesc: "留空则保持当前设置不变，输入新值则更新",
-        apiKeySet: "已设置（长度: {{length}}）",
-        textModel: "文本大模型", textModelPlaceholder: "留空使用环境变量配置 (如: gemini-3-flash-preview)",
-        textModelDesc: "用于生成大纲、描述等文本内容的模型名称",
-        imageModel: "图像生成模型", imageModelPlaceholder: "留空使用环境变量配置 (如: imagen-3.0-generate-001)",
-        imageModelDesc: "用于生成页面图片的模型名称",
-        imageCaptionModel: "图片识别模型", imageCaptionModelPlaceholder: "留空使用环境变量配置 (如: gemini-3-flash-preview)",
-        imageCaptionModelDesc: "用于识别参考文件中的图片并生成描述",
-        mineruApiBase: "MinerU API Base", mineruApiBasePlaceholder: "留空使用环境变量配置 (如: https://mineru.net)",
-        mineruApiBaseDesc: "MinerU 服务地址，用于解析参考文件",
-        mineruToken: "MinerU Token", mineruTokenPlaceholder: "输入新的 MinerU Token",
-        mineruTokenDesc: "留空则保持当前设置不变，输入新值则更新",
-        imageResolution: "图像清晰度（某些OpenAI格式中转调整该值无效）",
-        imageResolutionDesc: "更高的清晰度会生成更详细的图像，但需要更长时间",
-        descriptionGenerationMode: "描述生成模式", descriptionGenerationModeDesc: "流式模式通过一次 AI 调用逐页生成，体验更流畅；并行模式为每页独立调用 AI，速度更快",
-        descriptionGenerationModeStreaming: "流式", descriptionGenerationModeParallel: "并行",
-        maxDescriptionWorkers: "描述生成最大并发数", maxDescriptionWorkersDesc: "并行模式下同时生成描述的最大工作线程数 (1-20)，越大速度越快",
-        maxImageWorkers: "图像生成最大并发数", maxImageWorkersDesc: "同时生成图像的最大工作线程数 (1-20)，越大速度越快",
-        defaultOutputLanguage: "默认输出语言", defaultOutputLanguageDesc: "AI 生成内容时使用的默认语言",
-        enableTextReasoning: "启用文本推理", enableTextReasoningDesc: "开启后，文本生成（大纲、描述等）会使用 extended thinking 进行深度推理",
-        textThinkingBudget: "文本思考负载", textThinkingBudgetDesc: "文本推理的思考 token 预算 (1-8192)，数值越大推理越深入",
-        enableImageReasoning: "启用图像推理", enableImageReasoningDesc: "开启后，图像生成会使用思考链模式，可能获得更好的构图效果",
-        imageThinkingBudget: "图像思考负载", imageThinkingBudgetDesc: "图像推理的思考 token 预算 (1-8192)，数值越大推理越深入",
-        baiduOcrApiKey: "百度 API Key", baiduOcrApiKeyPlaceholder: "输入百度 API Key",
-        baiduOcrApiKeyDesc: "用于可编辑 PPTX 导出时的文字识别功能，留空则保持当前设置不变",
-        applyLink: "，请点击此处申请",
-        textModelSource: "文本模型提供商格式", textModelSourceDesc: "选择文本生成使用的提供商格式", textModelSourcePlaceholder: "-- 请选择 --",
-        imageModelSource: "图片模型提供商格式", imageModelSourceDesc: "选择图片生成使用的提供商格式", imageModelSourcePlaceholder: "-- 请选择 --",
-        imageCaptionModelSource: "图片识别模型提供商格式", imageCaptionModelSourceDesc: "选择图片识别使用的提供商格式", imageCaptionModelSourcePlaceholder: "-- 请选择 --",
-        vendorApiKey: "{{vendor}} API Key", vendorApiKeyPlaceholder: "输入 {{vendor}} API Key",
-        vendorApiKeyDesc: "留空则保持当前设置不变，输入新值则更新",
-        vendorApiKeySet: "已设置（长度: {{length}}）",
-        selectPlaceholder: "-- 请选择 --",
-        modelProvider: "提供商", modelProviderDesc: "为此模型选择独立的提供商，不选则使用上方默认配置",
-        modelProviderPlaceholder: "-- 使用默认配置 --",
-        perModelApiBaseUrl: "API Base URL", perModelApiBaseUrlPlaceholder: "留空使用默认 Base URL",
-        perModelApiKey: "API Key", perModelApiKeyPlaceholder: "输入 API Key",
-        perModelApiKeyDesc: "留空则保持当前设置不变",
-        perModelApiKeySet: "已设置（长度: {{length}}）",
-      },
-      apiKeyHelp: {
-        title: "如何获取 API 密钥",
-        step1: "前往 {{link}} 注册账号",
-        step2: "点击顶栏「充值」，根据需要充值一定的额度",
-        step3: "点击顶栏「密钥」",
-        step4: "点击「创建 key」生成新的 API Key",
-      },
-      apiKeyTip: { before: "若需快速配置或稳定高并发生图，可选择 ", after: "" },
-      serviceTest: {
-        title: "服务测试", description: "提前验证关键服务配置是否可用，避免使用期间异常。",
-        tip: "提示：图像生成和 MinerU 测试可能需要 30-60 秒，请耐心等待。",
-        startTest: "开始测试", testing: "测试中...", testTimeout: "测试超时，请重试", testFailed: "测试失败",
-        tests: {
-          baiduOcr: { title: "Baidu OCR 服务", description: "识别测试图片文字，验证 BAIDU_API_KEY 配置" },
-          textModel: { title: "文本生成模型", description: "发送短提示词，验证文本模型与 API 配置" },
-          captionModel: { title: "图片识别模型", description: "生成测试图片并请求模型输出描述" },
-          baiduInpaint: { title: "Baidu 图像修复", description: "使用测试图片执行修复，验证百度 inpaint 服务" },
-          imageModel: { title: "图像生成模型", description: "基于测试图片生成演示文稿背景图（固定分辨率，可能需要 20-40 秒）" },
-          mineruPdf: { title: "MinerU 解析 PDF", description: "上传测试 PDF 并等待解析结果返回（可能需要 30-60 秒）" }
-        },
-        results: {
-          recognizedText: "识别结果：{{text}}", modelReply: "模型回复：{{reply}}",
-          captionDesc: "识别描述：{{caption}}", imageSize: "输出尺寸：{{width}}x{{height}}",
-          parsePreview: "解析预览：{{preview}}"
-        }
-      },
-      actions: { save: "保存设置", saving: "保存中...", resetToDefault: "重置为默认配置" },
-      messages: {
-        loadFailed: "加载设置失败", saveSuccess: "设置保存成功", saveFailed: "保存设置失败",
-        resetConfirm: "将把大模型、图像生成和并发等所有配置恢复为环境默认值，已保存的自定义设置将丢失，确定继续吗？",
-        resetTitle: "确认重置为默认配置", resetSuccess: "设置已重置", resetFailed: "重置设置失败",
-        testServiceTip: "建议在本页底部进行服务测试，验证关键配置",
-        resetConfirmBtn: "确定重置", resetCancelBtn: "取消", unknownError: "未知错误",
-        testSuccess: "测试成功"
-      }
-    }
-  },
-  en: {
-    nav: { backToHome: 'Back to Home' },
-    settings: {
-      title: "Settings",
-      subtitle: "Configure application parameters",
-      sections: {
-        appearance: "Appearance", language: "Interface Language", apiConfig: "Default API Configuration",
-        apiConfigDesc: "Used as fallback when a model below has no provider specified",
-        modelConfig: "Model Configuration", mineruConfig: "MinerU Configuration", imageConfig: "Image Generation Configuration",
-        performanceConfig: "Performance Configuration", outputLanguage: "Output Language Settings",
-        textReasoning: "Text Reasoning Mode", imageReasoning: "Image Reasoning Mode",
-        baiduOcr: "Baidu Configuration", serviceTest: "Service Test", lazyllmConfig: "LazyLLM Provider Configuration",
-        vendorApiKeys: "Vendor API Key Configuration"
-      },
-      theme: { label: "Theme", light: "Light", dark: "Dark", system: "System" },
-      language: { label: "Interface Language", zh: "中文", en: "English" },
-      fields: {
-        aiProviderFormat: "AI Provider Format",
-        aiProviderFormatDesc: "Select API request format, affects how backend constructs and sends requests. Takes effect after saving.",
-        openaiFormat: "OpenAI Format", geminiFormat: "Gemini Format", lazyllmFormat: "LazyLLM Format",
-        apiBaseUrl: "API Base URL", apiBaseUrlPlaceholder: "https://api.example.com",
-        apiBaseUrlDesc: "Set the base URL for the LLM provider API",
-        apiKey: "API Key", apiKeyPlaceholder: "Enter new API Key",
-        apiKeyDesc: "Leave empty to keep current setting, enter new value to update",
-        apiKeySet: "Set (length: {{length}})",
-        textModel: "Text Model", textModelPlaceholder: "Leave empty to use env config (e.g., gemini-3-flash-preview)",
-        textModelDesc: "Model name for generating outlines, descriptions, etc.",
-        imageModel: "Image Generation Model", imageModelPlaceholder: "Leave empty to use env config (e.g., imagen-3.0-generate-001)",
-        imageModelDesc: "Model name for generating page images",
-        imageCaptionModel: "Image Caption Model", imageCaptionModelPlaceholder: "Leave empty to use env config (e.g., gemini-3-flash-preview)",
-        imageCaptionModelDesc: "Model for recognizing images in reference files and generating descriptions",
-        mineruApiBase: "MinerU API Base", mineruApiBasePlaceholder: "Leave empty to use env config (e.g., https://mineru.net)",
-        mineruApiBaseDesc: "MinerU service address for parsing reference files",
-        mineruToken: "MinerU Token", mineruTokenPlaceholder: "Enter new MinerU Token",
-        mineruTokenDesc: "Leave empty to keep current setting, enter new value to update",
-        imageResolution: "Image Resolution (may not work with some OpenAI format proxies)",
-        imageResolutionDesc: "Higher resolution generates more detailed images but takes longer",
-        descriptionGenerationMode: "Description Generation Mode", descriptionGenerationModeDesc: "Streaming mode generates all pages in a single AI call for a smoother experience; Parallel mode calls AI independently per page for faster speed",
-        descriptionGenerationModeStreaming: "Streaming", descriptionGenerationModeParallel: "Parallel",
-        maxDescriptionWorkers: "Max Description Workers", maxDescriptionWorkersDesc: "Maximum concurrent workers for description generation in parallel mode (1-20), higher is faster",
-        maxImageWorkers: "Max Image Workers", maxImageWorkersDesc: "Maximum concurrent workers for image generation (1-20), higher is faster",
-        defaultOutputLanguage: "Default Output Language", defaultOutputLanguageDesc: "Default language for AI-generated content",
-        enableTextReasoning: "Enable Text Reasoning", enableTextReasoningDesc: "When enabled, text generation uses extended thinking for deeper reasoning",
-        textThinkingBudget: "Text Thinking Budget", textThinkingBudgetDesc: "Token budget for text reasoning (1-8192), higher values enable deeper reasoning",
-        enableImageReasoning: "Enable Image Reasoning", enableImageReasoningDesc: "When enabled, image generation uses chain-of-thought mode for better composition",
-        imageThinkingBudget: "Image Thinking Budget", imageThinkingBudgetDesc: "Token budget for image reasoning (1-8192), higher values enable deeper reasoning",
-        baiduOcrApiKey: "Baidu API Key", baiduOcrApiKeyPlaceholder: "Enter Baidu API Key",
-        baiduOcrApiKeyDesc: "For text recognition in editable PPTX export, leave empty to keep current setting",
-        applyLink: ", click here to apply",
-        textModelSource: "Text Model Provider Format", textModelSourceDesc: "Select the provider format for text generation", textModelSourcePlaceholder: "-- Select --",
-        imageModelSource: "Image Model Provider Format", imageModelSourceDesc: "Select the provider format for image generation", imageModelSourcePlaceholder: "-- Select --",
-        imageCaptionModelSource: "Image Caption Model Provider Format", imageCaptionModelSourceDesc: "Select the provider format for image captioning", imageCaptionModelSourcePlaceholder: "-- Select --",
-        vendorApiKey: "{{vendor}} API Key", vendorApiKeyPlaceholder: "Enter {{vendor}} API Key",
-        vendorApiKeyDesc: "Leave empty to keep current setting, enter new value to update",
-        vendorApiKeySet: "Set (length: {{length}})",
-        selectPlaceholder: "-- Select --",
-        modelProvider: "Provider", modelProviderDesc: "Select an independent provider for this model, leave empty to use default config",
-        modelProviderPlaceholder: "-- Use default config --",
-        perModelApiBaseUrl: "API Base URL", perModelApiBaseUrlPlaceholder: "Leave empty to use default Base URL",
-        perModelApiKey: "API Key", perModelApiKeyPlaceholder: "Enter API Key",
-        perModelApiKeyDesc: "Leave empty to keep current setting",
-        perModelApiKeySet: "Set (length: {{length}})",
-      },
-      apiKeyHelp: {
-        title: "How to get an API key",
-        step1: "Register at {{link}}",
-        step2: "Click \"Recharge\" in the top navigation bar and add credits as needed",
-        step3: "Click \"Keys\" in the top navigation bar",
-        step4: "Click \"Create Key\" to generate a new API Key",
-      },
-      apiKeyTip: { before: "For quick setup or stable high-concurrency image generation, get an API key from ", after: "" },
-      serviceTest: {
-        title: "Service Test", description: "Verify key service configurations before use to avoid issues.",
-        tip: "Tip: Image generation and MinerU tests may take 30-60 seconds, please be patient.",
-        startTest: "Start Test", testing: "Testing...", testTimeout: "Test timeout, please retry", testFailed: "Test failed",
-        tests: {
-          baiduOcr: { title: "Baidu OCR Service", description: "Recognize text in test image, verify BAIDU_API_KEY configuration" },
-          textModel: { title: "Text Generation Model", description: "Send short prompt to verify text model and API configuration" },
-          captionModel: { title: "Image Caption Model", description: "Generate test image and request model to output description" },
-          baiduInpaint: { title: "Baidu Image Inpainting", description: "Use test image for inpainting, verify Baidu inpaint service" },
-          imageModel: { title: "Image Generation Model", description: "Generate presentation background from test image (fixed resolution, may take 20-40 seconds)" },
-          mineruPdf: { title: "MinerU PDF Parsing", description: "Upload test PDF and wait for parsing result (may take 30-60 seconds)" }
-        },
-        results: {
-          recognizedText: "Recognized: {{text}}", modelReply: "Model reply: {{reply}}",
-          captionDesc: "Caption: {{caption}}", imageSize: "Output size: {{width}}x{{height}}",
-          parsePreview: "Parse preview: {{preview}}"
-        }
-      },
-      actions: { save: "Save Settings", saving: "Saving...", resetToDefault: "Reset to Default" },
-      messages: {
-        loadFailed: "Failed to load settings", saveSuccess: "Settings saved successfully", saveFailed: "Failed to save settings",
-        resetConfirm: "This will reset all configurations (LLM, image generation, concurrency, etc.) to environment defaults. Custom settings will be lost. Continue?",
-        resetTitle: "Confirm Reset to Default", resetSuccess: "Settings reset successfully", resetFailed: "Failed to reset settings",
-        testServiceTip: "It's recommended to test services at the bottom of this page to verify configurations",
-        resetConfirmBtn: "Confirm Reset", resetCancelBtn: "Cancel", unknownError: "Unknown error",
-        testSuccess: "Test passed"
-      }
-    }
-  }
-};
-import { Button, Input, Card, Loading, useToast, useConfirm } from '@/components/shared';
+import { settingsI18n } from '@/components/settings/settingsI18n';
+import { Button, Input, Loading, Markdown, Modal, useToast, useConfirm } from '@/components/shared';
 import * as api from '@/api/endpoints';
-import type { OutputLanguage } from '@/api/endpoints';
+import type { OutputLanguage, UpdateCheckInfo } from '@/api/endpoints';
 import { OUTPUT_LANGUAGE_OPTIONS } from '@/api/endpoints';
 import type { Settings as SettingsType } from '@/types';
 
@@ -243,10 +56,14 @@ interface ServiceTestState {
   detail?: string;
 }
 
+const INFERERA_AFFILIATE_URL = 'https://api.inferera.com/?aff=17EC';
+const VOLCENGINE_AGENTPLANS_CN_URL = 'https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides';
+const VOLCENGINE_AGENTPLANS_EN_URL = 'https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=banana-slides&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides';
+
 // LazyLLM 支持的厂商列表
 const LAZYLLM_SOURCES = [
   { value: 'qwen', label: 'Qwen (通义千问)' },
-  { value: 'doubao', label: 'Doubao (豆包)' },
+  { value: 'doubao', label: 'Doubao (火山引擎)' },
   { value: 'deepseek', label: 'DeepSeek' },
   { value: 'glm', label: 'GLM (智谱)' },
   { value: 'siliconflow', label: 'SiliconFlow' },
@@ -254,20 +71,72 @@ const LAZYLLM_SOURCES = [
   { value: 'minimax', label: 'MiniMax' },
   { value: 'openai', label: 'OpenAI' },
   { value: 'kimi', label: 'Kimi' },
+  { value: 'ppio', label: 'PPIO (派欧云)' },
+  { value: 'aiping', label: 'AIPing (爱拼)' },
 ];
 
-// 所有可用的提供商选项（Gemini/OpenAI + LazyLLM 厂商）
-const ALL_PROVIDER_SOURCES = [
+// 所有可用的提供商选项（Gemini/OpenAI/Codex + LazyLLM 厂商）
+const getAllProviderSources = (isZh: boolean) => [
   { value: 'gemini', label: 'Gemini' },
   { value: 'openai', label: 'OpenAI' },
-  ...LAZYLLM_SOURCES.filter(s => s.value !== 'openai'), // avoid duplicate 'openai'
+  { value: 'volcengine', label: isZh ? '火山 Agent Plan' : 'Volcengine Agent Plan' },
+  { value: 'doubao', label: isZh ? 'Doubao（豆包）' : 'Doubao / ModelArk' },
+  { value: 'codex', label: 'Codex (OpenAI OAuth)' },
+  ...LAZYLLM_SOURCES.filter(s => !['openai', 'doubao', 'ppio', 'aiping'].includes(s.value)), // avoid duplicate or non-partner providers
 ];
 
 // 需要 API Key + Base URL 的提供商（非 LazyLLM 厂商）
-const API_KEY_PROVIDERS = new Set(['gemini', 'openai']);
+const API_KEY_PROVIDERS = new Set(['gemini', 'openai', 'volcengine']);
+// Quality tiers only apply to the GPT Image family (matches the backend's
+// _is_gpt_image_model); DALL-E, Seedream and Gemini models ignore the setting.
+const GPT_IMAGE_MODEL_PATTERN = /^(gpt-image|chatgpt-image)/i;
+// 火山 Agent Plans（OpenAI 兼容）: 专属 Base URL 与模型名
+const VOLCENGINE_AGENTPLANS_BASE_URL = 'https://ark.cn-beijing.volces.com/api/plan/v3';
+const VOLCENGINE_AGENTPLANS_RECOMMENDED_MODELS = {
+  text: 'doubao-seed-2.1-turbo',
+  caption: 'doubao-seed-2.1-turbo',
+  image: 'doubao-seedream-5.0-lite',
+};
+// 火山方舟（标准 ModelArk, LazyLLM Doubao 路径）: 使用端点 ID 格式
+const VOLCENGINE_MODELARK_RECOMMENDED_MODELS = {
+  text: 'doubao-seed-2-1-pro-260628',
+  caption: 'doubao-seed-2-1-pro-260628',
+  image: 'doubao-seedream-5-0-260128',
+};
+// 各 provider 的默认端点: 切换到 Agent Plans 时用于识别并清除过时默认值
+const KNOWN_DEFAULT_BASE_URLS = new Set([
+  '',
+  'https://api.inferera.com/v1',
+  'https://api.openai.com/v1',
+  'https://api.apimart.ai/v1',
+  'https://api.inferera.com/gemini',
+  'https://generativelanguage.googleapis.com',
+  'https://ark.cn-beijing.volces.com/api/v3',
+  'https://api.anthropic.com',
+]);
+// 离开 Agent Plans 时必须清空的火山默认端点（对 openai/gemini 等是过时值）
+const VOLCENGINE_DEFAULT_BASE_URLS = new Set([
+  'https://ark.cn-beijing.volces.com/api/plan/v3',
+  'https://ark.cn-beijing.volces.com/api/v3',
+]);
 
 // LazyLLM 厂商名集合
 const LAZYLLM_VENDOR_SET = new Set(LAZYLLM_SOURCES.map(s => s.value));
+
+// LazyLLM 0.7.x vendors that actually register an image-generation (text2image)
+// supplier; image-model source options are filtered to this set so a selection
+// cannot point at a vendor without image capability.
+const IMAGE_CAPABLE_LAZYLLM_SOURCES = new Set([
+  'qwen', 'doubao', 'siliconflow', 'aiping', 'glm', 'minimax',
+]);
+
+// Whether a source value can appear in the image-model source dropdown:
+// real OpenAI provider plus LazyLLM vendors that register a text2image
+// supplier. Non-LazyLLM sources (gemini/volcengine/codex) always pass.
+const isImageModelSourceSelectable = (value: string) =>
+  value === 'openai'
+  || !LAZYLLM_VENDOR_SET.has(value)
+  || IMAGE_CAPABLE_LAZYLLM_SOURCES.has(value);
 
 // 初始表单数据
 const initialFormData = {
@@ -280,11 +149,14 @@ const initialFormData = {
   mineru_api_base: '',
   mineru_token: '',
   image_resolution: '2K',
+  image_quality: 'auto',
+  enable_image_quality_control: false,
   max_description_workers: 5,
   max_image_workers: 8,
   output_language: 'zh' as OutputLanguage,
   // 推理模式配置（分别控制文本和图像）
   enable_text_reasoning: false,
+  text_max_output_tokens: 32768,
   text_thinking_budget: 1024,
   enable_image_reasoning: false,
   image_thinking_budget: 1024,
@@ -301,6 +173,9 @@ const initialFormData = {
   image_api_base_url: '',
   image_caption_api_key: '',
   image_caption_api_base_url: '',
+  openai_image_api_protocol: 'auto',
+  // ElevenLabs TTS
+  elevenlabs_api_key: '',
 };
 
 const isLazyllmVendor = (vendor: string) =>
@@ -345,39 +220,400 @@ const GlobalVendorKeyInput: React.FC<{
   );
 };
 
-const formDataFromSettings = (data: SettingsType): typeof initialFormData => ({
-  ai_provider_format: resolveLazyllmVendor(data.ai_provider_format || 'gemini', data.lazyllm_api_keys_info),
-  api_base_url: data.api_base_url || '',
-  api_key: '',
-  image_resolution: data.image_resolution || '2K',
-  max_description_workers: data.max_description_workers || 5,
-  max_image_workers: data.max_image_workers || 8,
-  text_model: data.text_model || '',
-  image_model: data.image_model || '',
-  mineru_api_base: data.mineru_api_base || '',
-  mineru_token: '',
-  image_caption_model: data.image_caption_model || '',
-  output_language: data.output_language || 'zh',
-  enable_text_reasoning: data.enable_text_reasoning || false,
-  text_thinking_budget: data.text_thinking_budget || 1024,
-  enable_image_reasoning: data.enable_image_reasoning || false,
-  image_thinking_budget: data.image_thinking_budget || 1024,
-  baidu_api_key: '',
-  text_model_source: data.text_model_source || '',
-  image_model_source: data.image_model_source || '',
-  image_caption_model_source: data.image_caption_model_source || '',
-  lazyllm_api_keys: {},
-  text_api_key: '',
-  text_api_base_url: data.text_api_base_url || '',
-  image_api_key: '',
-  image_api_base_url: data.image_api_base_url || '',
-  image_caption_api_key: '',
-  image_caption_api_base_url: data.image_caption_api_base_url || '',
-});
+type SettingsTranslator = ReturnType<typeof useT>;
+
+interface UpdateResultView {
+  status: 'up_to_date' | 'update_available' | 'downloading' | 'update_downloaded' | 'unknown';
+  updateAvailable: boolean;
+  version: string;
+  downloadUrl?: string;
+  canAutoUpdate?: boolean;
+  progress?: number;
+  notes?: string;
+}
+
+function getLatestVersion(info: UpdateCheckInfo): string {
+  const sha = info.latest?.sha;
+  if (sha) {
+    return sha.length > 7 ? sha.slice(0, 7) : sha;
+  }
+  return info.latest?.tag || '';
+}
+
+function toUpdateResultView(info: UpdateCheckInfo): UpdateResultView {
+  return {
+    status: info.status,
+    updateAvailable: info.update_available,
+    version: getLatestVersion(info),
+  };
+}
+
+function toDesktopUpdateResultView(info: DesktopUpdateCheckResult): UpdateResultView {
+  if (
+    (
+      info.status === 'update_available'
+      || info.status === 'downloading'
+      || info.status === 'update_downloaded'
+      || info.status === 'error'
+    )
+    && info.update
+  ) {
+    return {
+      status: info.status === 'error' ? 'update_available' : info.status,
+      updateAvailable: true,
+      version: info.update.version,
+      downloadUrl: info.update.url,
+      canAutoUpdate: info.canAutoUpdate,
+      progress: info.progress?.percent,
+      notes: info.update.notes,
+    };
+  }
+
+  if (info.status !== 'up_to_date') {
+    return {
+      status: 'unknown',
+      updateAvailable: false,
+      version: info.latestVersion,
+    };
+  }
+
+  return {
+    status: 'up_to_date',
+    updateAvailable: false,
+    version: info.latestVersion,
+  };
+}
+
+function formatUpdateMessage(t: SettingsTranslator, info: UpdateResultView): string {
+  if (info.status === 'up_to_date') return t('settings.about.upToDate');
+  if (info.status === 'update_available') return t('settings.about.updateAvailable', { version: info.version });
+  if (info.status === 'downloading') {
+    return t('settings.about.updateDownloading', {
+      version: info.version,
+      progress: String(Math.round(info.progress || 0)),
+    });
+  }
+  if (info.status === 'update_downloaded') return t('settings.about.updateReady', { version: info.version });
+  return t('settings.about.unknown');
+}
+
+export const SettingsAbout: React.FC<{ t: SettingsTranslator }> = ({ t }) => {
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateActionPending, setUpdateActionPending] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<UpdateResultView | null>(null);
+  const [updateError, setUpdateError] = useState('');
+  const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
+  const [automaticUpdatesEnabled, setAutomaticUpdatesEnabled] = useState(true);
+  const [automaticUpdatesSupported, setAutomaticUpdatesSupported] = useState(true);
+  const [automaticUpdatesLoading, setAutomaticUpdatesLoading] = useState(isDesktop);
+  const [automaticUpdatesSaving, setAutomaticUpdatesSaving] = useState(false);
+  const [automaticUpdatesError, setAutomaticUpdatesError] = useState('');
+
+  const desktopUpdateApi = isDesktop
+    ? (window as typeof window & { electronAPI?: DesktopUpdateElectronApi }).electronAPI
+    : undefined;
+
+  useEffect(() => {
+    if (!desktopUpdateApi) return;
+    let disposed = false;
+    const applySettings = (settings: DesktopAutoUpdateSettings) => {
+      if (!disposed) {
+        setAutomaticUpdatesEnabled(settings.automaticUpdatesEnabled);
+        setAutomaticUpdatesSupported(settings.canAutoUpdate !== false);
+      }
+    };
+    const applyUpdateState = (state: DesktopUpdateCheckResult) => {
+      if (!disposed) setUpdateInfo(toDesktopUpdateResultView(state));
+    };
+    const unsubscribe = desktopUpdateApi.onUpdateStatus?.(applyUpdateState);
+
+    if (desktopUpdateApi.getAutoUpdateSettings) {
+      desktopUpdateApi.getAutoUpdateSettings()
+        .then(applySettings)
+        .catch((error) => {
+          if (!disposed) setAutomaticUpdatesError(error?.message || t('settings.about.automaticUpdatesSaveFailed'));
+        })
+        .finally(() => {
+          if (!disposed) setAutomaticUpdatesLoading(false);
+        });
+    } else {
+      setAutomaticUpdatesLoading(false);
+    }
+
+    return () => {
+      disposed = true;
+      unsubscribe?.();
+    };
+  }, [desktopUpdateApi, t]);
+
+  const handleAutomaticUpdatesChange = async () => {
+    if (!desktopUpdateApi?.setAutomaticUpdatesEnabled || automaticUpdatesSaving) return;
+    const nextEnabled = !automaticUpdatesEnabled;
+    setAutomaticUpdatesSaving(true);
+    setAutomaticUpdatesError('');
+    try {
+      const settings = await desktopUpdateApi.setAutomaticUpdatesEnabled(nextEnabled);
+      setAutomaticUpdatesEnabled(settings.automaticUpdatesEnabled);
+    } catch (error: any) {
+      setAutomaticUpdatesError(error?.message || t('settings.about.automaticUpdatesSaveFailed'));
+    } finally {
+      setAutomaticUpdatesSaving(false);
+    }
+  };
+
+  const handleCheckUpdate = async () => {
+    setCheckingUpdate(true);
+    setUpdateError('');
+    try {
+      if (isDesktop) {
+        const response = await desktopUpdateApi!.checkForUpdates();
+        setUpdateInfo(toDesktopUpdateResultView(response));
+      } else {
+        const response = await api.checkForUpdates();
+        setUpdateInfo(response.data ? toUpdateResultView(response.data) : null);
+      }
+      setUpdateDialogOpen(true);
+    } catch (error: any) {
+      setUpdateInfo(null);
+      setUpdateError(error?.response?.data?.error?.message || error?.message || t('settings.about.failed'));
+      setUpdateDialogOpen(true);
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
+
+  const handleDesktopUpdateAction = async () => {
+    if (!desktopUpdateApi || !updateInfo || updateActionPending) return;
+    setUpdateActionPending(true);
+    setUpdateError('');
+    try {
+      if (updateInfo.status === 'update_downloaded' && desktopUpdateApi.installUpdate) {
+        const result = await desktopUpdateApi.installUpdate();
+        if (!result.success) throw new Error(result.error || 'UPDATE_INSTALL_FAILED');
+      } else if (updateInfo.canAutoUpdate && desktopUpdateApi.downloadUpdate) {
+        const response = await desktopUpdateApi.downloadUpdate();
+        setUpdateInfo(toDesktopUpdateResultView(response));
+      } else if (updateInfo.downloadUrl) {
+        await desktopUpdateApi.openExternal(updateInfo.downloadUrl);
+      }
+    } catch (error: any) {
+      setUpdateError(error?.message || t('settings.about.failed'));
+    } finally {
+      setUpdateActionPending(false);
+    }
+  };
+
+  const showSuccessCheck = updateInfo?.status === 'up_to_date';
+
+  return (
+    <>
+      <div className="pt-4 border-t border-gray-200 dark:border-border-primary">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-3 flex items-center">
+          <Info size={20} />
+          <span className="ml-2">{t('settings.sections.about')}</span>
+        </h2>
+        {isDesktop && (
+          <div className="mb-4 flex items-center justify-between gap-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-border-primary dark:bg-background-secondary">
+            <div className="min-w-0">
+              <div className="font-medium text-gray-900 dark:text-foreground-primary">
+                {automaticUpdatesSupported
+                  ? t('settings.about.automaticUpdates')
+                  : t('settings.about.automaticUpdateChecks')}
+              </div>
+              <p className="mt-0.5 text-sm text-gray-500 dark:text-foreground-tertiary">
+                {automaticUpdatesSupported
+                  ? t('settings.about.automaticUpdatesDesc')
+                  : t('settings.about.automaticUpdateChecksDesc')}
+              </p>
+              {automaticUpdatesError && (
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                  {t('settings.about.automaticUpdatesSaveFailed')}: {automaticUpdatesError}
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={automaticUpdatesEnabled}
+              aria-label={automaticUpdatesSupported
+                ? t('settings.about.automaticUpdates')
+                : t('settings.about.automaticUpdateChecks')}
+              disabled={automaticUpdatesLoading || automaticUpdatesSaving || !desktopUpdateApi?.setAutomaticUpdatesEnabled}
+              onClick={handleAutomaticUpdatesChange}
+              className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-banana-500 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-50 ${
+                automaticUpdatesEnabled ? 'bg-banana-500' : 'bg-gray-300 dark:bg-gray-600'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 translate-y-0.5 rounded-full bg-white shadow transition-transform ${
+                  automaticUpdatesEnabled ? 'translate-x-[22px]' : 'translate-x-0.5'
+                }`}
+              />
+            </button>
+          </div>
+        )}
+        <div className="flex flex-col gap-3 text-sm text-gray-600 dark:text-foreground-tertiary sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1">
+            <div title={appVersion.detail} aria-label={`${t('settings.about.version')} ${appVersion.detail}`}>
+              {t('settings.about.version')}: {appVersion.display}
+            </div>
+            <a
+              href="https://github.com/Anionex/banana-slides"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-banana-700 dark:text-banana hover:underline"
+            >
+              {t('settings.about.source')}
+            </a>
+            {updateInfo && (
+              <div className={updateInfo.updateAvailable ? 'text-orange-600 dark:text-orange-400' : 'text-gray-600 dark:text-foreground-tertiary'}>
+                <div>{formatUpdateMessage(t, updateInfo)}</div>
+              </div>
+            )}
+            {updateError && (
+              <div className="text-red-600 dark:text-red-400">
+                {t('settings.about.failed')}: {updateError}
+              </div>
+            )}
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<RefreshCw size={16} className={checkingUpdate ? 'animate-spin' : ''} />}
+            onClick={handleCheckUpdate}
+            loading={checkingUpdate}
+          >
+            {checkingUpdate ? t('settings.about.checking') : t('settings.about.checkUpdate')}
+          </Button>
+        </div>
+      </div>
+
+      <Modal isOpen={updateDialogOpen} onClose={() => setUpdateDialogOpen(false)} title={t('settings.about.resultTitle')}>
+        <div className="space-y-4">
+          {updateInfo && (
+            <div className="space-y-2 text-sm text-gray-700 dark:text-foreground-secondary">
+              <div className="flex flex-col items-center gap-3 py-2 text-center">
+                {showSuccessCheck && (
+                  <CheckCircle
+                    size={44}
+                    data-testid="update-success-icon"
+                    className="text-green-600 dark:text-green-400"
+                    aria-hidden="true"
+                  />
+                )}
+                {updateInfo.updateAvailable && (
+                  <ArrowUp
+                    size={44}
+                    data-testid="update-available-icon"
+                    className="text-orange-600 dark:text-orange-400"
+                    aria-hidden="true"
+                  />
+                )}
+                <p className={updateInfo.updateAvailable
+                  ? 'text-xl font-semibold text-orange-600 dark:text-orange-400'
+                  : 'text-xl font-semibold text-gray-900 dark:text-foreground-primary'
+                }>
+                  {formatUpdateMessage(t, updateInfo)}
+                </p>
+              </div>
+              {updateInfo.updateAvailable && updateInfo.notes?.trim() && (
+                <section aria-label={t('settings.about.summary')} className="space-y-2">
+                  <h3 className="font-semibold text-gray-900 dark:text-foreground-primary">
+                    {t('settings.about.summary')}
+                  </h3>
+                  <div className="max-h-52 overflow-y-auto rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-border-primary dark:bg-background-secondary">
+                    <Markdown>{updateInfo.notes.trim()}</Markdown>
+                  </div>
+                </section>
+              )}
+              {updateInfo.updateAvailable && updateInfo.downloadUrl && (
+                <button
+                  type="button"
+                  onClick={() => desktopUpdateApi?.openExternal(updateInfo.downloadUrl!)}
+                  className="inline-flex items-center gap-1.5 font-medium text-banana-700 hover:text-banana-800 hover:underline dark:text-banana-300 dark:hover:text-banana-200"
+                >
+                  {t('settings.about.changelog')}
+                  <ArrowUpRight size={15} aria-hidden="true" />
+                </button>
+              )}
+            </div>
+          )}
+          {updateError && (
+            <p className="text-sm text-red-600 dark:text-red-400">
+              {t('settings.about.failed')}: {updateError}
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
+            {isDesktop && updateInfo?.updateAvailable && updateInfo.status !== 'downloading' && (
+              <Button
+                size="sm"
+                onClick={handleDesktopUpdateAction}
+                loading={updateActionPending}
+              >
+                {updateInfo.status === 'update_downloaded'
+                  ? t('settings.about.restart')
+                  : updateInfo.canAutoUpdate
+                    ? t('settings.about.download')
+                    : t('settings.about.fallbackDownload')}
+              </Button>
+            )}
+            <Button variant="secondary" size="sm" onClick={() => setUpdateDialogOpen(false)}>
+              {updateInfo?.updateAvailable ? t('settings.about.later') : t('settings.about.close')}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    </>
+  );
+};
+
+const formDataFromSettings = (data: SettingsType): typeof initialFormData => {
+  const providerFormat = resolveLazyllmVendor(data.ai_provider_format || 'gemini', data.lazyllm_api_keys_info).toLowerCase();
+  const textModelSource = (data.text_model_source || '').toLowerCase();
+  const imageModelSource = (data.image_model_source || '').toLowerCase();
+  const imageCaptionModelSource = (data.image_caption_model_source || '').toLowerCase();
+
+  return {
+    ai_provider_format: providerFormat,
+    api_base_url: data.api_base_url || '',
+    api_key: '',
+    image_resolution: data.image_resolution || '2K',
+    image_quality: data.image_quality || 'auto',
+    enable_image_quality_control: data.enable_image_quality_control ?? false,
+    max_description_workers: data.max_description_workers || 5,
+    max_image_workers: data.max_image_workers || 8,
+    text_model: data.text_model || '',
+    image_model: data.image_model || '',
+    mineru_api_base: data.mineru_api_base || '',
+    mineru_token: '',
+    image_caption_model: data.image_caption_model || '',
+    output_language: data.output_language || 'zh',
+    enable_text_reasoning: data.enable_text_reasoning || false,
+    text_max_output_tokens: data.text_max_output_tokens ?? 32768,
+    text_thinking_budget: data.text_thinking_budget || 1024,
+    enable_image_reasoning: data.enable_image_reasoning || false,
+    image_thinking_budget: data.image_thinking_budget || 1024,
+    baidu_api_key: '',
+    text_model_source: textModelSource,
+    image_model_source: imageModelSource,
+    image_caption_model_source: imageCaptionModelSource,
+    lazyllm_api_keys: {},
+    text_api_key: '',
+    text_api_base_url: data.text_api_base_url || '',
+    image_api_key: '',
+    image_api_base_url: data.image_api_base_url || '',
+    image_caption_api_key: '',
+    image_caption_api_base_url: data.image_caption_api_base_url || '',
+    openai_image_api_protocol: data.openai_image_api_protocol || 'auto',
+    elevenlabs_api_key: '',
+  };
+};
 
 // Settings 组件 - 纯嵌入模式（可复用）
 export const Settings: React.FC = () => {
   const t = useT(settingsI18n);
+  const { i18n } = useTranslation();
+  const isZh = i18n.language?.startsWith('zh') ?? true;
   const { show, ToastContainer } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
 
@@ -402,6 +638,179 @@ export const Settings: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState(initialFormData);
   const [serviceTestStates, setServiceTestStates] = useState<Record<string, ServiceTestState>>({});
+  const [oauthConnecting, setOauthConnecting] = useState(false);
+  const [oauthDialogOpen, setOauthDialogOpen] = useState(false);
+  const pendingCodexSelection = useRef<(() => void) | null>(null);
+  const oauthPopupRef = useRef<Window | null>(null);
+  const [manualCallbackUrl, setManualCallbackUrl] = useState('');
+  const [manualCallbackOpen, setManualCallbackOpen] = useState(false);
+  const [manualCallbackSubmitting, setManualCallbackSubmitting] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const oauthMonitorStopRef = useRef<(() => void) | null>(null);
+  const oauthAttemptRef = useRef(0);
+  const allProviderSources = getAllProviderSources(isZh);
+  const globalProviderSources = [
+    allProviderSources[0],
+    allProviderSources[2],
+    allProviderSources[1],
+    ...allProviderSources.slice(3),
+  ];
+  const volcengineAgentPlansUrl = isZh ? VOLCENGINE_AGENTPLANS_CN_URL : VOLCENGINE_AGENTPLANS_EN_URL;
+  const volcengineLogoUrl = isZh ? '/volcengine/huoshan.png' : '/volcengine/byteplus.png';
+  const usesVolcengineCampaignPromo = formData.ai_provider_format === 'volcengine' || formData.ai_provider_format === 'doubao';
+  const selectedGlobalProvider = formData.ai_provider_format;
+  const activeVolcenginePromoKey = formData.ai_provider_format === 'doubao'
+    ? 'settings.doubaoVolcenginePromo'
+    : 'settings.volcenginePromo';
+  const activeApiKeyHelpKey = formData.ai_provider_format === 'volcengine'
+    ? 'settings.volcengineKeyHelp'
+    : formData.ai_provider_format === 'doubao'
+      ? 'settings.doubaoKeyHelp'
+      : 'settings.apiKeyHelp';
+  const activeApiKeyHelpUrl = INFERERA_AFFILIATE_URL;
+  const activeApiKeyTipKey = 'settings.apiKeyTip';
+  const stopOAuthMonitor = useCallback(() => {
+    oauthAttemptRef.current += 1;
+    oauthMonitorStopRef.current?.();
+    oauthMonitorStopRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      stopOAuthMonitor();
+    };
+  }, [stopOAuthMonitor]);
+
+  useEffect(() => {
+    if (settings) {
+      try {
+        sessionStorage.setItem('banana-settings', JSON.stringify(settings));
+      } catch (error) {
+        console.warn('Failed to persist settings in sessionStorage:', error);
+      }
+    }
+  }, [settings]);
+
+  const applyOAuthStatus = useCallback((connected: boolean, accountId: string | null) => {
+    if (connected && pendingCodexSelection.current) {
+      pendingCodexSelection.current();
+      pendingCodexSelection.current = null;
+      setOauthDialogOpen(false);
+    }
+    setSettings(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        openai_oauth_connected: connected,
+        openai_oauth_account_id: accountId,
+      };
+    });
+  }, []);
+
+  const handleOAuthLogin = async () => {
+    stopOAuthMonitor();
+    const attemptId = oauthAttemptRef.current;
+    setOauthConnecting(true);
+    // Reserve the browser popup while the login button still has user activation.
+    const reservedPopup = isDesktop ? null : window.open('about:blank', 'openai-oauth', 'width=600,height=700');
+    oauthPopupRef.current = reservedPopup;
+    if (!isDesktop && (!reservedPopup || reservedPopup.closed)) {
+      setOauthConnecting(false);
+      show({ message: t('settings.openaiOAuth.popupBlocked'), type: 'error' });
+      return;
+    }
+    try {
+      const resp = await api.getOpenAIOAuthUrl();
+      if (attemptId !== oauthAttemptRef.current) return;
+      if (resp.success && resp.data?.auth_url) {
+        if (resp.data.callback_server_available === false) {
+          setManualCallbackOpen(true);
+          show({ message: t('settings.openaiOAuth.callbackPortBusy'), type: 'warning' });
+        }
+        const popup = isDesktop
+          ? window.open(resp.data.auth_url, 'openai-oauth', 'width=600,height=700')
+          : reservedPopup;
+        if (reservedPopup) reservedPopup.location.href = resp.data.auth_url;
+        if ((!popup || popup.closed) && !isDesktop) {
+          setOauthConnecting(false);
+          show({ message: t('settings.openaiOAuth.popupBlocked'), type: 'error' });
+          return;
+        }
+
+        const monitor = startOpenAIOAuthMonitor({
+          desktop: isDesktop,
+          popup,
+          getStatus: async () => {
+            const statusResp = await api.getOpenAIOAuthStatus();
+            return statusResp.success && statusResp.data ? statusResp.data : null;
+          },
+          onConnected: status => {
+            oauthMonitorStopRef.current = null;
+            setOauthConnecting(false);
+            applyOAuthStatus(true, status.account_id || null);
+            show({ message: t('settings.openaiOAuth.manualCallbackSuccess'), type: 'success' });
+          },
+          onFailure: (reason, message) => {
+            oauthMonitorStopRef.current = null;
+            setOauthConnecting(false);
+            const errorMessage = reason === 'timeout'
+              ? t('settings.openaiOAuth.connectTimeout')
+              : message || t('settings.openaiOAuth.connectFailed');
+            show({ message: errorMessage, type: 'error' });
+          },
+        });
+        oauthMonitorStopRef.current = monitor.stop;
+      } else {
+        reservedPopup?.close();
+        setOauthConnecting(false);
+        show({ message: t('settings.openaiOAuth.connectFailed'), type: 'error' });
+      }
+    } catch {
+      if (attemptId !== oauthAttemptRef.current) return;
+      stopOAuthMonitor();
+      reservedPopup?.close();
+      setOauthConnecting(false);
+      show({ message: t('settings.openaiOAuth.connectFailed'), type: 'error' });
+    }
+  };
+
+  const handleOAuthDisconnect = async () => {
+    try {
+      const resp = await api.disconnectOpenAIOAuth();
+      if (resp.success) {
+        setSettings(prev => prev ? {
+          ...prev,
+          openai_oauth_connected: false,
+          openai_oauth_account_id: null,
+        } : prev);
+        show({ message: t('settings.openaiOAuth.disconnectSuccess'), type: 'success' });
+      }
+    } catch {
+      show({ message: t('settings.openaiOAuth.disconnectFailed'), type: 'error' });
+    }
+  };
+
+  const handleManualCallback = async () => {
+    if (!manualCallbackUrl.trim()) return;
+    setManualCallbackSubmitting(true);
+    try {
+      const resp = await api.submitOAuthManualCallback(manualCallbackUrl.trim());
+      if (resp.success) {
+        stopOAuthMonitor();
+        setOauthConnecting(false);
+        setManualCallbackUrl('');
+        setManualCallbackOpen(false);
+        applyOAuthStatus(true, resp.data?.account_id || null);
+        show({ message: t('settings.openaiOAuth.manualCallbackSuccess'), type: 'success' });
+      } else {
+        show({ message: t('settings.openaiOAuth.connectFailed'), type: 'error' });
+      }
+    } catch {
+      show({ message: t('settings.openaiOAuth.connectFailed'), type: 'error' });
+    } finally {
+      setManualCallbackSubmitting(false);
+    }
+  };
 
   // 配置驱动的表单区块定义（使用翻译）
   const settingsSections: SectionConfig[] = [
@@ -444,12 +853,26 @@ export const Settings: React.FC = () => {
             { value: '4K', label: '4K (4096px)' },
           ],
         },
+        {
+          key: 'enable_image_quality_control',
+          label: t('settings.fields.enableImageQualityControl'),
+          type: 'switch',
+          description: t('settings.fields.enableImageQualityControlDesc'),
+        },
       ],
     },
     {
       title: t('settings.sections.performanceConfig'),
       icon: <Zap size={20} />,
       fields: [
+        {
+          key: 'text_max_output_tokens',
+          label: t('settings.fields.textMaxOutputTokens'),
+          type: 'number',
+          min: 1,
+          max: 2147483647,
+          description: t('settings.fields.textMaxOutputTokensDesc'),
+        },
         {
           key: 'max_description_workers',
           label: t('settings.fields.maxDescriptionWorkers'),
@@ -537,6 +960,22 @@ export const Settings: React.FC = () => {
         },
       ],
     },
+    {
+      title: t('settings.sections.elevenlabs'),
+      icon: <Volume2 size={20} />,
+      fields: [
+        {
+          key: 'elevenlabs_api_key',
+          label: t('settings.fields.elevenLabsApiKey'),
+          type: 'password',
+          placeholder: t('settings.fields.elevenLabsApiKeyPlaceholder'),
+          sensitiveField: true,
+          lengthKey: 'elevenlabs_api_key_length',
+          description: t('settings.fields.elevenLabsApiKeyDesc'),
+          link: 'https://elevenlabs.io/app/settings/api-keys',
+        },
+      ],
+    },
   ];
 
   useEffect(() => {
@@ -550,7 +989,6 @@ export const Settings: React.FC = () => {
       if (response.data) {
         setSettings(response.data);
         setFormData(formDataFromSettings(response.data));
-        sessionStorage.setItem('banana-settings', JSON.stringify(response.data));
       }
     } catch (error: any) {
       console.error('加载设置失败:', error);
@@ -563,11 +1001,22 @@ export const Settings: React.FC = () => {
     }
   };
 
+  const markOpenAIOAuthDisconnected = () => {
+    setSettings(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        openai_oauth_connected: false,
+        openai_oauth_account_id: null,
+      };
+    });
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
     try {
       const {
-        api_key, mineru_token, baidu_api_key, lazyllm_api_keys,
+        api_key, mineru_token, baidu_api_key, elevenlabs_api_key, lazyllm_api_keys,
         text_api_key, image_api_key, image_caption_api_key,
         ...otherData
       } = formData;
@@ -580,6 +1029,7 @@ export const Settings: React.FC = () => {
       if (api_key) payload.api_key = api_key;
       if (mineru_token) payload.mineru_token = mineru_token;
       if (baidu_api_key) payload.baidu_api_key = baidu_api_key;
+      if (elevenlabs_api_key) payload.elevenlabs_api_key = elevenlabs_api_key;
       if (text_api_key) payload.text_api_key = text_api_key;
       if (image_api_key) payload.image_api_key = image_api_key;
       if (image_caption_api_key) payload.image_caption_api_key = image_caption_api_key;
@@ -595,13 +1045,12 @@ export const Settings: React.FC = () => {
       const response = await api.updateSettings(payload);
       if (response.data) {
         setSettings(response.data);
-        sessionStorage.setItem('banana-settings', JSON.stringify(response.data));
         show({ message: t('settings.messages.saveSuccess'), type: 'success' });
         show({ message: t('settings.messages.testServiceTip'), type: 'info' });
         // Clear all sensitive fields after save
         setFormData(prev => ({
           ...prev,
-          api_key: '', mineru_token: '', baidu_api_key: '',
+          api_key: '', mineru_token: '', baidu_api_key: '', elevenlabs_api_key: '',
           lazyllm_api_keys: {},
           text_api_key: '', image_api_key: '', image_caption_api_key: '',
         }));
@@ -648,9 +1097,121 @@ export const Settings: React.FC = () => {
     );
   };
 
-  const handleFieldChange = (key: string, value: any) => {
-    setFormData(prev => ({ ...prev, [key]: value }));
+  const handleFieldChange = (key: string, value: any, oauthConnected = settings?.openai_oauth_connected) => {
+    if (value === 'codex' && ['ai_provider_format', 'text_model_source', 'image_model_source', 'image_caption_model_source'].includes(key) && !oauthConnected) {
+      pendingCodexSelection.current = () => handleFieldChange(key, value, true);
+      setOauthDialogOpen(true);
+      return;
+    }
+    setFormData(prev => {
+      const next = { ...prev, [key]: value };
+
+      // Per-model source key → its API base URL field, for stale-default replacement
+      const perModelBaseKeys: Record<string, string> = {
+        text_model_source: 'text_api_base_url',
+        image_model_source: 'image_api_base_url',
+        image_caption_model_source: 'image_caption_api_base_url',
+      };
+
+      if (key === 'ai_provider_format') {
+        if (value === 'volcengine') {
+          // Agent Plans 需要专属端点: 空值或其他 provider 的默认端点会被替换,
+          // 用户显式填写的自定义 Base URL 保留
+          if (KNOWN_DEFAULT_BASE_URLS.has(next.api_base_url)) {
+            next.api_base_url = VOLCENGINE_AGENTPLANS_BASE_URL;
+          }
+        } else if (VOLCENGINE_DEFAULT_BASE_URLS.has(next.api_base_url)) {
+          // 离开 Agent Plans: plan/v3 端点对新 provider 是过时默认值, 清空以
+          // 回退到新 provider 的环境变量/默认端点, 自定义 URL 保留
+          next.api_base_url = '';
+        }
+      } else if (perModelBaseKeys[key]) {
+        const baseKey = perModelBaseKeys[key];
+        if (value === 'volcengine') {
+          // 单模型切到 Agent Plans 时同样替换过时的默认端点, 否则该模型的
+          // {MODEL}_API_BASE 会优先于 VOLCENGINE_API_BASE 命中旧 provider 端点。
+          if (KNOWN_DEFAULT_BASE_URLS.has(next[baseKey])) {
+            next[baseKey] = VOLCENGINE_AGENTPLANS_BASE_URL;
+          }
+        } else if (VOLCENGINE_DEFAULT_BASE_URLS.has(next[baseKey])) {
+          // 单模型离开 Agent Plans: 清空过时的 plan/v3 端点, 否则该模型的
+          // {MODEL}_API_BASE 仍优先于新 provider 的默认端点
+          next[baseKey] = '';
+        }
+      }
+
+      return next;
+    });
   };
+
+  const applyVolcengineRecommendedModels = () => {
+    const isAgentPlans = formData.ai_provider_format === 'volcengine';
+    const provider = isAgentPlans ? 'volcengine' : 'doubao';
+    const models = isAgentPlans ? VOLCENGINE_AGENTPLANS_RECOMMENDED_MODELS : VOLCENGINE_MODELARK_RECOMMENDED_MODELS;
+    setFormData(prev => {
+      // Agent Plans 需要专属端点: 只替换空值或已知的过时默认端点, 保留用户自定义端点,
+      // 否则代理/替代端点部署下 per-model 调用会命中硬编码的 cn-beijing 地址
+      const agentPlansBaseOrDefault = (current: string) =>
+        KNOWN_DEFAULT_BASE_URLS.has(current) ? VOLCENGINE_AGENTPLANS_BASE_URL : current;
+      // per-model 字段为空时继承全局解析后的端点（自定义代理端点同样生效）,
+      // 因为 {MODEL}_API_BASE 的解析优先级高于 VOLCENGINE_API_BASE
+      const resolvedGlobalBase = agentPlansBaseOrDefault(prev.api_base_url);
+      const perModelBase = (current: string) =>
+        KNOWN_DEFAULT_BASE_URLS.has(current) ? resolvedGlobalBase : current;
+      return {
+        ...prev,
+        text_model: models.text,
+        image_caption_model: models.caption,
+        image_model: models.image,
+        text_model_source: provider,
+        image_caption_model_source: provider,
+        image_model_source: provider,
+        api_base_url: isAgentPlans ? agentPlansBaseOrDefault(prev.api_base_url) : prev.api_base_url,
+        // per-model base 同样只替换过时默认值: 空值/默认值继承全局端点, 自定义值原样保留
+        text_api_base_url: isAgentPlans ? perModelBase(prev.text_api_base_url) : prev.text_api_base_url,
+        image_caption_api_base_url: isAgentPlans ? perModelBase(prev.image_caption_api_base_url) : prev.image_caption_api_base_url,
+        image_api_base_url: isAgentPlans ? perModelBase(prev.image_api_base_url) : prev.image_api_base_url,
+        openai_image_api_protocol: 'images',
+      };
+    });
+  };
+
+  const selectVolcenginePlan = () => {
+    handleFieldChange('ai_provider_format', 'volcengine');
+  };
+
+  const selectGlobalProvider = (provider: string, oauthConnected = settings?.openai_oauth_connected) => {
+    if (provider === 'codex' && !oauthConnected) {
+      pendingCodexSelection.current = () => selectGlobalProvider(provider, true);
+      setOauthDialogOpen(true);
+      return;
+    }
+    handleFieldChange('ai_provider_format', provider, oauthConnected);
+  };
+
+  const isVolcenginePlanActive = formData.ai_provider_format === 'volcengine';
+
+  const providerPromotions = [
+    {
+      key: 'volcengine',
+      testId: 'provider-plan-volcengine',
+      active: isVolcenginePlanActive,
+      name: t('settings.providerComparison.volcengine.name'),
+      tagline: t('settings.providerComparison.volcengine.tagline'),
+      suitedFor: t('settings.providerComparison.volcengine.suitedFor'),
+      points: [
+        t('settings.providerComparison.volcengine.point1'),
+        t('settings.providerComparison.volcengine.point2'),
+        t('settings.providerComparison.volcengine.point3'),
+      ],
+      cta: t('settings.providerComparison.volcengine.cta'),
+      activeLabel: t('settings.providerComparison.volcengine.active'),
+      note: t('settings.providerComparison.volcengine.note'),
+      onSelect: selectVolcenginePlan,
+      href: volcengineAgentPlansUrl,
+      linkLabel: t('settings.providerComparison.volcengine.link'),
+    },
+  ];
 
   const updateServiceTest = (key: string, nextState: ServiceTestState) => {
     setServiceTestStates(prev => ({ ...prev, [key]: nextState }));
@@ -679,6 +1240,7 @@ export const Settings: React.FC = () => {
       if (formData.mineru_token) testSettings.mineru_token = formData.mineru_token;
       if (formData.baidu_api_key) testSettings.baidu_api_key = formData.baidu_api_key;
       if (formData.image_resolution) testSettings.image_resolution = formData.image_resolution;
+      if (formData.image_quality) testSettings.image_quality = formData.image_quality;
 
       // Per-model provider source overrides (always send, even empty, to clear saved values)
       testSettings.text_model_source = formData.text_model_source || '';
@@ -697,6 +1259,7 @@ export const Settings: React.FC = () => {
       if (formData.enable_text_reasoning !== undefined) {
         testSettings.enable_text_reasoning = formData.enable_text_reasoning;
       }
+      testSettings.text_max_output_tokens = formData.text_max_output_tokens;
       if (formData.text_thinking_budget !== undefined) {
         testSettings.text_thinking_budget = formData.text_thinking_budget;
       }
@@ -711,41 +1274,50 @@ export const Settings: React.FC = () => {
       const response = await action(testSettings);
       const taskId = response.data.task_id;
 
+      // isActive tracks whether this test round is still pending — avoids stale closure
+      let isActive = true;
+      // eslint-disable-next-line prefer-const
+      let pollInterval: ReturnType<typeof setInterval>;
+      const finish = (nextState: ServiceTestState, toastMsg: string, toastType: 'success' | 'error') => {
+        if (!isActive) return;
+        isActive = false;
+        clearInterval(pollInterval);
+        updateServiceTest(key, nextState);
+        show({ message: toastMsg, type: toastType });
+      };
+
       // 开始轮询任务状态
-      const pollInterval = setInterval(async () => {
+      pollInterval = setInterval(async () => {
         try {
           const statusResponse = await api.getTestStatus(taskId);
-          const taskStatus = statusResponse.data.status;
+          const statusData = statusResponse?.data;
+          if (!statusData) {
+            throw new Error(t('settings.serviceTest.testFailed'));
+          }
+          const taskStatus = statusData.status;
 
           if (taskStatus === 'COMPLETED') {
-            clearInterval(pollInterval);
-            const detail = formatDetail(statusResponse.data.result || {});
-            const message = statusResponse.data.message || t('settings.messages.testSuccess');
-            updateServiceTest(key, { status: 'success', message, detail });
-            show({ message, type: 'success' });
+            const detail = formatDetail(statusData.result || {});
+            const message = statusData.message || t('settings.messages.testSuccess');
+            finish({ status: 'success', message, detail }, message, 'success');
           } else if (taskStatus === 'FAILED') {
-            clearInterval(pollInterval);
-            const errorMessage = statusResponse.data.error || t('settings.serviceTest.testFailed');
-            updateServiceTest(key, { status: 'error', message: errorMessage });
-            show({ message: `${t('settings.serviceTest.testFailed')}: ${errorMessage}`, type: 'error' });
+            const errorMessage = statusData.error || t('settings.serviceTest.testFailed');
+            if (statusData.openai_oauth_disconnected) {
+              markOpenAIOAuthDisconnected();
+            }
+            finish({ status: 'error', message: errorMessage }, `${t('settings.serviceTest.testFailed')}: ${errorMessage}`, 'error');
           }
           // 如果是 PENDING 或 PROCESSING，继续轮询
         } catch (pollError: any) {
-          clearInterval(pollInterval);
           const errorMessage = pollError?.response?.data?.error?.message || pollError?.message || t('settings.serviceTest.testFailed');
-          updateServiceTest(key, { status: 'error', message: errorMessage });
-          show({ message: `${t('settings.serviceTest.testFailed')}: ${errorMessage}`, type: 'error' });
+          finish({ status: 'error', message: errorMessage }, `${t('settings.serviceTest.testFailed')}: ${errorMessage}`, 'error');
         }
       }, 2000); // 每2秒轮询一次
 
       // 设置最大轮询时间（2分钟）
       setTimeout(() => {
-        clearInterval(pollInterval);
-        if (serviceTestStates[key]?.status === 'loading') {
-          updateServiceTest(key, { status: 'error', message: t('settings.serviceTest.testTimeout') });
-          show({ message: t('settings.serviceTest.testTimeout'), type: 'error' });
-        }
-      }, 120000);
+        finish({ status: 'error', message: t('settings.serviceTest.testTimeout') }, t('settings.serviceTest.testTimeout'), 'error');
+      }, 600000); // 10 分钟，覆盖 gpt-image-2 等慢模型的生成时间
 
     } catch (error: any) {
       const errorMessage = error?.response?.data?.error?.message || error?.message || t('common.unknownError');
@@ -754,142 +1326,14 @@ export const Settings: React.FC = () => {
     }
   };
 
-  const renderField = (field: FieldConfig) => {
-    const value = formData[field.key] as string | number | boolean;
-
-    if (field.type === 'buttons' && field.options) {
-      return (
-        <div key={field.key}>
-          <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">
-            {field.label}
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {field.options.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => handleFieldChange(field.key, option.value)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  value === option.value
-                    ? option.value === 'openai'
-                      ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-md'
-                      : option.value === 'lazyllm'
-                        ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-md'
-                        : 'bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-md'
-                    : 'bg-white dark:bg-background-secondary border border-gray-200 dark:border-border-primary text-gray-700 dark:text-foreground-secondary hover:bg-gray-50 dark:hover:bg-background-hover hover:border-gray-300 dark:hover:border-gray-500'
-                }`}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-          {field.description && (
-            <p className="mt-1 text-xs text-gray-500 dark:text-foreground-tertiary">{field.description}</p>
-          )}
-        </div>
-      );
-    }
-
-    if (field.type === 'select' && field.options) {
-      return (
-        <div key={field.key}>
-          <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">
-            {field.label}
-          </label>
-          <select
-            value={value as string}
-            onChange={(e) => handleFieldChange(field.key, e.target.value)}
-            className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
-          >
-            {!(value as string) && (
-              <option value="" disabled>
-                {field.placeholder || t('settings.fields.selectPlaceholder')}
-              </option>
-            )}
-            {field.options.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          {field.description && (
-            <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">{field.description}</p>
-          )}
-        </div>
-      );
-    }
-
-    // switch 类型 - 开关切换
-    if (field.type === 'switch') {
-      const isEnabled = Boolean(value);
-      return (
-        <div key={field.key}>
-          <div className="flex items-center justify-between">
-            <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary">
-              {field.label}
-            </label>
-            <button
-              type="button"
-              onClick={() => handleFieldChange(field.key, !isEnabled)}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-banana-500 focus:ring-offset-2 ${
-                isEnabled ? 'bg-banana-500' : 'bg-gray-200'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white dark:bg-background-secondary transition-transform ${
-                  isEnabled ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-          {field.description && (
-            <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">{field.description}</p>
-          )}
-        </div>
-      );
-    }
-
-    // text, password, number 类型
-    const placeholder = field.sensitiveField && settings && field.lengthKey && (settings[field.lengthKey] as number) > 0
-      ? t('settings.fields.apiKeySet', { length: settings[field.lengthKey] as string | number })
-      : field.placeholder || '';
-
-    // 判断是否禁用（思考负载字段在对应开关关闭时禁用）
-    let isDisabled = false;
-    if (field.key === 'text_thinking_budget') {
-      isDisabled = !formData.enable_text_reasoning;
-    } else if (field.key === 'image_thinking_budget') {
-      isDisabled = !formData.enable_image_reasoning;
-    }
-
-    return (
-      <div key={field.key} className={isDisabled ? 'opacity-50' : ''}>
-        <Input
-          label={field.label}
-          type={field.type === 'number' ? 'number' : field.type}
-          placeholder={placeholder}
-          value={value as string | number}
-          onChange={(e) => {
-            const newValue = field.type === 'number' 
-              ? parseInt(e.target.value) || (field.min ?? 0)
-              : e.target.value;
-            handleFieldChange(field.key, newValue);
-          }}
-          min={field.min}
-          max={field.max}
-          disabled={isDisabled}
-        />
-        {(field.description || field.link) && (
-          <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">
-            {field.description}
-            {field.link && (
-              <a href={field.link} target="_blank" rel="noopener noreferrer" className="text-banana-500 hover:underline">{t('settings.fields.applyLink')}</a>
-            )}
-          </p>
-        )}
-      </div>
-    );
-  };
+  const renderField = (field: FieldConfig) => <SettingsField
+    key={field.key} field={field} value={formData[field.key] as string | number | boolean}
+    placeholder={field.sensitiveField && settings && field.lengthKey && (settings[field.lengthKey] as number) > 0
+      ? t('settings.fields.apiKeySet', { length: settings[field.lengthKey] as number }) : field.placeholder || ''}
+    isDisabled={(field.key === 'text_thinking_budget' && !formData.enable_text_reasoning)
+      || (field.key === 'image_thinking_budget' && !formData.enable_image_reasoning)}
+    onChange={value => handleFieldChange(field.key, value)} t={t}
+  />;
 
   // 模型配置项定义：每种模型类型的 key、source key、api key/base key、标签等
   const modelConfigItems = [
@@ -933,11 +1377,21 @@ export const Settings: React.FC = () => {
     const sourceValue = formData[item.sourceKey] as string;
     const isApiKeyProvider = API_KEY_PROVIDERS.has(sourceValue);
     const isLazyllm = sourceValue && isLazyllmVendor(sourceValue);
+    // Image generation options: the images/chat protocol only applies to
+    // OpenAI-compatible HTTP providers, while the quality tier also applies to
+    // Codex (OAuth), which builds its own image_generation request.
+    const imageProviderValue = sourceValue || formData.ai_provider_format;
+    const isOpenAiCompatibleImageSource = item.sourceKey === 'image_model_source'
+      && (imageProviderValue === 'openai' || imageProviderValue === 'volcengine');
+    const isCodexImageSource = item.sourceKey === 'image_model_source'
+      && imageProviderValue === 'codex';
+    const showsQualityTier = (isOpenAiCompatibleImageSource || isCodexImageSource)
+      && GPT_IMAGE_MODEL_PATTERN.test(formData.image_model || '');
     // 'openai' in source dropdown means OpenAI format (API key provider), not lazyllm openai vendor
     // lazyllm openai vendor is handled separately
 
     return (
-      <div key={item.modelKey} className="p-4 bg-gray-50 dark:bg-background-primary border border-gray-200 dark:border-border-primary rounded-lg space-y-3">
+      <div key={item.modelKey} className="pb-6 border-b border-gray-200 dark:border-border-primary last:border-b-0 last:pb-0 space-y-3">
         {/* 模型名称 */}
         <Input
           label={item.label}
@@ -956,23 +1410,55 @@ export const Settings: React.FC = () => {
             {item.sourceLabel}
           </label>
           <select
+            data-testid={`${String(item.sourceKey)}-select`}
             value={sourceValue}
             onChange={(e) => handleFieldChange(item.sourceKey, e.target.value)}
             className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
           >
             <option value="">{t('settings.fields.modelProviderPlaceholder')}</option>
-            {ALL_PROVIDER_SOURCES.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
+            {allProviderSources
+              .filter(option =>
+                item.sourceKey !== 'image_model_source'
+                || isImageModelSourceSelectable(option.value)
+              )
+              .map((option) => (
+                <option
+                  key={option.value}
+                  value={option.value}
+                >
+                  {option.label}{option.value === 'codex' && !settings?.openai_oauth_connected ? ` (${t('settings.openaiOAuth.disconnected')})` : ''}
+                </option>
+              ))
+              .concat(
+                // A previously saved image source may no longer be selectable
+                // (vendor without image capability). Keep it visible so users
+                // can see the current value instead of a silently-empty
+                // dropdown that would round-trip the stale value on save.
+                item.sourceKey === 'image_model_source'
+                && formData.image_model_source
+                && (
+                  !allProviderSources.some(o => o.value === formData.image_model_source)
+                  || !isImageModelSourceSelectable(formData.image_model_source)
+                )
+                  ? [(
+                    <option key={formData.image_model_source} value={formData.image_model_source}>
+                      {LAZYLLM_SOURCES.find(s => s.value === formData.image_model_source)?.label || formData.image_model_source} ({t('settings.fields.imageSourceUnavailable')})
+                    </option>
+                  )]
+                  : []
+              )}
           </select>
           <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">
             {t('settings.fields.modelProviderDesc')}
           </p>
+          {item.sourceKey === 'image_model_source' && sourceValue === 'sensenova' && (
+            <p data-testid="sensenova-image-model-hint" className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+              {t('settings.fields.sensenovaImageHint')}
+            </p>
+          )}
         </div>
 
-        {/* Gemini/OpenAI 提供商：显示 API Base URL + API Key */}
+        {/* Gemini/OpenAI/Volcengine 提供商：显示 API Key + Base URL */}
         {isApiKeyProvider && (
           <div className="space-y-3 pl-3 border-l-2 border-banana-300 dark:border-banana-600">
             <Input
@@ -999,6 +1485,59 @@ export const Settings: React.FC = () => {
               </p>
             </div>
           </div>
+        )}
+
+        {/* Image request options for the effective image provider */}
+        {(isOpenAiCompatibleImageSource || isCodexImageSource) && (
+          <>
+            {/* Image API Protocol: OpenAI-compatible HTTP endpoints only */}
+            {isOpenAiCompatibleImageSource && (
+              <div className="pl-3 border-l-2 border-banana-300 dark:border-banana-600">
+                <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">
+                  {t('settings.fields.imageApiProtocol')}
+                </label>
+                <select
+                  data-testid="openai-image-api-protocol-select"
+                  value={formData.openai_image_api_protocol}
+                  onChange={(e) => handleFieldChange('openai_image_api_protocol', e.target.value)}
+                  className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
+                >
+                  <option value="auto">{t('settings.fields.imageApiProtocolAuto')}</option>
+                  <option value="images">{t('settings.fields.imageApiProtocolImages')}</option>
+                  <option value="chat">{t('settings.fields.imageApiProtocolChat')}</option>
+                </select>
+                <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">
+                  {t('settings.fields.imageApiProtocolDesc')}
+                </p>
+              </div>
+            )}
+
+            {/* Quality tier: only GPT Image models accept this parameter, so hide
+                the control for Seedream and other models where it has no effect. */}
+            {showsQualityTier && (
+              <div className="pl-3 border-l-2 border-banana-300 dark:border-banana-600">
+                <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">
+                  {t('settings.fields.imageQuality')}
+                </label>
+                <select
+                  data-testid="openai-image-quality-select"
+                  value={formData.image_quality}
+                  onChange={(e) => handleFieldChange('image_quality', e.target.value)}
+                  className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
+                >
+                  <option value="auto">{t('settings.fields.imageQualityAuto')}</option>
+                  <option value="low">{t('settings.fields.imageQualityLow')}</option>
+                  <option value="medium">{t('settings.fields.imageQualityMedium')}</option>
+                  <option value="high">{t('settings.fields.imageQualityHigh')}</option>
+                  <option value="xhigh">{t('settings.fields.imageQualityXhigh')}</option>
+                  <option value="max">{t('settings.fields.imageQualityMax')}</option>
+                </select>
+                <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">
+                  {t('settings.fields.imageQualityDesc')}
+                </p>
+              </div>
+            )}
+          </>
         )}
 
         {/* LazyLLM 厂商：显示厂商 API Key */}
@@ -1032,6 +1571,85 @@ export const Settings: React.FC = () => {
     );
   };
 
+  const oauthPanel = (<>
+              {/* OpenAI OAuth 连接区块 */}
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-1 flex items-center">
+                  <Link2 size={20} />
+                  <span className="ml-2">{t('settings.openaiOAuth.title')}</span>
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-foreground-tertiary mb-4">{t('settings.openaiOAuth.description')}</p>
+                <div className="p-4 border border-gray-200 dark:border-border-primary rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-2.5 h-2.5 rounded-full ${settings?.openai_oauth_connected ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
+                      <div>
+                        <span className="text-sm font-medium text-gray-700 dark:text-foreground-secondary">
+                          {settings?.openai_oauth_connected ? t('settings.openaiOAuth.connected') : t('settings.openaiOAuth.disconnected')}
+                        </span>
+                        {settings?.openai_oauth_connected && settings?.openai_oauth_account_id && (
+                          <span className="ml-2 text-sm text-gray-500 dark:text-foreground-tertiary">
+                            ({settings.openai_oauth_account_id})
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      {settings?.openai_oauth_connected ? (
+                        <button
+                          onClick={handleOAuthDisconnect}
+                          className="px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                        >
+                          {t('settings.openaiOAuth.disconnectBtn')}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleOAuthLogin}
+                          disabled={oauthConnecting}
+                          className="px-4 py-2 text-sm font-medium text-white bg-gray-900 dark:bg-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors disabled:opacity-50"
+                        >
+                          {oauthConnecting ? t('settings.openaiOAuth.connecting') : t('settings.openaiOAuth.loginBtn')}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs text-gray-500 dark:text-foreground-tertiary">{t('settings.openaiOAuth.hint')}</p>
+                  {!settings?.openai_oauth_connected && (
+                    <div className="mt-3">
+                      <button
+                        onClick={() => setManualCallbackOpen(v => !v)}
+                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        {t('settings.openaiOAuth.manualCallbackLabel')}
+                      </button>
+                      {manualCallbackOpen && (
+                        <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                          <p className="text-xs text-amber-700 dark:text-amber-300 mb-2">{t('settings.openaiOAuth.manualCallbackHint')}</p>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={manualCallbackUrl}
+                              onChange={(e) => setManualCallbackUrl(e.target.value)}
+                              placeholder={t('settings.openaiOAuth.manualCallbackPlaceholder')}
+                              className="flex-1 px-3 py-1.5 text-xs border border-gray-300 dark:border-border-primary rounded-md bg-white dark:bg-background-secondary text-gray-900 dark:text-foreground-primary placeholder-gray-400"
+                            />
+                            <button
+                              onClick={handleManualCallback}
+                              disabled={manualCallbackSubmitting || !manualCallbackUrl.trim()}
+                              className="px-3 py-1.5 text-xs font-medium text-white bg-gray-900 dark:bg-white dark:text-gray-900 rounded-md hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors disabled:opacity-50"
+                            >
+                              {t('settings.openaiOAuth.manualCallbackSubmit')}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+  </>);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -1044,6 +1662,15 @@ export const Settings: React.FC = () => {
     <>
       <ToastContainer />
       {ConfirmDialog}
+      <Modal isOpen={oauthDialogOpen} title={t('settings.openaiOAuth.title')} onClose={() => {
+        pendingCodexSelection.current = null;
+        stopOAuthMonitor();
+        oauthPopupRef.current?.close();
+        setOauthConnecting(false);
+        setOauthDialogOpen(false);
+      }}>
+        {oauthPanel}
+      </Modal>
       <div className="space-y-8">
         {/* 默认 API 配置区块 */}
         <div data-testid="global-api-config-section">
@@ -1052,25 +1679,32 @@ export const Settings: React.FC = () => {
             <span className="ml-2">{t('settings.sections.apiConfig')}</span>
           </h2>
           <p className="text-sm text-gray-500 dark:text-foreground-tertiary mb-4">{t('settings.sections.apiConfigDesc')}</p>
-          <div className="p-4 bg-gray-50 dark:bg-background-primary border border-gray-200 dark:border-border-primary rounded-lg space-y-3">
-            {/* 提供商下拉 */}
+          <div className="space-y-3">
+            {/* 默认提供商胶囊选择 */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">
                 {t('settings.fields.aiProviderFormat')}
               </label>
-              <select
-                value={formData.ai_provider_format}
-                onChange={(e) => handleFieldChange('ai_provider_format', e.target.value)}
-                className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
-              >
-                {ALL_PROVIDER_SOURCES.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
+              <SettingsProviderPicker
+                label={t('settings.fields.aiProviderFormat')}
+                globalProviderSources={globalProviderSources.map(option => ({ ...option,
+                  hint: option.value === 'volcengine' ? t('settings.volcenginePromo.providerHint')
+                    : null,
+                }))}
+                selectedGlobalProvider={selectedGlobalProvider}
+                providerPromotions={providerPromotions}
+                selectGlobalProvider={selectGlobalProvider}
+                disabledLabel={t('settings.openaiOAuth.disconnected')}
+              />
               <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">{t('settings.fields.aiProviderFormatDesc')}</p>
+              {formData.ai_provider_format === 'sensenova' && (
+                <p data-testid="sensenova-global-image-hint" className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                  {t('settings.fields.sensenovaImageHint')}
+                </p>
+              )}
             </div>
 
-            {/* Gemini/OpenAI: API Base URL + API Key */}
+            {/* Gemini/OpenAI/Volcengine: API Key + Base URL */}
             {API_KEY_PROVIDERS.has(formData.ai_provider_format) && (
               <div className="space-y-3 pl-3 border-l-2 border-banana-300 dark:border-banana-600">
                 <Input
@@ -1081,6 +1715,20 @@ export const Settings: React.FC = () => {
                   onChange={(e) => handleFieldChange('api_base_url', e.target.value)}
                 />
                 <p className="-mt-2 text-sm text-gray-500 dark:text-foreground-tertiary">{t('settings.fields.apiBaseUrlDesc')}</p>
+                {formData.ai_provider_format === 'volcengine' &&
+                  formData.api_base_url &&
+                  formData.api_base_url !== VOLCENGINE_AGENTPLANS_BASE_URL && (
+                    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 dark:border-amber-700 dark:bg-amber-950/40">
+                      <p className="flex-1 text-xs text-amber-800 dark:text-amber-200">{t('settings.fields.volcengineBaseUrlHint')}</p>
+                      <button
+                        type="button"
+                        onClick={() => handleFieldChange('api_base_url', VOLCENGINE_AGENTPLANS_BASE_URL)}
+                        className="shrink-0 rounded-md bg-amber-500 px-2.5 py-1 text-xs font-medium text-white hover:bg-amber-600"
+                      >
+                        {t('settings.fields.volcengineBaseUrlReset')}
+                      </button>
+                    </div>
+                  )}
                 <div>
                   <Input
                     label={t('settings.fields.apiKey')}
@@ -1104,46 +1752,14 @@ export const Settings: React.FC = () => {
             )}
           </div>
 
-          {/* AIHubmix 提示 */}
-          <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg">
-            <p className="text-sm text-gray-700 dark:text-foreground-secondary">
-              {t('settings.apiKeyTip.before')}
-              <a href={['https://', 'aihubmix', '.com/?', 'aff=17EC'].join('')} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline font-medium">AIHubmix 申请 API key</a>
-            </p>
-          </div>
-
-          {/* API Key 获取指南 */}
-          <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg">
-            <p className="text-sm font-medium text-gray-800 dark:text-foreground-primary flex items-center gap-1.5 mb-2">
-              <HelpCircle size={15} className="text-blue-500" />
-              {t('settings.apiKeyHelp.title')}
-            </p>
-            <ol className="text-sm text-gray-700 dark:text-foreground-secondary space-y-1 list-decimal list-inside ml-1">
-              <li>
-                {t('settings.apiKeyHelp.step1', { link: '{{link}}' }).split('{{link}}')[0]}
-                <span className="inline-flex items-center gap-2">
-                  <a
-                    href={['https://', 'aihubmix', '.com/?', 'aff=17EC'].join('')}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:text-blue-800 underline font-medium"
-                  >
-                    点击此处访问 AIHubmix →
-                  </a>
-                  <button
-                    onClick={() => copyToClipboard('https://aihubmix.com/?aff=17EC')}
-                    className="text-xs px-2 py-0.5 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded transition-colors"
-                  >
-                    复制链接
-                  </button>
-                </span>
-                {t('settings.apiKeyHelp.step1', { link: '{{link}}' }).split('{{link}}')[1]}
-              </li>
-              <li>{t('settings.apiKeyHelp.step2')}</li>
-              <li>{t('settings.apiKeyHelp.step3')}</li>
-              <li>{t('settings.apiKeyHelp.step4')}</li>
-            </ol>
-          </div>
+          <SettingsApiGuidance
+            t={t} usesVolcengineCampaignPromo={usesVolcengineCampaignPromo}
+            providerFormat={formData.ai_provider_format} volcengineAgentPlansUrl={volcengineAgentPlansUrl}
+            volcengineLogoUrl={volcengineLogoUrl} isZh={isZh} activeVolcenginePromoKey={activeVolcenginePromoKey}
+            activeApiKeyHelpKey={activeApiKeyHelpKey} activeApiKeyTipKey={activeApiKeyTipKey}
+            activeApiKeyHelpUrl={activeApiKeyHelpUrl} copyToClipboard={copyToClipboard}
+            applyVolcengineRecommendedModels={applyVolcengineRecommendedModels}
+          />
         </div>
 
         {/* 模型配置区块 */}
@@ -1157,9 +1773,13 @@ export const Settings: React.FC = () => {
           </div>
         </div>
 
-        {/* 其余配置区块（配置驱动） */}
+        {/* 其余配置区块（配置驱动，排除性能配置和推理模式） */}
         <div className="space-y-8">
-          {settingsSections.map((section) => (
+          {settingsSections.filter((section) =>
+            section.title !== t('settings.sections.performanceConfig') &&
+            section.title !== t('settings.sections.textReasoning') &&
+            section.title !== t('settings.sections.imageReasoning')
+          ).map((section) => (
             <div key={section.title}>
               <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-4 flex items-center">
                 {section.icon}
@@ -1172,6 +1792,30 @@ export const Settings: React.FC = () => {
           ))}
         </div>
 
+        {/* 高级设置（折叠区域） */}
+        <SettingsAdvanced open={advancedOpen} onToggle={() => setAdvancedOpen(!advancedOpen)} label={t('settings.sections.advancedSettings')}>
+              {isDesktop && <DataStorageSettings />}
+
+              {!oauthDialogOpen && oauthPanel}
+
+              {/* 并发性能配置 + 推理模式 */}
+              {settingsSections.filter((section) =>
+                section.title === t('settings.sections.performanceConfig') ||
+                section.title === t('settings.sections.textReasoning') ||
+                section.title === t('settings.sections.imageReasoning')
+              ).map((section) => (
+                <div key={section.title}>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-4 flex items-center">
+                    {section.icon}
+                    <span className="ml-2">{section.title}</span>
+                  </h2>
+                  <div className="space-y-4">
+                    {section.fields.map((field) => renderField(field))}
+                  </div>
+                </div>
+              ))}
+        </SettingsAdvanced>
+
         {/* 服务测试区 */}
         <div className="space-y-4">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-2 flex items-center">
@@ -1181,9 +1825,10 @@ export const Settings: React.FC = () => {
           <p className="text-sm text-gray-500 dark:text-foreground-tertiary">
             {t('settings.serviceTest.description')}
           </p>
-          <div className="p-3 bg-yellow-50 dark:bg-background-primary border border-yellow-200 dark:border-yellow-700 rounded-lg">
-            <p className="text-sm text-gray-700 dark:text-foreground-secondary">
-              💡 {t('settings.serviceTest.tip')}
+          <div className="pl-4 border-l-4 border-yellow-300 dark:border-yellow-600">
+            <p className="text-sm text-gray-700 dark:text-foreground-secondary flex items-start gap-1.5">
+              <Lightbulb size={15} className="flex-shrink-0 mt-0.5" />
+              {t('settings.serviceTest.tip')}
             </p>
           </div>
           <div className="space-y-4">
@@ -1240,24 +1885,11 @@ export const Settings: React.FC = () => {
               const testState = serviceTestStates[item.key] || { status: 'idle' as TestStatus };
               const isLoadingTest = testState.status === 'loading';
               return (
-                <div
-                  key={item.key}
-                  className="p-4 bg-gray-50 dark:bg-background-primary border border-gray-200 dark:border-border-primary rounded-lg space-y-2"
-                >
-                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <div className="text-base font-semibold text-gray-800 dark:text-foreground-primary">{t(item.titleKey)}</div>
-                      <div className="text-sm text-gray-500 dark:text-foreground-tertiary">{t(item.descriptionKey)}</div>
-                    </div>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      loading={isLoadingTest}
-                      onClick={() => handleServiceTest(item.key, item.action, item.formatDetail)}
-                    >
-                      {isLoadingTest ? t('settings.serviceTest.testing') : t('settings.serviceTest.startTest')}
-                    </Button>
-                  </div>
+                <SettingsServiceRow key={item.key} title={t(item.titleKey)} description={t(item.descriptionKey)} action={
+                  <Button variant="secondary" size="sm" loading={isLoadingTest} onClick={() => handleServiceTest(item.key, item.action, item.formatDetail)}>
+                    {isLoadingTest ? t('settings.serviceTest.testing') : t('settings.serviceTest.startTest')}
+                  </Button>
+                }>
                   {testState.status === 'success' && (
                     <p className="text-sm text-green-600">
                       {testState.message}{testState.detail ? `｜${testState.detail}` : ''}
@@ -1268,14 +1900,14 @@ export const Settings: React.FC = () => {
                       {testState.message}
                     </p>
                   )}
-                </div>
+                </SettingsServiceRow>
               );
             })}
           </div>
         </div>
 
         {/* 操作按钮 */}
-        <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-border-primary">
+        <SettingsActions>
           <Button
             variant="secondary"
             icon={<RotateCcw size={18} />}
@@ -1292,67 +1924,13 @@ export const Settings: React.FC = () => {
           >
             {isSaving ? t('settings.actions.saving') : t('settings.actions.save')}
           </Button>
-        </div>
+        </SettingsActions>
+
+        <SettingsAbout t={t} />
       </div>
     </>
   );
 };
 
 // SettingsPage 组件 - 完整页面包装
-const SCROLL_SHOW_THRESHOLD = 300;
-
-export const SettingsPage: React.FC = () => {
-  const navigate = useNavigate();
-  const t = useT(settingsI18n);
-  const [showTop, setShowTop] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setShowTop(window.scrollY > SCROLL_SHOW_THRESHOLD);
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-banana-50 dark:from-background-primary to-yellow-50 dark:to-background-primary">
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
-        <Card className="p-6 md:p-8">
-          <div className="space-y-8">
-            {/* 顶部标题 */}
-            <div className="flex items-center justify-between pb-6 border-b border-gray-200 dark:border-border-primary">
-              <div className="flex items-center">
-                <Button
-                  variant="secondary"
-                  icon={<Home size={18} />}
-                  onClick={() => navigate('/')}
-                  className="mr-4"
-                >
-                  {t('nav.backToHome')}
-                </Button>
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900 dark:text-foreground-primary">{t('settings.title')}</h1>
-                  <p className="text-sm text-gray-500 dark:text-foreground-tertiary mt-1">
-                    {t('settings.subtitle')}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <Settings />
-          </div>
-        </Card>
-      </div>
-
-      {showTop && (
-        <button
-          data-testid="back-to-top-button"
-          aria-label="Back to top"
-          title="Back to top"
-          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          className="fixed bottom-6 right-6 p-3 rounded-full bg-banana-500 text-white shadow-lg hover:bg-banana-600 transition-all z-50"
-        >
-          <ArrowUp size={20} />
-        </button>
-      )}
-    </div>
-  );
-};
+export const SettingsPage: React.FC = () => <SettingsPageFrame><Settings /></SettingsPageFrame>;

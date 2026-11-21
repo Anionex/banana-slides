@@ -4,6 +4,8 @@
 
 API文档: https://ai.baidu.com/ai-doc/OCR/1k3h7y3db
 """
+
+from export_runtime.control import export_call
 import logging
 import base64
 import requests
@@ -73,6 +75,7 @@ class BaiduAccurateOCRProvider:
         else:
             logger.info("✅ 初始化百度高精度OCR Provider (使用Access Token)")
     
+    @export_call('ocr')
     @retry(
         stop=stop_after_attempt(3),  # 最多重试3次
         wait=wait_exponential(multiplier=0.5, min=1, max=5),  # 指数避让: 1s, 2s, 4s

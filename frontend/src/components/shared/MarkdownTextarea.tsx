@@ -7,7 +7,10 @@ const markdownTextareaI18n = {
   zh: {
     markdownTextarea: {
       dropImages: '拖放图片到此处',
+      dropImagesOrFiles: '拖放图片或文件到此处',
       uploadImage: '上传图片',
+      localUpload: '本地上传',
+      selectFromLibrary: '从素材库选择',
       imageDescription: '图片描述',
       doubleClickToEdit: '双击编辑描述',
       uploading: '上传中...',
@@ -16,7 +19,10 @@ const markdownTextareaI18n = {
   en: {
     markdownTextarea: {
       dropImages: 'Drop images here',
+      dropImagesOrFiles: 'Drop images or files here',
       uploadImage: 'Upload image',
+      localUpload: 'Local upload',
+      selectFromLibrary: 'Select from library',
       imageDescription: 'Image description',
       doubleClickToEdit: 'Double-click to edit description',
       uploading: 'Uploading...',
@@ -32,8 +38,15 @@ interface MarkdownTextareaProps {
   value: string;
   onChange: (value: string) => void;
   onPaste?: (e: React.ClipboardEvent<HTMLDivElement>) => void;
-  /** Called when files are dropped or selected via upload button */
+  /** Called when files are dropped or selected via upload button.
+   *  When `onDocumentFiles` is also provided, only image files (MIME
+   *  `image/*`) are passed here; non-image files go to `onDocumentFiles`. */
   onFiles?: (files: File[]) => void;
+  /** Called when non-image files are dropped. Providing this prop enables
+   *  document drag-and-drop: the drop overlay updates its label and dropped
+   *  files are split by MIME type. When not provided, legacy behavior applies
+   *  (all dropped files go to `onFiles`). */
+  onDocumentFiles?: (files: File[]) => void;
   onBlur?: () => void;
   onFocus?: () => void;
   placeholder?: string;
@@ -49,6 +62,8 @@ interface MarkdownTextareaProps {
   toolbarRight?: React.ReactNode;
   /** Show compact image preview strip. Default: true */
   showImagePreview?: boolean;
+  /** Called when user chooses "Select from library". When provided, upload button shows a dropdown. */
+  onSelectFromLibrary?: () => void;
 }
 
 /** Ref handle for MarkdownTextarea */
@@ -241,6 +256,7 @@ export const MarkdownTextarea = forwardRef<MarkdownTextareaRef, MarkdownTextarea
   onChange,
   onPaste,
   onFiles,
+  onDocumentFiles,
   onBlur,
   onFocus,
   placeholder,
@@ -252,6 +268,7 @@ export const MarkdownTextarea = forwardRef<MarkdownTextareaRef, MarkdownTextarea
   toolbarLeft,
   toolbarRight,
   showImagePreview = true,
+  onSelectFromLibrary,
 }, ref) => {
   const t = useT(markdownTextareaI18n);
   const editorRef = useRef<HTMLDivElement>(null);
@@ -263,6 +280,8 @@ export const MarkdownTextarea = forwardRef<MarkdownTextareaRef, MarkdownTextarea
   const [editAlt, setEditAlt] = useState('');
   const editInputRef = useRef<HTMLInputElement>(null);
   const dragCountRef = useRef(0);
+  const [showUploadMenu, setShowUploadMenu] = useState(false);
+
 
   const shouldShowUpload = showUploadButton ?? !!onFiles;
   const hasToolbar = shouldShowUpload || toolbarLeft || toolbarRight;
@@ -314,6 +333,7 @@ export const MarkdownTextarea = forwardRef<MarkdownTextareaRef, MarkdownTextarea
       editInputRef.current.select();
     }
   }, [editingChip]);
+
 
   const emitChange = useCallback(() => {
     if (!editorRef.current) return;
@@ -539,10 +559,26 @@ export const MarkdownTextarea = forwardRef<MarkdownTextareaRef, MarkdownTextarea
     e.preventDefault();
     dragCountRef.current = 0;
     setIsDragging(false);
-    if (onFiles && e.dataTransfer.files.length > 0) {
-      onFiles(Array.from(e.dataTransfer.files));
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+
+    // When onDocumentFiles is provided, split files by MIME type:
+    // images go through onFiles, non-images go through onDocumentFiles.
+    if (onDocumentFiles) {
+      const images: File[] = [];
+      const documents: File[] = [];
+      for (const f of files) {
+        if (f.type.startsWith('image/')) images.push(f);
+        else documents.push(f);
+      }
+      if (images.length > 0 && onFiles) onFiles(images);
+      if (documents.length > 0) onDocumentFiles(documents);
+      return;
     }
-  }, [onFiles]);
+
+    // Legacy behavior: all dropped files go through onFiles.
+    if (onFiles) onFiles(files);
+  }, [onFiles, onDocumentFiles]);
 
   const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -591,10 +627,10 @@ export const MarkdownTextarea = forwardRef<MarkdownTextareaRef, MarkdownTextarea
       )}
       {/* Outer container — owns the border, focus ring, and toolbar */}
       <div className={cn(
-        'rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary',
+        'relative rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary',
         'focus-within:ring-2 focus-within:ring-banana-500 focus-within:border-transparent',
         'transition-all',
-        isDragging && 'ring-2 ring-banana-400 border-banana-400 bg-banana-50/50 dark:bg-banana-900/10',
+        isDragging && 'ring-2 ring-banana-400 border-transparent',
         error && 'border-red-500 focus-within:ring-red-500',
         className
       )}>
@@ -629,18 +665,6 @@ export const MarkdownTextarea = forwardRef<MarkdownTextareaRef, MarkdownTextarea
             </div>
           )}
 
-          {/* Drag overlay */}
-          {isDragging && (
-            <div className="absolute inset-0 flex items-center justify-center rounded-lg pointer-events-none">
-              <div className="flex items-center gap-2 px-4 py-2 bg-banana-100 dark:bg-banana-900/50 rounded-full text-sm font-medium text-banana-700 dark:text-banana-300">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>
-                </svg>
-                {t('markdownTextarea.dropImages')}
-              </div>
-            </div>
-          )}
-
           {/* Chip edit popover */}
           {editingChip && (
             <div
@@ -672,16 +696,57 @@ export const MarkdownTextarea = forwardRef<MarkdownTextareaRef, MarkdownTextarea
           >
             <div className="flex items-center gap-0.5">
               {shouldShowUpload && (
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:text-foreground-tertiary dark:hover:text-foreground-secondary dark:hover:bg-background-hover rounded transition-colors cursor-pointer"
-                  title={t('markdownTextarea.uploadImage')}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>
-                  </svg>
-                </button>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onSelectFromLibrary) {
+                        setShowUploadMenu(prev => !prev);
+                      } else {
+                        fileInputRef.current?.click();
+                      }
+                    }}
+                    className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:text-foreground-tertiary dark:hover:text-foreground-secondary dark:hover:bg-background-hover rounded transition-colors cursor-pointer"
+                    title={t('markdownTextarea.uploadImage')}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>
+                    </svg>
+                  </button>
+                  {showUploadMenu && (
+                    <>
+                      <div className="fixed inset-0 z-30" onClick={() => setShowUploadMenu(false)} />
+                      <div className="absolute bottom-full left-0 mb-1 py-1 bg-white dark:bg-background-secondary border border-gray-200 dark:border-border-primary rounded-lg shadow-lg z-40 min-w-[160px]">
+                      <button
+                        type="button"
+                        className="w-full px-3 py-1.5 text-left text-sm text-gray-700 dark:text-foreground-secondary hover:bg-gray-100 dark:hover:bg-background-hover flex items-center gap-2"
+                        onClick={() => {
+                          setShowUploadMenu(false);
+                          fileInputRef.current?.click();
+                        }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        {t('markdownTextarea.localUpload')}
+                      </button>
+                      <button
+                        type="button"
+                        className="w-full px-3 py-1.5 text-left text-sm text-gray-700 dark:text-foreground-secondary hover:bg-gray-100 dark:hover:bg-background-hover flex items-center gap-2"
+                        onClick={() => {
+                          setShowUploadMenu(false);
+                          onSelectFromLibrary?.();
+                        }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>
+                        </svg>
+                        {t('markdownTextarea.selectFromLibrary')}
+                      </button>
+                    </div>
+                    </>
+                  )}
+                </div>
               )}
               {toolbarLeft}
             </div>
@@ -733,6 +798,23 @@ export const MarkdownTextarea = forwardRef<MarkdownTextareaRef, MarkdownTextarea
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Drag overlay — anchored to the outer container so the dashed frame
+            wraps the entire textarea (editor + toolbar + image preview). */}
+        {isDragging && (
+          <div className="absolute inset-0 flex items-center justify-center rounded-lg pointer-events-none border-2 border-dashed border-banana-400 dark:border-banana bg-white/80 dark:bg-background-secondary/80 backdrop-blur-sm z-10">
+            <div className="flex flex-col items-center gap-2 text-banana-700 dark:text-banana-300">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+              <div className="text-sm font-medium">
+                {t(onDocumentFiles ? 'markdownTextarea.dropImagesOrFiles' : 'markdownTextarea.dropImages')}
+              </div>
+            </div>
           </div>
         )}
       </div>

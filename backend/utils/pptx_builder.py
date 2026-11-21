@@ -11,10 +11,16 @@ from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.enum.text import PP_ALIGN
 from pptx.dml.color import RGBColor
+from pptx.oxml.ns import qn, _nsmap
+from pptx.oxml.xmlchemy import OxmlElement
 from PIL import Image, ImageFont, ImageDraw
 from html.parser import HTMLParser
+from utils.pptx_math import latex_to_display_text, latex_to_omml
 
 logger = logging.getLogger(__name__)
+
+_nsmap.setdefault('a14', 'http://schemas.microsoft.com/office/drawing/2010/main')
+_nsmap.setdefault('mc', 'http://schemas.openxmlformats.org/markup-compatibility/2006')
 
 
 class HTMLTableParser(HTMLParser):
@@ -288,48 +294,54 @@ class PPTXBuilder:
         
         # Try precise measurement first (check if font file exists)
         use_precise = os.path.exists(self.FONT_PATH)
-        
-        # Binary search: find largest font size that fits
-        best_size = self.MIN_FONT_SIZE
-        
-        for font_size in range(int(self.MAX_FONT_SIZE), int(self.MIN_FONT_SIZE) - 1, -1):
-            font_size = float(font_size)
-            
-            # For text with explicit newlines, calculate each line's width separately
-            lines = text.split('\n')
+
+        # 退化 bbox（宽度不足 1pt）时整数除法会除零；按 1pt 计算，
+        # 让后续的高度判断把字号压到最小值（并给出溢出告警）。
+        usable_width_for_wrap = max(1, int(usable_width_pt))
+        measurement_state = {'precise': use_precise}
+        lines = text.split('\n')
+
+        def required_lines(font_size: float) -> int:
+            """该字号下文本换行后需要的总行数。"""
             total_required_lines = 0
-            
             for line in lines:
                 if not line:
                     total_required_lines += 1
                     continue
-                    
-                # Measure line width (precise or estimated)
-                if use_precise:
+
+                line_width_pt = None
+                if measurement_state['precise']:
                     line_width_pt = self._measure_text_width(line, font_size)
                     if line_width_pt is None:
-                        use_precise = False
-                
-                if not use_precise:
+                        measurement_state['precise'] = False
+
+                if line_width_pt is None:
                     # Fallback: estimate based on character count
                     cjk_count = sum(1 for c in line if '\u4e00' <= c <= '\u9fff' or '\u3040' <= c <= '\u30ff' or '\uac00' <= c <= '\ud7af')
                     non_cjk_count = len(line) - cjk_count
                     line_width_pt = (cjk_count * 1.0 + non_cjk_count * 0.5) * font_size
-                
+
                 # How many lines does this explicit line need (auto-wrap)?
-                lines_needed = max(1, -(-int(line_width_pt) // int(usable_width_pt)))
-                total_required_lines += lines_needed
-            
-            required_lines = total_required_lines
-            
-            # Calculate total height needed
-            line_height_pt = font_size * line_height_ratio
-            total_height_pt = required_lines * line_height_pt
-            
-            # Check if it fits
-            if total_height_pt <= usable_height_pt:
-                best_size = font_size
-                break
+                total_required_lines += max(1, -(-int(line_width_pt) // usable_width_for_wrap))
+            return total_required_lines
+
+        def fits(font_size: float) -> bool:
+            return required_lines(font_size) * font_size * line_height_ratio <= usable_height_pt
+
+        # 二分查找：找最大的能放下的字号。
+        # 原来的做法是从 MAX_FONT_SIZE 逐 pt 往下试，每个文本元素要测 180+ 次字宽
+        # （CJK 字体每次约 0.4ms），单元素约 80ms，密集页面会卡到分钟级。
+        # "放得下"对字号单调，因此二分只需 ~8 次测量。
+        best_size = self.MIN_FONT_SIZE
+        low = int(self.MIN_FONT_SIZE)
+        high = int(self.MAX_FONT_SIZE)
+        while low <= high:
+            mid = (low + high) // 2
+            if fits(float(mid)):
+                best_size = float(mid)
+                low = mid + 1
+            else:
+                high = mid - 1
         
         if best_size == self.MIN_FONT_SIZE and text_length > 3:
             logger.warning(f"Text may overflow: '{text[:50]}...' in bbox {width_px}x{height_px}px")
@@ -351,7 +363,8 @@ class PPTXBuilder:
         text_level: Any = None,
         dpi: int = None,
         align: str = 'left',
-        text_style: Any = None
+        text_style: Any = None,
+        allow_math_conversion: bool = True
     ):
         """
         Add text element to slide
@@ -366,6 +379,9 @@ class PPTXBuilder:
             text_style: TextStyleResult object with font color, bold, italic etc. (optional)
                         If text_style has colored_segments, those will be used for rendering
                         and the text content will come from the segments.
+            allow_math_conversion: Whether a fully-LaTeX text element may be rendered
+                        as native PowerPoint math. Fallback callers disable this to avoid
+                        retrying the same unsupported conversion.
         """
         dpi = dpi or self.DEFAULT_DPI
         
@@ -380,9 +396,41 @@ class PPTXBuilder:
         # Determine the actual text to use
         # If we have colored_segments, use the text from segments (model's recognized text)
         if has_colored_segments:
-            actual_text = ''.join(seg.text for seg in text_style.colored_segments)
+            segment_text = ''.join(seg.text for seg in text_style.colored_segments)
+            if not allow_math_conversion and text and text != segment_text:
+                has_colored_segments = False
+                actual_text = text
+            else:
+                actual_text = segment_text
         else:
             actual_text = text
+
+        latex_segments = [
+            seg for seg in (text_style.colored_segments if has_colored_segments else [])
+            if getattr(seg, 'is_latex', False)
+        ]
+        if has_colored_segments and latex_segments:
+            actual_text = ''.join(
+                latex_to_display_text(seg.text) if getattr(seg, 'is_latex', False) else seg.text
+                for seg in text_style.colored_segments
+            )
+
+        if (
+            allow_math_conversion
+            and has_colored_segments
+            and latex_segments
+            and len(latex_segments) == len(text_style.colored_segments)
+        ):
+            converted = self.add_math_element(
+                slide=slide,
+                latex=''.join(seg.text for seg in latex_segments),
+                bbox=bbox,
+                dpi=dpi,
+                text_style=text_style,
+            )
+            if converted:
+                return
+            actual_text = ''.join(latex_to_display_text(seg.text) for seg in latex_segments)
         
         # Expand bbox slightly to prevent text overflow
         # MinerU bbox is tight, but font rendering may need extra space
@@ -456,9 +504,8 @@ class PPTXBuilder:
                 
                 # Handle LaTeX formula segments
                 if hasattr(seg, 'is_latex') and seg.is_latex:
-                    # For LaTeX formulas, use italic style as visual hint
-                    # TODO: In future, could render as actual equation using OMML
-                    run.font.italic = True
+                    run.text = latex_to_display_text(seg.text)
+                    run.font.italic = is_italic
                     latex_count += 1
                     logger.debug(f"  LaTeX formula detected: '{seg.text}'")
                 else:
@@ -498,6 +545,97 @@ class PPTXBuilder:
         bbox_width = bbox[2] - bbox[0]
         bbox_height = bbox[3] - bbox[1]
         logger.debug(f"Text: '{actual_text[:35]}' | box: {bbox_width}x{bbox_height}px | font: {font_size:.1f}pt | chars: {len(actual_text)}{style_info}")
+
+    def add_math_element(
+        self,
+        slide,
+        latex: str,
+        bbox: List[int],
+        dpi: int = None,
+        text_style: Any = None
+    ) -> bool:
+        """
+        Add a native editable PowerPoint equation using OMML.
+
+        Returns True when native equation XML was inserted. If the LaTeX subset
+        is unsupported, callers should render a non-TeX fallback.
+        """
+        dpi = dpi or self.DEFAULT_DPI
+        omml = latex_to_omml(latex)
+        if omml is None:
+            logger.info("Falling back to display text for unsupported LaTeX: %s", latex)
+            return False
+
+        left = Inches(self.pixels_to_inches(bbox[0], dpi))
+        top = Inches(self.pixels_to_inches(bbox[1], dpi))
+        width = Inches(self.pixels_to_inches(bbox[2] - bbox[0], dpi))
+        height = Inches(self.pixels_to_inches(bbox[3] - bbox[1], dpi))
+
+        textbox = slide.shapes.add_textbox(left, top, width, height)
+        text_frame = textbox.text_frame
+        text_frame.word_wrap = False
+        text_frame.margin_left = Inches(0)
+        text_frame.margin_right = Inches(0)
+        text_frame.margin_top = Inches(0)
+        text_frame.margin_bottom = Inches(0)
+
+        paragraph = text_frame.paragraphs[0]
+        paragraph.clear()
+        existing_end_props = paragraph._p.find(qn('a:endParaRPr'))
+        if existing_end_props is not None:
+            paragraph._p.remove(existing_end_props)
+        math = self._wrap_powerpoint_math(omml)
+
+        font_size = self.calculate_font_size(
+            bbox,
+            latex_to_display_text(latex),
+            text_level=None,
+            dpi=dpi,
+        )
+        self._apply_math_run_style(math, font_size, text_style)
+        paragraph._p.append(math)
+
+        end_props = paragraph._p.get_or_add_endParaRPr()
+        end_props.set("sz", str(int(font_size * 100)))
+
+        logger.debug("Added native PPTX equation at bbox %s: %s", bbox, latex)
+        return True
+
+    @staticmethod
+    def _wrap_powerpoint_math(math_element):
+        """Wrap OMML in the DrawingML math container PowerPoint renders."""
+        container = OxmlElement('a14:m')
+        math_para = OxmlElement('m:oMathPara')
+        math_para.append(math_element)
+        container.append(math_para)
+        return container
+
+    @staticmethod
+    def _apply_math_run_style(math_element, font_size: float, text_style: Any = None) -> None:
+        """Apply DrawingML run properties to every OMML text run."""
+        color_rgb = None
+        if text_style and hasattr(text_style, 'font_color_rgb') and text_style.font_color_rgb:
+            color_rgb = text_style.font_color_rgb
+
+        for math_run in math_element.iter(qn('m:r')):
+            drawing_props = math_run.find(qn('a:rPr'))
+            if drawing_props is None:
+                drawing_props = OxmlElement('a:rPr')
+                math_run.insert(0, drawing_props)
+            drawing_props.set('sz', str(int(font_size * 100)))
+            drawing_props.set('kumimoji', '0')
+
+            if color_rgb:
+                solid_fill = drawing_props.find(qn('a:solidFill'))
+                if solid_fill is None:
+                    solid_fill = OxmlElement('a:solidFill')
+                    drawing_props.append(solid_fill)
+                srgb = solid_fill.find(qn('a:srgbClr'))
+                if srgb is None:
+                    srgb = OxmlElement('a:srgbClr')
+                    solid_fill.append(srgb)
+                r, g, b = color_rgb
+                srgb.set('val', f"{r:02X}{g:02X}{b:02X}")
     
     def add_image_element(
         self,
@@ -669,4 +807,3 @@ class PPTXBuilder:
     def get_presentation(self) -> Presentation:
         """Get the current presentation object"""
         return self.prs
-

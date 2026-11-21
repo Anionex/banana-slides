@@ -132,7 +132,7 @@ test.describe('UI-driven E2E test (Mocked Backend)', () => {
     // Step 1: Visit homepage
     // ====================================
     console.log('📱 Step 1: Opening homepage...')
-    await page.goto('http://localhost:3000')
+    await page.goto('http://localhost:3011')
     await expect(page).toHaveTitle(/蕉幻|Banana/i)
     console.log('✓ Homepage loaded successfully\n')
     

@@ -11,8 +11,9 @@ env:
 jobs:
   quick-check:
     name: Quick Check (Lint + Unit Tests + Build)
-    runs-on: ubuntu-latest
-    timeout-minutes: 8
+    # Playwright 1.57 does not support Ubuntu 26.04 yet.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
 
     steps:
       - name: Checkout code
@@ -41,6 +42,9 @@ jobs:
       - name: Backend unit tests
         run: uv run pytest backend/tests/unit -v
 
+      - name: Nightly lockfile preparation tests
+        run: python -m unittest discover -s scripts/tests -p 'test_prepare_nightly_lock.py'
+
       # Frontend checks
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -48,6 +52,17 @@ jobs:
           node-version: '18'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
+
+      - name: Install desktop test dependencies
+        run: cd desktop && npm ci --ignore-scripts
+
+      - name: Desktop unit and icon contract tests
+        run: cd desktop && npm test
+
+      - name: Desktop live update API integration test
+        run: cd desktop && npm run test:integration
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Install frontend dependencies
         run: cd frontend && npm ci
@@ -61,6 +76,38 @@ jobs:
       - name: Frontend build check
         run: cd frontend && npm run build
 
+      - name: Build web frontend and install browser
+        run: |
+          cd frontend
+          npm run build:web
+          npx playwright install --with-deps chromium
+
+      - name: Test built web deep links against real backend
+        run: |
+          cp .env.example .env
+          printf '\nBACKEND_PORT=5011\nFRONTEND_PORT=3488\n' >> .env
+          uv run --directory backend alembic upgrade head
+          uv run --directory backend python app.py > /tmp/web-build-backend.log 2>&1 &
+          BACKEND_PID=$!
+          npm --prefix frontend run preview -- --host 127.0.0.1 --port 3488 > /tmp/web-build-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill "$BACKEND_PID" "$PREVIEW_PID" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:3488/health > /dev/null; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3488/health > /dev/null
+          cd frontend
+          if ! npx playwright test e2e/web-build-deep-links.spec.ts e2e/pptx-download.spec.ts --reporter=list; then
+            cat /tmp/web-build-backend.log /tmp/web-build-preview.log
+            exit 1
+          fi
+        env:
+          CI: true
+          E2E_WEB_BUILD: '1'
+          BASE_URL: http://127.0.0.1:3488
+          NODE_OPTIONS: --dns-result-order=ipv4first
+
   docs-check:
     name: Docs Link Check
     runs-on: ubuntu-latest
@@ -69,7 +116,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '22'
       - name: Check docs links
         run: cd docs && npx mintlify@latest broken-links
 
@@ -109,7 +156,7 @@ jobs:
           # Poll until backend is ready (up to 30s)
           echo "Waiting for backend to start..."
           for i in $(seq 1 30); do
-            if curl -sf http://localhost:5000/health; then
+            if curl -sf http://localhost:5011/health; then
               echo ""
               echo "Backend smoke test passed (ready after ${i}s)"
               kill $SERVER_PID
@@ -130,4 +177,3 @@ jobs:
         env:
           GOOGLE_API_KEY: mock-key-for-testing
           TESTING: true
-

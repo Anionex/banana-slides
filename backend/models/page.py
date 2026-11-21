@@ -22,13 +22,29 @@ class Page(db.Model):
     description_content = db.Column(db.Text, nullable=True)  # JSON string
     generated_image_path = db.Column(db.String(500), nullable=True)  # Original PNG image path
     cached_image_path = db.Column(db.String(500), nullable=True)  # Compressed JPG thumbnail path
+    narration_text = db.Column(db.Text, nullable=True)  # Plain text narration for TTS video export
+    template_asset_id = db.Column(
+        db.String(36),
+        db.ForeignKey('project_template_assets.id', ondelete='SET NULL'),
+        nullable=True,
+        index=True,
+    )
+    template_style_text = db.Column(db.Text, nullable=True)
+    template_selection_source = db.Column(db.String(20), nullable=True)  # manual|auto|batch_apply
+    template_match_reason = db.Column(db.Text, nullable=True)
+    template_match_confidence = db.Column(db.Float, nullable=True)
     status = db.Column(db.String(50), nullable=False, default='DRAFT')
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
     project = db.relationship('Project', back_populates='pages')
-    image_versions = db.relationship('PageImageVersion', back_populates='page', 
+    template_asset = db.relationship(
+        'ProjectTemplateAsset',
+        back_populates='pages_referenced',
+        foreign_keys=[template_asset_id],
+    )
+    image_versions = db.relationship('PageImageVersion', back_populates='page',
                                      lazy='dynamic', cascade='all, delete-orphan',
                                      order_by='PageImageVersion.version_number.desc()')
     
@@ -64,6 +80,14 @@ class Page(db.Model):
         else:
             self.description_content = None
     
+    def get_narration_text(self):
+        """Get narration text for TTS"""
+        return self.narration_text
+
+    def set_narration_text(self, text):
+        """Set narration text for TTS"""
+        self.narration_text = text if text else None
+
     def to_dict(self, include_versions=False):
         """Convert to dictionary"""
         # Use cached image for frontend display, fallback to original if no cache
@@ -79,7 +103,13 @@ class Page(db.Model):
             'part': self.part,
             'outline_content': self.get_outline_content(),
             'description_content': self.get_description_content(),
+            'narration_text': self.narration_text,
             'generated_image_url': display_image_url,
+            'template_asset_id': self.template_asset_id,
+            'template_style_text': self.template_style_text,
+            'template_selection_source': self.template_selection_source,
+            'template_match_reason': self.template_match_reason,
+            'template_match_confidence': self.template_match_confidence,
             'status': self.status,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,

@@ -17,6 +17,8 @@ class Material(db.Model):
     filename = db.Column(db.String(500), nullable=False)
     relative_path = db.Column(db.String(500), nullable=False)  # Path relative to the upload_folder
     url = db.Column(db.String(500), nullable=False)  # URL accessible by the frontend
+    caption = db.Column(db.String(500), nullable=True)  # AI-generated image description
+    original_filename = db.Column(db.String(500), nullable=True)  # Original filename before renaming
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -31,6 +33,8 @@ class Material(db.Model):
             'filename': self.filename,
             'url': self.url,
             'relative_path': self.relative_path,
+            'caption': self.caption,
+            'original_filename': self.original_filename,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }

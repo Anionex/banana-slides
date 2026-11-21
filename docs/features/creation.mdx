@@ -5,6 +5,8 @@ description: "Four ways to start — pick the one that fits you"
 
 On the home page, choose a creation method, fill in your content, and click **Create New Project**.
 
+All three text-based creation modes require at least one non-whitespace character. The UI blocks whitespace-only submissions, and the API enforces the same rule while trimming extra whitespace at both ends.
+
 ## From an Idea (Simplest)
 
 Just one sentence describing your topic — AI handles the full pipeline: outline → descriptions → images.
@@ -76,6 +78,8 @@ Upload an existing PDF or PPTX — AI parses the content and regenerates a visua
   We recommend converting PPTX to PDF locally before uploading. Direct PPTX upload requires server-side LibreOffice conversion, which may cause layout issues due to missing fonts.
 </Note>
 
+If the task says that the MinerU token is expired, invalid, or unauthorized, update it in **Settings → MinerU Configuration**, run the **MinerU PDF Parsing** service test, then create the project again. See [Configuration](/configuration#mineru-pdf-parsing).
+
 ## Aspect Ratio
 
 Choose an aspect ratio below the input area before creating the project:
@@ -102,6 +106,12 @@ Set the visual style before creating:
 **Option 2: Text style description**
 - Check **Use text description for style**
 - Describe the desired visual style, e.g.: `Modern tech aesthetic, dark background, blue-purple gradient tones`
+- Click a preset style (e.g. "Business Simple", "Tech Modern") for a professional style description
+- Or upload an image and let AI extract its visual style automatically
+
+**Save as My Style Template:**
+
+After writing a style description, click **Save as template** in the top-right corner of the text box. Enter a name and pick a color tag to save it. Next time, just click it in the **My Styles** section to fill in the description instantly. Hover to preview the description; remove unwanted templates by hovering and clicking the × button.
 
 ## Upload Reference Files
 

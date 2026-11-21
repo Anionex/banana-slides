@@ -20,8 +20,12 @@ env:
   UV_INDEX_URL: https://pypi.org/simple
 
 jobs:
+  workflow-check:
+    uses: ./.github/workflows/check-browser-runners.yml
+
   validate:
     name: Validate Version Format
+    needs: workflow-check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -95,7 +99,8 @@ jobs:
   e2e-test:
     name: E2E Tests
     needs: test
-    runs-on: ubuntu-latest
+    # Keep browser jobs aligned with the locked Playwright version.
+    runs-on: ubuntu-24.04
     env:
       GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
     steps:
@@ -136,8 +141,8 @@ jobs:
       - name: Wait for services
         run: |
           chmod +x scripts/wait-for-health.sh
-          ./scripts/wait-for-health.sh http://localhost:5000/health 60 2
-          ./scripts/wait-for-health.sh http://localhost:3000 60 2
+          ./scripts/wait-for-health.sh http://localhost:5011/health 60 2
+          ./scripts/wait-for-health.sh http://localhost:3011 60 2
 
       - name: Docker environment tests
         run: |

@@ -15,7 +15,7 @@ file_bp = Blueprint('files', __name__, url_prefix='/files')
 def serve_file(project_id, file_type, filename):
     """
     GET /files/{project_id}/{type}/{filename} - Serve static files
-
+    
     Args:
         project_id: Project UUID
         file_type: 'template' or 'pages'
@@ -24,63 +24,103 @@ def serve_file(project_id, file_type, filename):
     try:
         if file_type not in ['template', 'pages', 'materials', 'exports']:
             return not_found('File')
+        if file_type == 'exports':
+            from export_runtime.tasks import artifact_allowed
+            if not artifact_allowed(project_id, filename, verify=True):
+                return not_found('File')
+        
+        # Construct file path
+        file_dir = os.path.join(
+            current_app.config['UPLOAD_FOLDER'],
+            project_id,
+            file_type
+        )
+        
+        # Check if directory exists
+        if not os.path.exists(file_dir):
+            return not_found('File')
+        
+        # Check if file exists
+        file_path = os.path.join(file_dir, filename)
+        if not os.path.exists(file_path):
+            return not_found('File')
+        
+        # Exports should be downloaded rather than opened in browser for better UX and
+        # to keep E2E download assertions stable.
+        as_attachment = file_type == 'exports'
+        return send_from_directory(file_dir, filename, as_attachment=as_attachment)
+    
+    except Exception as e:
+        return error_response('SERVER_ERROR', str(e), 500)
 
-        safe_project_id = secure_filename(project_id)
+
+@file_bp.route('/<project_id>/template-assets/<asset_id>/<filename>', methods=['GET'])
+def serve_template_asset(project_id, asset_id, filename):
+    """
+    GET /files/{project_id}/template-assets/{asset_id}/{filename}
+
+    Serve per-project template asset files (original.* and thumb.jpg).
+    """
+    try:
         safe_filename = secure_filename(filename)
-        if not safe_project_id or not safe_filename:
+        if not safe_filename:
             return not_found('File')
 
-        # Construct file path with path containment check
-        upload_folder = Path(current_app.config['UPLOAD_FOLDER']).resolve()
-        file_dir = upload_folder / safe_project_id / file_type
-        file_path = (file_dir / safe_filename).resolve()
+        root = Path(current_app.config['UPLOAD_FOLDER']).resolve()
+        file_dir = (root / project_id / 'template-assets' / asset_id).resolve()
 
-        if not str(file_path).startswith(str(upload_folder)):
+        try:
+            file_dir.relative_to(root)
+        except ValueError:
             return error_response('INVALID_PATH', 'Invalid file path', 403)
-
-        if not file_path.exists():
+        if not file_dir.exists() or not file_dir.is_dir():
             return not_found('File')
 
-        # Serve file
+        file_path = (file_dir / safe_filename).resolve()
+        try:
+            file_path.relative_to(file_dir)
+        except ValueError:
+            return error_response('INVALID_PATH', 'Invalid file path', 403)
+        if not file_path.exists() or not file_path.is_file():
+            return not_found('File')
+
         return send_from_directory(str(file_dir), safe_filename)
 
     except Exception as e:
-        current_app.logger.error(f"Error serving file: {e}")
-        return error_response('SERVER_ERROR', 'Failed to serve file', 500)
+        return error_response('SERVER_ERROR', str(e), 500)
 
 
 @file_bp.route('/user-templates/<template_id>/<filename>', methods=['GET'])
 def serve_user_template(template_id, filename):
     """
     GET /files/user-templates/{template_id}/{filename} - Serve user template files
-
+    
     Args:
         template_id: Template UUID
         filename: File name
     """
     try:
-        safe_template_id = secure_filename(template_id)
-        safe_filename = secure_filename(filename)
-        if not safe_template_id or not safe_filename:
+        # Construct file path
+        file_dir = os.path.join(
+            current_app.config['UPLOAD_FOLDER'],
+            'user-templates',
+            template_id
+        )
+        
+        # Check if directory exists
+        if not os.path.exists(file_dir):
             return not_found('File')
-
-        # Construct file path with path containment check
-        upload_folder = Path(current_app.config['UPLOAD_FOLDER']).resolve()
-        file_dir = upload_folder / 'user-templates' / safe_template_id
-        file_path = (file_dir / safe_filename).resolve()
-
-        if not str(file_path).startswith(str(upload_folder)):
-            return error_response('INVALID_PATH', 'Invalid file path', 403)
-
-        if not file_path.exists():
+        
+        # Check if file exists
+        file_path = os.path.join(file_dir, filename)
+        if not os.path.exists(file_path):
             return not_found('File')
-
+        
         # Serve file
-        return send_from_directory(str(file_dir), safe_filename)
-
+        return send_from_directory(file_dir, filename)
+    
     except Exception as e:
-        current_app.logger.error(f"Error serving user template: {e}")
-        return error_response('SERVER_ERROR', 'Failed to serve file', 500)
+        return error_response('SERVER_ERROR', str(e), 500)
 
 
 @file_bp.route('/materials/<filename>', methods=['GET'])
@@ -112,8 +152,7 @@ def serve_global_material(filename):
         return send_from_directory(file_dir, safe_filename)
     
     except Exception as e:
-        current_app.logger.error(f"Error serving global material: {e}")
-        return error_response('SERVER_ERROR', 'Failed to serve file', 500)
+        return error_response('SERVER_ERROR', str(e), 500)
 
 
 @file_bp.route('/mineru/<extract_id>/<path:filepath>', methods=['GET'])
@@ -161,6 +200,4 @@ def serve_mineru_file(extract_id, filepath):
 
         return not_found('File')
     except Exception as e:
-        current_app.logger.error(f"Error serving mineru file: {e}")
-        return error_response('SERVER_ERROR', 'Failed to serve file', 500)
-
+        return error_response('SERVER_ERROR', str(e), 500)

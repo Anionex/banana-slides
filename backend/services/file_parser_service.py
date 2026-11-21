@@ -7,14 +7,14 @@ import time
 import logging
 import zipfile
 import io
-import base64
 import requests
 import tempfile
-from typing import Optional, List
+from typing import Optional, List, Union
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from export_runtime.control import export_call, check, sleep, current, permanent_error, RemoteJobFailed
 from PIL import Image
 from markitdown import MarkItDown
-from services.ai_providers.lazyllm_env import ensure_lazyllm_namespace_key, get_lazyllm_api_key
 from services.ai_providers.text import strip_think_tags
 
 logger = logging.getLogger(__name__)
@@ -50,6 +50,48 @@ def _get_ai_provider_format(provider_format: str = None) -> str:
     return os.getenv('AI_PROVIDER_FORMAT', 'gemini').lower()
 
 
+def _default_project_root() -> Path:
+    current_file = Path(__file__).resolve()
+    backend_dir = current_file.parent.parent
+    return backend_dir.parent
+
+
+def _resolve_upload_folder(upload_folder: Optional[Union[os.PathLike, str]] = None) -> Path:
+    if upload_folder:
+        upload_path = Path(upload_folder)
+    else:
+        upload_path = None
+        try:
+            from flask import current_app, has_app_context
+            if has_app_context() and hasattr(current_app, 'config'):
+                configured_upload_folder = current_app.config.get('UPLOAD_FOLDER')
+                if (
+                    isinstance(configured_upload_folder, (str, os.PathLike))
+                    and str(configured_upload_folder)
+                ):
+                    upload_path = Path(configured_upload_folder)
+        except (RuntimeError, ImportError, TypeError, AttributeError):
+            pass
+
+        if upload_path is None:
+            env_upload_folder = os.getenv('UPLOAD_FOLDER')
+            if env_upload_folder:
+                upload_path = Path(env_upload_folder)
+
+        if upload_path is None:
+            upload_path = _default_project_root() / 'uploads'
+
+    if not upload_path.is_absolute():
+        project_root = _default_project_root()
+        upload_path = (project_root / upload_path).resolve()
+        try:
+            upload_path.relative_to(project_root)
+        except ValueError as exc:
+            raise ValueError("Relative UPLOAD_FOLDER must stay within the project root") from exc
+
+    return upload_path.resolve()
+
+
 class FileParserService:
     """Service for parsing files using MinerU and enhancing with image captions"""
     
@@ -59,6 +101,8 @@ class FileParserService:
                  image_caption_model: str = "gemini-3-flash-preview",
                  lazyllm_image_caption_source: str = "", 
                  provider_format: str = None,
+                 ai_provider_format: str = None,
+                 upload_folder: Optional[Union[os.PathLike, str]] = None,
                  mineru_model_version: str = "vlm",
                  ):
         """
@@ -74,6 +118,8 @@ class FileParserService:
             image_caption_model: Model to use for image captioning
             lazyllm_image_caption_source: image caption model provider for lazyllm
             provider_format: AI provider format ('gemini' or 'openai'). If not provided, reads from environment variable.
+            ai_provider_format: Backward-compatible alias for provider_format.
+            upload_folder: Upload root for persisted MinerU result files.
             mineru_model_version: MinerU model version ('vlm' or 'pipeline'). Default is 'vlm'.
         """
         self.mineru_token = mineru_token
@@ -82,67 +128,34 @@ class FileParserService:
         self.get_upload_url_api = f"{mineru_api_base}/api/v4/file-urls/batch"
         self.get_result_api_template = f"{mineru_api_base}/api/v4/extract-results/batch/{{}}"
         
-        # Store config for lazy initialization
-        self._google_api_key = google_api_key
-        self._google_api_base = google_api_base
-        self._openai_api_key = openai_api_key
-        self._openai_api_base = openai_api_base
         self._image_caption_model = image_caption_model
-        self._lazyllm_image_caption_source = lazyllm_image_caption_source
-        
-        # Clients will be initialized lazily based on AI_PROVIDER_FORMAT
-        self._gemini_client = None
-        self._openai_client = None
-        self._lazyllm_client = None
-        self._provider_format = _get_ai_provider_format(provider_format)
-    
-    def _get_gemini_client(self):
-        """Lazily initialize Gemini client"""
-        if self._gemini_client is None and self._google_api_key:
-            from google import genai
-            from google.genai import types
-            self._gemini_client = genai.Client(
-                http_options=types.HttpOptions(base_url=self._google_api_base) if self._google_api_base else None,
-                api_key=self._google_api_key
-            )
-        return self._gemini_client
-    
-    def _get_openai_client(self):
-        """Lazily initialize OpenAI client"""
-        if self._openai_client is None and self._openai_api_key:
-            from openai import OpenAI
-            self._openai_client = OpenAI(
-                api_key=self._openai_api_key,
-                base_url=self._openai_api_base
-            )
-        return self._openai_client
-    
-    def _get_lazyllm_client(self):
-        """Lazily initialize LazyLLM client"""
-        if self._lazyllm_client is None:
-            import lazyllm
-            source = self._lazyllm_image_caption_source or "qwen"
-            model = self._image_caption_model or "qwen-vl-plus"
-            ensure_lazyllm_namespace_key(source, namespace='BANANA')
+        self._provider_format = _get_ai_provider_format(provider_format or ai_provider_format)
+        self._caption_provider = None
+        if upload_folder:
+            _resolve_upload_folder(upload_folder)
+        self._upload_folder_param = upload_folder
 
-            self._lazyllm_client = lazyllm.namespace('BANANA').OnlineModule(
-                source=source,
-                model=model,
-                type="vlm",
-            )
-        return self._lazyllm_client
+    @property
+    def upload_folder(self) -> Path:
+        return _resolve_upload_folder(self._upload_folder_param)
+    
+    def _get_caption_provider(self):
+        """Lazily initialize caption provider via the provider factory"""
+        if self._caption_provider is None:
+            from services.ai_providers import get_caption_provider
+            self._caption_provider = get_caption_provider(model=self._image_caption_model)
+        return self._caption_provider
     
     def _can_generate_captions(self) -> bool:
         """Check if image caption generation is available"""
-        if self._provider_format == 'openai':
-            return bool(self._openai_api_key)
-        elif self._provider_format == 'lazyllm':
-            source = self._lazyllm_image_caption_source or "qwen"
-            return bool(get_lazyllm_api_key(source, namespace='BANANA'))
-        else:
-            return bool(self._google_api_key)
+        try:
+            return self._get_caption_provider() is not None
+        except (ValueError, ImportError):
+            return False
     
-    def parse_file(self, file_path: str, filename: str) -> tuple[Optional[str], Optional[str], Optional[str], Optional[str], int]:
+    @export_call('ocr')
+    def parse_file(self, file_path: str, filename: str, *, enhance_captions: bool = True,
+                   checkpoint_source: Optional[str] = None) -> tuple[Optional[str], Optional[str], Optional[str], Optional[str], int]:
         """
         Parse a file using MinerU service and enhance with image captions
         
@@ -176,7 +189,11 @@ class FileParserService:
             
             # Step 1: Get upload URL
             logger.info(f"Step 1/4: Requesting upload URL for {filename}...")
-            batch_id, upload_url, error = self._get_upload_url(filename)
+            from export_runtime.checkpoints import cached
+            submission_input = {'source': checkpoint_source or file_path, 'endpoint': self.mineru_api_base,
+                                'model': self.mineru_model_version}
+            batch_id, upload_url, error = cached('mineru_submission', submission_input,
+                lambda: self._get_upload_url(filename), lambda result: bool(result[0]) and result[2] is None)
             if error:
                 return None, None, None, error, 0
             
@@ -184,7 +201,9 @@ class FileParserService:
             
             # Step 2: Upload file
             logger.info(f"Step 2/4: Uploading file {filename}...")
-            error = self._upload_file(file_path, upload_url)
+            uploaded = cached('mineru_upload', {'batch_id': batch_id, 'source': checkpoint_source or file_path},
+                lambda: {'error': self._upload_file(file_path, upload_url)}, lambda result: result['error'] is None)
+            error = uploaded['error']
             if error:
                 return batch_id, None, None, error, 0
             
@@ -192,14 +211,20 @@ class FileParserService:
             
             # Step 3: Poll for parsing result
             logger.info("Step 3/4: Waiting for parsing to complete...")
-            markdown_content, extract_id, error = self._poll_result(batch_id)
+            try:
+                markdown_content, extract_id, error = self._poll_result(batch_id)
+            except RemoteJobFailed:
+                control = current()
+                if control and control.store:
+                    control.store.invalidate('mineru_submission', submission_input)
+                raise
             if error:
                 return batch_id, None, None, error, 0
             
             logger.info("File parsed successfully.")
             
             # Step 4: Enhance markdown with image captions
-            if markdown_content and self._can_generate_captions():
+            if markdown_content and enhance_captions and self._can_generate_captions():
                 logger.info("Step 4/4: Enhancing markdown with image captions...")
                 enhanced_content, failed_count = self._enhance_markdown_with_captions(markdown_content)
                 if failed_count > 0:
@@ -212,6 +237,9 @@ class FileParserService:
                 return batch_id, markdown_content, extract_id, None, 0
             
         except Exception as e:
+            check()
+            if current():
+                raise
             error_msg = f"Unexpected error during file parsing: {str(e)}"
             logger.error(error_msg, exc_info=True)
             return None, None, None, error_msg, 0
@@ -372,8 +400,10 @@ class FileParserService:
         
         result_url = self.get_result_api_template.format(batch_id)
         start_time = time.time()
+        consecutive_errors = 0
         
         while True:
+            check()
             if time.time() - start_time > max_wait_time:
                 error_msg = f"Parsing timeout after {max_wait_time} seconds"
                 logger.error(error_msg)
@@ -383,6 +413,7 @@ class FileParserService:
                 response = requests.get(result_url, headers=headers, timeout=30)
                 response.raise_for_status()
                 task_info = response.json()
+                consecutive_errors = 0
                 
                 if task_info.get("code") != 0:
                     error_msg = f"Failed to query task status: {task_info.get('msg')}"
@@ -399,15 +430,34 @@ class FileParserService:
                 elif task_status == "failed":
                     err_msg = task_info["data"]["extract_result"][0].get("err_msg", "Unknown error")
                     error_msg = f"File parsing failed: {err_msg}"
+                    if current():
+                        raise RemoteJobFailed(error_msg)
                     logger.error(error_msg)
                     return None, None, error_msg
                 else:
                     logger.debug(f"Current task status: {task_status}, waiting...")
-                    time.sleep(2)  # Wait 2 seconds before next poll
+                    sleep(2)  # Wait 2 seconds before next poll
                     
+            except requests.exceptions.HTTPError as e:
+                consecutive_errors += 1
+                if current() and (permanent_error(e) or consecutive_errors >= 3):
+                    raise
+                status_code = getattr(e.response, 'status_code', None)
+                if status_code in (401, 403):
+                    error_msg = (
+                        f"MinerU task status request unauthorized (HTTP {status_code}) "
+                        f"at {result_url}: {e}"
+                    )
+                    logger.error(error_msg)
+                    return None, None, error_msg
+                logger.warning(f"HTTP error while polling result: {str(e)}, retrying...")
+                sleep(2)
             except requests.exceptions.RequestException as e:
+                consecutive_errors += 1
+                if current() and consecutive_errors >= 3:
+                    raise
                 logger.warning(f"Network error while polling result: {str(e)}, retrying...")
-                time.sleep(2)
+                sleep(2)
     
     def _download_markdown(self, zip_url: str) -> tuple[Optional[str], Optional[str], Optional[str]]:
         """Download and extract markdown from result zip, save images to local server
@@ -423,18 +473,8 @@ class FileParserService:
             import uuid
             extract_id = str(uuid.uuid4())[:8]
             
-            # Get upload folder from Flask config (we'll need to pass this)
-            # For now, use a hardcoded path relative to project root
-            import os
-            from pathlib import Path
-            
-            # Navigate to project root (assuming this file is in backend/services/)
-            current_file = Path(__file__).resolve()
-            backend_dir = current_file.parent.parent
-            project_root = backend_dir.parent
-            
             # Create directory for mineru extracts
-            mineru_storage = project_root / 'uploads' / 'mineru_files' / extract_id
+            mineru_storage = self.upload_folder / 'mineru_files' / extract_id
             mineru_storage.mkdir(parents=True, exist_ok=True)
             
             logger.info(f"Extracting ZIP to: {mineru_storage}")
@@ -485,22 +525,31 @@ class FileParserService:
             return None, None, error_msg
     
     @staticmethod
-    def extract_header_footer_from_layout(extract_id: str) -> str:
+    def extract_header_footer_from_layout(
+        extract_id: str,
+        upload_folder: Optional[Union[os.PathLike, str]] = None
+    ) -> str:
         """
         从 MinerU layout.json 的 discarded_blocks 中提取页眉页脚文本。
 
         Args:
             extract_id: MinerU 解析结果的 extract_id
+            upload_folder: 上传根目录，未传入时使用 Flask UPLOAD_FOLDER/环境变量/默认 uploads
 
         Returns:
             提取到的页眉页脚文本，如无则返回空字符串
         """
         import json
-        from pathlib import Path
 
-        current_file = Path(__file__).resolve()
-        project_root = current_file.parent.parent.parent
-        mineru_dir = project_root / 'uploads' / 'mineru_files' / extract_id
+        if not extract_id:
+            return ''
+
+        mineru_root = (_resolve_upload_folder(upload_folder) / 'mineru_files').resolve()
+        mineru_dir = (mineru_root / extract_id).resolve()
+        try:
+            mineru_dir.relative_to(mineru_root)
+        except ValueError:
+            return ''
         layout_file = mineru_dir / 'layout.json'
 
         if not layout_file.exists():
@@ -587,11 +636,7 @@ class FileParserService:
         Returns:
             Tuple of (enhanced_markdown, failed_image_count)
         """
-        if not self._can_generate_captions():
-            return markdown_content, 0
-        
         # Extract all image URLs from markdown (both with and without alt text)
-        # Support both http/https URLs and relative paths
         image_pattern = r'!\[(.*?)\]\(([^\)]+)\)'
         matches = list(re.finditer(image_pattern, markdown_content))
         
@@ -608,11 +653,18 @@ class FileParserService:
             image_url = match.group(2).strip()
             logger.debug(f"Image found: alt='{alt_text}', url='{image_url}'")
             
-            if not alt_text:  # Only process images with empty alt text
+            if not alt_text and image_url.startswith('/files/mineru/'):
                 images_to_caption.append(match)
         
         if not images_to_caption:
-            logger.info(f"Found {len(matches)} images in markdown, but all have descriptions. Skipping caption generation.")
+            logger.info(
+                "Found %s markdown images, but none are captionable local MinerU files. "
+                "Skipping caption generation.",
+                len(matches),
+            )
+            return markdown_content, 0
+
+        if not self._can_generate_captions():
             return markdown_content, 0
         
         logger.info(f"Found {len(images_to_caption)} images without descriptions out of {len(matches)} total, generating captions...")
@@ -692,27 +744,24 @@ class FileParserService:
     
     def _generate_single_caption(self, image_url: str) -> str:
         """
-        Generate caption for a single image (supports both HTTP URLs and local paths)
+        Generate caption for a single local MinerU image.
         
         Args:
-            image_url: URL or local path of the image
+            image_url: Local /files/mineru/ path of the image
             
         Returns:
             Generated caption
         """
         try:
-            # Load image based on URL type
-            if image_url.startswith('http://') or image_url.startswith('https://'):
-                # Download from HTTP(S) URL
-                response = requests.get(image_url, timeout=30)
-                response.raise_for_status()
-                image = Image.open(io.BytesIO(response.content))
-            elif image_url.startswith('/files/mineru/'):
+            if image_url.startswith('/files/mineru/'):
                 # Local MinerU extracted file with prefix matching support
                 from utils.path_utils import find_mineru_file_with_prefix
                 
                 # Find file with prefix matching
-                img_path = find_mineru_file_with_prefix(image_url)
+                img_path = find_mineru_file_with_prefix(
+                    image_url,
+                    upload_folder=self.upload_folder
+                )
                 
                 if img_path is None or not img_path.exists():
                     logger.warning(f"Local image file not found (with prefix matching): {image_url}")
@@ -724,66 +773,24 @@ class FileParserService:
                 logger.warning(f"Unsupported image path type: {image_url}")
                 return ""
             
-            # Generate caption based on provider format
+            # Generate caption via provider factory
             prompt = "请用一句简短的中文描述这张图片的主要内容。只返回描述文字，不要其他解释。"
-            
-            if self._provider_format == 'openai':
-                # Use OpenAI SDK format
-                client = self._get_openai_client()
-                if not client:
-                    logger.warning("OpenAI client not initialized, skipping caption generation")
-                    return ""
-                
-                # Encode image to base64
-                buffered = io.BytesIO()
+
+            with tempfile.NamedTemporaryFile(prefix='caption_', suffix='.jpg', delete=False) as tmp:
+                temp_path = tmp.name
+            try:
                 if image.mode in ('RGBA', 'LA', 'P'):
                     image = image.convert('RGB')
-                image.save(buffered, format="JPEG", quality=95)
-                base64_image = base64.b64encode(buffered.getvalue()).decode('utf-8')
-                
-                response = client.chat.completions.create(
-                    model=self._image_caption_model,
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
-                                {"type": "text", "text": prompt}
-                            ]
-                        }
-                    ],
-                    temperature=0.3
-                )
-                caption = response.choices[0].message.content.strip()
-            elif self._provider_format == 'lazyllm':
-                # Use LazyLLM format
-                client = self._get_lazyllm_client()
-                with tempfile.NamedTemporaryFile(prefix='lazyllm_ref_', suffix='.png', delete=False) as tmp:
-                    temp_path = tmp.name
-                try:
-                    image.save(temp_path)
-                    caption = client(prompt, lazyllm_files=[temp_path])
-                finally:
-                    try:
-                        os.remove(temp_path)
-                    except OSError:
-                        pass
-            else:
-                # Use Gemini SDK format (default)
-                from google.genai import types
-                client = self._get_gemini_client()
-                if not client:
-                    logger.warning("Gemini client not initialized, skipping caption generation")
-                    return ""
+                image.save(temp_path, format="JPEG", quality=95)
+                image.close()
 
-                result = client.models.generate_content(
-                    model=self._image_caption_model,
-                    contents=[image, prompt],
-                    config=types.GenerateContentConfig(
-                        temperature=0.3,  # Lower temperature for more consistent captions
-                    )
-                )
-                caption = result.text.strip()
+                provider = self._get_caption_provider()
+                caption = provider.generate_with_image(prompt, temp_path)
+            finally:
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
 
             # Strip <think>...</think> tags from reasoning models
             caption = strip_think_tags(caption)

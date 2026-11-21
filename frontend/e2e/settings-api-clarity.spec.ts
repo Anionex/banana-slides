@@ -5,19 +5,17 @@ test.beforeEach(async ({ page }) => {
   await page.waitForLoadState('networkidle');
 });
 
-test('default API config section shows provider dropdown instead of buttons', async ({ page }) => {
-  await expect(page.getByText('默认 API 配置')).toBeVisible();
+test('default API config section shows every provider as visible pills', async ({ page }) => {
+  await expect(page.getByText('默认 API 配置', { exact: true })).toBeVisible();
 
-  // Should have a provider dropdown (select), not buttons
   const section = page.getByTestId('global-api-config-section');
-  const providerSelect = section.locator('select').first();
-  await expect(providerSelect).toBeVisible();
-
-  // Dropdown should contain same vendors as per-model
-  const texts = await providerSelect.locator('option').allTextContents();
-  expect(texts).toContain('Gemini');
-  expect(texts).toContain('OpenAI');
-  expect(texts).toContain('DeepSeek');
+  const pills = section.getByTestId('global-provider-pills');
+  await expect(pills).toBeVisible();
+  await expect(pills.locator('[data-provider="gemini"]')).toBeVisible();
+  await expect(pills.locator('[data-provider="openai"]')).toBeVisible();
+  await expect(pills.locator('[data-provider="deepseek"]')).toBeVisible();
+  await expect(pills.locator('[data-provider="volcengine"]')).toContainText('国内直连');
+  await expect(pills.locator('[data-provider="volcengine"]')).not.toContainText('高性价比');
 });
 
 test('per-model provider placeholder references default config', async ({ page }) => {

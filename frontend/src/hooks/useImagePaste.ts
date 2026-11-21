@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { uploadMaterial } from '@/api/endpoints';
+import { uploadMaterial, getMaterialByUrl } from '@/api/endpoints';
 import { useT } from '@/hooks/useT';
 
 const ALLOWED_IMAGE_TYPES = [
@@ -8,17 +8,76 @@ const ALLOWED_IMAGE_TYPES = [
 ];
 
 const UPLOADING_PREFIX = 'uploading:';
+const RESOLVING_PREFIX = 'resolving:';
 
-/** Check if a URL is an uploading placeholder */
-export const isUploadingUrl = (url: string) => url.startsWith(UPLOADING_PREFIX);
+/** Check if a URL is an uploading/resolving placeholder */
+export const isUploadingUrl = (url: string) =>
+  url.startsWith(UPLOADING_PREFIX) || url.startsWith(RESOLVING_PREFIX);
 
-/** Extract the blob preview URL from an uploading placeholder */
-export const getUploadingPreviewUrl = (url: string) =>
-  isUploadingUrl(url) ? url.slice(UPLOADING_PREFIX.length) : url;
+/** Extract the real URL from an uploading/resolving placeholder */
+export const getUploadingPreviewUrl = (url: string) => {
+  if (url.startsWith(UPLOADING_PREFIX)) return url.slice(UPLOADING_PREFIX.length);
+  if (url.startsWith(RESOLVING_PREFIX)) return url.slice(RESOLVING_PREFIX.length);
+  return url;
+};
 
 /** Escape markdown special characters in alt text to prevent injection */
-const escapeMarkdown = (text: string): string => {
+export const escapeMarkdown = (text: string): string => {
   return text.replace(/[[\]()]/g, '\\$&');
+};
+
+/**
+ * Build markdown for selected materials.
+ * For materials without a caption, async-fetches one via the caption API
+ * and replaces the fallback alt text afterwards.
+ */
+export const buildMaterialsMarkdown = (
+  materials: import('@/types').Material[],
+  setContent?: (updater: (prev: string) => string) => void,
+): string => {
+  const lines: string[] = [];
+  const needCaption: { material: import('@/types').Material; fallback: string }[] = [];
+
+  for (const m of materials) {
+    const fallback = m.original_filename || m.filename || 'image';
+    if (m.caption) {
+      lines.push(`![${escapeMarkdown(m.caption)}](${m.url})`);
+    } else {
+      // Show spinner chip while resolving caption
+      lines.push(`![${escapeMarkdown(fallback)}](${RESOLVING_PREFIX}${m.url})`);
+      needCaption.push({ material: m, fallback });
+    }
+  }
+
+  // Async-fetch captions for materials that don't have one yet
+  if (needCaption.length > 0 && setContent) {
+    (async () => {
+      const { getMaterialCaption } = await import('@/api/endpoints');
+      const replacements = new Map<string, string>();
+      for (const { material, fallback } of needCaption) {
+        const oldMd = `![${escapeMarkdown(fallback)}](${RESOLVING_PREFIX}${material.url})`;
+        try {
+          const response = await getMaterialCaption(material.id);
+          const caption = response.data?.caption || fallback;
+          replacements.set(oldMd, `![${escapeMarkdown(caption)}](${material.url})`);
+        } catch {
+          // Caption failed — remove resolving prefix, keep fallback
+          replacements.set(oldMd, `![${escapeMarkdown(fallback)}](${material.url})`);
+        }
+      }
+      if (replacements.size > 0) {
+        setContent(prev => {
+          let content = prev;
+          for (const [oldMd, newMd] of replacements.entries()) {
+            content = content.replaceAll(oldMd, newMd);
+          }
+          return content;
+        });
+      }
+    })();
+  }
+
+  return lines.join('\n');
 };
 
 /** Generate a placeholder markdown for a file (exported for MarkdownTextarea) */
@@ -177,6 +236,22 @@ export const useImagePaste = ({
     }
   }, [projectId, generateCaption, warnUnsupportedTypes, showToast, t]);
 
+  /** Extract markdown images from text */
+  const extractMarkdownImages = useCallback((text: string): Array<{alt: string; url: string; match: string}> => {
+    const regex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+    const images: Array<{alt: string; url: string; match: string}> = [];
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      images.push({ alt: match[1], url: match[2], match: match[0] });
+    }
+    return images;
+  }, []);
+
+  /** Check if URL is internal material */
+  const isInternalMaterialUrl = useCallback((url: string): boolean => {
+    return url.startsWith('/files/materials/') || url.includes('/files/projects/') && url.includes('/materials/');
+  }, []);
+
   /** Handle clipboard paste event */
   const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLElement>) => {
     const items = e.clipboardData?.items;
@@ -205,12 +280,50 @@ export const useImagePaste = ({
           type: 'warning',
         });
       }
+      // No image files, check for markdown images
+      const text = e.clipboardData?.getData('text/plain');
+      if (text) {
+        const markdownImages = extractMarkdownImages(text);
+        const internalImages = markdownImages.filter(img => isInternalMaterialUrl(img.url));
+        if (internalImages.length > 0) {
+          e.preventDefault();
+          // Insert the pasted text first so it appears in the editor,
+          // then async-replace captions for internal material images
+          if (insertAtCursorRef.current) {
+            insertAtCursorRef.current(text);
+          } else {
+            setContentRef.current(prev => prev + text);
+          }
+          (async () => {
+            const replacements = new Map<string, string>();
+            for (const img of internalImages) {
+              try {
+                const response = await getMaterialByUrl(img.url);
+                const material = response.data;
+                if (material?.caption) {
+                  const newMarkdown = `![${escapeMarkdown(material.caption)}](${img.url})`;
+                  replacements.set(img.match, newMarkdown);
+                }
+              } catch { /* caption fetch failed, keep original markdown */ }
+            }
+            if (replacements.size > 0) {
+              setContentRef.current(prev => {
+                let content = prev;
+                for (const [oldMd, newMd] of replacements.entries()) {
+                  content = content.replaceAll(oldMd, newMd);
+                }
+                return content;
+              });
+            }
+          })();
+        }
+      }
       return;
     }
 
     e.preventDefault();
     await handleFiles(imageFiles);
-  }, [handleFiles, warnUnsupportedTypes, showToast, t]);
+  }, [handleFiles, warnUnsupportedTypes, showToast, t, extractMarkdownImages, isInternalMaterialUrl]);
 
   return { handlePaste, handleFiles, isUploading };
 };

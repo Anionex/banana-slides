@@ -77,6 +77,18 @@ export function downloadFile(blob: Blob, filename: string) {
   window.URL.revokeObjectURL(url);
 }
 
+export function downloadFromUrl(url: string, filename?: string) {
+  const link = document.createElement('a');
+  link.href = url;
+  if (filename) {
+    link.download = filename;
+  }
+  link.rel = 'noopener';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
 /**
  * 格式化日期
  */
@@ -103,13 +115,34 @@ export function generateId(): string {
 /**
  * 将错误消息转换为友好的中英文提示
  */
-export function normalizeErrorMessage(errorMessage: string | null | undefined): string {
-  const lang = localStorage.getItem('i18nextLng') || navigator.language || 'zh';
+export function normalizeErrorMessage(
+  errorMessage: string | null | undefined,
+  language?: string,
+): string {
+  const lang = language || localStorage.getItem('i18nextLng') || navigator.language || 'zh';
   const isZh = lang.startsWith('zh');
 
   if (!errorMessage) return isZh ? '操作失败' : 'Operation failed';
 
-  const message = errorMessage.toLowerCase();
+  const rawMessage = typeof errorMessage === 'string'
+    ? errorMessage
+    : (() => {
+        try {
+          return JSON.stringify(errorMessage);
+        } catch {
+          return String(errorMessage);
+        }
+      })();
+
+  if (!rawMessage) return isZh ? '操作失败' : 'Operation failed';
+
+  const message = rawMessage.toLowerCase();
+  const isCodexContext = (
+    message.includes('codex')
+    || message.includes('chatgpt.com')
+    || message.includes('/backend-api/codex/')
+    || message.includes('openai oauth')
+  );
 
   // Handle specific error messages
   if (message.includes('no template image found')) {
@@ -138,6 +171,11 @@ export function normalizeErrorMessage(errorMessage: string | null | undefined): 
   } else if (message.includes('429') || message.includes('too many requests')) {
     return isZh ? '请求过于频繁，请稍后重试。' : 'Too many requests. Please try again later.';
   } else if (message.includes('401') || message.includes('unauthorized')) {
+    if (isCodexContext || (message.includes('oauth') && message.includes('not connected'))) {
+      return isZh
+        ? 'Codex 登录已过期或未连接，请前往设置重新登录 OpenAI 账号后再试。'
+        : 'Your Codex login has expired or is disconnected. Please reconnect your OpenAI account in Settings and try again.';
+    }
     return isZh ? '认证失败，请检查 API 密钥配置。' : 'Authentication failed. Please check API key settings.';
   } else if (message.includes('403') || message.includes('forbidden')) {
     return isZh ? '访问被拒绝，请检查 API 权限配置。' : 'Access denied. Please check API permissions.';
@@ -149,8 +187,71 @@ export function normalizeErrorMessage(errorMessage: string | null | undefined): 
     return isZh ? '网络连接失败，请检查网络或后端服务是否正常运行。' : 'Network error. Please check your connection.';
   } else if (message.includes('timeout')) {
     return isZh ? '请求超时，请稍后重试。' : 'Request timed out. Please try again later.';
+  } else if (
+    message.includes('sslerror')
+    || message.includes('ssleoferror')
+    || message.includes('unexpected_eof_while_reading')
+    || message.includes('eof occurred in violation of protocol')
+    || message.includes('max retries exceeded')
+    || message.includes('httpsconnectionpool')
+  ) {
+    if (isCodexContext) {
+      return isZh
+        ? '连接 Codex 服务时中断，导致导出失败。请稍后重试；如果反复出现，可前往设置重新登录 OpenAI 账号后再试。'
+        : 'The connection to Codex was interrupted and the export failed. Please try again later, or reconnect your OpenAI account in Settings if it keeps happening.';
+    }
+    return isZh
+      ? '网络连接中断，导致操作失败。请稍后重试。'
+      : 'The connection was interrupted and the operation failed. Please try again later.';
+  } else if (message.includes('样式提取失败') || message.includes('style extraction failed')) {
+    if (message.includes('不支持图片输入') || message.includes('support image input')) {
+      return isZh
+        ? '可编辑 PPTX 导出失败：当前图片样式提取模型不支持图片输入。请在设置中改用支持视觉输入的 image caption 模型，或切换 provider 后重试。'
+        : 'Editable PPTX export failed: the current style extraction model does not support image input. Switch to a vision-capable image caption model and try again.';
+    }
+    return isZh
+      ? '可编辑 PPTX 导出失败：文本样式提取没有成功完成。请检查 image caption 模型/API 配置，或在项目设置中开启“允许返回半成品”后重试。'
+      : 'Editable PPTX export failed because text style extraction did not complete. Check the image caption model/API settings, or enable partial results and try again.';
   }
 
-  return errorMessage;
+  return rawMessage;
 }
 
+/**
+ * PPT 翻新依赖 MinerU 解析 PDF。只在该工作流中将凭据类失败转成明确的修复动作，
+ * 避免把其他 provider 的认证错误错误归因为 MinerU。
+ */
+export function normalizeRenovationErrorMessage(errorMessage: string | null | undefined): string {
+  const rawMessage = typeof errorMessage === 'string' ? errorMessage : String(errorMessage || '');
+  const message = rawMessage.toLowerCase();
+  const lang = localStorage.getItem('banana-slides-language') || navigator.language || 'zh';
+  const isZh = lang.startsWith('zh');
+  const normalized = normalizeErrorMessage(errorMessage, lang);
+  const looksLikeMineruCredentialStage = message.includes('get upload url')
+    || message.includes('requesting upload url')
+    || message.includes('file-urls/batch')
+    || message.includes('task status')
+    || message.includes('extract-results')
+    || message.includes('file parsing failed');
+  const looksLikeCredentialFailure = message.includes('401')
+    || message.includes('403')
+    || message.includes('unauthorized')
+    || message.includes('forbidden')
+    || message.includes('token expired')
+    || message.includes('invalid token')
+    || message.includes('token invalid')
+    || message.includes('token has expired')
+    || message.includes('authenticate failed')
+    || message.includes('authentication failed');
+
+  if (message.includes('mineru') && looksLikeMineruCredentialStage && looksLikeCredentialFailure) {
+    return isZh
+      ? 'PPT 翻新无法解析 PDF：MinerU Token 已失效、无效或没有权限。请到「设置 → MinerU 配置」更新 Token，先运行“MinerU 解析 PDF”服务测试，再重新创建翻新项目。'
+      : 'PPT Renovation could not parse the PDF because the MinerU token is expired, invalid, or unauthorized. Update it in Settings → MinerU Configuration, run the “MinerU PDF Parsing” service test, then create the renovation project again.';
+  }
+
+  return normalized;
+}
+
+export const isDesktop = typeof window !== 'undefined' && 'electronAPI' in window;
+export const DESKTOP_TITLEBAR_HEIGHT = 50;
