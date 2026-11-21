@@ -3,6 +3,23 @@ import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { cn } from '@/utils';
 
+let bodyScrollLockCount = 0;
+let previousBodyOverflow = '';
+
+const lockBodyScroll = () => {
+  const { style } = document.body;
+  if (bodyScrollLockCount === 0) {
+    previousBodyOverflow = style.overflow;
+    style.overflow = 'hidden';
+  }
+  bodyScrollLockCount += 1;
+
+  return () => {
+    bodyScrollLockCount -= 1;
+    if (bodyScrollLockCount === 0) style.overflow = previousBodyOverflow;
+  };
+};
+
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -28,25 +45,27 @@ export const Modal: React.FC<ModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setIsVisible(true);
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
+      let enterFrame: number | undefined;
+      const mountFrame = requestAnimationFrame(() => {
+        enterFrame = requestAnimationFrame(() => {
           setIsAnimating(true);
         });
       });
-      document.body.style.overflow = 'hidden';
-    } else {
-      setIsAnimating(false);
-      const timer = setTimeout(() => {
-        setIsVisible(false);
-      }, 250);
-      document.body.style.overflow = '';
-      return () => clearTimeout(timer);
+      return () => {
+        cancelAnimationFrame(mountFrame);
+        if (enterFrame !== undefined) cancelAnimationFrame(enterFrame);
+      };
     }
 
-    return () => {
-      document.body.style.overflow = '';
-    };
+    setIsAnimating(false);
+    const timer = setTimeout(() => setIsVisible(false), 250);
+    return () => clearTimeout(timer);
   }, [isOpen]);
+
+  // A closing modal stays visible until its exit animation finishes.
+  useEffect(() => {
+    if (isVisible) return lockBodyScroll();
+  }, [isVisible]);
 
   useEffect(() => {
     if (!isOpen) return;
