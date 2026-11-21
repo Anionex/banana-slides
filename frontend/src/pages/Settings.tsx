@@ -103,11 +103,12 @@ const VOLCENGINE_MODELARK_RECOMMENDED_MODELS = {
   image: 'doubao-seedream-5-0-260128',
 };
 // 各 provider 的默认端点: 切换到 Agent Plans 时用于识别并清除过时默认值
+const LEGACY_APIMART_BASE_URL = 'https://api.apimart.ai/v1';
 const KNOWN_DEFAULT_BASE_URLS = new Set([
   '',
   'https://api.inferera.com/v1',
   'https://api.openai.com/v1',
-  'https://api.apimart.ai/v1',
+  LEGACY_APIMART_BASE_URL,
   'https://api.inferera.com/gemini',
   'https://generativelanguage.googleapis.com',
   'https://ark.cn-beijing.volces.com/api/v3',
@@ -1113,15 +1114,16 @@ export const Settings: React.FC = () => {
       };
 
       if (key === 'ai_provider_format') {
+        const previousBase = next.api_base_url.trim().replace(/\/+$/, '');
         if (value === 'volcengine') {
           // Agent Plans 需要专属端点: 空值或其他 provider 的默认端点会被替换,
           // 用户显式填写的自定义 Base URL 保留
           if (KNOWN_DEFAULT_BASE_URLS.has(next.api_base_url)) {
             next.api_base_url = VOLCENGINE_AGENTPLANS_BASE_URL;
           }
-        } else if (VOLCENGINE_DEFAULT_BASE_URLS.has(next.api_base_url)) {
-          // 离开 Agent Plans: plan/v3 端点对新 provider 是过时默认值, 清空以
-          // 回退到新 provider 的环境变量/默认端点, 自定义 URL 保留
+        } else if (VOLCENGINE_DEFAULT_BASE_URLS.has(previousBase) ||
+                   (value === 'codex' && previousBase === LEGACY_APIMART_BASE_URL)) {
+          // A different provider cannot reuse a previous provider's default endpoint.
           next.api_base_url = '';
         }
       } else if (perModelBaseKeys[key]) {
