@@ -70,6 +70,22 @@ describe.each(['blank', 'idea'] as const)('%s project API verification', entry =
     expect(sessionStorage.getItem('home-draft-content')).toBe('Presentation topic');
   });
 
+  it.runIf(entry === 'idea')('restores a report draft after a visitor returns from key settings', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ data: { data: { api_key_length: 0 } } });
+    const home = openHome();
+    const report = { name: /日常汇报|Report builder/ };
+    const topic = /主题（必填）|Topic \(required\)/;
+    fireEvent.click(screen.getByRole('button', report));
+    fireEvent.change(screen.getByLabelText(topic), { target: { value: 'Project progress' } });
+    start();
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/settings'));
+    expect(initializeProject).not.toHaveBeenCalled();
+    home.unmount();
+    openHome();
+    expect(screen.getByLabelText(topic)).toHaveValue('Project progress');
+    expect(sessionStorage.getItem('home-draft-content')).toBe('Presentation topic');
+  });
+
   it.each(['invalid', 'network failure'] as const)('blocks creation after %s', async outcome => {
     if (outcome === 'invalid') vi.mocked(verifyApiKey).mockResolvedValue({ success: true, data: { available: false, message: 'Invalid key' } });
     else vi.mocked(verifyApiKey).mockRejectedValue(new Error('Network failure'));
