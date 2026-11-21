@@ -1,7 +1,9 @@
 """Required export dependencies abort the DAG, even while siblings are blocked."""
 from concurrent.futures import ThreadPoolExecutor
+import json
 from pathlib import Path
 from threading import Event
+import time
 from types import SimpleNamespace
 from unittest.mock import Mock
 from zipfile import ZipFile
@@ -243,6 +245,8 @@ def test_legacy_style_extractor_error_is_required(tmp_path):
 
 def test_successful_full_pipeline_writes_editable_text(tmp_path, monkeypatch):
     config = service_config(tmp_path)
+    config.inpaint_registry.register_default(SimpleNamespace(
+        inpaint_regions=lambda **_: Image.new('RGB', (320, 180), '#f0f0f0')))
     monkeypatch.setattr(ServiceConfig, 'from_defaults', lambda **_: config)
     output = tmp_path / 'success.pptx'
     _, warnings = ExportService.create_editable_pptx_with_recursive_analysis(
@@ -252,6 +256,25 @@ def test_successful_full_pipeline_writes_editable_text(tmp_path, monkeypatch):
         xml = pptx.read('ppt/slides/slide1.xml').decode()
         assert '<a:t>Editable text</a:t>' in xml
     assert not list(tmp_path.glob('*.tmp'))
+
+
+@pytest.mark.parametrize('strict', [True, False])
+def test_unchanged_inpaint_background_never_gets_editable_overlay(tmp_path, monkeypatch, strict):
+    config = service_config(tmp_path, inpaint=SimpleNamespace(inpaint_regions=lambda image, **_: image.copy()))
+    monkeypatch.setattr(ServiceConfig, 'from_defaults', lambda **_: config)
+    source = image_file(tmp_path)
+    output = tmp_path / 'unchanged.pptx'
+    options = dict(image_paths=[source], output_file=str(output), fail_fast=strict)
+    if strict:
+        with pytest.raises(ExportError, match='背景修复返回原图'):
+            ExportService.create_editable_pptx_with_recursive_analysis(**options)
+        assert not output.exists()
+    else:
+        _, warnings = ExportService.create_editable_pptx_with_recursive_analysis(**options)
+        with ZipFile(output) as deck:
+            assert deck.read('ppt/media/image1.png') == Path(source).read_bytes()
+            assert b'<a:t>' not in deck.read('ppt/slides/slide1.xml')
+        assert any('已保留原图' in warning for warning in warnings.to_summary())
 
 
 def test_required_config_does_not_switch_provider(app, tmp_path, monkeypatch):
@@ -298,7 +321,8 @@ def test_explicit_partial_export_still_allows_image_placeholder(tmp_path):
 
 
 def test_task_api_fails_before_sibling_returns_and_has_no_download(app, db_session, tmp_path, monkeypatch):
-    from models import Page, Project, Task, db
+    from models import ExportRun, Page, Project, Task, db
+    from export_runtime.process import WorkerFailed
     from services.task_manager import export_editable_pptx_with_recursive_analysis_task
     started, release, slow_done = Event(), Event(), Event()
     paths = [image_file(tmp_path, f'{i}.png') for i in range(2)]
@@ -311,6 +335,12 @@ def test_task_api_fails_before_sibling_returns_and_has_no_download(app, db_sessi
     db.session.add(task)
     db.session.commit()
     project_id, task_id = project.id, task.id
+    artifact = f'editable-run-{task_id}-failed.pptx'
+    db.session.add(ExportRun(task_id=task_id, project_id=project_id,
+        request_json=json.dumps({'pages': [{'id': str(index), 'path': path} for index, path in enumerate(paths)],
+                                 'options': {'export_mode': 'full'}}),
+        request_hash='fixture', artifact_filename=artifact, queue_deadline_at=time.time() + 30))
+    db.session.commit()
 
     def extract(image_path, **_):
         if image_path == paths[0]:
@@ -323,11 +353,19 @@ def test_task_api_fails_before_sibling_returns_and_has_no_download(app, db_sessi
 
     config = service_config(tmp_path, extractor=SimpleNamespace(extract=extract))
     monkeypatch.setattr(ServiceConfig, 'from_defaults', lambda **_: config)
-    monkeypatch.setattr('services.image_editability.TextAttributeExtractorFactory.create_caption_model_extractor', Styles)
+
+    def worker(payload, on_event, is_active):
+        on_event({'event': 'running'})
+        try:
+            ExportService.create_editable_pptx_with_recursive_analysis(
+                image_paths=[page['path'] for page in payload['pages']], max_workers=2,
+                output_file=str(Path(payload['workspace']) / 'result.pptx'))
+        except ExportError as exc:
+            raise WorkerFailed({'message': str(exc), 'details': exc.to_dict()}) from exc
+
+    monkeypatch.setattr('export_runtime.process.supervise', worker)
     with ThreadPoolExecutor(max_workers=1) as caller:
-        future = caller.submit(export_editable_pptx_with_recursive_analysis_task,
-            task_id=task_id, project_id=project_id, filename='failed.pptx',
-            file_service=SimpleNamespace(get_absolute_path=lambda path: path), max_workers=2, app=app)
+        future = caller.submit(export_editable_pptx_with_recursive_analysis_task, task_id=task_id, app=app)
         try:
             future.result(timeout=2)
             assert not slow_done.is_set()
@@ -336,17 +374,19 @@ def test_task_api_fails_before_sibling_returns_and_has_no_download(app, db_sessi
                 result = client.get(f'/api/projects/{project_id}/tasks/{task_id}').get_json()['data']
             assert result['status'] == 'FAILED'
             assert result['progress']['error_code'] == 'EXPORT_QUOTA_EXHAUSTED'
-            assert 'download_url' not in result['progress']
+            assert not result['progress'].get('download_url')
         finally:
             release.set()
     assert slow_done.wait(2)
     db.session.expire_all()
     assert db.session.get(Task, task_id).status == 'FAILED'
-    assert not (Path(app.config['UPLOAD_FOLDER']) / project_id / 'exports' / 'failed.pptx').exists()
+    assert not (Path(app.config['UPLOAD_FOLDER']) / project_id / 'exports' / artifact).exists()
 
 
 def test_watchdog_discards_late_file_and_preserves_failure(app, db_session, tmp_path, monkeypatch):
-    from models import Page, Project, Task, db
+    from models import ExportRun, Page, Project, Task, db
+    from export_runtime.checkpoints import file_hash
+    from pptx import Presentation
     from services.task_manager import export_editable_pptx_with_recursive_analysis_task
     from services.task_watchdog import mark_task_failed
     path = image_file(tmp_path)
@@ -358,43 +398,49 @@ def test_watchdog_discards_late_file_and_preserves_failure(app, db_session, tmp_
     db.session.add(task)
     db.session.commit()
     task_id = task.id
-    output = []
+    artifact = f'editable-run-{task_id}-late.pptx'
+    db.session.add(ExportRun(task_id=task_id, project_id=project.id,
+        request_json=json.dumps({'pages': [{'id': 'page', 'path': path}], 'options': {'export_mode': 'full'}}),
+        request_hash='fixture', artifact_filename=artifact, queue_deadline_at=time.time() + 30))
+    db.session.commit()
 
-    def late_export(output_file, **kwargs):
+    def late_export(payload, on_event, is_active):
+        on_event({'event': 'running'})
         mark_task_failed(db.session.get(Task, task_id), error_code='TASK_STALLED', message='stalled')
-        # Simulate an uncooperative late writer: the task boundary must discard it.
-        Path(output_file).write_bytes(b'late file')
-        output.append(Path(output_file))
-        return None, None
+        deck = Presentation()
+        deck.slides.add_slide(deck.slide_layouts[6])
+        output = Path(payload['workspace']) / 'result.pptx'
+        deck.save(output)
+        return {'path': str(output), 'sha256': file_hash(output), 'pages': 1,
+                'warnings': [], 'warning_details': {}, 'reused_nodes': 0}
 
-    monkeypatch.setattr(ExportService, 'create_editable_pptx_with_recursive_analysis', late_export)
-    monkeypatch.setattr('services.image_editability.TextAttributeExtractorFactory.create_caption_model_extractor', Styles)
-    export_editable_pptx_with_recursive_analysis_task(task_id=task_id, project_id=project.id,
-        filename='late.pptx', file_service=SimpleNamespace(get_absolute_path=lambda path: path), app=app)
+    monkeypatch.setattr('export_runtime.process.supervise', late_export)
+    export_editable_pptx_with_recursive_analysis_task(task_id=task_id, app=app)
     db.session.expire_all()
     stored = db.session.get(Task, task_id)
     assert stored.status == 'FAILED'
     assert stored.error_message == 'stalled'
     assert 'download_url' not in stored.get_progress()
-    assert output and not output[0].exists()
+    assert not (Path(app.config['UPLOAD_FOLDER']) / project.id / 'exports' / artifact).exists()
 
 
 def test_missing_source_page_does_not_export_remaining_pages(app, db_session, tmp_path, monkeypatch):
     from models import Page, Project, Task, db
-    from services.task_manager import export_editable_pptx_with_recursive_analysis_task
     project = Project(creation_type='idea', idea_prompt='missing source')
     db.session.add(project)
     db.session.flush()
-    for i, path in enumerate([image_file(tmp_path), str(tmp_path / 'missing.png')]):
-        db.session.add(Page(project_id=project.id, order_index=i, generated_image_path=path))
-    task = Task(project_id=project.id, task_type='EXPORT_EDITABLE_PPTX', status='PENDING')
-    db.session.add(task)
+    directory = Path(app.config['UPLOAD_FOLDER']) / project.id / 'pages'
+    directory.mkdir(parents=True)
+    image_file(directory)
+    for index, filename in enumerate(['page.png', 'missing.png']):
+        db.session.add(Page(project_id=project.id, order_index=index,
+                            generated_image_path=f'{project.id}/pages/{filename}'))
     db.session.commit()
-    export = Mock()
-    monkeypatch.setattr(ExportService, 'create_editable_pptx_with_recursive_analysis', export)
-    task_id = task.id
-    export_editable_pptx_with_recursive_analysis_task(task_id=task_id, project_id=project.id,
-        filename='missing.pptx', file_service=SimpleNamespace(get_absolute_path=lambda path: path), app=app)
-    db.session.expire_all()
-    assert db.session.get(Task, task_id).status == 'FAILED'
-    export.assert_not_called()
+    submit = Mock()
+    monkeypatch.setattr('services.task_manager.task_manager.submit_task', submit)
+    with app.test_client() as client:
+        response = client.post(f'/api/projects/{project.id}/export/editable-pptx', json={})
+    assert response.status_code == 400, response.json
+    assert 'page image is missing' in response.json['error']['message']
+    assert Task.query.filter_by(project_id=project.id).count() == 0
+    submit.assert_not_called()

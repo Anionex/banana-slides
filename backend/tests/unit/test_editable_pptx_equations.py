@@ -213,6 +213,7 @@ class _EditableElement:
     def __init__(self, element_type, content):
         self.element_type = element_type
         self.content = content
+        self.metadata = {}
         self.bbox = _BBox(40, 30, 260, 90)
         self.bbox_global = self.bbox
 
@@ -225,6 +226,7 @@ class _EditableImage:
     def __init__(self, image_path, elements):
         self.image_path = image_path
         self.elements = elements
+        self.metadata = {}
 
 
 def test_editable_export_renders_latex_text_content_as_native_omml(tmp_path):

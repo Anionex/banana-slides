@@ -11,8 +11,7 @@
 import logging
 from services.export_control import dependency_failed
 from typing import Dict, Any, List, Optional, Tuple
-from services.export_control import as_completed
-from services.export_control import ExportThreadPoolExecutor as ThreadPoolExecutor
+from export_runtime.control import ExportExecutor as ThreadPoolExecutor, as_completed
 from PIL import Image
 
 from .extractors import (

@@ -8,6 +8,13 @@ from PIL import Image
 
 class ImageProvider(ABC):
     """Abstract base class for image generation"""
+
+    @property
+    def supports_mask_edit(self) -> bool:
+        return False
+
+    def edit_image_with_mask(self, prompt, image, mask, aspect_ratio="16:9", resolution="2K"):
+        raise ValueError("The configured image provider does not support mask editing")
     
     @abstractmethod
     def generate_image(

@@ -4,6 +4,8 @@
 
 API文档: https://ai.baidu.com/ai-doc/IMAGEPROCESS/Mk4i6o3w3
 """
+
+from export_runtime.control import export_call
 import logging
 from services.export_control import check_export, retry_export_request, export_sleep
 import base64
@@ -44,6 +46,7 @@ class BaiduInpaintingProvider:
         else:
             logger.info("✅ 初始化百度图像修复 Provider (使用Access Token)")
     
+    @export_call('image')
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=0.5, min=1, max=5),
