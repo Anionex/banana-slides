@@ -729,6 +729,7 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                 logger.info(f"Project {project_id} status updated to DESCRIPTIONS_GENERATED")
         
         except Exception as e:
+            db.session.rollback()
             # Mark task as failed
             task = Task.query.get(task_id)
             if task:
@@ -976,6 +977,7 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                 logger.info(f"Project {project_id} status updated to COMPLETED")
         
         except Exception as e:
+            db.session.rollback()
             # Mark task as failed
             task = Task.query.get(task_id)
             if task:
@@ -1137,6 +1139,7 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
             logger.info(f"✅ Task {task_id} COMPLETED - Page {page_id} image generated")
         
         except Exception as e:
+            db.session.rollback()
             import traceback
             error_detail = traceback.format_exc()
             logger.error(f"Task {task_id} FAILED: {error_detail}")
@@ -1243,6 +1246,7 @@ def edit_page_image_task(task_id: str, project_id: str, page_id: str,
             logger.info(f"✅ Task {task_id} COMPLETED - Page {page_id} image edited")
         
         except Exception as e:
+            db.session.rollback()
             import traceback
             error_detail = traceback.format_exc()
             logger.error(f"Task {task_id} FAILED: {error_detail}")
