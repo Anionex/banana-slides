@@ -864,7 +864,7 @@ class OpenAIImageProvider(ImageProvider):
                         'parameters': {key: value for key, value in kwargs.items()
                                        if key not in ('image', 'mask', 'extra_body')},
                         'extra_body': {key: value for key, value in kwargs.get('extra_body', {}).items()
-                                       if key != 'image_urls'},
+                                       if key not in ('image', 'image_urls')},
                         'images': [sha256(self._pil_to_png_bytes(image)).hexdigest() for image in (ref_images or [])],
                         'mask_sha256': sha256(self._pil_to_png_bytes(mask)).hexdigest() if mask else None}
             submitted = cached('image_submission', identity, submit, lambda value: bool(value.get('task_id')))
@@ -961,7 +961,7 @@ class OpenAIImageProvider(ImageProvider):
                     f'data:image/jpeg;base64,{self._encode_image_to_base64(img)}'
                     for img in ref_images
                 ]}
-            raw_response = export_request(self._request_client().images.with_raw_response.generate, attempts=get_config().OPENAI_MAX_RETRIES + 1, **kwargs)
+            return self._images_response('generate', kwargs, ref_images)
         elif ref_images and self.model.lower() != 'dall-e-3':
             # dall-e-3 does not support images.edit; all other native models do
             model = self.model.lower()
