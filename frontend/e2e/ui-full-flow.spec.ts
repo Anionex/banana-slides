@@ -466,6 +466,10 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     
     if (await generateImageBtn.count() > 0) {
       await generateImageBtn.first().click()
+      if (nightly) {
+        const warning = page.getByRole('dialog', { name: '1K分辨率警告' })
+        await warning.getByRole('button', { name: '仍然生成', exact: true }).click()
+      }
       console.log('✓ Clicked batch generate images button\n')
       
       // Wait for images to generate (should complete within 5 minutes)
