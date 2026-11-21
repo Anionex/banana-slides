@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef, useId } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { cn } from '@/utils';
@@ -7,21 +7,17 @@ let bodyScrollLockCount = 0;
 let previousBodyOverflow = '';
 
 const lockBodyScroll = () => {
-  if (typeof document === 'undefined') return;
+  const { style } = document.body;
   if (bodyScrollLockCount === 0) {
-    previousBodyOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    previousBodyOverflow = style.overflow;
+    style.overflow = 'hidden';
   }
   bodyScrollLockCount += 1;
-};
 
-const unlockBodyScroll = () => {
-  if (typeof document === 'undefined' || bodyScrollLockCount === 0) return;
-  bodyScrollLockCount -= 1;
-  if (bodyScrollLockCount === 0) {
-    document.body.style.overflow = previousBodyOverflow;
-    previousBodyOverflow = '';
-  }
+  return () => {
+    bodyScrollLockCount -= 1;
+    if (bodyScrollLockCount === 0) style.overflow = previousBodyOverflow;
+  };
 };
 
 interface ModalProps {
@@ -29,8 +25,9 @@ interface ModalProps {
   onClose: () => void;
   title?: string;
   children: React.ReactNode;
-  size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | 'wide' | 'full';
   showCloseButton?: boolean;
+  headerActions?: React.ReactNode;
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -40,55 +37,35 @@ export const Modal: React.FC<ModalProps> = ({
   children,
   size = 'md',
   showCloseButton = true,
+  headerActions,
 }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
-  const hasBodyLockRef = useRef(false);
-  const animFrameRef = useRef<number | null>(null);
-  const titleId = useId();
 
   useEffect(() => {
     if (isOpen) {
-      if (!hasBodyLockRef.current) {
-        lockBodyScroll();
-        hasBodyLockRef.current = true;
-      }
       setIsVisible(true);
-      animFrameRef.current = requestAnimationFrame(() => {
-        animFrameRef.current = requestAnimationFrame(() => {
-          animFrameRef.current = null;
+      let enterFrame: number | undefined;
+      const mountFrame = requestAnimationFrame(() => {
+        enterFrame = requestAnimationFrame(() => {
           setIsAnimating(true);
         });
       });
-    } else {
-      if (animFrameRef.current !== null) {
-        cancelAnimationFrame(animFrameRef.current);
-        animFrameRef.current = null;
-      }
-      setIsAnimating(false);
-      const timer = setTimeout(() => {
-        setIsVisible(false);
-        if (hasBodyLockRef.current) {
-          unlockBodyScroll();
-          hasBodyLockRef.current = false;
-        }
-      }, 250);
-      return () => clearTimeout(timer);
+      return () => {
+        cancelAnimationFrame(mountFrame);
+        if (enterFrame !== undefined) cancelAnimationFrame(enterFrame);
+      };
     }
+
+    setIsAnimating(false);
+    const timer = setTimeout(() => setIsVisible(false), 250);
+    return () => clearTimeout(timer);
   }, [isOpen]);
 
+  // A closing modal stays visible until its exit animation finishes.
   useEffect(() => {
-    return () => {
-      if (animFrameRef.current !== null) {
-        cancelAnimationFrame(animFrameRef.current);
-        animFrameRef.current = null;
-      }
-      if (hasBodyLockRef.current) {
-        unlockBodyScroll();
-        hasBodyLockRef.current = false;
-      }
-    };
-  }, []);
+    if (isVisible) return lockBodyScroll();
+  }, [isVisible]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -112,6 +89,7 @@ export const Modal: React.FC<ModalProps> = ({
     md: 'max-w-[480px]',
     lg: 'max-w-[640px]',
     xl: 'max-w-[800px]',
+    wide: 'max-w-[1120px]',
     full: 'max-w-[calc(100vw-2rem)] sm:max-w-[calc(100vw-4rem)]',
   };
 
@@ -137,10 +115,10 @@ export const Modal: React.FC<ModalProps> = ({
         <div
           role="dialog"
           aria-modal="true"
-          aria-labelledby={title ? titleId : undefined}
+          aria-labelledby={title ? 'modal-title' : undefined}
           className={cn(
             'relative w-full flex flex-col',
-            'max-h-[85vh]',
+            size === 'full' ? 'max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3rem)]' : 'max-h-[85vh]',
             // 背景和边框
             'bg-white/95 dark:bg-[#1a1a24]/95',
             'backdrop-blur-xl',
@@ -172,11 +150,25 @@ export const Modal: React.FC<ModalProps> = ({
           {title && (
             <div className="relative flex-shrink-0 px-7 pt-7 pb-5">
               <h2
-                id={titleId}
-                className="text-xl font-semibold text-gray-900 dark:text-white tracking-tight pr-10"
+                id="modal-title"
+                className={cn(
+                  'text-xl font-semibold text-gray-900 dark:text-white tracking-tight',
+                  showCloseButton || headerActions ? 'pr-24' : ''
+                )}
               >
                 {title}
               </h2>
+            </div>
+          )}
+
+          {headerActions && (
+            <div
+              className={cn(
+                'absolute z-20 flex items-center gap-2',
+                title ? 'top-5 right-16' : 'top-4 right-14'
+              )}
+            >
+              {headerActions}
             </div>
           )}
 
@@ -210,6 +202,7 @@ export const Modal: React.FC<ModalProps> = ({
           <div
             className={cn(
               'relative px-7 pb-7 overflow-y-auto flex-1',
+              size === 'full' ? 'max-h-[calc(100vh-8rem)]' : 'max-h-[85vh]',
               'scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600',
               title ? '' : 'pt-7'
             )}

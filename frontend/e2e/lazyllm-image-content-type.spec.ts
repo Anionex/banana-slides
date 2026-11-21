@@ -10,7 +10,7 @@
 import { test, expect } from '@playwright/test'
 import { seedProjectWithImages } from './helpers/seed-project'
 
-const BASE = process.env.BASE_URL ?? 'http://localhost:3000'
+const BASE = process.env.BASE_URL ?? 'http://localhost:3011'
 
 // ---------------------------------------------------------------------------
 // Mock test — frontend behaviour when image generation fails

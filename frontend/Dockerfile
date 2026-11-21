@@ -1,6 +1,9 @@
 # 镜像源配置参数（可通过 build args 覆盖）
 ARG DOCKER_REGISTRY=
 ARG NPM_REGISTRY=
+ARG APP_VERSION_TAG=
+ARG APP_COMMIT_SHA=
+ARG APP_COMMIT_SHORT_SHA=
 
 # 构建阶段
 # 如果指定了 DOCKER_REGISTRY，使用镜像源；否则使用官方源
@@ -8,6 +11,12 @@ FROM ${DOCKER_REGISTRY:-}node:18-alpine AS builder
 
 # 重新声明ARG（FROM之后ARG作用域失效，需要重新声明）
 ARG NPM_REGISTRY=
+ARG APP_VERSION_TAG=
+ARG APP_COMMIT_SHA=
+ARG APP_COMMIT_SHORT_SHA=
+ENV VITE_APP_VERSION_TAG=${APP_VERSION_TAG}
+ENV VITE_APP_COMMIT_SHA=${APP_COMMIT_SHA}
+ENV VITE_APP_COMMIT_SHORT_SHA=${APP_COMMIT_SHORT_SHA}
 
 WORKDIR /app
 
@@ -25,7 +34,9 @@ RUN if [ -n "$NPM_REGISTRY" ]; then \
 COPY frontend/ ./
 
 # 构建应用
-RUN npm run build
+# Web deployments must resolve entry assets from the origin on nested routes.
+# Keep the default relative-base build for Electron's local file loading.
+RUN npm run build:web
 
 # 生产阶段
 # 如果指定了 DOCKER_REGISTRY，使用镜像源；否则使用官方源
@@ -42,4 +53,3 @@ EXPOSE 80
 
 # 启动 nginx
 CMD ["nginx", "-g", "daemon off;"]
-

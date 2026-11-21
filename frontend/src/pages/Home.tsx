@@ -1,7 +1,9 @@
+import { ReportForm, emptyReport, buildReportPrompt } from '@/components/shared/ReportForm';
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Settings, FolderOpen, HelpCircle, Sun, Moon, Globe, Monitor, ChevronDown, Upload, RefreshCw } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Settings, FolderOpen, HelpCircle, Sun, Moon, Globe, Monitor, ChevronDown, Upload, RefreshCw, FilePlus, ArrowRight, X } from 'lucide-react';
 import { Button, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, MaterialSelector, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, HelpModal, Footer, GithubRepoCard, TextStyleSelector } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
@@ -12,7 +14,9 @@ import { useTheme } from '@/hooks/useTheme';
 import { useImagePaste, buildMaterialsMarkdown } from '@/hooks/useImagePaste';
 import type { Material } from '@/types';
 import { useT } from '@/hooks/useT';
+import logoUrl from '@/assets/logo.png';
 import { ASPECT_RATIO_OPTIONS } from '@/config/aspectRatio';
+import { isDesktop } from '@/utils';
 
 type CreationType = 'idea' | 'outline' | 'description' | 'ppt_renovation';
 
@@ -33,7 +37,7 @@ const homeI18n = {
     home: {
       title: '蕉幻',
       subtitle: 'Vibe your slides like vibe coding',
-      tagline: '基于 nano banana pro🍌 的原生 AI PPT 生成器',
+      tagline: '基于 nano banana pro 的原生 AI PPT 生成器',
       features: {
         oneClick: '一句话生成 PPT',
         naturalEdit: '自然语言修改',
@@ -64,11 +68,15 @@ const homeI18n = {
       template: {
         title: '选择风格模板',
         useTextStyle: '使用文字描述风格',
+        multiMode: '每页独立模板',
+        multiModeHint: '每页可使用不同模板，创建后在模板配置页逐页指定',
       },
       actions: {
         selectFile: '选择参考文件',
         parsing: '解析中...',
         createProject: '创建新项目',
+        startBlank: '或从空白项目开始',
+        startBlankHint: '不生成大纲，自己添加或导入页面',
       },
       renovation: {
         uploadHint: '点击或拖拽上传 PDF / PPTX 文件',
@@ -81,6 +89,7 @@ const homeI18n = {
         enterContent: '请输入内容',
         filesParsing: '还有 {{count}} 个参考文件正在解析中，请等待解析完成',
         projectCreateFailed: '项目创建失败',
+        multiModeSwitchFailed: '切换到每页独立模板失败，请在项目内重试',
         uploadingImage: '正在上传图片并识别内容...',
         imageUploadSuccess: '图片上传成功！已插入到光标位置',
         imageUploadFailed: '图片上传失败',
@@ -89,6 +98,7 @@ const homeI18n = {
         fileTooLarge: '文件过大：{{size}}MB，最大支持 200MB',
         fileUploadInProgress: '正在上传文件，请等待当前上传完成后再试',
         unsupportedFileType: '不支持的文件类型: {{type}}',
+        loadTemplateFailed: '加载模板失败，请重新选择或上传模板',
         pptTip: '建议先在本地将 PPTX 转为 PDF 后再上传，可获得更好的兼容性和更快的处理速度',
         filesAdded: '已添加 {{count}} 个参考文件',
         imageRemoved: '已移除图片',
@@ -110,7 +120,7 @@ const homeI18n = {
     home: {
       title: 'Banana Slides',
       subtitle: 'Vibe your slides like vibe coding',
-      tagline: 'AI-native PPT generator powered by nano banana pro🍌',
+      tagline: 'AI-native PPT generator powered by nano banana pro',
       features: {
         oneClick: 'One-click PPT generation',
         naturalEdit: 'Natural language editing',
@@ -141,11 +151,15 @@ const homeI18n = {
       template: {
         title: 'Select Style Template',
         useTextStyle: 'Use text description for style',
+        multiMode: 'Per-page templates',
+        multiModeHint: 'Each page can use a different template; assign them per page on the setup page after creation',
       },
       actions: {
         selectFile: 'Select reference file',
         parsing: 'Parsing...',
         createProject: 'Create New Project',
+        startBlank: 'Or start from a blank project',
+        startBlankHint: 'Skip outline generation — add or import pages yourself',
       },
       renovation: {
         uploadHint: 'Click or drag to upload PDF / PPTX file',
@@ -158,6 +172,7 @@ const homeI18n = {
         enterContent: 'Please enter content',
         filesParsing: '{{count}} reference file(s) are still parsing, please wait',
         projectCreateFailed: 'Failed to create project',
+        multiModeSwitchFailed: 'Failed to switch to per-page templates; please retry inside the project',
         uploadingImage: 'Uploading and recognizing image...',
         imageUploadSuccess: 'Image uploaded! Inserted at cursor position',
         imageUploadFailed: 'Failed to upload image',
@@ -166,6 +181,7 @@ const homeI18n = {
         fileTooLarge: 'File too large: {{size}}MB, maximum 200MB',
         fileUploadInProgress: 'A file upload is already in progress — please wait for it to finish',
         unsupportedFileType: 'Unsupported file type: {{type}}',
+        loadTemplateFailed: 'Failed to load the template. Please select or upload it again',
         pptTip: 'We recommend converting your PPTX to PDF locally before uploading for better compatibility and faster processing',
         filesAdded: 'Added {{count}} reference file(s)',
         imageRemoved: 'Image removed',
@@ -180,13 +196,24 @@ const homeI18n = {
 export const Home: React.FC = () => {
   const navigate = useNavigate();
   const { i18n } = useTranslation();
-  const t = useT(homeI18n); // 组件内翻译 + 自动 fallback 到全局
+  const t = useT(homeI18n);
   const { theme, isDark, setTheme } = useTheme();
-  const { initializeProject, isGlobalLoading } = useProjectStore();
+  const { initializeProject, isGlobalLoading, switchTemplateMode } = useProjectStore();
   const { show, ToastContainer } = useToast();
-  
+
   const [activeTab, setActiveTab] = useState<CreationType>('idea');
-  const [content, setContent] = useState('');
+  const [multiTemplateMode, setMultiTemplateMode] = useState(false);
+  const [freeContent, setFreeContent] = useState('');
+  const [reportMode, setReportMode] = useState(false);
+  const [reportFields, setReportFields] = useState({ ...emptyReport });
+  const [reportPrompt, setReportPrompt] = useState('');
+  const [reportEdited, setReportEdited] = useState(false);
+  const structured = activeTab === 'idea' && reportMode;
+  const content = structured ? reportPrompt : freeContent;
+  const setContent = (value: React.SetStateAction<string>) => {
+    if (structured) { setReportPrompt(value); setReportEdited(true); }
+    else setFreeContent(value);
+  };
   const [selectedTemplate, setSelectedTemplate] = useState<File | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [selectedPresetTemplateId, setSelectedPresetTemplateId] = useState<string | null>(null);
@@ -254,6 +281,22 @@ export const Home: React.FC = () => {
       return () => clearTimeout(timer);
     }
   }, []);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const action = searchParams.get('action');
+    if (action === 'material-generate') {
+      setIsMaterialModalOpen(true);
+      const nextSearchParams = new URLSearchParams(searchParams);
+      nextSearchParams.delete('action');
+      setSearchParams(nextSearchParams, { replace: true });
+    } else if (action === 'material-center') {
+      setIsMaterialCenterOpen(true);
+      const nextSearchParams = new URLSearchParams(searchParams);
+      nextSearchParams.delete('action');
+      setSearchParams(nextSearchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const handleOpenMaterialModal = () => {
     // 在主页始终生成全局素材，不关联任何项目
@@ -347,7 +390,7 @@ export const Home: React.FC = () => {
     // 检查是否是PPT文件，提示建议使用PDF
     const fileExt = file.name.split('.').pop()?.toLowerCase();
     if (fileExt === 'ppt' || fileExt === 'pptx') 
-      show({ message: `💡 ${t('home.messages.pptTip')}`, type: 'info' });
+      show({ message: t('home.messages.pptTip'), type: 'info' });
     
     setIsUploadingFile(true);
     try {
@@ -549,6 +592,10 @@ export const Home: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async () => {
+    if (structured && !reportFields.topic.trim()) {
+      show({ message: i18n.language?.startsWith('zh') ? '请填写主题后继续' : 'Enter a topic to continue', type: 'error' });
+      return;
+    }
     // For ppt_renovation, validate file instead of content
     if (activeTab === 'ppt_renovation') {
       if (!renovationFile) {
@@ -610,6 +657,10 @@ export const Home: React.FC = () => {
         const templateId = selectedTemplateId || selectedPresetTemplateId;
         if (templateId) {
           templateFile = await getTemplateFile(templateId, userTemplates);
+          if (!templateFile) {
+            show({ message: t('home.messages.loadTemplateFailed'), type: 'error' });
+            return;
+          }
         }
       }
       
@@ -629,7 +680,17 @@ export const Home: React.FC = () => {
         show({ message: t('home.messages.projectCreateFailed'), type: 'error' });
         return;
       }
-      
+
+      // 每页独立模板：项目默认 single，创建后切到 multi（页级模板在模板配置页指定）
+      if (multiTemplateMode) {
+        try {
+          await switchTemplateMode(projectId, { mode: 'multi' });
+        } catch (error) {
+          console.error('Failed to switch to multi-template mode:', error);
+          show({ message: t('home.messages.multiModeSwitchFailed'), type: 'error' });
+        }
+      }
+
       // 关联未完成解析的参考文件（已完成的在 initializeProject 中关联）
       if (referenceFiles.length > 0) {
         const unassociatedFiles = referenceFiles.filter(f => f.parse_status !== 'completed');
@@ -669,14 +730,41 @@ export const Home: React.FC = () => {
         devLog('No materials to associate');
       }
       
-      if (activeTab === 'idea' || activeTab === 'outline') {
-        navigate(`/project/${projectId}/outline`);
-      } else if (activeTab === 'description') {
-        // 从描述生成：直接跳到描述生成页（因为已经自动生成了大纲和描述）
-        navigate(`/project/${projectId}/detail`);
-      }
+      navigate(`/project/${projectId}/outline`);
     } catch (error: any) {
       console.error('创建项目失败:', error);
+      const msg = error?.response?.data?.error?.message || error?.message || t('home.messages.projectCreateFailed');
+      show({ message: msg, type: 'error' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // 创建空白项目：不生成大纲，直接进入大纲页手动添加/导入页面
+  const handleCreateBlank = async () => {
+    setIsSubmitting(true);
+    try {
+      const styleDesc = templateStyle.trim() ? templateStyle.trim() : undefined;
+      await initializeProject('blank', '', selectedTemplate || undefined, styleDesc, undefined, aspectRatio);
+
+      const projectId = localStorage.getItem('currentProjectId');
+      if (!projectId) {
+        show({ message: t('home.messages.projectCreateFailed'), type: 'error' });
+        return;
+      }
+
+      if (multiTemplateMode) {
+        try {
+          await switchTemplateMode(projectId, { mode: 'multi' });
+        } catch (error) {
+          console.error('Failed to switch to multi-template mode:', error);
+          show({ message: t('home.messages.multiModeSwitchFailed'), type: 'error' });
+        }
+      }
+
+      navigate(`/project/${projectId}/outline`);
+    } catch (error: any) {
+      console.error('创建空白项目失败:', error);
       const msg = error?.response?.data?.error?.message || error?.message || t('home.messages.projectCreateFailed');
       show({ message: msg, type: 'error' });
     } finally {
@@ -693,14 +781,15 @@ export const Home: React.FC = () => {
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-yellow-400/5 rounded-full blur-3xl"></div>
       </div>
 
-      {/* 导航栏 */}
+      {/* 导航栏 — web only */}
+      {!isDesktop && (
       <nav className="relative z-50 h-16 md:h-18 bg-white/40 dark:bg-background-primary backdrop-blur-2xl dark:backdrop-blur-none dark:border-b dark:border-border-primary">
 
         <div className="max-w-7xl mx-auto px-4 md:px-6 h-full flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex items-center">
               <img
-                src="/logo.png"
+                src={logoUrl}
                 alt="蕉幻 Banana Slides Logo"
                 className="h-10 md:h-12 w-auto rounded-lg object-contain"
               />
@@ -842,6 +931,7 @@ export const Home: React.FC = () => {
           </div>
         </div>
       </nav>
+      )}
 
       {/* 主内容 */}
       <main className="relative max-w-5xl mx-auto px-3 md:px-4 py-8 md:py-12">
@@ -946,7 +1036,7 @@ export const Home: React.FC = () => {
                       setRenovationFile(file);
                       const ext = file.name.split('.').pop()?.toLowerCase();
                       if (ext === 'ppt' || ext === 'pptx') {
-                        show({ message: `💡 ${t('home.messages.pptTip')}`, type: 'info' });
+                        show({ message: t('home.messages.pptTip'), type: 'info' });
                       }
                     } else {
                       show({ message: t('home.renovation.onlyPdfPptx'), type: 'error' });
@@ -965,7 +1055,7 @@ export const Home: React.FC = () => {
                         onClick={(e) => { e.stopPropagation(); setRenovationFile(null); }}
                         className="ml-2 text-gray-400 hover:text-red-500 transition-colors"
                       >
-                        ✕
+                        <X size={16} />
                       </button>
                     </div>
                   ) : (
@@ -986,7 +1076,7 @@ export const Home: React.FC = () => {
                       setRenovationFile(file);
                       const ext = file.name.split('.').pop()?.toLowerCase();
                       if (ext === 'ppt' || ext === 'pptx') {
-                        show({ message: `💡 ${t('home.messages.pptTip')}`, type: 'info' });
+                        show({ message: t('home.messages.pptTip'), type: 'info' });
                       }
                     }
                     e.target.value = '';
@@ -1022,6 +1112,17 @@ export const Home: React.FC = () => {
                 </div>
               </div>
             ) : (
+            <>
+            {activeTab === 'idea' && <div className="flex gap-2 mb-4">
+              {[false, true].map(report => <button type="button" key={String(report)} aria-pressed={reportMode === report}
+                disabled={isSubmitting || isGlobalLoading} onClick={() => setReportMode(report)}
+                className={`px-3 py-2 rounded-lg text-sm ${reportMode === report ? 'bg-banana-100 text-gray-900' : 'text-gray-500'}`}>
+                {report ? (i18n.language?.startsWith('zh') ? '日常汇报' : 'Report builder') : (i18n.language?.startsWith('zh') ? '自由输入' : 'Free input')}
+              </button>)}
+            </div>}
+            {structured && <ReportForm fields={reportFields} zh={!!i18n.language?.startsWith('zh')} disabled={isSubmitting || isGlobalLoading}
+              onChange={fields => { setReportFields(fields); if (!reportEdited) setReportPrompt(buildReportPrompt(fields, !!i18n.language?.startsWith('zh'))); }}
+              onRebuild={() => { setReportEdited(false); setReportPrompt(buildReportPrompt(reportFields, !!i18n.language?.startsWith('zh'))); }} />}
             <MarkdownTextarea
               ref={textareaRef}
               placeholder={tabConfig[activeTab].placeholder}
@@ -1079,7 +1180,7 @@ export const Home: React.FC = () => {
                   onClick={handleSubmit}
                   loading={isSubmitting || isGlobalLoading}
                   disabled={
-                    !content.trim() ||
+                    !content.trim() || (structured && !reportFields.topic.trim()) ||
                     isUploadingImage ||
                     referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
                   }
@@ -1091,7 +1192,23 @@ export const Home: React.FC = () => {
                 </Button>
               }
             />
+            </>
             )}
+          </div>
+
+          {/* 空白项目入口：跳过 AI 生成，直接进入大纲页手动添加/导入 */}
+          <div className="flex justify-center mb-4">
+            <button
+              type="button"
+              onClick={handleCreateBlank}
+              disabled={isSubmitting || isGlobalLoading}
+              title={t('home.actions.startBlankHint')}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs md:text-sm text-gray-500 dark:text-foreground-tertiary hover:text-banana-600 dark:hover:text-banana hover:bg-banana-50 dark:hover:bg-background-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors touch-manipulation"
+            >
+              <FilePlus size={14} className="flex-shrink-0" />
+              <span>{t('home.actions.startBlank')}</span>
+              <ArrowRight size={14} className="flex-shrink-0" />
+            </button>
           </div>
 
           {/* 隐藏的文件输入 */}
@@ -1149,12 +1266,27 @@ export const Home: React.FC = () => {
               </label>
             </div>
             
+            {/* 每页独立模板开关 */}
+            <label className="flex items-center gap-2 cursor-pointer group mb-3" title={t('home.template.multiModeHint')}>
+              <input
+                type="checkbox"
+                checked={multiTemplateMode}
+                onChange={(e) => setMultiTemplateMode(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-banana-500 focus:ring-banana-400"
+              />
+              <span className="text-sm text-gray-600 dark:text-foreground-tertiary group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
+                {t('home.template.multiMode')}
+              </span>
+              <span className="text-xs text-gray-400">{t('home.template.multiModeHint')}</span>
+            </label>
+
             {/* 根据模式显示不同的内容 */}
             {useTemplateStyle ? (
               <TextStyleSelector
                 value={templateStyle}
                 onChange={setTemplateStyle}
                 onToast={show}
+                sourceContent={content}
               />
             ) : (
               <TemplateSelector

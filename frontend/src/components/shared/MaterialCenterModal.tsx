@@ -1,5 +1,5 @@
 import React, { useReducer, useEffect, useCallback } from 'react';
-import { ImageIcon, RefreshCw, Upload, Download, X, FolderOpen, Eye, ArrowUpDown } from 'lucide-react';
+import { ImageIcon, RefreshCw, Upload, Download, X, FolderOpen, Eye, ArrowUpDown, Check } from 'lucide-react';
 import { Button } from './Button';
 import { useT } from '@/hooks/useT';
 import { useToast } from './Toast';
@@ -346,7 +346,7 @@ const MaterialGrid: React.FC<{
 
           {sel && (
             <div className="absolute inset-0 bg-banana-500 bg-opacity-20 flex items-center justify-center rounded-md">
-              <div className="bg-banana-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">✓</div>
+              <div className="bg-banana-500 text-white rounded-full w-6 h-6 flex items-center justify-center"><Check size={14} strokeWidth={3} /></div>
             </div>
           )}
 

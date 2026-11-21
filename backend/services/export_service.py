@@ -6,7 +6,10 @@ import math
 import os
 import json
 import logging
+import random
+import re
 import tempfile
+import time
 import base64
 import hashlib
 from datetime import datetime, timezone
@@ -16,12 +19,21 @@ from textwrap import dedent
 from dataclasses import dataclass, field
 from pptx import Presentation
 from pptx.util import Inches
+from pptx.oxml.xmlchemy import OxmlElement
+from pptx.oxml.ns import qn
 from PIL import Image
 import io
 import tempfile
 import img2pdf
 import fitz  # PyMuPDF
+from utils.pptx_math import latex_to_display_text, looks_like_latex_math
+from export_runtime.control import operation, current as current_export, check as check_export, ExportAborted, StageFailure, sleep as export_sleep, permanent_error
+from export_runtime.checkpoints import cached
+
 logger = logging.getLogger(__name__)
+
+# 构建阶段每处理多少个元素上报一次页内进度（同时作为看门狗心跳）
+ELEMENT_PROGRESS_INTERVAL = 50
 
 
 class ExportError(Exception):
@@ -31,7 +43,15 @@ class ExportError(Exception):
     当 fail_fast=True 时，任何导出错误都会抛出此异常，
     包含详细的错误信息和帮助提示。
     """
-    def __init__(self, message: str, error_type: str = 'unknown', details: Dict[str, Any] = None, help_text: str = None):
+    def __init__(
+        self,
+        message: str,
+        error_type: str = 'unknown',
+        details: Dict[str, Any] = None,
+        help_text: str = None,
+        error_code: str = 'EXPORT_FAILED',
+        stage: str = None,
+    ):
         """
         Args:
             message: 错误消息
@@ -44,6 +64,8 @@ class ExportError(Exception):
         self.error_type = error_type
         self.details = details or {}
         self.help_text = help_text or self._get_default_help_text(error_type)
+        self.error_code = error_code
+        self.stage = stage or self.details.get('stage') or 'export'
 
     def _get_default_help_text(self, error_type: str) -> str:
         """根据错误类型返回默认帮助提示"""
@@ -62,6 +84,8 @@ class ExportError(Exception):
         return {
             'message': self.message,
             'error_type': self.error_type,
+            'error_code': self.error_code,
+            'stage': self.stage,
             'details': self.details,
             'help_text': self.help_text
         }
@@ -136,19 +160,19 @@ class ExportWarnings:
         summary = []
         
         if self.style_extraction_failed:
-            summary.append(f"⚠️ {len(self.style_extraction_failed)} 个文本元素样式提取失败")
+            summary.append(f"{len(self.style_extraction_failed)} 个文本元素样式提取失败")
         
         if self.text_render_failed:
-            summary.append(f"⚠️ {len(self.text_render_failed)} 个文本元素渲染失败")
+            summary.append(f"{len(self.text_render_failed)} 个文本元素渲染失败")
         
         if self.image_add_failed:
-            summary.append(f"⚠️ {len(self.image_add_failed)} 张图片添加失败")
+            summary.append(f"{len(self.image_add_failed)} 张图片添加失败")
         
         if self.json_parse_failed:
-            summary.append(f"⚠️ {len(self.json_parse_failed)} 次 AI 响应解析失败")
+            summary.append(f"{len(self.json_parse_failed)} 次 AI 响应解析失败")
         
         for warning in self.other_warnings[:5]:  # 最多显示5条其他警告
-            summary.append(f"⚠️ {warning}")
+            summary.append(f"{warning}")
         
         if len(self.other_warnings) > 5:
             summary.append(f"  ...还有 {len(self.other_warnings) - 5} 条其他警告")
@@ -191,10 +215,224 @@ def _get_page_size_inches(aspect_ratio: str = '16:9', base: float = 10.0) -> Tup
 class ExportService:
     """Service for exporting presentations"""
 
+    PPTX_TRANSITION_EFFECTS = {
+        'fade',
+        'page_turn',
+        'push',
+        'wipe',
+        'split',
+        'blinds',
+        'checker',
+        'wheel',
+    }
+
+    @staticmethod
+    def _apply_slide_transition(slide, effect: str) -> None:
+        """Add a PowerPoint slide transition node to a slide XML element."""
+        transition = OxmlElement('p:transition')
+        transition.set('spd', 'med')
+
+        if effect == 'fade':
+            transition.append(OxmlElement('p:fade'))
+        elif effect == 'page_turn':
+            cover = OxmlElement('p:cover')
+            cover.set('dir', 'l')
+            transition.append(cover)
+        elif effect == 'push':
+            push = OxmlElement('p:push')
+            push.set('dir', 'l')
+            transition.append(push)
+        elif effect == 'wipe':
+            wipe = OxmlElement('p:wipe')
+            wipe.set('dir', 'l')
+            transition.append(wipe)
+        elif effect == 'split':
+            split = OxmlElement('p:split')
+            split.set('orient', 'horz')
+            split.set('dir', 'out')
+            transition.append(split)
+        elif effect == 'blinds':
+            blinds = OxmlElement('p:blinds')
+            blinds.set('dir', 'vert')
+            transition.append(blinds)
+        elif effect == 'checker':
+            checker = OxmlElement('p:checker')
+            checker.set('dir', 'horz')
+            transition.append(checker)
+        elif effect == 'wheel':
+            wheel = OxmlElement('p:wheel')
+            wheel.set('spokes', '1')
+            transition.append(wheel)
+        else:
+            return
+
+        slide_element = slide._element
+        existing = slide_element.find(qn('p:transition'))
+        if existing is not None:
+            slide_element.remove(existing)
+
+        clr_map_ovr = slide_element.find(qn('p:clrMapOvr'))
+        if clr_map_ovr is not None:
+            insert_at = slide_element.index(clr_map_ovr) + 1
+        else:
+            c_sld = slide_element.find(qn('p:cSld'))
+            insert_at = slide_element.index(c_sld) + 1 if c_sld is not None else 0
+
+        slide_element.insert(insert_at, transition)
+
     # NOTE: clean background生成功能已迁移到解耦的InpaintProvider实现
     # - DefaultInpaintProvider: 基于mask的精确区域重绘（Volcengine）
     # - GenerativeEditInpaintProvider: 基于生成式大模型的整图编辑重绘（Gemini等）
     # 使用方式: from services.image_editability import InpaintProviderFactory
+
+    @staticmethod
+    def _classify_external_failure(message: str) -> Dict[str, Any]:
+        """Classify an upstream failure without collapsing every case into a timeout."""
+        lowered = str(message or '').lower()
+
+        classifications = (
+            (
+                'unsupported_model',
+                (
+                    '不支持图片输入', 'does not support image', 'support image input',
+                    'unsupported image', 'image_url is only supported',
+                ),
+                'MODEL_UNSUPPORTED',
+                '图片识别模型不支持图片输入',
+                False,
+            ),
+            (
+                'configuration_missing',
+                (
+                    'api key is required', 'api_key is required',
+                    'google_api_key (from database settings or environment) is required',
+                    'openai_api_key (from database settings or environment) is required',
+                    'not configured', 'missing api key', '未配置', '缺少 api key',
+                ),
+                'CONFIGURATION_MISSING',
+                '缺少图片识别服务配置',
+                False,
+            ),
+            (
+                'quota_exhausted',
+                (
+                    'daily request limit', 'daily quota', 'total request limit',
+                    'insufficient_quota', 'quota exhausted', '额度耗尽',
+                    'baidu api error [17]', 'baidu api error [19]',
+                ),
+                'QUOTA_EXHAUSTED',
+                '导出依赖服务的调用额度已耗尽',
+                False,
+            ),
+            (
+                'authentication',
+                (
+                    '401', '403', 'unauthorized', 'forbidden', 'authentication',
+                    'invalid api key', 'invalid_api_key', 'api key not valid',
+                    'token expired', '登录已过期',
+                ),
+                'AUTHENTICATION',
+                '图片识别服务认证失败或登录已过期',
+                False,
+            ),
+            (
+                'rate_limit',
+                ('429', 'rate limit', 'too many requests', 'qps request limit', '请求过于频繁'),
+                'RATE_LIMIT',
+                '图片识别服务触发限流',
+                True,
+            ),
+            (
+                'timeout',
+                ('timeout', 'timed out', 'deadline exceeded', 'gateway timeout'),
+                'TIMEOUT',
+                '图片识别服务请求超时',
+                True,
+            ),
+            (
+                'network',
+                (
+                    'ssl', 'connection aborted', 'connection reset', 'connection error',
+                    'network error', 'unexpected_eof', 'eof occurred', 'chunkedencoding',
+                    'remote end closed', 'max retries exceeded', 'connection refused',
+                ),
+                'NETWORK',
+                '连接图片识别服务时网络中断',
+                True,
+            ),
+            (
+                'invalid_response',
+                (
+                    'json', '无法解析', 'invalid control character', 'empty response',
+                    '空响应', 'expected dict',
+                ),
+                'INVALID_RESPONSE',
+                '图片识别模型返回了无法解析的内容',
+                True,
+            ),
+            (
+                'incomplete_response',
+                ('未返回完整结果', 'missing result', 'incomplete'),
+                'INCOMPLETE_RESPONSE',
+                '图片识别模型返回结果不完整',
+                True,
+            ),
+            (
+                'upstream_service',
+                ('500', '502', '503', '504', 'service unavailable', 'bad gateway'),
+                'UPSTREAM_SERVICE',
+                '图片识别服务暂时不可用',
+                True,
+            ),
+        )
+
+        for reason, needles, code_suffix, summary, retryable in classifications:
+            if any(needle in lowered for needle in needles):
+                return {
+                    'reason': reason,
+                    'code_suffix': code_suffix,
+                    'summary': summary,
+                    'retryable': retryable,
+                }
+
+        return {
+            'reason': 'unknown',
+            'code_suffix': 'FAILED',
+            'summary': '图片识别服务调用失败',
+            'retryable': False,
+        }
+
+    @staticmethod
+    def _safe_technical_message(message: str) -> str:
+        """Keep a short diagnostic hint while removing common credential shapes."""
+        text = str(message or '').strip()
+        text = re.sub(
+            r'(?i)(authorization|api[_ -]?key|access[_ -]?token|refresh[_ -]?token)'
+            r'(\s*[:=]\s*)(?:bearer\s+)?[^\s,;]+',
+            r'\1\2***',
+            text,
+        )
+        text = re.sub(r'(?i)\bbearer\s+[a-z0-9._~+/=-]+', 'Bearer ***', text)
+        text = re.sub(r'\b(?:sk|AIza|ya29\.)[-_A-Za-z0-9.]{12,}\b', '***', text)
+        return text[:500]
+
+    @staticmethod
+    def _style_extractor_context(text_attribute_extractor: Any) -> Dict[str, Any]:
+        ai_service = getattr(text_attribute_extractor, 'ai_service', None)
+        provider = getattr(ai_service, 'caption_provider', None)
+        model = getattr(ai_service, 'caption_model', None) or getattr(provider, 'model', None)
+        context: Dict[str, Any] = {}
+        if provider is not None:
+            context['provider'] = provider.__class__.__name__
+        if model:
+            context['model'] = str(model)
+        timeout_seconds = getattr(provider, 'request_timeout_seconds', None)
+        max_attempts = getattr(provider, 'max_attempts', None)
+        if timeout_seconds is not None:
+            context['request_timeout_seconds'] = timeout_seconds
+        if max_attempts is not None:
+            context['max_attempts'] = max_attempts
+        return context
 
     @staticmethod
     def _build_style_extraction_error(
@@ -202,9 +440,19 @@ class ExportService:
         *,
         element_id: Optional[str] = None,
         text_content: Optional[str] = None,
-        page_idx: Optional[int] = None
+        page_idx: Optional[int] = None,
+        text_attribute_extractor: Any = None,
+        operation: str = 'style_extraction',
     ) -> ExportError:
-        details: Dict[str, Any] = {}
+        classification = ExportService._classify_external_failure(message)
+        details: Dict[str, Any] = {
+            'stage': 'style_extraction',
+            'operation': operation,
+            'reason': classification['reason'],
+            'retryable': classification['retryable'],
+            'technical_message': ExportService._safe_technical_message(message),
+            **ExportService._style_extractor_context(text_attribute_extractor),
+        }
         if element_id:
             details['element_id'] = element_id
         if text_content:
@@ -212,11 +460,41 @@ class ExportService:
         if page_idx is not None:
             details['page'] = page_idx + 1
 
-        lowered = message.lower()
-        if '不支持图片输入' in message or 'support image input' in lowered:
+        reason = classification['reason']
+        if reason == 'unsupported_model':
             help_text = (
                 '当前用于图片样式提取的 caption/image_caption 模型不支持图片输入。'
                 '请在设置中改成支持视觉输入的模型，或检查 OpenAI 格式下的 image caption provider / model 配置。'
+            )
+        elif reason == 'configuration_missing':
+            help_text = (
+                '图片识别服务缺少必要配置。请在设置中检查 image caption provider、模型和 API Key，'
+                '保存并验证配置后重新导出。'
+            )
+        elif reason == 'authentication':
+            help_text = (
+                '图片识别服务的认证信息无效或已过期。请在设置中检查 image caption provider，'
+                '如果使用 Codex，请重新登录 OpenAI 账号。'
+            )
+        elif reason == 'quota_exhausted':
+            help_text = (
+                '请在对应服务控制台检查调用额度，补充额度或等待配额恢复后，再从断点继续。'
+            )
+        elif reason == 'rate_limit':
+            help_text = (
+                '图片识别服务当前请求过于频繁。系统已完成自动重试；请稍后再次导出，'
+                '或减少一次导出的页数。'
+            )
+        elif reason in {'timeout', 'network', 'upstream_service'}:
+            help_text = (
+                '图片识别服务在文本样式提取阶段暂时没有稳定响应。请稍后重试；'
+                '如果反复出现，请检查网络、代理及 image caption provider 状态。'
+                '若只想先拿到可编辑结果，也可以在「项目设置 -> 导出设置」中开启「返回半成品」。'
+            )
+        elif reason in {'invalid_response', 'incomplete_response'}:
+            help_text = (
+                '图片识别模型返回的结构化结果不完整或无法解析。请重试，或切换更稳定的视觉模型；'
+                '也可以开启「返回半成品」以跳过失败的样式。'
             )
         else:
             help_text = (
@@ -225,14 +503,78 @@ class ExportService:
             )
 
         return ExportError(
-            message=f"文本样式提取失败: {message}",
+            message=f"文本样式提取失败：{classification['summary']}",
             error_type='style_extraction',
             details=details,
             help_text=help_text,
+            error_code=f"EXPORT_STYLE_{classification['code_suffix']}",
+            stage='style_extraction',
+        )
+
+    @staticmethod
+    def _build_unexpected_export_error(message: str, stage: str) -> ExportError:
+        classification = ExportService._classify_external_failure(message)
+        is_external = classification['reason'] != 'unknown'
+        summary = classification['summary'] if is_external else '导出过程发生内部错误'
+        details = {
+            'stage': stage or 'export',
+            'reason': classification['reason'],
+            'retryable': classification['retryable'],
+            'technical_message': ExportService._safe_technical_message(message),
+        }
+        if classification['reason'] == 'configuration_missing':
+            help_text = (
+                '请在设置中补全 image caption provider、模型和 API Key，保存并验证配置后重新导出。'
+            )
+        elif classification['reason'] == 'quota_exhausted':
+            help_text = (
+                '请在对应服务控制台检查调用额度，补充额度或等待配额恢复后，再从断点继续。'
+            )
+        else:
+            help_text = (
+                '请根据失败阶段检查对应服务后重试。如果只想先拿到可编辑结果，'
+                '可以在「项目设置 -> 导出设置」中开启「返回半成品」。'
+            )
+        return ExportError(
+            message=f"可编辑导出在“{stage or '导出'}”阶段失败：{summary}",
+            error_type='service' if is_external else 'unknown',
+            details=details,
+            help_text=help_text,
+            error_code=f"EXPORT_{classification['code_suffix']}" if is_external else 'EXPORT_INTERNAL_ERROR',
+            stage=stage or 'export',
+        )
+
+    @staticmethod
+    def _build_text_render_error(
+        message: str,
+        *,
+        text: str,
+        bbox: List[int],
+        element_kind: str,
+    ) -> ExportError:
+        return ExportError(
+            message=f"内容写入失败：无法添加{element_kind}",
+            error_type='text_render',
+            details={
+                'stage': 'text_render',
+                'element_kind': element_kind,
+                'text': text[:50],
+                'bbox': bbox,
+                'retryable': False,
+                'technical_message': ExportService._safe_technical_message(message),
+            },
+            help_text='请检查失败元素中的特殊字符、公式或字体；也可以开启「返回半成品」跳过该元素。',
+            error_code='EXPORT_TEXT_RENDER_FAILED',
+            stage='text_render',
         )
     
     @staticmethod
-    def create_pptx_from_images(image_paths: List[str], output_file: str = None, aspect_ratio: str = '16:9') -> bytes:
+    def create_pptx_from_images(
+        image_paths: List[str],
+        output_file: str = None,
+        aspect_ratio: str = '16:9',
+        transition_effects: Optional[List[str]] = None,
+    ) -> bytes:
         """
         Create PPTX file from image paths
         Based on demo.py create_pptx_from_images()
@@ -264,6 +606,12 @@ class ExportService:
         prs.slide_width = Inches(page_w)
         prs.slide_height = Inches(page_h)
         
+        valid_transition_effects = [
+            effect for effect in (transition_effects or [])
+            if effect in ExportService.PPTX_TRANSITION_EFFECTS
+        ]
+        transition_effect_queue: List[str] = []
+
         # Add each image as a slide
         for image_path in image_paths:
             if not os.path.exists(image_path):
@@ -282,6 +630,15 @@ class ExportService:
                 width=prs.slide_width,
                 height=prs.slide_height
             )
+
+            if valid_transition_effects:
+                if not transition_effect_queue:
+                    transition_effect_queue = valid_transition_effects[:]
+                    random.shuffle(transition_effect_queue)
+                ExportService._apply_slide_transition(
+                    slide,
+                    transition_effect_queue.pop(),
+                )
         
         # Save or return bytes
         if output_file:
@@ -742,7 +1099,7 @@ class ExportService:
         Returns:
             字典，key为element_id，value为TextStyleResult
         """
-        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from export_runtime.control import ExportExecutor as ThreadPoolExecutor, as_completed
         
         if not text_items or not text_attribute_extractor:
             return {}
@@ -839,7 +1196,7 @@ class ExportService:
         Returns:
             字典，key为element_id，value为TextStyleResult
         """
-        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from export_runtime.control import ExportExecutor as ThreadPoolExecutor, as_completed
         
         if not editable_images or not text_attribute_extractor:
             return {}
@@ -916,11 +1273,13 @@ class ExportService:
         return all_results
     
     @staticmethod
+    @operation
     def _batch_extract_text_styles_hybrid(
         editable_images: List,  # List[EditableImage]
         text_attribute_extractor,
         max_workers: int = 8,
-        fail_fast: bool = False
+        fail_fast: bool = False,
+        on_progress=None,  # 可选：(done, total, label) -> None，用于进度上报与心跳
     ) -> Tuple[Dict[str, Any], List[Tuple[str, str]]]:
         """
         【混合策略】结合全局识别和单个裁剪识别的优势
@@ -935,13 +1294,15 @@ class ExportService:
             editable_images: EditableImage列表，每个对应一张PPT页面
             text_attribute_extractor: 文本属性提取器
             max_workers: 并发数
+            fail_fast: 遇到错误是否立即抛出
+            on_progress: 可选回调 (done, total, label)，每完成一个识别任务调用一次
         
         Returns:
             (results, failed_extractions):
             - results: 字典，key为element_id，value为TextStyleResult（合并后的结果）
             - failed_extractions: 失败列表，每项为 (element_id, error_reason)
         """
-        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from export_runtime.control import ExportExecutor as ThreadPoolExecutor, as_completed
         from services.image_editability.text_attribute_extractors import TextStyleResult
         
         if not editable_images or not text_attribute_extractor:
@@ -983,28 +1344,100 @@ class ExportService:
                 }
         
         if not all_text_items:
-            return {}
+            return {}, []
         
         # Step 2: 并行执行两种识别
         global_results = {}  # 全局识别结果
         local_results = {}   # 单个裁剪识别结果
         
-        def extract_global_for_page(page_idx, page_data):
-            """全局识别单页"""
-            try:
-                results = text_attribute_extractor.extract_batch_with_full_image(
-                    full_image=page_data['image_path'],
-                    text_elements=page_data['elements']
-                )
-                return page_idx, results, None
-            except Exception as e:
-                logger.warning(f"全局识别页面 {page_idx + 1} 失败: {e}")
-                return page_idx, {}, str(e)
+        def extract_global_uncached(page_idx, page_data):
+            """全局识别单页，并对异常或缺失结果做页级重试。"""
+            max_global_attempts = 3
+            expected_element_ids = {
+                element['element_id'] for element in page_data['elements']
+            }
+            best_results = {}
+            had_model_response = False
+            last_exception = None
+
+            for attempt in range(1, max_global_attempts + 1):
+                if attempt > 1:
+                    export_sleep(1)
+                try:
+                    raw_results = text_attribute_extractor.extract_batch_with_full_image(
+                        full_image=page_data['image_path'],
+                        text_elements=page_data['elements']
+                    )
+                    if raw_results is not None and not isinstance(raw_results, dict):
+                        raise ValueError("Expected dict or None from style extractor")
+                    results = {
+                        key: value for key, value in raw_results.items()
+                        if value is not None
+                    } if raw_results is not None else {}
+                    had_model_response = True
+                    best_results.update(results)
+                    missing_element_ids = expected_element_ids - set(best_results.keys())
+
+                    logger.info(
+                        "全局识别页面 %s 第 %s/%s 次完成: expected=%s returned=%s accumulated=%s missing=%s",
+                        page_idx + 1,
+                        attempt,
+                        max_global_attempts,
+                        len(expected_element_ids),
+                        len(results),
+                        len(best_results),
+                        len(missing_element_ids),
+                    )
+
+                    if not missing_element_ids:
+                        return page_idx, best_results, None
+
+                    last_exception = None
+                    logger.warning(
+                        "全局识别页面 %s 第 %s/%s 次返回不完整，将重试: missing_sample=%s",
+                        page_idx + 1,
+                        attempt,
+                        max_global_attempts,
+                        list(missing_element_ids)[:5],
+                    )
+                except Exception as e:
+                    check_export()
+                    last_exception = str(e)
+                    if permanent_error(e) or not isinstance(e, ValueError):
+                        break  # transport retries already belong to the adapter
+                    logger.warning(
+                        "全局识别页面 %s 第 %s/%s 次失败，将重试: %s",
+                        page_idx + 1,
+                        attempt,
+                        max_global_attempts,
+                        e,
+                    )
+
+            logger.error(
+                "全局识别页面 %s 重试耗尽: expected=%s returned=%s last_error=%s",
+                page_idx + 1,
+                len(expected_element_ids),
+                len(best_results),
+                last_exception or "全局识别未返回完整结果",
+            )
+            page_error = last_exception if (not best_results or not had_model_response) else None
+            return page_idx, best_results, page_error
         
+        def extract_global_for_page(page_idx, page_data):
+            expected = {e['element_id'] for e in page_data['elements']}
+            result = cached('global_style', page_data,
+                          lambda: extract_global_uncached(page_idx, page_data),
+                          lambda result: result[2] is None and expected <= set(result[1]))
+            if fail_fast and (result[2] or not expected <= set(result[1])):
+                raise ExportService._build_style_extraction_error(
+                    result[2] or '全局识别未返回完整结果', page_idx=page_idx,
+                    text_attribute_extractor=text_attribute_extractor, operation='global_page_style')
+            return result
+
         # 收集失败信息
         failed_extractions = []  # [(element_id, reason), ...]
         
-        def extract_local_single(item):
+        def extract_local_uncached(item):
             """单个裁剪识别"""
             element_id, image_path, text_content = item
             try:
@@ -1023,7 +1456,9 @@ class ExportService:
                         raise ExportService._build_style_extraction_error(
                             error_msg,
                             element_id=element_id,
-                            text_content=text_content
+                            text_content=text_content,
+                            text_attribute_extractor=text_attribute_extractor,
+                            operation='local_element_style',
                         )
                     return element_id, None, error_msg
             except ExportError:
@@ -1034,77 +1469,110 @@ class ExportService:
                     raise ExportService._build_style_extraction_error(
                         str(e),
                         element_id=element_id,
-                        text_content=text_content
+                        text_content=text_content,
+                        text_attribute_extractor=text_attribute_extractor,
+                        operation='local_element_style',
                     )
                 return element_id, None, str(e)
         
+        def extract_local_single(item):
+            return cached('local_style', {'element_id': item[0], 'image_path': item[1], 'text': item[2]},
+                          lambda: extract_local_uncached(item),
+                          lambda result: result[1] is not None and result[2] is None)
+
         # 并发执行全局识别和单个裁剪识别
         logger.info(f"  并发执行: 全局识别 {len(page_text_elements)} 页 + 单个识别 {len(all_text_items)} 个元素...")
+
+        total_tasks = len(page_text_elements) + len(all_text_items)
+        completed_tasks = 0
+
+        def notify_progress(label: str):
+            nonlocal completed_tasks
+            completed_tasks += 1
+            if on_progress:
+                try:
+                    on_progress(completed_tasks, total_tasks, label)
+                except Exception as exc:
+                    logger.debug(f"样式提取进度回调失败: {exc}")
         
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # 提交全局识别任务
-            global_futures = {
-                executor.submit(extract_global_for_page, idx, data): ('global', idx)
-                for idx, data in page_text_elements.items()
-            }
+            # Interleave page and crop work so one class cannot occupy the
+            # entire queue while an already-submitted dependency is failing.
+            from itertools import zip_longest
+            global_futures, local_futures = {}, {}
+            for global_item, local_item in zip_longest(page_text_elements.items(), all_text_items):
+                if global_item is not None:
+                    idx, data = global_item
+                    global_futures[executor.submit(extract_global_for_page, idx, data)] = ('global', idx)
+                if local_item is not None:
+                    local_futures[executor.submit(extract_local_single, local_item)] = ('local', local_item[0])
             
-            # 提交单个裁剪识别任务
-            local_futures = {
-                executor.submit(extract_local_single, item): ('local', item[0])
-                for item in all_text_items
-            }
-            
-            # 收集全局识别结果
-            for future in as_completed(global_futures):
-                task_type, page_idx = global_futures[future]
-                try:
-                    _, page_results, page_error = future.result()
-                    global_results.update(page_results)
-                    expected_element_ids = {
-                        element['element_id'] for element in page_text_elements[page_idx]['elements']
-                    }
-                    missing_element_ids = expected_element_ids - set(page_results.keys())
-                    if page_error:
+            for future in as_completed({**global_futures, **local_futures}):
+                if future in global_futures:
+                    task_type, page_idx = global_futures[future]
+                    notify_progress(f"全局识别第 {page_idx + 1} 页")
+                    try:
+                        _, page_results, page_error = future.result()
+                        global_results.update(page_results)
+                        expected_element_ids = {
+                            element['element_id'] for element in page_text_elements[page_idx]['elements']
+                        }
+                        missing_element_ids = expected_element_ids - set(page_results.keys())
+                        if page_error:
+                            if fail_fast:
+                                raise ExportService._build_style_extraction_error(
+                                    page_error,
+                                    page_idx=page_idx,
+                                    text_attribute_extractor=text_attribute_extractor,
+                                    operation='global_page_style',
+                                )
+                            failed_extractions.extend(
+                                (element_id, f"全局识别失败: {page_error}")
+                                for element_id in expected_element_ids
+                            )
+                        elif missing_element_ids:
+                            reason = "全局识别未返回完整结果"
+                            if fail_fast:
+                                raise ExportService._build_style_extraction_error(
+                                    reason,
+                                    page_idx=page_idx,
+                                    text_attribute_extractor=text_attribute_extractor,
+                                    operation='global_page_style',
+                                )
+                            failed_extractions.extend((element_id, reason) for element_id in missing_element_ids)
+                    except Exception as e:
+                        logger.error(f"全局识别任务失败: {e}")
                         if fail_fast:
-                            raise ExportService._build_style_extraction_error(page_error, page_idx=page_idx)
+                            if isinstance(e, ExportError):
+                                raise
+                            raise ExportService._build_style_extraction_error(
+                                str(e),
+                                page_idx=page_idx,
+                                text_attribute_extractor=text_attribute_extractor,
+                                operation='global_page_style',
+                            ) from e
+                        expected_element_ids = [
+                            element['element_id'] for element in page_text_elements[page_idx]['elements']
+                        ]
                         failed_extractions.extend(
-                            (element_id, f"全局识别失败: {page_error}")
+                            (element_id, f"全局识别失败: {e}")
                             for element_id in expected_element_ids
                         )
-                    elif missing_element_ids:
-                        reason = "全局识别未返回完整结果"
+                else:
+                    task_type, element_id = local_futures[future]
+                    notify_progress("单个元素识别")
+                    try:
+                        elem_id, style, error = future.result()
+                        if style is not None:
+                            local_results[elem_id] = style
+                        if error:
+                            failed_extractions.append((elem_id, error))
+                    except Exception as e:
+                        logger.error(f"单个识别任务失败: {e}")
                         if fail_fast:
-                            raise ExportService._build_style_extraction_error(reason, page_idx=page_idx)
-                        failed_extractions.extend((element_id, reason) for element_id in missing_element_ids)
-                except Exception as e:
-                    logger.error(f"全局识别任务失败: {e}")
-                    if fail_fast:
-                        if isinstance(e, ExportError):
                             raise
-                        raise ExportService._build_style_extraction_error(str(e), page_idx=page_idx) from e
-                    expected_element_ids = [
-                        element['element_id'] for element in page_text_elements[page_idx]['elements']
-                    ]
-                    failed_extractions.extend(
-                        (element_id, f"全局识别失败: {e}")
-                        for element_id in expected_element_ids
-                    )
-            
-            # 收集单个裁剪识别结果
-            for future in as_completed(local_futures):
-                task_type, element_id = local_futures[future]
-                try:
-                    elem_id, style, error = future.result()
-                    if style is not None:
-                        local_results[elem_id] = style
-                    if error:
-                        failed_extractions.append((elem_id, error))
-                except Exception as e:
-                    logger.error(f"单个识别任务失败: {e}")
-                    if fail_fast:
-                        raise
-                    failed_extractions.append((element_id, str(e)))
-        
+                        failed_extractions.append((element_id, str(e)))
+
         # Step 3: 合并结果
         # 优先使用全局识别的布局属性，使用单个识别的颜色属性
         merged_results = {}
@@ -1143,6 +1611,7 @@ class ExportService:
         return merged_results, failed_extractions
     
     @staticmethod
+    @operation
     def create_editable_pptx_with_recursive_analysis(
         image_paths: List[str] = None,
         output_file: str = None,
@@ -1153,9 +1622,12 @@ class ExportService:
         editable_images: List = None,  # 可选：直接传入已分析的EditableImage列表
         text_attribute_extractor = None,  # 可选：文字属性提取器，用于提取颜色、粗体、斜体等样式
         progress_callback = None,  # 可选：进度回调函数 (step, message, percent) -> None
+        heartbeat_callback = None,  # 可选：心跳回调 (step) -> None，用于元素级细粒度存活检测（不写库）
         export_extractor_method: str = 'hybrid',  # 组件提取方法: mineru, hybrid
         export_inpaint_method: str = 'hybrid',  # 背景修复方法: generative, baidu, hybrid
-        fail_fast: bool = True  # 是否在遇到错误时立即停止（False则收集警告继续）
+        enable_icon_subject_extraction: bool = False,  # 是否对小尺寸图标走百度智能抠图
+        fail_fast: bool = True,  # 是否在遇到错误时立即停止（False则收集警告继续）
+        export_mode: str = 'full',
     ) -> Tuple[Optional[bytes], ExportWarnings]:
         """
         使用递归图片可编辑化服务创建可编辑PPTX
@@ -1178,9 +1650,12 @@ class ExportService:
             editable_images: 已分析的EditableImage列表（可选，与image_paths二选一）
             text_attribute_extractor: 文字属性提取器（可选），用于提取文字颜色、粗体、斜体等样式
                 可通过 TextAttributeExtractorFactory.create_caption_model_extractor() 创建
+            heartbeat_callback: 心跳回调（可选）。每个元素/子任务处理完调用一次，
+                用于让外部看门狗知道任务仍在推进（不产生数据库写入）
             export_extractor_method: 组件提取方法 ('mineru' 或 'hybrid'，默认 'hybrid')
             export_inpaint_method: 背景修复方法 ('generative', 'baidu', 'hybrid'，默认 'hybrid')
             fail_fast: 是否在遇到错误时立即停止（默认 True）。设为 False 则收集警告继续导出。
+            export_mode: 'full' 拆分元素；'simple' 保留原图非文字内容，仅重建文字。
 
         Returns:
             (pptx_bytes, warnings): 元组，包含 PPTX 字节流和警告信息
@@ -1189,9 +1664,23 @@ class ExportService:
         """
         from services.image_editability import ServiceConfig, ImageEditabilityService
         from utils.pptx_builder import PPTXBuilder
+
+        if export_mode not in ('full', 'simple'):
+            raise ValueError("export_mode must be 'full' or 'simple'")
         
         # 初始化警告收集器
         warnings = ExportWarnings()
+
+        def validate_simple_background(editable_img, page_idx):
+            if export_mode != 'simple' or not editable_img.elements:
+                return
+            if editable_img.clean_background and os.path.exists(editable_img.clean_background):
+                return
+            raise ExportError(
+                message=f"第 {page_idx + 1} 页文字擦除失败", error_type='inpaint',
+                error_code='EXPORT_TEXT_REMOVAL_FAILED', stage='文字擦除',
+                help_text='请检查背景修复服务配置后重试。',
+            )
         
         # 辅助函数：报告进度
         def report_progress(step: str, message: str, percent: int):
@@ -1201,6 +1690,14 @@ class ExportService:
                     progress_callback(step, message, percent)
                 except Exception as e:
                     logger.warning(f"进度回调失败: {e}")
+
+        # 辅助函数：只打心跳（元素级，避免每个元素都写一次数据库）
+        def beat(step: str):
+            if heartbeat_callback:
+                try:
+                    heartbeat_callback(step)
+                except Exception as e:
+                    logger.debug(f"心跳回调失败: {e}")
         
         # 如果已提供分析结果，直接使用；否则需要分析
         if editable_images is not None:
@@ -1215,21 +1712,28 @@ class ExportService:
             report_progress("开始", f"准备分析 {total_pages} 页幻灯片...", 0)
             
             # 1. 创建ImageEditabilityService（配置自动从 Flask config 获取，使用项目导出设置）
-            logger.info(f"使用导出设置: extractor={export_extractor_method}, inpaint={export_inpaint_method}")
+            logger.info(
+                f"使用导出设置: extractor={export_extractor_method}, "
+                f"inpaint={export_inpaint_method}, "
+                f"icon_subject_extraction={enable_icon_subject_extraction}"
+            )
             config = ServiceConfig.from_defaults(
                 max_depth=max_depth,
                 extractor_method=export_extractor_method,
-                inpaint_method=export_inpaint_method
+                inpaint_method=export_inpaint_method,
+                enable_icon_subject_extraction=enable_icon_subject_extraction,
+                text_only=export_mode == 'simple',
             )
             editability_service = ImageEditabilityService(config)
             
             # 2. 并发处理所有页面，生成EditableImage结构
             report_progress("版面分析", f"开始分析 {total_pages} 张图片（并发数: {max_workers}）...", 5)
-            from concurrent.futures import ThreadPoolExecutor, as_completed
+            from export_runtime.control import ExportExecutor as ThreadPoolExecutor, as_completed
             
             editable_images = []
             completed_count = 0
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            executor = ThreadPoolExecutor(max_workers=min(max_workers, current_export().limits['pages']))
+            try:
                 futures = {
                     executor.submit(editability_service.make_image_editable, img_path): idx
                     for idx, img_path in enumerate(image_paths)
@@ -1240,7 +1744,10 @@ class ExportService:
                     idx = futures[future]
                     try:
                         results[idx] = future.result()
+                        if fail_fast:
+                            validate_simple_background(results[idx], idx)
                         completed_count += 1
+                        beat("版面分析")
                         # 版面分析占 5% - 40% 的进度
                         percent = 5 + int(35 * completed_count / total_pages)
                         report_progress("版面分析", f"已完成第 {completed_count}/{total_pages} 页的版面分析", percent)
@@ -1249,6 +1756,24 @@ class ExportService:
                         raise
                 
                 editable_images = results
+            finally:
+                # Failed simple exports cancel queued pages; late workers cannot publish a PPTX.
+                executor.shutdown(wait=False, cancel_futures=True)
+
+        for page_idx, editable_img in enumerate(editable_images):
+            if editable_img.metadata.get('degraded'):
+                warnings.add_warning(f"第 {page_idx + 1} 页已保留原图，不可编辑：{editable_img.metadata['degraded']}")
+
+        if export_mode == 'simple':
+            for page_idx, editable_img in enumerate(editable_images):
+                try:
+                    validate_simple_background(editable_img, page_idx)
+                except ExportError as error:
+                    if fail_fast:
+                        raise
+                    # A partial page stays a single image; never overlay text on the source.
+                    editable_img.elements = []
+                    warnings.add_warning(f"{error.message}，已保留原图，该页文字不可编辑。")
         
         # 2.5. 使用混合策略提取所有文本元素的样式（如果提供了提取器）
         # 混合策略：全局识别（粗体/斜体/下划线/对齐）+ 单个裁剪识别（颜色）
@@ -1264,11 +1789,20 @@ class ExportService:
             
             if total_text_count > 0:
                 report_progress("样式提取", f"混合策略分析 {total_text_count} 个文本元素...", 50)
+
+                def style_progress(done: int, total: int, label: str):
+                    """样式提取阶段的心跳与进度（每 10 个元素写一次库）。"""
+                    beat("样式提取")
+                    if done % 10 == 0 or done >= total:
+                        percent = 50 + int(20 * done / max(total, 1))
+                        report_progress("样式提取", f"文本样式 {done}/{total}：{label}", min(percent, 70))
+
                 text_styles_cache, failed_extractions = ExportService._batch_extract_text_styles_hybrid(
                     editable_images=editable_images,
                     text_attribute_extractor=text_attribute_extractor,
-                    max_workers=max_workers * 2,
-                    fail_fast=fail_fast
+                    max_workers=min(max_workers * 2, current_export().limits['caption']),
+                    fail_fast=fail_fast,
+                    on_progress=style_progress
                 )
                 
                 # 记录样式提取失败的元素（详细）
@@ -1281,7 +1815,7 @@ class ExportService:
                 if failed_count > 0:
                     logger.warning(f"样式提取: {failed_count}/{total_text_count} 个元素失败")
                 
-                report_progress("样式提取", f"✓ 完成 {extracted_count}/{total_text_count} 个文本样式提取（{failed_count} 个失败）", 70)
+                report_progress("样式提取", f"完成 {extracted_count}/{total_text_count} 个文本样式提取（{failed_count} 个失败）", 70)
         
         report_progress("构建PPTX", "开始构建可编辑PPTX文件...", 75)
         
@@ -1293,10 +1827,26 @@ class ExportService:
         # 5. 为每个页面构建幻灯片
         total_pages = len(editable_images)
         for page_idx, editable_img in enumerate(editable_images):
+            check_export()
             # 构建PPTX占 75% - 95% 的进度
             percent = 75 + int(20 * page_idx / total_pages)
             report_progress("构建PPTX", f"构建第 {page_idx + 1}/{total_pages} 页...", percent)
             logger.info(f"  构建第 {page_idx + 1}/{total_pages} 页...")
+
+            # 页内元素级心跳/进度：页面元素很多时（例如密集表格）也能看出还在推进
+            page_element_count = 0
+
+            def on_element(_page_idx=page_idx, _percent=percent):
+                nonlocal page_element_count
+                page_element_count += 1
+                beat("构建PPTX")
+                if page_element_count % ELEMENT_PROGRESS_INTERVAL == 0:
+                    report_progress(
+                        "构建PPTX",
+                        f"构建第 {_page_idx + 1}/{total_pages} 页"
+                        f"（已处理 {page_element_count} 个元素）...",
+                        _percent,
+                    )
             
             # 创建空白幻灯片
             slide = builder.add_blank_slide()
@@ -1345,16 +1895,33 @@ class ExportService:
                 depth=0,
                 text_styles_cache=text_styles_cache,  # 使用预提取的样式缓存
                 warnings=warnings,  # 收集警告
-                fail_fast=fail_fast  # 传递 fail_fast 参数
+                fail_fast=fail_fast,  # 传递 fail_fast 参数
+                on_element=on_element  # 元素级心跳/进度
             )
+
+            if export_mode == 'simple':
+                from utils.text_only_layout import fit_text_shape
+                from utils.text_style_clustering import consolidate_text_styles
+                for shape in slide.shapes:
+                    if shape.has_text_frame and shape.text.strip():
+                        fit_text_shape(shape, initialize=True)
+                clustering = consolidate_text_styles(slide, builder.prs.slide_width)
+                for shape in slide.shapes:
+                    if shape.has_text_frame and shape.text.strip():
+                        fit_text_shape(shape)
+                logger.info("Text-only style clustering page %s: %s", page_idx + 1,
+                            json.dumps(clustering, ensure_ascii=False))
             
             logger.info(f"    ✓ 第 {page_idx + 1} 页完成，添加了 {len(editable_img.elements)} 个元素")
         
         # 5. 保存或返回字节流
+        if export_mode == 'simple':
+            from utils.pptx_font_embedding import embed_text_font
+            embed_text_font(builder.prs)
         report_progress("保存文件", "正在保存PPTX文件...", 95)
         if output_file:
             builder.save(output_file)
-            report_progress("完成", f"✓ 可编辑PPTX已保存", 100)
+            report_progress("完成", f"可编辑PPTX已保存", 100)
             logger.info(f"✓ 可编辑PPTX已保存: {output_file}")
             
             # 输出警告摘要
@@ -1364,7 +1931,7 @@ class ExportService:
             return None, warnings
         else:
             pptx_bytes = builder.to_bytes()
-            report_progress("完成", f"✓ 可编辑PPTX已生成", 100)
+            report_progress("完成", f"可编辑PPTX已生成", 100)
             logger.info(f"✓ 可编辑PPTX已生成（{len(pptx_bytes)} 字节）")
             
             # 输出警告摘要
@@ -1383,7 +1950,8 @@ class ExportService:
         depth: int = 0,
         text_styles_cache: Dict[str, Any] = None,  # 预提取的文本样式缓存，key为element_id
         warnings: 'ExportWarnings' = None,  # 警告收集器
-        fail_fast: bool = False  # 是否在遇到错误时立即停止
+        fail_fast: bool = False,  # 是否在遇到错误时立即停止
+        on_element=None,  # 可选：每处理完一个元素调用一次（含递归子元素），用于心跳/页内进度
     ):
         """
         递归地将EditableElement添加到幻灯片
@@ -1396,12 +1964,90 @@ class ExportService:
             scale_y: Y轴缩放因子
             depth: 当前递归深度
             text_styles_cache: 预提取的文本样式缓存（可选），由 _batch_extract_text_styles 生成
+            on_element: 可选回调，每处理完一个元素调用一次（递归时同样触发）
         
         Note:
             elem.image_path 现在是绝对路径，无需额外的目录参数
         """
         if text_styles_cache is None:
             text_styles_cache = {}
+
+        def choose_formula_text(text: str, text_style: Any = None) -> Optional[str]:
+            candidates = [text]
+            if text_style and getattr(text_style, 'colored_segments', None):
+                styled_text = ''.join(seg.text for seg in text_style.colored_segments).strip()
+                if styled_text and styled_text not in candidates:
+                    candidates.append(styled_text)
+
+            def score(candidate: str) -> int:
+                if not looks_like_latex_math(candidate):
+                    return -1
+                return (
+                    len(re.findall(r"\\[A-Za-z]+", candidate)) * 10
+                    + candidate.count("\\") * 4
+                    + len(re.findall(r"[_^]\s*(?:\{[^{}]+\}|[A-Za-z0-9+\-=()*])", candidate)) * 3
+                    + len(re.findall(r"[∀∃∈∉≤≥≠≈∑∏∫∞∂∇πΠΣ√]", candidate)) * 2
+                    - len(re.findall(r"\b[A-Za-z]{5,}\b", candidate)) * 2
+                )
+
+            scored = [(score(candidate), candidate) for candidate in candidates if candidate]
+            scored = [item for item in scored if item[0] >= 0]
+            if not scored:
+                return None
+            return max(scored, key=lambda item: item[0])[1]
+
+        def add_text_or_formula(elem, text, bbox_list, text_level='default', align='left'):
+            text_style = text_styles_cache.get(elem.element_id)
+            if text_style and elem.metadata.get('retained_marker') and text_style.colored_segments:
+                # Style extraction sees the original glyph. It must not put a
+                # retained background circle/bullet back into the text layer.
+                from copy import deepcopy
+                import unicodedata
+                text_style = deepcopy(text_style)
+                first = text_style.colored_segments[0]
+                leading = first.text.lstrip()
+                if leading and elem.metadata['retained_marker'] == 'circle' and 'CIRCLED' in unicodedata.name(leading[0], ''):
+                    first.text = str(int(unicodedata.numeric(leading[0]))) + leading[1:]
+                elif leading and elem.metadata['retained_marker'] == 'bullet' and leading[0] in '•·●○▪▫◦‣':
+                    first.text = leading[1:].lstrip()
+            if text_style:
+                logger.debug(f"{'  ' * depth}  使用缓存的文字样式: color={text_style.font_color_rgb}, bold={text_style.is_bold}")
+
+            formula_text = choose_formula_text(text, text_style)
+            if formula_text:
+                if builder.add_math_element(
+                    slide=slide,
+                    latex=formula_text,
+                    bbox=bbox_list,
+                    text_style=text_style
+                ):
+                    return
+
+                fallback_text = latex_to_display_text(formula_text)
+                builder.add_text_element(
+                    slide=slide,
+                    text=fallback_text,
+                    bbox=bbox_list,
+                    text_level=text_level,
+                    align=align,
+                    text_style=text_style,
+                    allow_math_conversion=False
+                )
+                if warnings:
+                    warnings.add_text_render_failed(
+                        formula_text,
+                        '公式暂不支持原生转换，已使用可读文本回退'
+                    )
+                return
+
+            builder.add_text_element(
+                slide=slide,
+                text=text,
+                bbox=bbox_list,
+                text_level=text_level,
+                align=align,
+                text_style=text_style
+            )
         
         for elem in elements:
             elem_type = elem.element_type
@@ -1423,9 +2069,9 @@ class ExportService:
             ]
             
             logger.info(f"{'  ' * depth}  添加元素: type={elem_type}, bbox={bbox_list}, content={elem.content[:30] if elem.content else None}, image_path={elem.image_path}, 使用{'全局' if depth > 0 else '局部'}坐标")
-            
+
             # 根据类型添加元素（参考原实现的_add_mineru_text_to_slide和_add_mineru_image_to_slide）
-            if elem_type in ['text', 'title', 'list', 'paragraph', 'header', 'footer', 'heading', 'table_caption', 'image_caption']:
+            if elem_type in ['text', 'title', 'list', 'paragraph', 'header', 'footer', 'heading', 'table_caption', 'image_caption', 'equation', 'interline_equation', 'inline_equation']:
                 # 添加文本（参考_add_mineru_text_to_slide）
                 if elem.content:
                     text = elem.content.strip()
@@ -1433,26 +2079,16 @@ class ExportService:
                         try:
                             # 确定文本级别
                             level = 'title' if elem_type in ['title', 'heading'] else 'default'
-                            
-                            # 从缓存获取预提取的文字样式
-                            text_style = text_styles_cache.get(elem.element_id)
-                            if text_style:
-                                logger.debug(f"{'  ' * depth}  使用缓存的文字样式: color={text_style.font_color_rgb}, bold={text_style.is_bold}")
-                            
-                            builder.add_text_element(
-                                slide=slide,
-                                text=text,
-                                bbox=bbox_list,
-                                text_level=level,
-                                text_style=text_style
-                            )
+
+                            add_text_or_formula(elem, text, bbox_list, text_level=level)
                         except Exception as e:
                             logger.warning(f"添加文本元素失败: {e}")
                             if fail_fast:
-                                raise ExportError(
-                                    message=f"添加文本元素失败: {str(e)}",
-                                    error_type='text_render',
-                                    details={'text': text[:50], 'bbox': bbox_list}
+                                raise ExportService._build_text_render_error(
+                                    str(e),
+                                    text=text,
+                                    bbox=bbox_list,
+                                    element_kind='文本元素',
                                 )
                             if warnings:
                                 warnings.add_text_render_failed(text, str(e))
@@ -1463,27 +2099,24 @@ class ExportService:
                     text = elem.content.strip()
                     if text:
                         try:
-                            # 从缓存获取预提取的文字样式
-                            text_style = text_styles_cache.get(elem.element_id)
-                            
                             # 表格单元格已经在上面统一处理了bbox_global和缩放
                             # 直接使用bbox_list即可
-                            builder.add_text_element(
-                                slide=slide,
-                                text=text,
-                                bbox=bbox_list,
+                            add_text_or_formula(
+                                elem,
+                                text,
+                                bbox_list,
                                 text_level=None,
-                                align='center',
-                                text_style=text_style
+                                align='center'
                             )
 
                         except Exception as e:
                             logger.warning(f"添加单元格失败: {e}")
                             if fail_fast:
-                                raise ExportError(
-                                    message=f"添加表格单元格失败: {str(e)}",
-                                    error_type='text_render',
-                                    details={'text': text[:50], 'bbox': bbox_list}
+                                raise ExportService._build_text_render_error(
+                                    str(e),
+                                    text=text,
+                                    bbox=bbox_list,
+                                    element_kind='表格单元格',
                                 )
                             if warnings:
                                 warnings.add_text_render_failed(text, str(e))
@@ -1514,7 +2147,8 @@ class ExportService:
                         depth=depth + 1,
                         text_styles_cache=text_styles_cache,
                         warnings=warnings,
-                        fail_fast=fail_fast
+                        fail_fast=fail_fast,
+                        on_element=on_element
                     )
                 else:
                     # 没有子元素，添加整体表格图片
@@ -1579,7 +2213,8 @@ class ExportService:
                         depth=depth + 1,
                         text_styles_cache=text_styles_cache,
                         warnings=warnings,
-                        fail_fast=fail_fast
+                        fail_fast=fail_fast,
+                        on_element=on_element
                     )
                 else:
                     # 没有子元素或子元素占比过大，直接添加原图
@@ -1600,4 +2235,10 @@ class ExportService:
             else:
                 # 其他类型
                 logger.debug(f"{'  ' * depth}  跳过未知类型: {elem_type}")
+
+            if on_element:
+                try:
+                    on_element()
+                except Exception as e:
+                    logger.debug(f"元素进度回调失败: {e}")
     

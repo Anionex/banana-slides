@@ -1,8 +1,13 @@
 import { create } from 'zustand';
-import type { Project } from '@/types';
+import type { Project, TemplateAsset, Task } from '@/types';
 import * as api from '@/api/endpoints';
-import { debounce, normalizeProject, normalizeErrorMessage } from '@/utils';
+import {
+  debounce,
+  normalizeProject,
+  normalizeErrorMessage,
+} from '@/utils';
 import { devLog } from '@/utils/logger';
+import { triggerDownload } from '@/api/client';
 import { getT } from '@/utils/i18nHelper';
 
 const storeI18n = {
@@ -73,10 +78,31 @@ const storeI18n = {
 };
 const t = getT(storeI18n);
 
+// 清理旧原型遗留的 per-project localStorage key（交接文档 §3：旧 demo 数据不迁移）。
+// 模块加载时执行一次，把废弃的模板相关 key 直接删除。
+(function cleanupLegacyTemplateLocalStorageKeys() {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  const legacyPrefixes = ['template_mode_', 'template_assets_', 'page_template_assign_'];
+  try {
+    const toRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && legacyPrefixes.some((prefix) => key.startsWith(prefix))) {
+        toRemove.push(key);
+      }
+    }
+    toRemove.forEach((key) => localStorage.removeItem(key));
+  } catch {
+    // localStorage 不可用时静默跳过
+  }
+})();
+
 interface ProjectState {
   // 状态
   currentProject: Project | null;
   isGlobalLoading: boolean;
+  // 有页面改动正在防抖队列中或写回后端（用于「保存中/已保存」提示）
+  isSavingPages: boolean;
   activeTaskId: string | null;
   taskProgress: { total: number; completed: number } | null;
   error: string | null;
@@ -86,8 +112,12 @@ interface ProjectState {
   warningMessage: string | null;
   // 流式大纲生成中
   isOutlineStreaming: boolean;
+  // 正在流式生成大纲的项目。任务仍可在后台完成，但只能更新自己的项目。
+  outlineStreamingProjectIds: string[];
   // 流式描述生成中
   isDescriptionStreaming: boolean;
+  // 项目模板库（per-page template）
+  templateAssets: TemplateAsset[];
 
   // Actions
   setCurrentProject: (project: Project | null) => void;
@@ -95,7 +125,7 @@ interface ProjectState {
   setError: (error: string | null) => void;
   
   // 项目操作
-  initializeProject: (type: 'idea' | 'outline' | 'description', content: string, templateImage?: File, templateStyle?: string, referenceFileIds?: string[], aspectRatio?: string) => Promise<void>;
+  initializeProject: (type: 'idea' | 'outline' | 'description' | 'blank', content: string, templateImage?: File, templateStyle?: string, referenceFileIds?: string[], aspectRatio?: string) => Promise<void>;
   syncProject: (projectId?: string) => Promise<void>;
   
   // 页面操作
@@ -112,11 +142,12 @@ interface ProjectState {
 
   // 生成操作
   generateOutline: () => Promise<void>;
-  generateOutlineStream: () => Promise<{ complete: boolean } | undefined>;
+  generateOutlineStream: (lockPageCount?: boolean) => Promise<{ complete: boolean; active: boolean } | undefined>;
   generateFromDescription: () => Promise<void>;
   generateDescriptions: (detailLevel?: string) => Promise<void>;
   generatePageDescription: (pageId: string, detailLevel?: string) => Promise<void>;
   regenerateRenovationPage: (pageId: string, keepLayout?: boolean) => Promise<void>;
+  generatePageImage: (pageId: string, forceRegenerate?: boolean) => Promise<void>;
   generateImages: (pageIds?: string[]) => Promise<void>;
   editPageImage: (
     pageId: string,
@@ -132,13 +163,25 @@ interface ProjectState {
   exportPPTX: (pageIds?: string[]) => Promise<void>;
   exportPDF: (pageIds?: string[]) => Promise<void>;
   exportEditablePPTX: (filename?: string, pageIds?: string[]) => Promise<void>;
+
+  // 每页模板（per-page template）
+  loadTemplateAssets: (projectId: string) => Promise<TemplateAsset[]>;
+  uploadTemplateAsset: (projectId: string, file: File, opts?: { userLabel?: string; bindToPageId?: string }) => Promise<TemplateAsset>;
+  uploadTemplatePdf: (projectId: string, file: File) => Promise<string>;
+  updateTemplateAsset: (projectId: string, assetId: string, patch: { user_label?: string | null; analysis_json?: TemplateAsset['analysis_json']; analysis_notes?: string | null; sort_order?: number }) => Promise<TemplateAsset>;
+  deleteTemplateAsset: (projectId: string, assetId: string) => Promise<string[]>;
+  reanalyzeTemplateAsset: (projectId: string, assetId: string) => Promise<string>;
+  updatePageTemplate: (projectId: string, pageId: string, patch: { template_asset_id?: string | null; template_style_text?: string | null; selection_source?: 'manual' | 'auto' | 'batch_apply' }) => Promise<void>;
+  switchTemplateMode: (projectId: string, payload: { mode: 'multi' } | { mode: 'single'; unified_asset_id?: string | null; unified_style_text?: string | null }) => Promise<void>;
+  switchTemplateModeWithUpload: (projectId: string, file: File, unifiedStyleText?: string) => Promise<void>;
+  autoMatchAll: (projectId: string, opts?: { overwrite_existing?: boolean; preserve_non_empty?: boolean }) => Promise<string>;
+  autoMatchPage: (projectId: string, pageId: string) => Promise<string>;
+  pollTemplateTask: (taskId: string, projectId: string, onProgress?: (task: Task) => void) => Promise<Task>;
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => {
-  // 防抖的API更新函数（在store内部定义，以便访问syncProject）
-const debouncedUpdatePage = debounce(
-  async (projectId: string, pageId: string, data: any) => {
-      try {
+  // 把一页的字段分发到各自的后端端点
+  const savePageFields = async (projectId: string, pageId: string, data: any) => {
     const promises: Promise<any>[] = [];
 
     // 如果更新的是 description_content，使用专门的端点
@@ -149,6 +192,12 @@ const debouncedUpdatePage = debounce(
     // 如果更新的是 outline_content，使用专门的端点
     if (data.outline_content) {
       promises.push(api.updatePageOutline(projectId, pageId, data.outline_content));
+    }
+
+    // 如果更新的是 narration_text，使用专门的端点
+    // （通用端点只接受 part，narration 走这里才能真正落库）
+    if ('narration_text' in data) {
+      promises.push(api.updatePageNarration(projectId, pageId, data.narration_text ?? ''));
     }
 
     // 如果更新的是 part 字段，使用通用端点
@@ -163,33 +212,71 @@ const debouncedUpdatePage = debounce(
       // 并行执行所有更新请求
       await Promise.all(promises);
     }
-        
-        // API调用成功后，同步项目状态以更新updated_at
-        // 图片生成期间 poll 已在 2s 同步，跳过以避免并发竞态
-        const { syncProject, pageGeneratingTasks } = get();
-        if (Object.keys(pageGeneratingTasks).length === 0) {
-          await syncProject(projectId);
-        }
-      } catch (error: any) {
-        console.error('保存页面失败:', error);
-        // 可以在这里添加错误提示，但为了避免频繁提示，暂时只记录日志
-        // 如果需要，可以通过事件系统或toast通知用户
+  };
+
+  // 待写回后端的页面改动：pageId -> 合并后的字段。
+  // 防抖计时器是全局共享的，所以这里必须累积而不是覆盖参数，
+  // 否则 1s 内连续编辑多个字段（或切页后继续编辑）会丢掉先前的改动。
+  const pendingPageUpdates = new Map<string, { projectId: string; data: any }>();
+
+  const flushPageUpdates = async () => {
+    const entries = Array.from(pendingPageUpdates.entries());
+    pendingPageUpdates.clear();
+    if (entries.length === 0) return;
+
+    try {
+      await Promise.all(
+        entries.map(([pageId, { projectId, data }]) => savePageFields(projectId, pageId, data))
+      );
+
+      // API调用成功后，同步项目状态以更新updated_at
+      // 图片生成期间 poll 已在 2s 同步，跳过以避免并发竞态
+      // 用户可能在防抖窗口内切走了项目，此时同步会把当前项目覆盖成旧项目
+      // 队列可能混着多个项目的改动（防抖窗口内切了项目），所以要看整个队列里
+      // 有没有当前项目的写回，而不是只看第一条
+      const { syncProject, pageGeneratingTasks, currentProject } = get();
+      const touchedCurrentProject =
+        !!currentProject && entries.some(([, update]) => update.projectId === currentProject.id);
+      if (touchedCurrentProject && Object.keys(pageGeneratingTasks).length === 0) {
+        await syncProject(currentProject!.id);
+      }
+    } catch (error: any) {
+      console.error('保存页面失败:', error);
+      // 可以在这里添加错误提示，但为了避免频繁提示，暂时只记录日志
+      // 如果需要，可以通过事件系统或toast通知用户
+    } finally {
+      // 队列可能在本次 flush 期间又被写入，只有排空时才算保存结束
+      if (pendingPageUpdates.size === 0) set({ isSavingPages: false });
     }
-  },
-  1000
-);
+  };
+
+  const debouncedFlushPageUpdates = debounce(flushPageUpdates, 1000);
+
+  const debouncedUpdatePage = (projectId: string, pageId: string, data: any) => {
+    const existing = pendingPageUpdates.get(pageId);
+    pendingPageUpdates.set(pageId, {
+      projectId,
+      data: { ...(existing?.data ?? {}), ...data },
+    });
+    // 逐字输入时避免重复 set 触发无谓的重渲染
+    if (!get().isSavingPages) set({ isSavingPages: true });
+    debouncedFlushPageUpdates();
+  };
 
   return {
   // 初始状态
   currentProject: null,
   isGlobalLoading: false,
+  isSavingPages: false,
   activeTaskId: null,
   taskProgress: null,
   error: null,
   pageGeneratingTasks: {},
   warningMessage: null,
   isOutlineStreaming: false,
+  outlineStreamingProjectIds: [],
   isDescriptionStreaming: false,
+  templateAssets: [],
 
   // Setters
   setCurrentProject: (project) => set({ currentProject: project }),
@@ -201,13 +288,17 @@ const debouncedUpdatePage = debounce(
     set({ isGlobalLoading: true, error: null });
     try {
       const request: any = {};
+      const normalizedContent = typeof content === 'string' ? content.trim() : '';
 
-      if (type === 'idea') {
-        request.idea_prompt = content;
+      if (type === 'blank') {
+        // 空白项目没有任何文本内容，必须显式声明类型
+        request.creation_type = 'blank';
+      } else if (type === 'idea') {
+        request.idea_prompt = normalizedContent;
       } else if (type === 'outline') {
-        request.outline_text = content;
+        request.outline_text = normalizedContent;
       } else if (type === 'description') {
-        request.description_text = content;
+        request.description_text = normalizedContent;
       }
 
       // 添加风格描述（如果有）
@@ -250,25 +341,7 @@ const debouncedUpdatePage = debounce(
         }
       }
 
-      // 4. 根据类型调用 AI 生成，失败时回滚项目
-      const generateWithRollback = async (fn: () => Promise<any>, label: string) => {
-        try {
-          await fn();
-          devLog(`[初始化项目] ${label}完成`);
-        } catch (error: any) {
-          console.error(`[初始化项目] ${label}失败:`, error);
-          try { await api.deleteProject(projectId); } catch (e: any) { console.error(`[初始化项目] 回滚失败，未能删除项目 ${projectId}:`, e); }
-          throw error;
-        }
-      };
-
-      if (type === 'outline') {
-        await generateWithRollback(() => api.generateOutline(projectId), '生成大纲');
-      } else if (type === 'description') {
-        await generateWithRollback(() => api.generateFromDescription(projectId, content), '从描述生成大纲和页面描述');
-      }
-
-      // 5. 获取完整项目信息
+      // 4. 获取完整项目信息。大纲/描述入口的 AI 生成由大纲页的 SSE 流程接管。
       const projectResponse = await api.getProject(projectId);
       const project = normalizeProject(projectResponse.data);
 
@@ -521,7 +594,7 @@ const debouncedUpdatePage = debounce(
               devLog('[导出可编辑PPTX] 从任务响应中获取下载链接:', downloadUrl);
               // 延迟一下，确保状态更新完成后再打开下载链接
               setTimeout(() => {
-                window.open(downloadUrl, '_blank');
+                triggerDownload(downloadUrl);
               }, 500);
             } else {
               console.warn('[导出可编辑PPTX] 任务完成但没有下载链接');
@@ -603,14 +676,34 @@ const debouncedUpdatePage = debounce(
   // 流式生成大纲（SSE，逐页渲染）
   generateOutlineStream: async (lockPageCount?: boolean) => {
     const { currentProject } = get();
-    if (!currentProject) return;
+    const projectId = currentProject?.id;
+    if (!currentProject || !projectId) return;
 
-    set({ isOutlineStreaming: true, error: null });
+    if (get().outlineStreamingProjectIds.includes(projectId)) return;
+
+    const finishStream = () => {
+      set((state) => {
+        const outlineStreamingProjectIds = state.outlineStreamingProjectIds.filter((id) => id !== projectId);
+        return {
+          outlineStreamingProjectIds,
+          isOutlineStreaming: outlineStreamingProjectIds.length > 0,
+        };
+      });
+    };
+    const isViewingTargetProject = () => get().currentProject?.id === projectId;
+
+    set((state) => ({
+      outlineStreamingProjectIds: [...state.outlineStreamingProjectIds, projectId],
+      isOutlineStreaming: true,
+      error: null,
+    }));
 
     // Clear existing pages for fresh streaming display
-    set({
-      currentProject: { ...currentProject, pages: [] },
-    });
+    set((state) => ({
+      currentProject: state.currentProject?.id === projectId
+        ? { ...state.currentProject, pages: [] }
+        : state.currentProject,
+    }));
 
     // Concurrent queue: pages are pushed by SSE callbacks, drained by a timer loop
     const pageQueue: any[] = [];
@@ -624,13 +717,16 @@ const debouncedUpdatePage = debounce(
         if (pageQueue.length > 0) {
           const page = pageQueue.shift()!;
           const { currentProject: proj } = get();
-          if (proj) {
+          if (proj?.id === projectId) {
             const tempPage: any = {
               id: `streaming-${page.index}`,
               order_index: page.index,
               outline_content: { title: page.title, points: page.points },
+              description_content: page.description_text
+                ? { text: page.description_text, ...(page.extra_fields ? { extra_fields: page.extra_fields } : {}) }
+                : undefined,
               part: page.part,
-              status: 'DRAFT',
+              status: page.description_text ? 'DESCRIPTION_GENERATED' : 'DRAFT',
             };
             set({
               currentProject: { ...proj, pages: [...proj.pages, tempPage] },
@@ -648,12 +744,14 @@ const debouncedUpdatePage = debounce(
     });
 
     try {
-      await api.generateOutlineStream(currentProject.id!, {
+      await api.generateOutlineStream(projectId, {
         onPage: (page) => { pageQueue.push(page); },
         onDone: (data) => { doneData = data; },
         onError: (message) => {
           console.error('[流式大纲] 错误:', message);
-          set({ error: normalizeErrorMessage(message), isOutlineStreaming: false });
+          if (isViewingTargetProject()) {
+            set({ error: normalizeErrorMessage(message) });
+          }
           streamDone = true;
         },
       }, undefined /* language */, lockPageCount);
@@ -664,24 +762,26 @@ const debouncedUpdatePage = debounce(
       // Replace temp pages with real persisted pages
       if (doneData) {
         const { currentProject: proj } = get();
-        if (proj) {
+        if (proj?.id === projectId) {
           const normalized = normalizeProject({ ...proj, pages: doneData.pages });
-          set({ currentProject: normalized, isOutlineStreaming: false });
+          set({ currentProject: normalized });
         }
         devLog('[流式大纲] 完成:', doneData.total, '个页面');
-        return { complete: doneData.complete ?? false };
+        return { complete: doneData.complete ?? false, active: isViewingTargetProject() };
       } else {
-        set({ isOutlineStreaming: false });
-        return { complete: false };
+        return { complete: false, active: isViewingTargetProject() };
       }
     } catch (error: any) {
       console.error('[流式大纲] 错误:', error);
       streamDone = true;
-      set({
-        error: normalizeErrorMessage(error.message || t('store.generateOutlineFailed')),
-        isOutlineStreaming: false,
-      });
+      if (!isViewingTargetProject()) {
+        // 已切换离开发起生成的项目：过期失败不再抛出，避免在后来打开的项目中弹提示
+        return { complete: false, active: false };
+      }
+      set({ error: normalizeErrorMessage(error.message || t('store.generateOutlineFailed')) });
       throw error;
+    } finally {
+      finishStream();
     }
   },
 
@@ -977,6 +1077,43 @@ const debouncedUpdatePage = debounce(
     }
   },
 
+  // 生成单页图片（用于预览页的手动重新生成）
+  generatePageImage: async (pageId: string, forceRegenerate: boolean = false) => {
+    const { currentProject } = get();
+    if (!currentProject) return;
+
+    if (get().pageGeneratingTasks[pageId]) {
+      devLog(`[单页生成] 页面 ${pageId} 正在生成中，跳过重复请求`);
+      return;
+    }
+
+    set({ error: null, warningMessage: null });
+
+    try {
+      const response = await api.generatePageImage(currentProject.id, pageId, forceRegenerate);
+      const taskId = response.data?.task_id;
+
+      if (taskId) {
+        devLog(`[单页生成] 收到 task_id: ${taskId}，开始轮询页面 ${pageId}`);
+        set((state) => ({
+          pageGeneratingTasks: {
+            ...state.pageGeneratingTasks,
+            [pageId]: taskId,
+          },
+        }));
+
+        await get().syncProject();
+        get().pollImageTask(taskId, [pageId]);
+      } else {
+        await get().syncProject();
+      }
+    } catch (error: any) {
+      console.error('[单页生成] 启动失败:', error);
+      await get().syncProject();
+      throw error;
+    }
+  },
+
   // 生成图片（非阻塞，每个页面显示生成状态）
   generateImages: async (pageIds?: string[]) => {
     const { currentProject, pageGeneratingTasks } = get();
@@ -1235,8 +1372,9 @@ const debouncedUpdatePage = debounce(
         throw new Error(t('store.exportLinkFailed'));
       }
 
-      // 使用浏览器直接下载链接，避免 axios 受带宽和超时影响
-      window.open(downloadUrl, '_blank');
+      const filename = downloadUrl.split('/').pop()?.split('?')[0] || 'presentation.pptx';
+      // 使用浏览器或桌面原生保存对话框直接下载，避免 axios 受带宽和超时影响
+      triggerDownload(downloadUrl, filename);
     } catch (error: any) {
       set({ error: error.message || t('store.exportFailed') });
     } finally {
@@ -1260,8 +1398,9 @@ const debouncedUpdatePage = debounce(
         throw new Error(t('store.exportLinkFailed'));
       }
 
-      // 使用浏览器直接下载链接，避免 axios 受带宽和超时影响
-      window.open(downloadUrl, '_blank');
+      const filename = downloadUrl.split('/').pop()?.split('?')[0] || 'presentation.pdf';
+      // 使用浏览器或桌面原生保存对话框直接下载，避免 axios 受带宽和超时影响
+      triggerDownload(downloadUrl, filename);
     } catch (error: any) {
       set({ error: error.message || t('store.exportFailed') });
     } finally {
@@ -1283,5 +1422,210 @@ const debouncedUpdatePage = debounce(
       console.error('[导出可编辑PPTX] 导出失败:', error);
       set({ error: error.message || t('store.exportEditableFailed') });
     }
+  },
+
+  // ===== 每页模板（per-page template）=====
+
+  loadTemplateAssets: async (projectId) => {
+    const response = await api.listTemplateAssets(projectId);
+    const assets = response.data?.assets || [];
+    set({ templateAssets: assets });
+    return assets;
+  },
+
+  uploadTemplateAsset: async (projectId, file, opts) => {
+    const response = await api.uploadTemplateAsset(projectId, file, opts);
+    const asset = response.data!.asset;
+    const analyzeTaskId = response.data!.analyze_task_id;
+    set((state) => ({ templateAssets: [...state.templateAssets, asset] }));
+    // 后台轮询解析任务，完成/失败后刷新模板库，避免“解析中”徽章一直停留到手动刷新。
+    // 失败也刷新，让 'failed' 状态浮现；用户切走项目后不刷新，避免覆盖新项目的模板库。
+    if (analyzeTaskId) {
+      const refreshIfCurrent = () => {
+        const cur = get().currentProject;
+        if (cur && cur.id === projectId) {
+          get().loadTemplateAssets(projectId).catch(() => {});
+        }
+      };
+      get()
+        .pollTemplateTask(analyzeTaskId, projectId)
+        .then(refreshIfCurrent)
+        .catch(refreshIfCurrent);
+    }
+    // 绑定到页面时同步本地 page 字段
+    if (opts?.bindToPageId) {
+      const { currentProject } = get();
+      if (currentProject) {
+        set({
+          currentProject: {
+            ...currentProject,
+            pages: currentProject.pages.map((p) =>
+              (p.id === opts.bindToPageId || p.page_id === opts.bindToPageId)
+                ? {
+                    ...p,
+                    template_asset_id: asset.id,
+                    template_selection_source: 'manual',
+                    template_match_reason: null,
+                    template_match_confidence: null,
+                  }
+                : p
+            ),
+          },
+        });
+      }
+    }
+    return asset;
+  },
+
+  uploadTemplatePdf: async (projectId, file) => {
+    const response = await api.uploadTemplatePdf(projectId, file);
+    return response.data!.task_id;
+  },
+
+  updateTemplateAsset: async (projectId, assetId, patch) => {
+    const response = await api.updateTemplateAsset(projectId, assetId, patch);
+    const updated = response.data!.asset;
+    set((state) => ({
+      templateAssets: state.templateAssets.map((a) => (a.id === assetId ? updated : a)),
+    }));
+    return updated;
+  },
+
+  deleteTemplateAsset: async (projectId, assetId) => {
+    const response = await api.deleteTemplateAsset(projectId, assetId);
+    const clearedPageIds = response.data?.cleared_page_ids || [];
+    set((state) => ({
+      templateAssets: state.templateAssets.filter((a) => a.id !== assetId),
+    }));
+    // 乐观更新：把被清空的页面字段置空
+    if (clearedPageIds.length > 0) {
+      const { currentProject } = get();
+      if (currentProject) {
+        const cleared = new Set(clearedPageIds);
+        set({
+          currentProject: {
+            ...currentProject,
+            pages: currentProject.pages.map((p) => {
+              const pid = p.id || p.page_id;
+              return pid && cleared.has(pid)
+                ? {
+                    ...p,
+                    template_asset_id: null,
+                    template_selection_source: null,
+                    template_match_reason: null,
+                    template_match_confidence: null,
+                  }
+                : p;
+            }),
+          },
+        });
+      }
+    }
+    return clearedPageIds;
+  },
+
+  reanalyzeTemplateAsset: async (projectId, assetId) => {
+    const response = await api.reanalyzeTemplateAsset(projectId, assetId);
+    // 乐观更新：把该 asset 状态置 pending
+    set((state) => ({
+      templateAssets: state.templateAssets.map((a) =>
+        a.id === assetId ? { ...a, analysis_status: 'pending', analysis_error: null } : a
+      ),
+    }));
+    return response.data!.analyze_task_id;
+  },
+
+  updatePageTemplate: async (projectId, pageId, patch) => {
+    const response = await api.updatePageTemplate(projectId, pageId, patch);
+    const updatedPage = response.data?.page;
+    const { currentProject } = get();
+    if (currentProject && updatedPage) {
+      set({
+        currentProject: {
+          ...currentProject,
+          pages: currentProject.pages.map((p) =>
+            (p.id === pageId || p.page_id === pageId)
+              ? { ...p, ...updatedPage, id: p.id, page_id: p.page_id }
+              : p
+          ),
+        },
+      });
+    }
+  },
+
+  switchTemplateMode: async (projectId, payload) => {
+    await api.switchTemplateMode(projectId, payload);
+    // 模式切换可能批量改写所有页，刷新整个项目
+    await get().syncProject(projectId);
+  },
+
+  switchTemplateModeWithUpload: async (projectId, file, unifiedStyleText) => {
+    const response = await api.switchTemplateModeSingleWithUpload(projectId, file, unifiedStyleText);
+    const asset = response.data?.asset;
+    if (asset) {
+      set((state) => ({ templateAssets: [...state.templateAssets, asset] }));
+    }
+    await get().syncProject(projectId);
+  },
+
+  autoMatchAll: async (projectId, opts) => {
+    const response = await api.autoMatchAllTemplates(projectId, opts);
+    return response.data!.task_id;
+  },
+
+  autoMatchPage: async (projectId, pageId) => {
+    const response = await api.autoMatchPageTemplate(projectId, pageId);
+    return response.data!.task_id;
+  },
+
+  // 轮询模板相关任务（解析 / PDF 拆页 / 自动匹配），完成或失败时 resolve。
+  // 不污染全局 activeTaskId/taskProgress，便于多任务并发。
+  pollTemplateTask: async (taskId, projectId, onProgress) => {
+    // Cap the loop so a stuck/dead worker can't poll forever (~15 min).
+    const MAX_ATTEMPTS = 450;
+    // Tolerate a few transient network errors before giving up.
+    const MAX_CONSECUTIVE_ERRORS = 5;
+    return new Promise<Task>((resolve, reject) => {
+      let attempts = 0;
+      let consecutiveErrors = 0;
+      const poll = async () => {
+        // Stop polling if the user navigated to a different project so we
+        // don't keep firing requests for a screen that's no longer visible.
+        const { currentProject } = get();
+        if (!currentProject || currentProject.id !== projectId) {
+          reject(new Error('Project changed, polling stopped'));
+          return;
+        }
+        if (attempts++ >= MAX_ATTEMPTS) {
+          reject(new Error(t('store.taskFailed')));
+          return;
+        }
+        try {
+          const response = await api.getTaskStatus(projectId, taskId);
+          consecutiveErrors = 0;
+          const task = response.data;
+          if (!task) {
+            setTimeout(poll, 2000);
+            return;
+          }
+          if (onProgress) onProgress(task);
+          if (task.status === 'COMPLETED') {
+            resolve(task);
+          } else if (task.status === 'FAILED') {
+            reject(new Error(task.error_message || task.error || t('store.taskFailed')));
+          } else {
+            setTimeout(poll, 2000);
+          }
+        } catch (error: any) {
+          consecutiveErrors++;
+          if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+            reject(error);
+          } else {
+            setTimeout(poll, 2000);
+          }
+        }
+      };
+      poll();
+    });
   },
 };});

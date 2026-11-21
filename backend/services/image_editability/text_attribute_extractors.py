@@ -321,10 +321,12 @@ class CaptionModelTextAttributeExtractor(TextAttributeExtractor):
                 thinking_budget=thinking_budget
             )
             return result if isinstance(result, dict) else {}
-        
+
         except ValueError as e:
-            raise RuntimeError(f"当前图片样式提取模型不支持图片输入: {e}") from e
-        
+            if "不支持图片输入" in str(e):
+                raise RuntimeError(f"当前图片样式提取模型不支持图片输入: {e}") from e
+            raise RuntimeError(f"视觉模型返回内容无法解析: {e}") from e
+
         except Exception as e:
             raise RuntimeError(f"调用视觉模型提取文本样式失败: {e}") from e
         
@@ -504,10 +506,12 @@ class CaptionModelTextAttributeExtractor(TextAttributeExtractor):
                 
                 # 解析结果
                 return self._parse_batch_result(result_list, text_elements)
-            
+
             except ValueError as e:
-                raise RuntimeError(f"当前图片样式提取模型不支持图片输入: {e}") from e
-            
+                if "不支持图片输入" in str(e):
+                    raise RuntimeError(f"当前图片样式提取模型不支持图片输入: {e}") from e
+                raise RuntimeError(f"视觉模型返回内容无法解析: {e}") from e
+
             except Exception as e:
                 raise RuntimeError(f"批量调用视觉模型提取文本样式失败: {e}") from e
                 

@@ -19,11 +19,44 @@ import logging
 import requests
 from io import BytesIO
 from typing import Optional, List, Tuple
+from urllib.parse import urlparse
 from PIL import Image
 from .base import ImageProvider
-from ..lazyllm_env import ensure_lazyllm_namespace_key
+from ..lazyllm_env import ensure_lazyllm_namespace_key, ensure_lazyllm_suppliers, resolve_lazyllm_source
 
 logger = logging.getLogger(__name__)
+
+# Hosts trusted for the manual image fallback download in generate_image().
+_ALLOWED_FALLBACK_HOSTS = ('s3.siliconflow.cn',)
+_ALLOWED_FALLBACK_HOST_SUFFIXES = ('.s3.amazonaws.com',)
+
+
+def _is_safe_fallback_url(url: str) -> bool:
+    """Validate a URL is safe to fetch in the manual fallback path.
+
+    Guards against authority-confusion attacks where urlparse and the HTTP
+    client disagree on the target host (e.g. ``https://127.0.0.1:6666\\@s3.siliconflow.cn``
+    — urlparse reports ``s3.siliconflow.cn`` while requests connects to
+    ``127.0.0.1:6666``). We reject URLs containing characters that cause this
+    divergence (``\\`` anywhere, ``@`` in the netloc) before matching the
+    parsed hostname against a strict allowlist.
+    """
+    if not isinstance(url, str) or '\\' in url:
+        return False
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return False
+    if parsed.scheme != 'https':
+        return False
+    if '@' in parsed.netloc:
+        return False
+    host = (parsed.hostname or '').lower()
+    if not host:
+        return False
+    if host in _ALLOWED_FALLBACK_HOSTS:
+        return True
+    return any(host.endswith(suffix) for suffix in _ALLOWED_FALLBACK_HOST_SUFFIXES)
 
 # Vendor-specific image dimension constraints
 # Format: vendor -> (min_dimension, max_dimension, min_total_pixels, separator)
@@ -131,6 +164,27 @@ def _calculate_image_dimensions(
     return w, h, f"{w}{sep}{h}"
 
 
+def _prepare_reference_image_for_vendor(img: Image.Image, source: str) -> Image.Image:
+    """Return a reference image that satisfies vendor-side minimum dimensions.
+
+    Qwen/Wanxiang rejects reference images whose width or height is below 512px.
+    Upscaling the temporary file we pass to LazyLLM keeps user uploads unchanged
+    while avoiding provider-side validation errors for small test/reference images.
+    """
+    constraints = VENDOR_IMAGE_CONSTRAINTS.get(source, DEFAULT_CONSTRAINTS)
+    min_dim = constraints['min_dim']
+    if not min_dim:
+        return img
+
+    width, height = img.size
+    if width >= min_dim and height >= min_dim:
+        return img
+
+    scale = max(min_dim / max(width, 1), min_dim / max(height, 1))
+    new_size = (max(min_dim, int(width * scale)), max(min_dim, int(height * scale)))
+    return img.resize(new_size, Image.Resampling.LANCZOS)
+
+
 def _patch_doubao_remove_guidance_scale(client):
     """
     Monkey-patch the underlying images.generate() call to strip 'guidance_scale'.
@@ -183,6 +237,10 @@ class LazyLLMImageProvider(ImageProvider):
                 "Please install backend dependencies including lazyllm."
             ) from exc
 
+        # PyInstaller-frozen desktop builds can miss the dynamic supplier
+        # discovery, so register every vendor explicitly before resolving.
+        ensure_lazyllm_suppliers()
+        source = resolve_lazyllm_source(source, registry_name='text2image')
         ensure_lazyllm_namespace_key(source, namespace='BANANA')
         self._source = source
         self.client = lazyllm.namespace('BANANA').OnlineModule(
@@ -220,9 +278,10 @@ class LazyLLMImageProvider(ImageProvider):
         if ref_images:
             file_paths = []
             for img in ref_images:
+                ref_img = _prepare_reference_image_for_vendor(img, self._source)
                 with tempfile.NamedTemporaryFile(prefix='lazyllm_ref_', suffix='.png', delete=False) as tmp:
                     temp_path = tmp.name
-                img.save(temp_path)
+                ref_img.save(temp_path)
                 file_paths.append(temp_path)
                 temp_paths.append(temp_path)
         try:
@@ -233,15 +292,14 @@ class LazyLLMImageProvider(ImageProvider):
                 # instead of image/*. In that case, extract the URL and download manually.
                 err_str = str(client_err)
                 if 'content type' in err_str.lower() or 'Failed to load image from' in err_str:
-                    url_match = re.search(r'(https://[^\s"\'<>]+)', err_str)
+                    url_match = re.search(r'(https://[^\s"\'<>\\]+)', err_str)
                     if url_match:
                         url = url_match.group(1).rstrip('.')
-                        # Only fetch from known image-hosting domains to prevent SSRF
-                        from urllib.parse import urlparse
-                        host = urlparse(url).hostname or ''
-                        allowed = host == 's3.siliconflow.cn' or host.endswith('.s3.amazonaws.com')
-                        if not allowed:
-                            logger.warning(f"[LazyLLM] Untrusted host '{host}', skipping manual download")
+                        # Only fetch from known image-hosting domains to prevent SSRF.
+                        if not _is_safe_fallback_url(url):
+                            logger.warning(
+                                "[LazyLLM] Untrusted fallback URL rejected, skipping manual download"
+                            )
                             raise
                         logger.warning(
                             f"[LazyLLM] Content-type mismatch, downloading image manually: {url[:80]}..."

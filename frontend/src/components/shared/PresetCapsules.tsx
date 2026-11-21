@@ -1,8 +1,9 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Plus, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useT } from '@/hooks/useT';
 import { Modal } from '@/components/shared/Modal';
+import { loadStoredPresets, type StoredPreset } from '@/utils/presetStorage';
 
 // ─── i18n ────────────────────────────────────────────────────────────────────
 const presetI18n = {
@@ -33,10 +34,7 @@ const presetI18n = {
 };
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-export interface Preset {
-  name: string;
-  content: string;
-}
+export type Preset = StoredPreset;
 
 export type PresetType = 'outline' | 'description';
 
@@ -56,15 +54,18 @@ const STORAGE_KEY_PREFIX = 'presetCapsules_';
 
 function loadUserPresets(type: PresetType): Preset[] {
   try {
-    const raw = localStorage.getItem(`${STORAGE_KEY_PREFIX}${type}`);
-    return raw ? JSON.parse(raw) : [];
+    return loadStoredPresets(window.localStorage, `${STORAGE_KEY_PREFIX}${type}`);
   } catch {
     return [];
   }
 }
 
 function saveUserPresets(type: PresetType, presets: Preset[]) {
-  localStorage.setItem(`${STORAGE_KEY_PREFIX}${type}`, JSON.stringify(presets));
+  try {
+    window.localStorage.setItem(`${STORAGE_KEY_PREFIX}${type}`, JSON.stringify(presets));
+  } catch {
+    // Keep the in-memory presets usable when browser storage is unavailable.
+  }
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────

@@ -4,11 +4,22 @@ ARG GHCR_REGISTRY=ghcr.io/
 ARG NPM_REGISTRY=
 ARG APT_MIRROR=
 ARG PYPI_INDEX_URL=
+ARG APP_VERSION_TAG=
+ARG APP_COMMIT_SHA=
+ARG APP_COMMIT_SHORT_SHA=
+ARG APP_BUILD_DATE=
 
 # ── Stage 1: 构建前端 ──────────────────────────────────────────
 FROM ${DOCKER_REGISTRY:-}node:18-alpine AS frontend-builder
 
 ARG NPM_REGISTRY=
+ARG APP_VERSION_TAG=
+ARG APP_COMMIT_SHA=
+ARG APP_COMMIT_SHORT_SHA=
+ARG APP_BUILD_DATE=
+ENV VITE_APP_VERSION_TAG=${APP_VERSION_TAG}
+ENV VITE_APP_COMMIT_SHA=${APP_COMMIT_SHA}
+ENV VITE_APP_COMMIT_SHORT_SHA=${APP_COMMIT_SHORT_SHA}
 WORKDIR /app
 
 COPY frontend/package.json frontend/package-lock.json* ./
@@ -18,7 +29,7 @@ RUN if [ -n "$NPM_REGISTRY" ]; then \
     (npm install --frozen-lockfile || npm install)
 
 COPY frontend/ ./
-RUN npm run build
+RUN npm run build:web
 
 # ── Stage 2: 获取 uv ──────────────────────────────────────────
 FROM ${GHCR_REGISTRY}astral-sh/uv:latest AS uv
@@ -28,10 +39,14 @@ FROM ${DOCKER_REGISTRY:-}python:3.10-slim
 
 ARG APT_MIRROR=
 ARG PYPI_INDEX_URL=
+ARG APP_VERSION_TAG=
+ARG APP_COMMIT_SHA=
+ARG APP_COMMIT_SHORT_SHA=
+ARG APP_BUILD_DATE=
 
 WORKDIR /app
 
-# 安装系统依赖：nginx + supervisor + curl
+# 安装系统依赖：nginx + supervisor + curl + ffmpeg
 RUN if [ -n "$APT_MIRROR" ]; then \
         if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
             sed -i "s@deb.debian.org@$APT_MIRROR@g" /etc/apt/sources.list.d/debian.sources; \
@@ -39,6 +54,8 @@ RUN if [ -n "$APT_MIRROR" ]; then \
     fi && \
     apt-get update && apt-get install -y \
         curl \
+        ffmpeg \
+        fonts-noto-cjk \
         nginx \
         supervisor \
     && rm -rf /var/lib/apt/lists/*
@@ -74,6 +91,11 @@ RUN mkdir -p /app/backend/instance /app/uploads
 ENV PYTHONPATH=/app
 ENV FLASK_APP=backend/app.py
 ENV IN_DOCKER=1
+ENV APP_VERSION_TAG=${APP_VERSION_TAG}
+ENV APP_COMMIT_SHA=${APP_COMMIT_SHA}
+ENV APP_COMMIT_SHORT_SHA=${APP_COMMIT_SHORT_SHA}
+ENV APP_BUILD_DATE=${APP_BUILD_DATE}
+ENV DOCKERHUB_REPOSITORY=banana-slides
 
 EXPOSE 80
 

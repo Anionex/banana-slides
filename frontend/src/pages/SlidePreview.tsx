@@ -1,6 +1,8 @@
+import { generateUuid } from '@/utils/uuid';
 // TODO: split components
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useT } from '@/hooks/useT';
 import { devLog } from '@/utils/logger';
 
@@ -13,30 +15,101 @@ const previewI18n = {
       pageGenerating: "该页面正在生成中，请稍候...", generationStarted: "已开始生成图片，请稍候...",
       versionSwitched: "已切换到该版本", outlineSaved: "大纲和描述已保存",
       materialsAdded: "已添加 {{count}} 个素材", exportStarted: "导出任务已开始，可在导出任务面板查看进度",
+      exportStartResponseLost: "创建导出任务的响应中断，正在用任务编号确认后台状态；这不代表导出失败",
       cannotRefresh: "无法刷新：缺少项目ID", refreshSuccess: "刷新成功",
       extraRequirementsSaved: "额外要求已保存", styleDescSaved: "风格描述已保存",
+      switchedToMulti: "已切换为每页独立模板", switchFailed: "切换模板模式失败: {{error}}",
       exportSettingsSaved: "导出设置已保存", aspectRatioSaved: "画面比例已保存", loadTemplateFailed: "加载模板失败", templateChanged: "模板更换成功",
       saveFailed: "保存失败: {{error}}", refreshFailed: "刷新失败，请稍后重试",
       loadMaterialFailed: "加载素材失败: {{error}}", templateChangeFailed: "更换模板失败: {{error}}",
       versionSwitchFailed: "切换失败: {{error}}", unknownError: "未知错误",
-      regionCropSuccess: "已将选中区域添加为参考图片，可在下方\"上传图片\"中查看与删除",
+      regionCropSuccess: "已将选中区域添加为参考图，可在参考图缩略图上移除",
       regionCropFailed: "无法从当前图片裁剪区域（浏览器安全限制）。可以尝试手动上传参考图片。"
     },
     preview: {
-      title: "预览", pageCount: "共 {{count}} 页", export: "导出",
+      title: "预览", pageCount: "共 {{count}} 页", export: "导出", exportTasks: "导出任务",
       exportPptx: "导出为 PPTX", exportPdf: "导出为 PDF",
       exportEditablePptx: "导出可编辑 PPTX（Beta）", exportImages: "导出为图片",
+      exportVideo: "导出为讲解视频",
+      videoSettingsLoading: "正在加载视频设置...",
+      videoSettingsLoadFailed: "无法加载视频导出设置，请重试后再导出",
+      videoVoicesLoadFailed: "无法加载 ElevenLabs 音色列表，请稍后重试",
+      pptxExportTitle: "PPTX 导出设置",
+      pptxExportSubtitle: "在导出前确认本次 PPTX 的播放设置。",
+      pptxTransitionToggle: "启用页面切换动画",
+      pptxTransitionDesc: "导出的 PPTX 会为每页设置切换效果；多选效果时，每页会随机使用其中一种。",
+      pptxTransitionFade: "淡入淡出",
+      pptxTransitionPageTurn: "翻页",
+      pptxTransitionPush: "平移切换",
+      pptxTransitionWipe: "擦除",
+      pptxTransitionSplit: "分割",
+      pptxTransitionBlinds: "百叶窗",
+      pptxTransitionChecker: "棋盘",
+      pptxTransitionWheel: "时钟",
+      pptxTransitionRequired: "至少选择一种切换动画",
+      pptxStartExport: "开始导出",
+      pptxCancel: "取消",
+      videoExportTitle: "讲解视频导出设置",
+      videoExportSubtitle: "在最后一步统一配置旁白风格，适配路演、总结、发布会或学术报告等不同场景。",
+      videoVoiceLabel: "语音音色",
+      videoSpeedLabel: "语速",
+      videoSpeedHint: "0.7 慢 — 1.0 默认 — 1.2 快",
+      videoNarrationPresetTitle: "旁白策略",
+      videoNarrationPersona: "演讲者人设",
+      videoNarrationAudience: "目标受众",
+      videoNarrationTone: "演讲基调",
+      videoNarrationTopic: "核心主题",
+      videoNarrationTopicPlaceholder: "例如：英伟达的发展史与技术演进",
+      videoNarrationLength: "单页字数范围",
+      videoNarrationAdvanced: "高级配置",
+      videoNarrationCollapse: "收起高级配置",
+      videoNarrationAdvancedHint: "这些参数只在导出前生效，不会影响页面内容本身。",
+      videoNarrationMinWords: "最少字数",
+      videoNarrationMaxWords: "最多字数",
+      videoNarrationSummaryLabel: "当前策略",
+      videoNarrationGenerateMissing: "自动为缺失旁白的页面生成讲稿",
+      videoUseElevenLabs: "使用 ElevenLabs 语音合成",
+      videoElevenLabsNoKey: "尚未配置 ElevenLabs API Key，语音合成将无法使用。",
+      videoElevenLabsGoSettings: "前往设置",
+      videoEnableKenBurns: "启用画面动效",
+      videoKenBurnsTip: "为每页幻灯片添加缓慢的缩放或平移动画，让视频画面更有节奏感",
+      videoIncludeNoImage: "包含未配图页面（生成占位帧）",
+      videoMissingImagesWarning: "本次导出范围还有 {{count}} 页未生成图片。勾选“包含未配图页面”才会用占位帧导出，否则请先生成图片。",
+      videoStartExport: "开始导出",
+      videoCancel: "取消",
+      editablePptxDialogTitle: "导出可编辑 PPTX",
+      editablePptxDialogSubtitle: "选择本次导出的处理选项。",
+      editablePptxMode: "导出模式",
+      editablePptxSimple: "仅文字可编辑模式",
+      editablePptxSimpleDesc: "表层文字可编辑，图标和图片保留为图片。",
+      editablePptxFull: "完整模式",
+      editablePptxFullDesc: "使用现有流程拆分文字、图片、表格等元素，尽可能支持编辑。",
+      editablePptxSimpleHint: "仅将表层文字转为可编辑文字，尽可能还原原有样式和位置。图标、图片等其他内容仍以图片形式保留。相比完整模式，导出更快、更稳定。",
+      editablePptxSimpleHelp: "了解仅文字可编辑模式",
+      editablePptxIconTransparent: "图标透明背景",
+      editablePptxIconTransparentDesc: "对识别为图标的图片调用本地 RMBG-2.0 模型抠出透明背景，避免原 PPT 底色与新底色冲突。",
+      editablePptxModelHint: "首次启用会下载约 512MB 模型到 ~/.cache/banana-slides/models/，CPU 推理对内存要求较高，建议机器有 ≥ 16GB 可用内存。",
+      editablePptxRangeLabel: "导出范围",
+      editablePptxRangeAll: "全部 {{count}} 页",
+      editablePptxRangePages: "第 {{pages}} 页（共 {{count}} 页）",
+      editablePptxRangeTip: "如果只想导出特定页面，请在左侧侧栏上方点「多选」勾选要导出的页面后再点击「导出」。",
+      editablePptxStartExport: "开始导出",
+      editablePptxCancel: "取消",
       exportSelectedPages: "将导出选中的 {{count}} 页",
       regenerate: "重新生成", regenerating: "生成中...",
       editMode: "编辑模式", viewMode: "查看模式", page: "第 {{num}} 页",
       projectSettings: "项目设置", changeTemplate: "更换模板", refresh: "刷新",
+      switchToMulti: "转为每页独立模板", switchToSingle: "转为统一模板", templateSetup: "模板配置", templateMenu: "模板",
       batchGenerate: "批量生成图片 ({{count}})", generateSelected: "生成选中页面 ({{count}})",
       multiSelect: "多选", cancelMultiSelect: "取消多选", pagesUnit: "页",
       noPages: "还没有页面", noPagesHint: "请先返回编辑页面添加内容", backToEdit: "返回编辑",
       generating: "正在生成中...", queued: "排队等待生成...", notGenerated: "尚未生成图片", generateThisPage: "生成此页",
       prevPage: "上一页", nextPage: "下一页", historyVersions: "历史版本",
+      play: "播放",
       versions: "版本", version: "版本", current: "当前", editPage: "编辑页面",
       regionSelect: "区域选图", endRegionSelect: "结束区域选图",
+      inlineEditPromptPlaceholder: "描述想怎么改，或先在图上框选要改的部分…",
+      addReference: "添加参考图",
       pageOutline: "页面大纲（可编辑）", pageDescription: "页面描述（可编辑）",
       enterTitle: "输入页面标题", pointsPerLine: "要点（每行一个）",
       enterPointsPerLine: "每行输入一个要点", enterDescription: "输入页面的详细描述内容",
@@ -59,8 +132,14 @@ const previewI18n = {
       confirmRegenerateAll: "将重新生成所有页面（历史记录将会保存），确定继续吗？",
       confirmRegenerateTitle: "确认重新生成",
       generationFailed: "生成失败",
-      disabledExportTip: "还有 {{count}} 页未生成图片，请先生成所有页面图片",
-      disabledEditTip: "请先生成该页图片",
+      qualityControl: "质量控制",
+      qualityControlDesc: "生成后先质检，通过才保存版本",
+      qualityControlTooltip: "打开后，系统会先生成图片，但不会马上保存。它会自动检查图片里有没有看不清的字、奇怪的文字、明显粗糙的画面，或和你的要求差太多。发现问题会重新生成，最多试 3 次；通过检查后才会保存成新版本。如果一直不通过，会提示你调整描述。",
+      qualityControlOn: "已开启",
+      qualityControlOff: "已关闭",
+      qualityControlSaved: "质量控制设置已保存",
+      qualityControlSaveFailed: "质量控制设置保存失败",
+      disabledExportTip: "本次导出范围还有 {{count}} 页未生成图片，请先生成图片或调整选择范围",
       messages: {
         exportSuccess: "导出成功", exportFailed: "导出失败",
         regenerateSuccess: "重新生成完成", regenerateFailed: "重新生成失败",
@@ -81,30 +160,101 @@ const previewI18n = {
       pageGenerating: "This page is generating, please wait...", generationStarted: "Image generation started, please wait...",
       versionSwitched: "Switched to this version", outlineSaved: "Outline and description saved",
       materialsAdded: "Added {{count}} material(s)", exportStarted: "Export task started, check progress in export tasks panel",
+      exportStartResponseLost: "The create-task response was interrupted. Checking the backend with the reserved task ID; this does not mean the export failed",
       cannotRefresh: "Cannot refresh: Missing project ID", refreshSuccess: "Refresh successful",
+      switchedToMulti: "Switched to per-page templates", switchFailed: "Failed to switch template mode: {{error}}",
       extraRequirementsSaved: "Extra requirements saved", styleDescSaved: "Style description saved",
       exportSettingsSaved: "Export settings saved", aspectRatioSaved: "Aspect ratio saved", loadTemplateFailed: "Failed to load template", templateChanged: "Template changed successfully",
       saveFailed: "Save failed: {{error}}", refreshFailed: "Refresh failed, please try again later",
       loadMaterialFailed: "Failed to load material: {{error}}", templateChangeFailed: "Failed to change template: {{error}}",
       versionSwitchFailed: "Switch failed: {{error}}", unknownError: "Unknown error",
-      regionCropSuccess: "Selected region added as reference image. You can view and delete it in \"Upload Images\" below.",
+      regionCropSuccess: "Selected region added as a reference image; remove it from its thumbnail if needed.",
       regionCropFailed: "Cannot crop from current image (browser security restriction). Try uploading a reference image manually."
     },
     preview: {
-      title: "Preview", pageCount: "{{count}} pages", export: "Export",
+      title: "Preview", pageCount: "{{count}} pages", export: "Export", exportTasks: "Export Tasks",
       exportPptx: "Export as PPTX", exportPdf: "Export as PDF",
       exportEditablePptx: "Export Editable PPTX (Beta)", exportImages: "Export as Images",
+      exportVideo: "Export as Narration Video",
+      videoSettingsLoading: "Loading video settings...",
+      videoSettingsLoadFailed: "Could not load video export settings. Please retry before exporting.",
+      videoVoicesLoadFailed: "Could not load the ElevenLabs voice list. Please try again later.",
+      pptxExportTitle: "PPTX Export Settings",
+      pptxExportSubtitle: "Confirm playback settings before exporting this PPTX.",
+      pptxTransitionToggle: "Enable slide transitions",
+      pptxTransitionDesc: "The exported PPTX will add a transition to each slide. If multiple effects are selected, each slide uses one at random.",
+      pptxTransitionFade: "Fade",
+      pptxTransitionPageTurn: "Page turn",
+      pptxTransitionPush: "Push",
+      pptxTransitionWipe: "Wipe",
+      pptxTransitionSplit: "Split",
+      pptxTransitionBlinds: "Blinds",
+      pptxTransitionChecker: "Checkerboard",
+      pptxTransitionWheel: "Clock",
+      pptxTransitionRequired: "Select at least one transition effect",
+      pptxStartExport: "Start Export",
+      pptxCancel: "Cancel",
+      videoExportTitle: "Narration Video Export Settings",
+      videoExportSubtitle: "Tune the narration strategy in the final export step for demos, annual recaps, launches, or academic talks.",
+      videoVoiceLabel: "Voice",
+      videoSpeedLabel: "Speech speed",
+      videoSpeedHint: "0.7 slower — 1.0 default — 1.2 faster",
+      videoNarrationPresetTitle: "Narration Strategy",
+      videoNarrationPersona: "Speaker persona",
+      videoNarrationAudience: "Target audience",
+      videoNarrationTone: "Speech tone",
+      videoNarrationTopic: "Core topic",
+      videoNarrationTopicPlaceholder: "For example: the history and technological evolution of Nvidia",
+      videoNarrationLength: "Words per slide",
+      videoNarrationAdvanced: "Advanced settings",
+      videoNarrationCollapse: "Hide advanced settings",
+      videoNarrationAdvancedHint: "These options only affect narration generation during export.",
+      videoNarrationMinWords: "Min words",
+      videoNarrationMaxWords: "Max words",
+      videoNarrationSummaryLabel: "Current strategy",
+      videoNarrationGenerateMissing: "Auto-generate narration for slides that are missing it",
+      videoUseElevenLabs: "Use ElevenLabs text-to-speech",
+      videoElevenLabsNoKey: "No ElevenLabs API Key configured — voice synthesis will not work.",
+      videoElevenLabsGoSettings: "Go to Settings",
+      videoEnableKenBurns: "Enable camera motion",
+      videoKenBurnsTip: "Adds slow zoom or pan animation to each slide for a more dynamic video",
+      videoIncludeNoImage: "Include pages without images (placeholder frames)",
+      videoMissingImagesWarning: "{{count}} page(s) in this export range still have no images. Enable \"Include pages without images\" to export placeholder frames, or generate images first.",
+      videoStartExport: "Start Export",
+      videoCancel: "Cancel",
+      editablePptxDialogTitle: "Export Editable PPTX",
+      editablePptxDialogSubtitle: "Choose processing options for this export.",
+      editablePptxMode: "Export mode",
+      editablePptxSimple: "Text-only editable mode",
+      editablePptxSimpleDesc: "Edit surface text while icons and images remain part of the image.",
+      editablePptxFull: "Full mode",
+      editablePptxFullDesc: "Use the existing workflow to separate text, images, tables, and other elements for editing where possible.",
+      editablePptxSimpleHint: "Only surface text becomes editable, with its original styling and position restored as closely as possible. Icons, images, and other content remain part of the image. Export is faster and more reliable than Full mode.",
+      editablePptxSimpleHelp: "About text-only editable mode",
+      editablePptxIconTransparent: "Icon Transparent Background",
+      editablePptxIconTransparentDesc: "Run images classified as icons through the local RMBG-2.0 model to produce transparent-background PNGs, avoiding background color clashes.",
+      editablePptxModelHint: "First use downloads a ~512MB model to ~/.cache/banana-slides/models/. CPU inference is memory-intensive; recommended: ≥16GB free memory.",
+      editablePptxRangeLabel: "Export range",
+      editablePptxRangeAll: "All {{count}} pages",
+      editablePptxRangePages: "Pages {{pages}} ({{count}} total)",
+      editablePptxRangeTip: "To export specific pages only, click \"Multi-select\" at the top of the left sidebar and check the pages first.",
+      editablePptxStartExport: "Start Export",
+      editablePptxCancel: "Cancel",
       exportSelectedPages: "Will export {{count}} selected page(s)",
       regenerate: "Regenerate", regenerating: "Generating...",
       editMode: "Edit Mode", viewMode: "View Mode", page: "Page {{num}}",
+      switchToMulti: "Switch to per-page", switchToSingle: "Switch to unified", templateSetup: "Template setup", templateMenu: "Template",
       projectSettings: "Project Settings", changeTemplate: "Change Template", refresh: "Refresh",
       batchGenerate: "Batch Generate Images ({{count}})", generateSelected: "Generate Selected ({{count}})",
       multiSelect: "Multi-select", cancelMultiSelect: "Cancel Multi-select", pagesUnit: " pages",
       noPages: "No pages yet", noPagesHint: "Please go back to editor to add content first", backToEdit: "Back to Editor",
       generating: "Generating...", queued: "Queued for generation...", notGenerated: "Image not generated yet", generateThisPage: "Generate This Page",
       prevPage: "Previous", nextPage: "Next", historyVersions: "History Versions",
+      play: "Play",
       versions: "Versions", version: "Version", current: "Current", editPage: "Edit Page",
       regionSelect: "Region Select", endRegionSelect: "End Region Select",
+      inlineEditPromptPlaceholder: "Describe the change, or box a region on the image first…",
+      addReference: "Add reference image",
       pageOutline: "Page Outline (Editable)", pageDescription: "Page Description (Editable)",
       enterTitle: "Enter page title", pointsPerLine: "Key Points (one per line)",
       enterPointsPerLine: "Enter one key point per line", enterDescription: "Enter detailed page description",
@@ -127,8 +277,14 @@ const previewI18n = {
       confirmRegenerateAll: "Will regenerate all pages (history will be saved). Continue?",
       confirmRegenerateTitle: "Confirm Regenerate",
       generationFailed: "Generation failed",
-      disabledExportTip: "{{count}} page(s) have no images yet. Please generate all page images first",
-      disabledEditTip: "Please generate this page's image first",
+      qualityControl: "Quality Control",
+      qualityControlDesc: "Review after generation; save only passing versions",
+      qualityControlTooltip: "When this is on, Banana Slides generates the image first but does not save it right away. It checks for unreadable text, strange text, rough-looking visuals, or a result that is far from your request. If something looks wrong, it tries again up to 3 times. Only a checked image is saved as a new version. If it still fails, you will be asked to adjust your description.",
+      qualityControlOn: "On",
+      qualityControlOff: "Off",
+      qualityControlSaved: "Quality control setting saved",
+      qualityControlSaveFailed: "Failed to save quality control setting",
+      disabledExportTip: "{{count}} page(s) in this export range have no images yet. Generate images first or adjust the selection",
       messages: {
         exportSuccess: "Export successful", exportFailed: "Export failed",
         regenerateSuccess: "Regeneration complete", regenerateFailed: "Failed to regenerate",
@@ -146,6 +302,7 @@ const previewI18n = {
 import {
   Home,
   ArrowLeft,
+  StepBack,
   Download,
   RefreshCw,
   ChevronLeft,
@@ -153,6 +310,7 @@ import {
   Sparkles,
   ChevronDown,
   ChevronUp,
+  Play,
   X,
   Upload,
   Image as ImageIcon,
@@ -163,42 +321,246 @@ import {
   Check,
   FileText,
   Loader2,
+  Info,
+  HelpCircle,
+  LayoutTemplate,
+  Presentation,
+  AlertTriangle,
 } from 'lucide-react';
+import logoUrl from '@/assets/logo.png';
 import { Button, Loading, Modal, Textarea, useToast, useConfirm, MaterialSelector, ProjectSettingsModal, ExportTasksPanel, TextStyleSelector } from '@/components/shared';
+import { SwitchToSingleModeDialog } from '@/components/template/SwitchToSingleModeDialog';
 import { MaterialGeneratorModal } from '@/components/shared/MaterialGeneratorModal';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
 import { listUserTemplates, type UserTemplate } from '@/api/endpoints';
 import { materialUrlToFile } from '@/components/shared/MaterialSelector';
+import { triggerDownload } from '@/api/client';
 import type { Material } from '@/api/endpoints';
 import { SlideCard } from '@/components/preview/SlideCard';
+import { SlidePlayer } from '@/components/preview/SlidePlayer';
+import { PagePropertiesDrawer, clampWidth, readStoredDrawerWidth } from '@/components/preview/PagePropertiesDrawer';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useExportTasksStore, type ExportTaskType } from '@/store/useExportTasksStore';
 import { getImageUrl } from '@/api/client';
-import { getPageImageVersions, setCurrentImageVersion, updateProject, uploadTemplate, exportPPTX as apiExportPPTX, exportPDF as apiExportPDF, exportImages as apiExportImages, exportEditablePPTX as apiExportEditablePPTX, getSettings } from '@/api/endpoints';
-import type { ImageVersion, DescriptionContent, ExportExtractorMethod, ExportInpaintMethod, Page } from '@/types';
+import { getPageImageVersions, setCurrentImageVersion, updateProject, uploadTemplate, exportPPTX as apiExportPPTX, exportPDF as apiExportPDF, exportImages as apiExportImages, exportEditablePPTX as apiExportEditablePPTX, exportVideo as apiExportVideo, getSettings, getElevenLabsVoices, updateSettings } from '@/api/endpoints';
+import type { ImageVersion, DescriptionContent, ExportExtractorMethod, ExportInpaintMethod, Page, NarrationConfig } from '@/types';
 import { normalizeErrorMessage } from '@/utils';
+
+const VIDEO_VOICE_OPTIONS = [
+  { group: '中文', voices: [
+    { id: 'zh-CN-XiaoxiaoNeural', label: '晓晓（女声）', lang: 'zh' },
+    { id: 'zh-CN-YunxiNeural', label: '云希（男声）', lang: 'zh' },
+    { id: 'zh-CN-YunjianNeural', label: '云健（男声）', lang: 'zh' },
+    { id: 'zh-CN-XiaoyiNeural', label: '晓伊（女声）', lang: 'zh' },
+  ]},
+  { group: 'English', voices: [
+    { id: 'en-US-JennyNeural', label: 'Jenny (Female)', lang: 'en' },
+    { id: 'en-US-GuyNeural', label: 'Guy (Male)', lang: 'en' },
+    { id: 'en-US-AriaNeural', label: 'Aria (Female)', lang: 'en' },
+    { id: 'en-US-DavisNeural', label: 'Davis (Male)', lang: 'en' },
+  ]},
+  { group: '日本語', voices: [
+    { id: 'ja-JP-NanamiNeural', label: 'Nanami（女声）', lang: 'ja' },
+    { id: 'ja-JP-KeitaNeural', label: 'Keita（男声）', lang: 'ja' },
+  ]},
+];
+
+const NARRATION_PERSONA_OPTIONS = [
+  { value: 'charismatic keynote speaker', zh: '演讲家', en: 'Keynote speaker' },
+  { value: 'knowledgeable and patient university professor', zh: '大学教授', en: 'University professor' },
+  { value: 'confident corporate executive', zh: '企业高管', en: 'Corporate executive' },
+  { value: 'engaging online content creator', zh: '自媒体讲述者', en: 'Content creator' },
+];
+
+const NARRATION_AUDIENCE_OPTIONS = [
+  { value: 'the general public with no technical background', zh: '普通大众', en: 'General public' },
+  { value: 'industry experts and seasoned professionals', zh: '行业专家', en: 'Industry experts' },
+  { value: 'potential investors and venture capitalists', zh: '投资人和 VC', en: 'Investors and VCs' },
+  { value: 'internal team members and employees', zh: '内部团队成员', en: 'Internal team' },
+];
+
+const NARRATION_TONE_OPTIONS = [
+  { value: 'inspiring, passionate, and persuasive', zh: '激情说服型', en: 'Inspiring and persuasive' },
+  { value: 'analytical, data-driven, and highly professional', zh: '理性数据流', en: 'Analytical and professional' },
+  { value: 'storytelling-focused, emotional, and captivating', zh: '故事沉浸型', en: 'Storytelling and emotional' },
+  { value: 'conversational, witty, and approachable', zh: '轻松聊天型', en: 'Conversational and witty' },
+];
+
+const DEFAULT_VIDEO_NARRATION_CONFIG: NarrationConfig = {
+  speaker_persona: 'knowledgeable and patient university professor',
+  target_audience: 'the general public with no technical background',
+  speech_tone: 'analytical, data-driven, and highly professional',
+  presentation_topic: '',
+  min_words: 100,
+  max_words: 200,
+};
+
+type PptxTransitionEffect =
+  | 'fade'
+  | 'page_turn'
+  | 'push'
+  | 'wipe'
+  | 'split'
+  | 'blinds'
+  | 'checker'
+  | 'wheel';
+
+const PPTX_TRANSITION_OPTIONS: { value: PptxTransitionEffect; labelKey: string }[] = [
+  { value: 'fade', labelKey: 'pptxTransitionFade' },
+  { value: 'page_turn', labelKey: 'pptxTransitionPageTurn' },
+  { value: 'push', labelKey: 'pptxTransitionPush' },
+  { value: 'wipe', labelKey: 'pptxTransitionWipe' },
+  { value: 'split', labelKey: 'pptxTransitionSplit' },
+  { value: 'blinds', labelKey: 'pptxTransitionBlinds' },
+  { value: 'checker', labelKey: 'pptxTransitionChecker' },
+  { value: 'wheel', labelKey: 'pptxTransitionWheel' },
+];
+
+type PreviewT = (key: string, params?: Record<string, string | number>) => string;
+
+// 质量控制开关：桌面端放在左栏「批量生成」旁（项目级生成设置），窄屏放在底部控制栏
+const QualityControlToggle: React.FC<{
+  enabled: boolean;
+  saving: boolean;
+  onToggle: () => void;
+  t: PreviewT;
+  className?: string;
+  labelClassName?: string;
+  tooltipPlacement?: 'top' | 'bottom';
+  tooltipTestId?: string;
+}> = ({
+  enabled,
+  saving,
+  onToggle,
+  t,
+  className = '',
+  labelClassName = '',
+  tooltipPlacement = 'top',
+  tooltipTestId = 'quality-control-tooltip',
+}) => (
+  <div className={`group/qc relative flex items-center gap-2 ${className}`}>
+    <span className={`text-xs font-medium text-gray-700 dark:text-foreground-secondary whitespace-nowrap ${labelClassName}`}>
+      {t('preview.qualityControl')}
+    </span>
+    <button
+      type="button"
+      role="switch"
+      aria-checked={enabled}
+      aria-label={t('preview.qualityControl')}
+      onClick={onToggle}
+      disabled={saving}
+      className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-banana-500 focus:ring-offset-2 disabled:opacity-60 ${
+        enabled ? 'bg-banana-500' : 'bg-gray-300 dark:bg-background-hover'
+      }`}
+    >
+      <span
+        className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+          enabled ? 'translate-x-5' : 'translate-x-1'
+        }`}
+      />
+    </button>
+    <span
+      data-testid={tooltipTestId}
+      className={`absolute left-1/2 z-50 w-72 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-md border border-gray-200 bg-white px-3 py-2 text-left text-xs leading-relaxed text-gray-700 opacity-0 shadow-lg transition-opacity pointer-events-none group-hover/qc:opacity-100 group-focus-within/qc:opacity-100 dark:border-border-primary dark:bg-background-elevated dark:text-foreground-secondary ${
+        tooltipPlacement === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'
+      }`}
+    >
+      <span className="mb-1 block font-medium text-gray-900 dark:text-foreground-primary">
+        {enabled ? t('preview.qualityControlOn') : t('preview.qualityControlOff')}
+      </span>
+      {t('preview.qualityControlTooltip')}
+    </span>
+  </div>
+);
+
+// 历史版本按钮 + 上弹菜单：桌面端悬浮工具栏与窄屏底部控制栏共用
+const VersionHistoryMenu: React.FC<{
+  versions: ImageVersion[];
+  open: boolean;
+  onToggleOpen: () => void;
+  onSwitchVersion: (versionId: string) => void;
+  t: PreviewT;
+  buttonClassName?: string;
+  // 菜单锚定方式：右对齐动作区（默认，窄屏 docked 栏）或居中锚定按钮（居中的悬浮胶囊，
+  // 否则 right-0 + w-64 会把菜单甩到按钮左侧、溢出胶囊）
+  menuAlign?: 'right' | 'center';
+}> = ({ versions, open, onToggleOpen, onSwitchVersion, t, buttonClassName = 'text-xs md:text-sm', menuAlign = 'right' }) => (
+  <div className="relative">
+    <Button variant="ghost" size="sm" onClick={onToggleOpen} className={buttonClassName}>
+      <span className="hidden md:inline">{t('preview.historyVersions')} ({versions.length})</span>
+      <span className="md:hidden">{t('preview.versions')}</span>
+    </Button>
+    {open && (
+      <div
+        data-testid="version-history-menu"
+        className={`absolute bottom-full mb-2 w-56 md:w-64 bg-white dark:bg-background-secondary rounded-lg shadow-lg border border-gray-200 dark:border-border-primary py-2 z-20 max-h-96 overflow-y-auto ${
+          menuAlign === 'center' ? 'left-1/2 -translate-x-1/2' : 'right-0'
+        }`}
+      >
+        {versions.map((version) => (
+          <button
+            key={version.version_id}
+            onClick={() => onSwitchVersion(version.version_id)}
+            className={`w-full px-3 md:px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors flex items-center justify-between text-xs md:text-sm ${
+              version.is_current ? 'bg-banana-50 dark:bg-background-secondary' : ''
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <span>
+                {t('preview.version')} {version.version_number}
+              </span>
+              {version.is_current && (
+                <span className="text-xs text-banana-600 font-medium">
+                  ({t('preview.current')})
+                </span>
+              )}
+            </div>
+            <span className="text-xs text-gray-400 hidden md:inline">
+              {version.created_at
+                ? new Date(version.created_at).toLocaleString('zh-CN', {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })
+                : ''}
+            </span>
+          </button>
+        ))}
+      </div>
+    )}
+  </div>
+);
 
 export const SlidePreview: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { i18n } = useTranslation();
   const t = useT(previewI18n);
   const { projectId } = useParams<{ projectId: string }>();
   const fromHistory = (location.state as any)?.from === 'history';
   const {
     currentProject,
     syncProject,
+    generatePageImage,
     generateImages,
     editPageImage,
     deletePageById,
     updatePageLocal,
     isGlobalLoading,
+    isSavingPages,
     taskProgress,
     pageGeneratingTasks,
     warningMessage,
+    templateAssets,
+    loadTemplateAssets,
+    switchTemplateMode,
+    switchTemplateModeWithUpload,
+    updatePageTemplate,
+    uploadTemplateAsset,
   } = useProjectStore();
   
   const { addTask, pollTask: pollExportTask, tasks: exportTasks, restoreActiveTasks } = useExportTasksStore();
-  const notifiedFailedExportTaskIds = useRef<Set<string>>(new Set());
 
   // 页面挂载时恢复正在进行的导出任务（页面刷新后）
   useEffect(() => {
@@ -206,6 +568,42 @@ export const SlidePreview: React.FC = () => {
   }, [restoreActiveTasks]);
 
   const [selectedIndex, setSelectedIndex] = useState(0);
+  // 在线播放（近似全屏 overlay，可切换浏览器原生全屏）
+  const [isPlayerOpen, setIsPlayerOpen] = useState(false);
+  const playTriggerRef = useRef<HTMLElement | null>(null);
+  const handleOpenPlayer = () => {
+    playTriggerRef.current = document.activeElement as HTMLElement | null;
+    setIsPlayerOpen(true);
+  };
+  const handleClosePlayer = () => {
+    setIsPlayerOpen(false);
+    const trigger = playTriggerRef.current;
+    playTriggerRef.current = null;
+    const restoreFocus = (el: HTMLElement | null) => {
+      // 播放期间窗口跨 lg 断点时，触发按钮可能已 display:none，focus 是 no-op；
+      // fallback 到当前可见工具栏的播放按钮
+      const target =
+        el && el.offsetParent !== null
+          ? el
+          : Array.from(document.querySelectorAll<HTMLElement>('[data-play-trigger]')).find(
+              (btn) => btn.offsetParent !== null
+            );
+      target?.focus();
+    };
+    if (document.fullscreenElement) {
+      // 播放器卸载会移除全屏元素，浏览器随后自动退出全屏；等 fullscreenchange
+      // 确认退出完成后再还原焦点，避免在全屏退出前同步 focus 被浏览器覆盖
+      const restore = () => {
+        if (!document.fullscreenElement) {
+          document.removeEventListener('fullscreenchange', restore);
+          restoreFocus(trigger);
+        }
+      };
+      document.addEventListener('fullscreenchange', restore);
+    } else {
+      restoreFocus(trigger);
+    }
+  };
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [useTextStyleMode, setUseTextStyleMode] = useState(false);
@@ -216,7 +614,40 @@ export const SlidePreview: React.FC = () => {
   const [editOutlinePoints, setEditOutlinePoints] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const showExportMenuRef = useRef(false);
+  const setExportMenuOpen = (open: boolean) => {
+    showExportMenuRef.current = open;
+    setShowExportMenu(open);
+  };
   const [showExportTasksPanel, setShowExportTasksPanel] = useState(false);
+  const [showPptxExportDialog, setShowPptxExportDialog] = useState(false);
+  const [showVideoExportDialog, setShowVideoExportDialog] = useState(false);
+  const [isPreparingVideoExport, setIsPreparingVideoExport] = useState(false);
+  const [showEditablePptxDialog, setShowEditablePptxDialog] = useState(false);
+  const [editablePptxMode, setEditablePptxMode] = useState<'full' | 'simple'>('simple');
+  const [editablePptxDialogIconTransparent, setEditablePptxDialogIconTransparent] = useState(true);
+  const [pptxTransitionsEnabled, setPptxTransitionsEnabled] = useState(false);
+  const [pptxTransitionEffects, setPptxTransitionEffects] = useState<PptxTransitionEffect[]>(['fade']);
+  const [videoEnableKenBurns, setVideoEnableKenBurns] = useState(false);
+  const [videoIncludeNoImage, setVideoIncludeNoImage] = useState(false);
+  const [videoVoice, setVideoVoice] = useState('zh-CN-XiaoxiaoNeural');
+  const [videoSpeed, setVideoSpeed] = useState<number>(() => {
+    const stored = parseFloat(localStorage.getItem('videoSpeed') || '');
+    return Number.isFinite(stored) && stored >= 0.7 && stored <= 1.2 ? stored : 1.0;
+  });
+  const [elevenLabsEnabled, setElevenLabsEnabled] = useState(() => localStorage.getItem('elevenLabsEnabled') === 'true');
+  const [elevenLabsVoiceId, setElevenLabsVoiceId] = useState(() => localStorage.getItem('elevenLabsVoiceId') || '');
+  const [elevenLabsApiKeyConfigured, setElevenLabsApiKeyConfigured] = useState(false);
+  const [elevenLabsVoices, setElevenLabsVoices] = useState<{ id: string; name: string; languages?: string[]; accent?: string | null }[]>([]);
+  const [elevenLabsVoicesLoading, setElevenLabsVoicesLoading] = useState(false);
+  const [outputLanguage, setOutputLanguage] = useState<string>('zh');
+  const [imageQualityControlEnabled, setImageQualityControlEnabled] = useState(false);
+  const [isSavingImageQualityControl, setIsSavingImageQualityControl] = useState(false);
+  useEffect(() => { localStorage.setItem('elevenLabsEnabled', String(elevenLabsEnabled)); }, [elevenLabsEnabled]);
+  useEffect(() => { if (elevenLabsVoiceId) localStorage.setItem('elevenLabsVoiceId', elevenLabsVoiceId); }, [elevenLabsVoiceId]);
+  useEffect(() => { localStorage.setItem('videoSpeed', String(videoSpeed)); }, [videoSpeed]);
+  const [videoNarrationConfig, setVideoNarrationConfig] = useState<NarrationConfig>(DEFAULT_VIDEO_NARRATION_CONFIG);
+  const [videoShowAdvancedNarration, setVideoShowAdvancedNarration] = useState(false);
   // 多选导出相关状态
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [selectedPageIds, setSelectedPageIds] = useState<Set<string>>(new Set());
@@ -224,7 +655,77 @@ export const SlidePreview: React.FC = () => {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [imageVersions, setImageVersions] = useState<ImageVersion[]>([]);
+  // 页面属性抽屉：桌面端（lg+）首次进入默认展开；窄屏浮层会盖住预览，保持默认收起。
+  // 用户显式收起/展开后，状态记忆在本地，不再被默认值覆盖。
+  const [isPropertiesOpen, setIsPropertiesOpen] = useState(() => {
+    const stored = localStorage.getItem('previewDrawer.open');
+    if (stored !== null) return stored === 'true';
+    // 768-1023px 下左侧缩略图栏（320px）加上抽屉会让预览区几乎不可用，保持默认收起
+    return window.matchMedia('(min-width: 1024px)').matches;
+  });
+  // 初始宽度也要按视口钳制：小窗口下沿用大屏记忆的 640px 会把预览区挤没
+  const [propertiesWidth, setPropertiesWidth] = useState(() =>
+    clampWidth(readStoredDrawerWidth(), window.innerWidth)
+  );
+  // 就地编辑态（lg+）：幻灯片上移让位给指令区，在大图上直接框选。
+  // 窄屏放不下上下分栏，仍走原来的编辑弹窗。
+  const [isInlineEditing, setIsInlineEditing] = useState(false);
+  // 正在编辑的是哪一页。切页的那一次渲染里 selectedIndex 已经指向新页，
+  // 但草稿还是旧页的，靠它把两者区分开
+  const editingPageIdRef = useRef<string | undefined>(undefined);
+  const [descriptionExtraFields, setDescriptionExtraFields] = useState<string[]>([]);
+  const [imagePromptExtraFields, setImagePromptExtraFields] = useState<string[] | undefined>(undefined);
+  // 只在用户真正切换时落盘，避免首屏窗口宽度把默认值固化下来
+  const setPropertiesOpen = useCallback((open: boolean) => {
+    setIsPropertiesOpen(open);
+    localStorage.setItem('previewDrawer.open', String(open));
+  }, []);
+  const handlePropertiesWidthChange = useCallback((width: number) => {
+    setPropertiesWidth(width);
+    localStorage.setItem('previewDrawer.width', String(width));
+  }, []);
+  // 窗口尺寸变化后按新视口重新钳制抽屉宽度，避免从大屏缩小时抽屉仍挤占预览区。
+  // 以 localStorage 里的用户偏好为基准，回到大屏后同一会话内也能恢复原来的宽度；
+  // 这里不写 localStorage，响应式收敛不会覆盖用户偏好。
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const onResize = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        setPropertiesWidth(() => clampWidth(readStoredDrawerWidth(), window.innerWidth));
+      }, 150);
+    };
+    window.addEventListener('resize', onResize);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', onResize);
+    };
+  }, []);
+  // 跨 lg 断点缩放时同步「首次默认展开/收起」的语义：用户从未显式开关过就跟随断点
+  // 自动收起/展开；显式选择过则尊重用户选择，不覆盖 localStorage。
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const onChange = () => {
+      if (localStorage.getItem('previewDrawer.open') !== null) return;
+      setIsPropertiesOpen(mq.matches);
+    };
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  // 抽屉里改页级模板：选图和模板提示词都走 PATCH，不经过页面字段的防抖队列
+  const handleUpdatePageTemplate = useCallback(
+    (pageId: string, patch: { template_asset_id?: string | null; template_style_text?: string | null }) =>
+      projectId
+        ? updatePageTemplate(projectId, pageId, { ...patch, selection_source: 'manual' })
+        : Promise.resolve(),
+    [projectId, updatePageTemplate]
+  );
+  const handleUploadTemplateAsset = useCallback(
+    (file: File) => uploadTemplateAsset(projectId!, file),
+    [projectId, uploadTemplateAsset]
+  );
   const [showVersionMenu, setShowVersionMenu] = useState(false);
+  const [showTemplateMenu, setShowTemplateMenu] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [selectedPresetTemplateId, setSelectedPresetTemplateId] = useState<string | null>(null);
   const [isUploadingTemplate, setIsUploadingTemplate] = useState(false);
@@ -242,6 +743,7 @@ export const SlidePreview: React.FC = () => {
   const isEditingRequirements = useRef(false); // 跟踪用户是否正在编辑额外要求
   const [templateStyle, setTemplateStyle] = useState<string>('');
   const [isSavingTemplateStyle, setIsSavingTemplateStyle] = useState(false);
+  const [isSwitchSingleOpen, setIsSwitchSingleOpen] = useState(false);
   const isEditingTemplateStyle = useRef(false); // 跟踪用户是否正在编辑风格描述
   const lastProjectId = useRef<string | null>(null); // 跟踪上一次的项目ID
   const [isProjectSettingsOpen, setIsProjectSettingsOpen] = useState(false);
@@ -259,6 +761,9 @@ export const SlidePreview: React.FC = () => {
   );
   const [exportAllowPartial, setExportAllowPartial] = useState<boolean>(
     currentProject?.export_allow_partial || false
+  );
+  const [enableIconSubjectExtraction, setEnableIconSubjectExtraction] = useState<boolean>(
+    currentProject?.enable_icon_subject_extraction ?? true
   );
   const [isSavingExportSettings, setIsSavingExportSettings] = useState(false);
   // 画面比例
@@ -292,28 +797,72 @@ export const SlidePreview: React.FC = () => {
 
   // 预览图矩形选择状态（编辑弹窗内）
   const imageRef = useRef<HTMLImageElement | null>(null);
+  const hasTouchedImageQualityControlRef = useRef(false);
   const [isRegionSelectionMode, setIsRegionSelectionMode] = useState(false);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const attachMenuRef = useRef<HTMLDivElement>(null);
   const [isSelectingRegion, setIsSelectingRegion] = useState(false);
   const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
   const [selectionRect, setSelectionRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const { show, ToastContainer } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
 
+  const resetRegionSelection = useCallback((enabled = false) => {
+    setIsRegionSelectionMode(enabled);
+    setSelectionStart(null);
+    setSelectionRect(null);
+    setIsSelectingRegion(false);
+  }, []);
+
   useEffect(() => {
-    exportTasks
-      .filter(task => task.projectId === projectId && task.status === 'FAILED' && task.taskId)
-      .forEach(task => {
-        if (notifiedFailedExportTaskIds.current.has(task.id)) {
-          return;
+    let isMounted = true;
+
+    const loadImageQualityControl = async () => {
+      try {
+        const response = await getSettings();
+        if (!response.data || !isMounted) return;
+        if (!hasTouchedImageQualityControlRef.current) {
+          setImageQualityControlEnabled(Boolean(response.data.enable_image_quality_control));
         }
-        notifiedFailedExportTaskIds.current.add(task.id);
-        show({
-          message: normalizeErrorMessage(task.errorMessage || t('preview.messages.exportFailed')),
-          type: 'error',
-          duration: 5000,
-        });
+        // 属性抽屉的描述额外字段与详细编辑器共用同一份配置
+        const extra = response.data.description_extra_fields;
+        if (Array.isArray(extra)) setDescriptionExtraFields(extra);
+        const imageFields = response.data.image_prompt_extra_fields;
+        if (Array.isArray(imageFields)) setImagePromptExtraFields(imageFields);
+      } catch (error) {
+        console.error('Failed to load image quality control setting:', error);
+      }
+    };
+    loadImageQualityControl();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleToggleImageQualityControl = useCallback(async () => {
+    hasTouchedImageQualityControlRef.current = true;
+    const nextValue = !imageQualityControlEnabled;
+    setImageQualityControlEnabled(nextValue);
+    setIsSavingImageQualityControl(true);
+    try {
+      const response = await updateSettings({ enable_image_quality_control: nextValue });
+      if (response.data) {
+        setImageQualityControlEnabled(Boolean(response.data.enable_image_quality_control));
+        sessionStorage.setItem('banana-settings', JSON.stringify(response.data));
+      }
+      show({ message: t('preview.qualityControlSaved'), type: 'success' });
+    } catch (error: any) {
+      setImageQualityControlEnabled(!nextValue);
+      show({
+        message: `${t('preview.qualityControlSaveFailed')}: ${error?.response?.data?.error?.message || error?.message || t('slidePreview.unknownError')}`,
+        type: 'error',
       });
-  }, [exportTasks, projectId, show, t]);
+    } finally {
+      setIsSavingImageQualityControl(false);
+    }
+  }, [imageQualityControlEnabled, show, t]);
+
 
   // Memoize pages with generated images to avoid re-computing in multiple places
   const pagesWithImages = useMemo(() => {
@@ -324,6 +873,17 @@ export const SlidePreview: React.FC = () => {
     () => currentProject?.pages?.some(p => p.generated_image_path) ?? false,
     [currentProject?.pages]
   );
+
+  useEffect(() => {
+    if (!currentProject) return;
+    const fallbackTopic = currentProject.idea_prompt?.trim()
+      || currentProject.pages.find(page => page.outline_content?.title)?.outline_content?.title
+      || '';
+    setVideoNarrationConfig(prev => ({
+      ...prev,
+      presentation_topic: prev.presentation_topic || fallbackTopic,
+    }));
+  }, [currentProject]);
 
   // 加载项目数据 & 用户模板
   useEffect(() => {
@@ -345,6 +905,13 @@ export const SlidePreview: React.FC = () => {
     };
     loadTemplates();
   }, [projectId, currentProject, syncProject]);
+
+  // 每页独立模板：加载项目模板库（供转统一模板弹层使用）
+  useEffect(() => {
+    if (projectId && currentProject?.template_mode === 'multi') {
+      loadTemplateAssets(projectId);
+    }
+  }, [projectId, currentProject?.template_mode, loadTemplateAssets]);
 
   // 监听警告消息
   const lastWarningRef = React.useRef<string | null>(null);
@@ -375,6 +942,7 @@ export const SlidePreview: React.FC = () => {
         setExportExtractorMethod((currentProject.export_extractor_method as ExportExtractorMethod) || 'hybrid');
         setExportInpaintMethod((currentProject.export_inpaint_method as ExportInpaintMethod) || 'hybrid');
         setExportAllowPartial(currentProject.export_allow_partial || false);
+        setEnableIconSubjectExtraction(currentProject.enable_icon_subject_extraction ?? true);
         setAspectRatio(currentProject.image_aspect_ratio || '16:9');
         lastProjectId.current = currentProject.id || null;
         isEditingRequirements.current = false;
@@ -392,10 +960,11 @@ export const SlidePreview: React.FC = () => {
         setExportExtractorMethod((currentProject.export_extractor_method as ExportExtractorMethod) || 'hybrid');
         setExportInpaintMethod((currentProject.export_inpaint_method as ExportInpaintMethod) || 'hybrid');
         setExportAllowPartial(currentProject.export_allow_partial || false);
+        setEnableIconSubjectExtraction(currentProject.enable_icon_subject_extraction ?? true);
       }
       // 如果用户正在编辑，则不更新本地状态
     }
-  }, [currentProject?.id, currentProject?.extra_requirements, currentProject?.template_style, currentProject?.image_aspect_ratio, currentProject?.export_extractor_method, currentProject?.export_inpaint_method, currentProject?.export_allow_partial]);
+  }, [currentProject?.id, currentProject?.extra_requirements, currentProject?.template_style, currentProject?.image_aspect_ratio, currentProject?.export_extractor_method, currentProject?.export_inpaint_method, currentProject?.export_allow_partial, currentProject?.enable_icon_subject_extraction]);
 
   // 加载当前页面的历史版本
   useEffect(() => {
@@ -559,8 +1128,7 @@ export const SlidePreview: React.FC = () => {
     // 先检查分辨率，如果是1K则显示警告
     await checkResolutionAndExecute(async () => {
       try {
-        // 使用统一的 generateImages，传入单个页面 ID
-        await generateImages([page.id!]);
+        await generatePageImage(page.id!, true);
         show({ message: t('slidePreview.generationStarted'), type: 'success' });
       } catch (error: any) {
         // 提取后端返回的更具体错误信息
@@ -591,7 +1159,7 @@ export const SlidePreview: React.FC = () => {
         });
       }
     });
-  }, [currentProject, selectedIndex, pageGeneratingTasks, generateImages, show, checkResolutionAndExecute]);
+  }, [currentProject, selectedIndex, pageGeneratingTasks, generatePageImage, show, checkResolutionAndExecute]);
 
   const handleSwitchVersion = async (versionId: string) => {
     if (!currentProject || !selectedPage?.id || !projectId) return;
@@ -681,14 +1249,62 @@ export const SlidePreview: React.FC = () => {
       });
     }
 
-    // 打开编辑弹窗时，清空上一次的选区和模式
-    setIsRegionSelectionMode(false);
-    setSelectionStart(null);
-    setSelectionRect(null);
-    setIsSelectingRegion(false);
+    // 每次进入编辑都默认开启区域选图，用户可直接在图片上拖拽框选。
+    resetRegionSelection(true);
 
-    setIsEditModalOpen(true);
+    // lg+ 走就地编辑，窄屏没有上下分栏的空间，仍用弹窗
+    if (window.matchMedia('(min-width: 1024px)').matches) {
+      editingPageIdRef.current = pageId;
+      setIsInlineEditing(true);
+    } else {
+      setIsEditModalOpen(true);
+    }
   };
+
+  const exitInlineEditing = useCallback(() => {
+    setIsInlineEditing(false);
+    setShowAttachMenu(false);
+    resetRegionSelection();
+  }, [resetRegionSelection]);
+
+  const closeEditModal = useCallback(() => {
+    setIsEditModalOpen(false);
+    resetRegionSelection();
+  }, [resetRegionSelection]);
+
+  // 缩到 lg 以下时就地编辑的上下分栏已经放不下，退回预览态而不是让布局塌掉
+  useEffect(() => {
+    if (!isInlineEditing) return;
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const onChange = () => {
+      if (!mq.matches) exitInlineEditing();
+    };
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, [isInlineEditing, exitInlineEditing]);
+
+  // Esc 退出就地编辑（弹窗有自己的 Esc 处理）
+  useEffect(() => {
+    if (!isInlineEditing) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') exitInlineEditing();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isInlineEditing, exitInlineEditing]);
+
+  // 加参考图菜单：点菜单外任意处收起。用 pointerdown 而非全屏遮罩——遮罩会吃掉
+  // 那一次点击（比如点向输入框却只是关了菜单），pointerdown 只收菜单、点击照常落地。
+  useEffect(() => {
+    if (!showAttachMenu) return;
+    const onDown = (e: PointerEvent) => {
+      if (attachMenuRef.current && !attachMenuRef.current.contains(e.target as Node)) {
+        setShowAttachMenu(false);
+      }
+    };
+    document.addEventListener('pointerdown', onDown);
+    return () => document.removeEventListener('pointerdown', onDown);
+  }, [showAttachMenu]);
 
   // 保存大纲和描述修改
   const handleSaveOutlineAndDescription = useCallback(() => {
@@ -737,8 +1353,12 @@ export const SlidePreview: React.FC = () => {
     const page = currentProject.pages[selectedIndex];
     if (!page.id) return;
 
-    // 先保存大纲和描述的修改
-    handleSaveOutlineAndDescription();
+    // 弹窗里带着大纲/描述输入框，提交时要一并保存；就地编辑态没有这两个字段，
+    // 保存只会把进入编辑态时的快照原样写回，白白盖掉期间从别处（属性面板、
+    // 后台同步）落下来的新值
+    if (!isInlineEditing) {
+      handleSaveOutlineAndDescription();
+    }
 
     // 调用后端编辑接口
     await editPageImage(
@@ -766,8 +1386,9 @@ export const SlidePreview: React.FC = () => {
       },
     }));
 
-    setIsEditModalOpen(false);
-  }, [currentProject, selectedIndex, editPrompt, selectedContextImages, editPageImage, handleSaveOutlineAndDescription]);
+    if (isInlineEditing) exitInlineEditing();
+    else closeEditModal();
+  }, [currentProject, selectedIndex, editPrompt, selectedContextImages, editPageImage, handleSaveOutlineAndDescription, isInlineEditing, exitInlineEditing, closeEditModal]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -784,17 +1405,17 @@ export const SlidePreview: React.FC = () => {
     }));
   };
 
-  // Manage object URLs for uploaded files to prevent memory leaks
-  const uploadedFileUrls = useRef<string[]>([]);
+  // Object URLs for the picked reference images. Held in state, not a ref, so
+  // that creating them schedules the render that shows them. As a ref this
+  // happened to work only because the draft-cache effect below also depends on
+  // uploadedFiles and its setState re-rendered the subtree a beat later —
+  // fine until someone changes that effect. Cleanup revokes the previous batch.
+  const [uploadedPreviews, setUploadedPreviews] = useState<string[]>([]);
   useEffect(() => {
-    uploadedFileUrls.current.forEach(url => URL.revokeObjectURL(url));
-    uploadedFileUrls.current = selectedContextImages.uploadedFiles.map(file => URL.createObjectURL(file));
+    const urls = selectedContextImages.uploadedFiles.map((file) => URL.createObjectURL(file));
+    setUploadedPreviews(urls);
+    return () => urls.forEach((url) => URL.revokeObjectURL(url));
   }, [selectedContextImages.uploadedFiles]);
-  useEffect(() => {
-    return () => {
-      uploadedFileUrls.current.forEach(url => URL.revokeObjectURL(url));
-    };
-  }, []);
 
   const handleSelectMaterials = async (materials: Material[]) => {
     try {
@@ -816,12 +1437,17 @@ export const SlidePreview: React.FC = () => {
     }
   };
 
-  // 编辑弹窗打开时，实时把输入与图片选择写入缓存（前端会话内）
+  // 编辑中（弹窗或就地编辑态）实时把输入与图片选择写入缓存（前端会话内），
+  // 这样切页退出编辑后再回来还能接着改
   useEffect(() => {
-    if (!isEditModalOpen || !currentProject) return;
+    if ((!isEditModalOpen && !isInlineEditing) || !currentProject) return;
     const page = currentProject.pages[selectedIndex];
     const pageId = page?.id;
     if (!pageId) return;
+    // 就地编辑态下切页时，这个 effect 会先于退出逻辑跑一次，此时 selectedIndex
+    // 已经是新页而草稿还是旧页的——写下去就等于把上一页的指令挂到新页名下，
+    // 新页再点「编辑」就会看到别人的草稿
+    if (isInlineEditing && editingPageIdRef.current && editingPageIdRef.current !== pageId) return;
 
     setEditContextByPage((prev) => ({
       ...prev,
@@ -834,11 +1460,54 @@ export const SlidePreview: React.FC = () => {
         },
       },
     }));
-  }, [isEditModalOpen, currentProject, selectedIndex, editPrompt, selectedContextImages]);
+  }, [isEditModalOpen, isInlineEditing, currentProject, selectedIndex, editPrompt, selectedContextImages]);
 
-  // ========== 预览图矩形选择相关逻辑（编辑弹窗内） ==========
-  const handleSelectionMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+  // 编辑态下从缩略图切页：选区框、裁剪出来的参考图、指令都是上一页的，留着会把
+  // 旧页的裁剪图喂给新页。退出编辑态即可——上面的 effect 已经把内容按页缓存好了，
+  // 用户在新页点「编辑」还能接着改。
+  useEffect(() => {
+    if (!isInlineEditing) {
+      editingPageIdRef.current = undefined;
+      return;
+    }
+    const pageId = currentProject?.pages[selectedIndex]?.id;
+    if (editingPageIdRef.current && editingPageIdRef.current !== pageId) {
+      exitInlineEditing();
+    }
+  }, [isInlineEditing, selectedIndex, currentProject, exitInlineEditing]);
+
+  // ========== 预览图矩形选择相关逻辑 ==========
+  // 图片内容在 <img> 盒子里的实际位置：object-fit 会让两者不一致——contain 时四周留白、
+  // cover 时超出部分被裁掉。选区坐标是相对盒子量的，必须先换算到内容坐标再映射回原图，
+  // 否则项目改了比例、而图还是按旧比例生成时，裁出来的区域会整体偏移。
+  const getRenderedImageRect = (img: HTMLImageElement) => {
+    const box = img.getBoundingClientRect();
+    const { naturalWidth: natW, naturalHeight: natH } = img;
+    if (!natW || !natH || !box.width || !box.height) return null;
+    const scale =
+      getComputedStyle(img).objectFit === 'contain'
+        ? Math.min(box.width / natW, box.height / natH)
+        : Math.max(box.width / natW, box.height / natH);
+    const renderedW = natW * scale;
+    const renderedH = natH * scale;
+    return {
+      scale,
+      // cover 时为负，表示内容左/上被裁掉了多少
+      offsetX: (box.width - renderedW) / 2,
+      offsetY: (box.height - renderedH) / 2,
+      renderedW,
+      renderedH,
+    };
+  };
+
+  const handleSelectionPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isRegionSelectionMode || !imageRef.current) return;
+    e.preventDefault();
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Synthetic pointer events used by some browsers/tests may not be capturable.
+    }
     const rect = imageRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -848,8 +1517,9 @@ export const SlidePreview: React.FC = () => {
     setSelectionRect(null);
   };
 
-  const handleSelectionMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleSelectionPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isRegionSelectionMode || !isSelectingRegion || !selectionStart || !imageRef.current) return;
+    e.preventDefault();
     const rect = imageRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -865,7 +1535,10 @@ export const SlidePreview: React.FC = () => {
     setSelectionRect({ left, top, width, height });
   };
 
-  const handleSelectionMouseUp = async () => {
+  const handleSelectionPointerUp = async (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
     if (!isRegionSelectionMode || !isSelectingRegion || !selectionRect || !imageRef.current) {
       setIsSelectingRegion(false);
       setSelectionStart(null);
@@ -884,21 +1557,16 @@ export const SlidePreview: React.FC = () => {
         return;
       }
 
-      // 将选区从展示尺寸映射到原始图片尺寸
-      const naturalWidth = img.naturalWidth;
-      const naturalHeight = img.naturalHeight;
-      const displayWidth = img.clientWidth;
-      const displayHeight = img.clientHeight;
+      // 将选区从展示尺寸映射到原始图片尺寸（先扣掉 object-fit 造成的留白/裁切）
+      const rendered = getRenderedImageRect(img);
+      if (!rendered) return;
 
-      if (!naturalWidth || !naturalHeight || !displayWidth || !displayHeight) return;
-
-      const scaleX = naturalWidth / displayWidth;
-      const scaleY = naturalHeight / displayHeight;
-
-      const sx = left * scaleX;
-      const sy = top * scaleY;
-      const sWidth = width * scaleX;
-      const sHeight = height * scaleY;
+      // contain 时选区可能落在留白上、cover 时可能落在被裁掉的部分上，都要夹回原图范围内
+      const sx = Math.max(0, (left - rendered.offsetX) / rendered.scale);
+      const sy = Math.max(0, (top - rendered.offsetY) / rendered.scale);
+      const sWidth = Math.min(width / rendered.scale, img.naturalWidth - sx);
+      const sHeight = Math.min(height / rendered.scale, img.naturalHeight - sy);
+      if (sWidth <= 0 || sHeight <= 0) return;
 
       const canvas = document.createElement('canvas');
       canvas.width = Math.max(1, Math.round(sWidth));
@@ -945,6 +1613,15 @@ export const SlidePreview: React.FC = () => {
     }
   };
 
+  const handleSelectionPointerCancel = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    setIsSelectingRegion(false);
+    setSelectionStart(null);
+    setSelectionRect(null);
+  };
+
   // 多选相关函数
   const togglePageSelection = (pageId: string) => {
     setSelectedPageIds(prev => {
@@ -985,18 +1662,33 @@ export const SlidePreview: React.FC = () => {
     return Array.from(selectedPageIds);
   };
 
-  const handleExport = async (type: 'pptx' | 'pdf' | 'editable-pptx' | 'images') => {
-    setShowExportMenu(false);
+  const handleExport = async (
+    type: 'pptx' | 'pdf' | 'editable-pptx' | 'images' | 'video',
+    options?: {
+      pptxTransitionEnabled?: boolean;
+      pptxTransitionEffects?: PptxTransitionEffect[];
+      editableMode?: 'full' | 'simple';
+    },
+  ) => {
+    setExportMenuOpen(false);
     if (!projectId) return;
 
     const pageIds = getSelectedPageIdsForExport();
     const exportTaskId = `export-${Date.now()}`;
 
+    let backendTaskId: string | undefined;
     try {
+      backendTaskId = type === 'editable-pptx' ? generateUuid() : undefined;
       if (type === 'pptx' || type === 'pdf' || type === 'images') {
         // Synchronous export - direct download, create completed task directly
-        const exportApi = { pptx: apiExportPPTX, pdf: apiExportPDF, images: apiExportImages };
-        const response = await exportApi[type](projectId, pageIds);
+        const response = type === 'pptx'
+          ? await apiExportPPTX(projectId, pageIds, {
+              transitionEnabled: options?.pptxTransitionEnabled,
+              transitionEffects: options?.pptxTransitionEffects,
+            })
+          : type === 'pdf'
+            ? await apiExportPDF(projectId, pageIds)
+            : await apiExportImages(projectId, pageIds);
         const downloadUrl = response.data?.download_url || response.data?.download_url_absolute;
         if (downloadUrl) {
           addTask({
@@ -1008,13 +1700,13 @@ export const SlidePreview: React.FC = () => {
             downloadUrl,
             pageIds: pageIds,
           });
-          window.open(downloadUrl, '_blank');
+          triggerDownload(downloadUrl);
         }
       } else if (type === 'editable-pptx') {
         // Async export - create processing task and start polling
         addTask({
           id: exportTaskId,
-          taskId: '', // Will be updated below
+          taskId: backendTaskId!,
           projectId,
           type: 'editable-pptx',
           status: 'PROCESSING',
@@ -1023,7 +1715,7 @@ export const SlidePreview: React.FC = () => {
         
         show({ message: t('slidePreview.exportStarted'), type: 'success' });
         
-        const response = await apiExportEditablePPTX(projectId, undefined, pageIds);
+        const response = await apiExportEditablePPTX(projectId, undefined, pageIds, backendTaskId, options?.editableMode);
         const taskId = response.data?.task_id;
         
         if (taskId) {
@@ -1040,8 +1732,100 @@ export const SlidePreview: React.FC = () => {
           // Start polling in background (non-blocking)
           pollExportTask(exportTaskId, projectId, taskId);
         }
+      } else if (type === 'video') {
+        // Async export - create processing task and start polling
+        addTask({
+          id: exportTaskId,
+          taskId: '',
+          projectId,
+          type: 'video',
+          status: 'PROCESSING',
+          pageIds: pageIds,
+        });
+
+        show({ message: t('slidePreview.exportStarted'), type: 'success' });
+
+        const activeVoice = elevenLabsEnabled ? elevenLabsVoiceId : videoVoice;
+        const voiceLang = elevenLabsEnabled ? 'zh' : (VIDEO_VOICE_OPTIONS.flatMap(g => g.voices).find(v => v.id === videoVoice)?.lang || 'zh');
+        const response = await apiExportVideo(projectId, {
+          pageIds,
+          enableKenBurns: videoEnableKenBurns,
+          includeNoImagePages: videoIncludeNoImage,
+          voice: activeVoice,
+          speed: videoSpeed,
+          language: voiceLang,
+          generateNarration: true,
+          presentationTopic: videoNarrationConfig.presentation_topic,
+          narrationConfig: {
+            ...videoNarrationConfig,
+            presentation_topic: videoNarrationConfig.presentation_topic,
+          },
+        });
+        const taskId = response.data?.task_id;
+
+        if (taskId) {
+          addTask({
+            id: exportTaskId,
+            taskId,
+            projectId,
+            type: 'video',
+            status: 'PROCESSING',
+            pageIds: pageIds,
+          });
+
+          pollExportTask(exportTaskId, projectId, taskId);
+        }
       }
     } catch (error: any) {
+      let errorMessage = t('preview.messages.exportFailed');
+      const respData = error?.response?.data;
+
+      if (respData) {
+        if (respData.error?.message) {
+          errorMessage = respData.error.message;
+        } else if (respData.message) {
+          errorMessage = respData.message;
+        } else if (respData.error) {
+          errorMessage =
+            typeof respData.error === 'string'
+              ? respData.error
+              : respData.error.message || errorMessage;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      const normalizedErrorMessage = normalizeErrorMessage(errorMessage);
+
+      const responseStatus = error?.response?.status;
+      const editableStartMayHaveSucceeded = type === 'editable-pptx'
+        && backendTaskId
+        && (
+          !error?.response
+          || [408, 429, 500, 502, 503, 504].includes(responseStatus)
+        );
+
+      if (editableStartMayHaveSucceeded && backendTaskId) {
+        addTask({
+          id: exportTaskId,
+          taskId: backendTaskId,
+          projectId,
+          type: 'editable-pptx',
+          status: 'PROCESSING',
+          pageIds,
+          monitoring: {
+            state: 'retrying',
+            code: 'EXPORT_CREATE_RESPONSE_INTERRUPTED',
+            message: t('slidePreview.exportStartResponseLost'),
+            consecutiveErrors: 1,
+            lastErrorAt: new Date().toISOString(),
+          },
+        });
+        show({ message: t('slidePreview.exportStartResponseLost'), type: 'warning' });
+        pollExportTask(exportTaskId, projectId, backendTaskId);
+        return;
+      }
+
       // Update task as failed
       addTask({
         id: exportTaskId,
@@ -1049,10 +1833,63 @@ export const SlidePreview: React.FC = () => {
         projectId,
         type: type as ExportTaskType,
         status: 'FAILED',
-        errorMessage: normalizeErrorMessage(error.message || t('preview.messages.exportFailed')),
+        errorMessage: normalizedErrorMessage,
         pageIds: pageIds,
       });
-      show({ message: normalizeErrorMessage(error.message || t('preview.messages.exportFailed')), type: 'error' });
+      show({ message: normalizedErrorMessage, type: 'error' });
+    }
+  };
+
+  const handleOpenVideoExport = async () => {
+    if (isPreparingVideoExport) return;
+
+    setIsPreparingVideoExport(true);
+    try {
+      const res = await getSettings();
+      if (!showExportMenuRef.current) return;
+      if (!res || res.success === false || !res.data) {
+        throw new Error('Settings response did not contain usable data');
+      }
+
+      const hasKey = (res.data.elevenlabs_api_key_length ?? 0) > 0;
+      setElevenLabsApiKeyConfigured(hasKey);
+      setOutputLanguage((res.data.output_language as string | undefined) || 'zh');
+      if (!hasKey) setElevenLabsEnabled(false);
+
+      if (hasKey && elevenLabsEnabled && elevenLabsVoices.length === 0) {
+        setElevenLabsVoicesLoading(true);
+        try {
+          const voicesRes = await getElevenLabsVoices();
+          if (!showExportMenuRef.current) return;
+          const voices = voicesRes?.data?.voices ?? [];
+          setElevenLabsVoices(voices);
+          if (voices.length > 0 && !voices.some(voice => voice.id === elevenLabsVoiceId)) {
+            setElevenLabsVoiceId(voices[0].id);
+          }
+        } catch (error: any) {
+          if (!showExportMenuRef.current) return;
+          show({
+            message: error?.response?.data?.error?.message
+              || error?.response?.data?.message
+              || error?.message
+              || t('preview.videoVoicesLoadFailed'),
+            type: 'error',
+          });
+        } finally {
+          setElevenLabsVoicesLoading(false);
+        }
+      }
+
+      if (!showExportMenuRef.current) return;
+      setVideoIncludeNoImage(false);
+      setExportMenuOpen(false);
+      setShowVideoExportDialog(true);
+    } catch (error) {
+      if (!showExportMenuRef.current) return;
+      console.error('Failed to load video export settings:', error);
+      show({ message: t('preview.videoSettingsLoadFailed'), type: 'error' });
+    } finally {
+      setIsPreparingVideoExport(false);
     }
   };
 
@@ -1119,6 +1956,34 @@ export const SlidePreview: React.FC = () => {
     }
   }, [currentProject, projectId, templateStyle, syncProject, show]);
 
+  // 模板模式切换
+  const handleSwitchToMulti = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      await switchTemplateMode(projectId, { mode: 'multi' });
+      await syncProject(projectId);
+      show({ message: t('slidePreview.switchedToMulti'), type: 'success' });
+    } catch (error: any) {
+      show({ message: t('slidePreview.switchFailed', { error: error.message || '' }), type: 'error' });
+    }
+  }, [projectId, switchTemplateMode, syncProject, show, t]);
+
+  const handleSwitchToSingleExisting = useCallback(async (assetId: string, unifiedStyleText?: string) => {
+    if (!projectId) return;
+    await switchTemplateMode(projectId, {
+      mode: 'single',
+      unified_asset_id: assetId,
+      unified_style_text: unifiedStyleText ?? null,
+    });
+    await syncProject(projectId);
+  }, [projectId, switchTemplateMode, syncProject]);
+
+  const handleSwitchToSingleUpload = useCallback(async (file: File, unifiedStyleText?: string) => {
+    if (!projectId) return;
+    await switchTemplateModeWithUpload(projectId, file, unifiedStyleText);
+    await syncProject(projectId);
+  }, [projectId, switchTemplateModeWithUpload, syncProject]);
+
   const handleSaveExportSettings = useCallback(async () => {
     if (!currentProject || !projectId) return;
 
@@ -1127,7 +1992,8 @@ export const SlidePreview: React.FC = () => {
       await updateProject(projectId, {
         export_extractor_method: exportExtractorMethod,
         export_inpaint_method: exportInpaintMethod,
-        export_allow_partial: exportAllowPartial
+        export_allow_partial: exportAllowPartial,
+        enable_icon_subject_extraction: enableIconSubjectExtraction
       });
       // 更新本地项目状态
       await syncProject(projectId);
@@ -1140,7 +2006,7 @@ export const SlidePreview: React.FC = () => {
     } finally {
       setIsSavingExportSettings(false);
     }
-  }, [currentProject, projectId, exportExtractorMethod, exportInpaintMethod, exportAllowPartial, syncProject, show]);
+  }, [currentProject, projectId, exportExtractorMethod, exportInpaintMethod, exportAllowPartial, enableIconSubjectExtraction, syncProject, show, t]);
 
   const handleSaveAspectRatio = useCallback(async () => {
     if (!currentProject || !projectId) return;
@@ -1239,14 +2105,33 @@ export const SlidePreview: React.FC = () => {
   }
 
   const selectedPage = currentProject.pages[selectedIndex];
+  const isCurrentPageGenerating = selectedPage?.id ? !!pageGeneratingTasks[selectedPage.id] : false;
   const imageUrl = selectedPage?.generated_image_path
     ? getImageUrl(selectedPage.generated_image_path, selectedPage.updated_at)
     : '';
 
-  const hasAllImages = currentProject.pages.every(
-    (p) => p.generated_image_path
-  );
-  const missingImageCount = currentProject.pages.filter(p => !p.generated_image_path).length;
+  const exportRangePages = isMultiSelectMode && selectedPageIds.size > 0
+    ? currentProject.pages.filter((page) => {
+        const pageId = page.id || page.page_id;
+        return pageId ? selectedPageIds.has(pageId) : false;
+      })
+    : currentProject.pages;
+  const exportMissingImageCount = exportRangePages.filter(p => !p.generated_image_path).length;
+  const exportRangeHasAllImages = exportRangePages.length > 0 && exportMissingImageCount === 0;
+  const exportRangeMissingTip = exportMissingImageCount > 0
+    ? t('preview.disabledExportTip', { count: exportMissingImageCount })
+    : undefined;
+  const isEnglishUi = i18n.language?.startsWith('en');
+  const getNarrationOptionLabel = (options: Array<{ value: string; zh: string; en: string }>, value: string) => {
+    const match = options.find(item => item.value === value);
+    return match ? (isEnglishUi ? match.en : match.zh) : value;
+  };
+  const narrationSummary = [
+    videoNarrationConfig.presentation_topic,
+    `${t('preview.videoNarrationPersona')} · ${getNarrationOptionLabel(NARRATION_PERSONA_OPTIONS, videoNarrationConfig.speaker_persona)}`,
+    `${t('preview.videoNarrationAudience')} · ${getNarrationOptionLabel(NARRATION_AUDIENCE_OPTIONS, videoNarrationConfig.target_audience)}`,
+    `${t('preview.videoNarrationTone')} · ${getNarrationOptionLabel(NARRATION_TONE_OPTIONS, videoNarrationConfig.speech_tone)}`,
+  ].filter(Boolean).join(' / ');
 
   return (
     <div className="h-screen bg-gray-50 dark:bg-background-primary flex flex-col overflow-hidden">
@@ -1266,6 +2151,8 @@ export const SlidePreview: React.FC = () => {
               variant="ghost"
               size="sm"
               icon={<ArrowLeft size={16} className="md:w-[18px] md:h-[18px]" />}
+              aria-label={t('common.back')}
+              title={t('common.back')}
               onClick={() => {
                 if (fromHistory) {
                   navigate('/history');
@@ -1278,7 +2165,7 @@ export const SlidePreview: React.FC = () => {
               <span className="hidden sm:inline">{t('common.back')}</span>
             </Button>
             <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
-              <span className="text-xl md:text-2xl">🍌</span>
+              <img src={logoUrl} alt="" className="w-6 h-6 md:w-8 md:h-8 object-contain flex-shrink-0" />
               <span className="text-base md:text-xl font-bold truncate">{t('home.title')}</span>
             </div>
             <span className="text-gray-400 hidden md:inline">|</span>
@@ -1294,15 +2181,71 @@ export const SlidePreview: React.FC = () => {
             >
               <span className="hidden xl:inline">{t('preview.projectSettings')}</span>
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              icon={<Upload size={16} className="md:w-[18px] md:h-[18px]" />}
-              onClick={() => { setDraftTemplateStyle(templateStyle); setIsTemplateModalOpen(true); }}
-              className="hidden lg:inline-flex"
-            >
-              <span className="hidden xl:inline">{t('preview.changeTemplate')}</span>
-            </Button>
+            {/* 模板菜单：按模式展示 配置/更换 + 模式切换，避免并列入口误用 */}
+            <div className="relative hidden lg:block">
+              <Button
+                variant="ghost"
+                size="sm"
+                data-testid="template-menu"
+                title={t('preview.templateMenu')}
+                icon={<LayoutTemplate size={16} className="md:w-[18px] md:h-[18px]" />}
+                onClick={() => setShowTemplateMenu(!showTemplateMenu)}
+              >
+                <span className="hidden xl:inline">{t('preview.templateMenu')}</span>
+                <ChevronDown
+                  size={14}
+                  className={`ml-0.5 transition-transform ${showTemplateMenu ? 'rotate-180' : ''}`}
+                />
+              </Button>
+              {showTemplateMenu && (
+                <div className="absolute right-0 mt-2 w-44 bg-white dark:bg-background-secondary rounded-lg shadow-lg border border-gray-200 dark:border-border-primary py-2 z-20">
+                  {currentProject?.template_mode === 'multi' ? (
+                    <>
+                      <button
+                        onClick={() => {
+                          setShowTemplateMenu(false);
+                          navigate(`/project/${projectId}/template-setup`);
+                        }}
+                        className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm"
+                      >
+                        {t('preview.templateSetup')}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowTemplateMenu(false);
+                          setIsSwitchSingleOpen(true);
+                        }}
+                        className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm"
+                      >
+                        {t('preview.switchToSingle')}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => {
+                          setShowTemplateMenu(false);
+                          setDraftTemplateStyle(templateStyle);
+                          setIsTemplateModalOpen(true);
+                        }}
+                        className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm"
+                      >
+                        {t('preview.changeTemplate')}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowTemplateMenu(false);
+                          handleSwitchToMulti();
+                        }}
+                        className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm"
+                      >
+                        {t('preview.switchToMulti')}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
             <Button
               variant="ghost"
               size="sm"
@@ -1315,11 +2258,14 @@ export const SlidePreview: React.FC = () => {
             <Button
               variant="secondary"
               size="sm"
-              icon={<ArrowLeft size={16} className="md:w-[18px] md:h-[18px]" />}
+              data-testid="preview-previous-step"
+              aria-label={t('common.previous')}
+              title={t('common.previous')}
+              icon={<StepBack size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={() => navigate(`/project/${projectId}/detail`)}
-              className="hidden sm:inline-flex"
+              className="flex-shrink-0"
             >
-              <span className="hidden md:inline">{t('common.previous')}</span>
+              <span className="hidden sm:inline">{t('common.previous')}</span>
             </Button>
             <Button
               variant="ghost"
@@ -1332,15 +2278,16 @@ export const SlidePreview: React.FC = () => {
               <span className="hidden lg:inline">{t('preview.refresh')}</span>
             </Button>
           
-          {/* 导出任务按钮 */}
-          {exportTasks.filter(t => t.projectId === projectId).length > 0 && (
-            <div className="relative">
+          {/* 导出任务按钮 — 始终显示，面板内部决定是否有内容 */}
+          <div className="relative">
               <Button
                 variant="ghost"
                 size="sm"
+                title={t('preview.exportTasks')}
+                aria-label={t('preview.exportTasks')}
                 onClick={() => {
                   setShowExportTasksPanel(!showExportTasksPanel);
-                  setShowExportMenu(false);
+                  setExportMenuOpen(false);
                 }}
                 className="relative"
               >
@@ -1349,21 +2296,22 @@ export const SlidePreview: React.FC = () => {
                 ) : (
                   <FileText size={16} />
                 )}
-                <span className="ml-1 text-xs">
-                  {exportTasks.filter(t => t.projectId === projectId).length}
-                </span>
+                {exportTasks.filter(t => t.projectId === projectId).length > 0 && (
+                  <span className="ml-1 text-xs">
+                    {exportTasks.filter(t => t.projectId === projectId).length}
+                  </span>
+                )}
               </Button>
               {showExportTasksPanel && (
-                <div className="absolute right-0 mt-2 z-20">
-                  <ExportTasksPanel 
-                    projectId={projectId} 
+                <div data-testid="export-tasks-popover" className="absolute right-0 mt-2 z-20">
+                  <ExportTasksPanel
+                    projectId={projectId}
                     pages={currentProject?.pages || []}
-                    className="w-96 max-h-[28rem] shadow-lg" 
+                    className="w-96 max-h-[28rem] shadow-lg"
                   />
                 </div>
               )}
             </div>
-          )}
           
           <div className="relative">
             <Button
@@ -1371,11 +2319,11 @@ export const SlidePreview: React.FC = () => {
               size="sm"
               icon={<Download size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={() => {
-                setShowExportMenu(!showExportMenu);
+                setExportMenuOpen(!showExportMenu);
                 setShowExportTasksPanel(false);
               }}
-              disabled={isMultiSelectMode ? selectedPageIds.size === 0 : !hasAllImages}
-              title={!isMultiSelectMode && !hasAllImages ? t('preview.disabledExportTip', { count: missingImageCount }) : undefined}
+              disabled={isMultiSelectMode && selectedPageIds.size === 0}
+              title={exportRangeMissingTip}
               className="text-xs md:text-sm"
             >
               <span className="hidden sm:inline">
@@ -1397,28 +2345,53 @@ export const SlidePreview: React.FC = () => {
                   </div>
                 )}
                 <button
-                  onClick={() => handleExport('pptx')}
-                  className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm"
+                  onClick={() => {
+                    setExportMenuOpen(false);
+                    setShowPptxExportDialog(true);
+                  }}
+                  disabled={!exportRangeHasAllImages}
+                  title={exportRangeMissingTip}
+                  className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {t('preview.exportPptx')}
                 </button>
                 <button
-                  onClick={() => handleExport('editable-pptx')}
-                  className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm"
+                  onClick={() => {
+                    setExportMenuOpen(false);
+                    setEditablePptxDialogIconTransparent(currentProject?.enable_icon_subject_extraction ?? true);
+                    setShowEditablePptxDialog(true);
+                  }}
+                  disabled={!exportRangeHasAllImages}
+                  title={exportRangeMissingTip}
+                  className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {t('preview.exportEditablePptx')}
                 </button>
                 <button
                   onClick={() => handleExport('pdf')}
-                  className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm"
+                  disabled={!exportRangeHasAllImages}
+                  title={exportRangeMissingTip}
+                  className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {t('preview.exportPdf')}
                 </button>
                 <button
                   onClick={() => handleExport('images')}
-                  className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm"
+                  disabled={!exportRangeHasAllImages}
+                  title={exportRangeMissingTip}
+                  className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {t('preview.exportImages')}
+                </button>
+                <button
+                  onClick={handleOpenVideoExport}
+                  disabled={isPreparingVideoExport}
+                  className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm disabled:cursor-wait disabled:opacity-70"
+                >
+                  <span className="flex items-center gap-2">
+                    {isPreparingVideoExport && <Loader2 size={14} className="animate-spin" />}
+                    {isPreparingVideoExport ? t('preview.videoSettingsLoading') : t('preview.exportVideo')}
+                  </span>
                 </button>
               </div>
             )}
@@ -1426,11 +2399,510 @@ export const SlidePreview: React.FC = () => {
         </div>
       </header>
 
+      {/* PPTX 导出设置弹窗 */}
+      {showPptxExportDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowPptxExportDialog(false)}>
+          <div className="bg-white dark:bg-background-secondary rounded-2xl shadow-xl p-6 w-full max-w-xl mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold">{t('preview.pptxExportTitle')}</h3>
+            <p className="text-sm text-gray-500 dark:text-foreground-tertiary mt-1 mb-5">{t('preview.pptxExportSubtitle')}</p>
+
+            <div className="space-y-4">
+              <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-background-hover">
+                <input
+                  type="checkbox"
+                  checked={pptxTransitionsEnabled}
+                  onChange={e => setPptxTransitionsEnabled(e.target.checked)}
+                  className="w-4 h-4 mt-0.5 rounded border-gray-300 text-banana-500 focus:ring-banana-500"
+                />
+                <div className="flex-1">
+                  <div className="text-sm font-medium">{t('preview.pptxTransitionToggle')}</div>
+                  <div className="text-xs text-gray-500 dark:text-foreground-tertiary mt-1">{t('preview.pptxTransitionDesc')}</div>
+                </div>
+              </label>
+
+              {pptxTransitionsEnabled && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {PPTX_TRANSITION_OPTIONS.map(option => {
+                    const checked = pptxTransitionEffects.includes(option.value);
+                    return (
+                      <label
+                        key={option.value}
+                        className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm cursor-pointer transition-colors ${
+                          checked
+                            ? 'border-banana-400 bg-banana-50 text-banana-700 dark:border-banana-500 dark:bg-banana-500/10 dark:text-banana-300'
+                            : 'border-gray-200 dark:border-border-primary hover:bg-gray-50 dark:hover:bg-background-hover'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={e => {
+                            setPptxTransitionEffects(prev => {
+                              if (e.target.checked) {
+                                return prev.includes(option.value) ? prev : [...prev, option.value];
+                              }
+                              return prev.filter(effect => effect !== option.value);
+                            });
+                          }}
+                          className="w-4 h-4 rounded border-gray-300 text-banana-500 focus:ring-banana-500"
+                        />
+                        <span>{t(`preview.${option.labelKey}`)}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+
+              {pptxTransitionsEnabled && pptxTransitionEffects.length === 0 && (
+                <div className="text-xs text-amber-600 dark:text-amber-400 px-1">
+                  {t('preview.pptxTransitionRequired')}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowPptxExportDialog(false)}
+                className="px-4 py-2 text-sm text-gray-600 dark:text-foreground-tertiary hover:bg-gray-100 dark:hover:bg-background-hover rounded-lg transition-colors"
+              >
+                {t('preview.pptxCancel')}
+              </button>
+              <button
+                onClick={() => {
+                  setShowPptxExportDialog(false);
+                  handleExport('pptx', {
+                    pptxTransitionEnabled: pptxTransitionsEnabled,
+                    pptxTransitionEffects,
+                  });
+                }}
+                disabled={pptxTransitionsEnabled && pptxTransitionEffects.length === 0}
+                className="px-4 py-2 text-sm bg-banana-500 text-white rounded-lg hover:bg-banana-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                {t('preview.pptxStartExport')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 视频导出设置弹窗 */}
+      {showVideoExportDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowVideoExportDialog(false)}>
+          <div className="bg-white dark:bg-background-secondary rounded-2xl shadow-xl p-6 w-[680px] max-w-[96vw] max-h-[88vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold">{t('preview.videoExportTitle')}</h3>
+            <p className="text-sm text-gray-500 dark:text-foreground-tertiary mt-1 mb-5">{t('preview.videoExportSubtitle')}</p>
+            <div className="space-y-5">
+              <div className="rounded-xl border border-gray-200 dark:border-border-primary p-4 space-y-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <div className="text-sm font-medium">{t('preview.videoNarrationPresetTitle')}</div>
+                    <div className="text-xs text-gray-500 dark:text-foreground-tertiary mt-1">{t('preview.videoNarrationAdvancedHint')}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setVideoShowAdvancedNarration(prev => !prev)}
+                    className="text-sm text-banana-600 hover:text-banana-700"
+                  >
+                    {videoShowAdvancedNarration ? t('preview.videoNarrationCollapse') : t('preview.videoNarrationAdvanced')}
+                  </button>
+                </div>
+                <div className="rounded-lg border border-gray-200 dark:border-border-primary px-3 py-2 text-sm text-gray-700 dark:text-foreground-secondary">
+                  <span className="font-medium mr-2">{t('preview.videoNarrationSummaryLabel')}</span>
+                  <span>{narrationSummary}</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5">{t('preview.videoNarrationPersona')}</label>
+                    <select
+                      value={videoNarrationConfig.speaker_persona}
+                      onChange={e => setVideoNarrationConfig(prev => ({ ...prev, speaker_persona: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-border-primary rounded-lg bg-white dark:bg-background-primary focus:outline-none focus:ring-2 focus:ring-banana-400"
+                    >
+                      {NARRATION_PERSONA_OPTIONS.map(option => (
+                        <option key={option.value} value={option.value}>
+                          {isEnglishUi ? option.en : option.zh}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5">{t('preview.videoNarrationAudience')}</label>
+                    <select
+                      value={videoNarrationConfig.target_audience}
+                      onChange={e => setVideoNarrationConfig(prev => ({ ...prev, target_audience: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-border-primary rounded-lg bg-white dark:bg-background-primary focus:outline-none focus:ring-2 focus:ring-banana-400"
+                    >
+                      {NARRATION_AUDIENCE_OPTIONS.map(option => (
+                        <option key={option.value} value={option.value}>
+                          {isEnglishUi ? option.en : option.zh}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5">{t('preview.videoNarrationTone')}</label>
+                    <select
+                      value={videoNarrationConfig.speech_tone}
+                      onChange={e => setVideoNarrationConfig(prev => ({ ...prev, speech_tone: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-border-primary rounded-lg bg-white dark:bg-background-primary focus:outline-none focus:ring-2 focus:ring-banana-400"
+                    >
+                      {NARRATION_TONE_OPTIONS.map(option => (
+                        <option key={option.value} value={option.value}>
+                          {isEnglishUi ? option.en : option.zh}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5">{t('preview.videoVoiceLabel')}</label>
+                    {elevenLabsEnabled ? (
+                      (() => {
+                        const targetLang = (outputLanguage || 'zh').toLowerCase();
+                        const matched = elevenLabsVoices.filter(v => (v.languages || []).some(l => l.toLowerCase() === targetLang));
+                        const noMatch = !elevenLabsVoicesLoading && elevenLabsVoices.length > 0 && matched.length === 0;
+                        const list = matched.length > 0 ? matched : elevenLabsVoices;
+                        return (
+                          <>
+                            <select
+                              value={elevenLabsVoiceId}
+                              onChange={e => setElevenLabsVoiceId(e.target.value)}
+                              disabled={elevenLabsVoicesLoading}
+                              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-border-primary rounded-lg bg-white dark:bg-background-primary focus:outline-none focus:ring-2 focus:ring-banana-400 disabled:opacity-60"
+                            >
+                              {elevenLabsVoicesLoading ? (
+                                <option>{isEnglishUi ? 'Loading voices…' : '加载声音列表中…'}</option>
+                              ) : elevenLabsVoices.length === 0 ? (
+                                <option>{isEnglishUi ? 'No voices available' : '暂无可用声音'}</option>
+                              ) : list.map(v => {
+                                const langs = (v.languages || []).join(', ');
+                                const meta = [langs, v.accent].filter(Boolean).join(' · ');
+                                return (
+                                  <option key={v.id} value={v.id}>
+                                    {meta ? `${v.name} (${meta})` : v.name}
+                                  </option>
+                                );
+                              })}
+                            </select>
+                            {noMatch && (
+                              <div className="mt-2 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+                                {isEnglishUi
+                                  ? `No ElevenLabs voice in your account supports the target language "${targetLang}". Showing all voices as fallback — generated audio may not sound natural.`
+                                  : `当前账号下没有支持目标语言"${targetLang}"的 ElevenLabs 声音，已显示全部声音作为兜底——生成的语音可能不自然。`}
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()
+                    ) : (
+                      <select
+                        value={videoVoice}
+                        onChange={e => setVideoVoice(e.target.value)}
+                        className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-border-primary rounded-lg bg-white dark:bg-background-primary focus:outline-none focus:ring-2 focus:ring-banana-400"
+                      >
+                        {VIDEO_VOICE_OPTIONS.map(group => (
+                          <optgroup key={group.group} label={group.group}>
+                            {group.voices.map(v => (
+                              <option key={v.id} value={v.id}>{v.label}</option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5 flex items-center justify-between">
+                      <span>{t('preview.videoSpeedLabel')}</span>
+                      <span className="text-xs font-mono text-gray-500 dark:text-text-secondary">{videoSpeed.toFixed(2)}×</span>
+                    </label>
+                    <input
+                      type="range"
+                      min={0.7}
+                      max={1.2}
+                      step={0.05}
+                      value={videoSpeed}
+                      onChange={e => setVideoSpeed(parseFloat(e.target.value))}
+                      className="w-full accent-banana-400"
+                    />
+                    <p className="mt-1 text-xs text-gray-500 dark:text-text-secondary">{t('preview.videoSpeedHint')}</p>
+                  </div>
+                </div>
+                {videoShowAdvancedNarration && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1.5">{t('preview.videoNarrationTopic')}</label>
+                      <input
+                        type="text"
+                        value={videoNarrationConfig.presentation_topic}
+                        onChange={e => setVideoNarrationConfig(prev => ({ ...prev, presentation_topic: e.target.value }))}
+                        placeholder={t('preview.videoNarrationTopicPlaceholder')}
+                        className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-border-primary rounded-lg bg-white dark:bg-background-primary focus:outline-none focus:ring-2 focus:ring-banana-400"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium mb-1.5">{t('preview.videoNarrationMinWords')}</label>
+                        <input
+                          type="number"
+                          min={30}
+                          max={300}
+                          value={videoNarrationConfig.min_words}
+                          onChange={e => setVideoNarrationConfig(prev => ({ ...prev, min_words: Number(e.target.value) || 30 }))}
+                          className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-border-primary rounded-lg bg-white dark:bg-background-primary focus:outline-none focus:ring-2 focus:ring-banana-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1.5">{t('preview.videoNarrationMaxWords')}</label>
+                        <input
+                          type="number"
+                          min={30}
+                          max={300}
+                          value={videoNarrationConfig.max_words}
+                          onChange={e => setVideoNarrationConfig(prev => ({ ...prev, max_words: Number(e.target.value) || 30 }))}
+                          className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-border-primary rounded-lg bg-white dark:bg-background-primary focus:outline-none focus:ring-2 focus:ring-banana-400"
+                        />
+                      </div>
+                    </div>
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={elevenLabsEnabled}
+                        onChange={async e => {
+                          setElevenLabsEnabled(e.target.checked);
+                          if (e.target.checked && elevenLabsVoices.length === 0) {
+                            setElevenLabsVoicesLoading(true);
+                            try {
+                              const res = await getElevenLabsVoices();
+                              const voices = res.data?.voices ?? [];
+                              setElevenLabsVoices(voices);
+                              if (voices.length > 0 && !elevenLabsVoiceId) {
+                                setElevenLabsVoiceId(voices[0].id);
+                              }
+                            } catch (err: any) {
+                              console.error('[ElevenLabs] 获取声音列表失败', err);
+                              show({ message: err?.response?.data?.message || err?.message || '获取 ElevenLabs 声音列表失败', type: 'error' });
+                            }
+                            setElevenLabsVoicesLoading(false);
+                          }
+                        }}
+                        className="w-4 h-4 rounded border-gray-300 text-banana-500 focus:ring-banana-500"
+                      />
+                      <span className="text-sm">{t('preview.videoUseElevenLabs')}</span>
+                    </label>
+                    {elevenLabsEnabled && !elevenLabsApiKeyConfigured && (
+                      <div className="flex items-center gap-2 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+                        <span>{t('preview.videoElevenLabsNoKey')}</span>
+                        <button
+                          type="button"
+                          onClick={() => { setShowVideoExportDialog(false); navigate('/settings', { state: { from: location.pathname } }); }}
+                          className="underline underline-offset-2 hover:text-amber-900 dark:hover:text-amber-300 shrink-0"
+                        >
+                          {t('preview.videoElevenLabsGoSettings')}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="space-y-3">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={videoEnableKenBurns}
+                    onChange={e => setVideoEnableKenBurns(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-banana-500 focus:ring-banana-500"
+                  />
+                  <span className="text-sm">{t('preview.videoEnableKenBurns')}</span>
+                  <span className="relative group">
+                    <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 dark:bg-gray-600 text-[10px] text-gray-500 dark:text-gray-300 cursor-help">?</span>
+                    <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 px-2.5 py-1.5 text-xs text-white bg-gray-800 dark:bg-gray-700 rounded-md whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
+                      {t('preview.videoKenBurnsTip')}
+                    </span>
+                  </span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={videoIncludeNoImage}
+                    onChange={e => setVideoIncludeNoImage(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-banana-500 focus:ring-banana-500"
+                  />
+                  <span className="text-sm">{t('preview.videoIncludeNoImage')}</span>
+                </label>
+                {!exportRangeHasAllImages && (
+                  <div className="rounded-[8px] border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                    {t('preview.videoMissingImagesWarning', { count: exportMissingImageCount })}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowVideoExportDialog(false)}
+                className="px-4 py-2 text-sm text-gray-600 dark:text-foreground-tertiary hover:bg-gray-100 dark:hover:bg-background-hover rounded-lg transition-colors"
+              >
+                {t('preview.videoCancel')}
+              </button>
+              <button
+                onClick={() => { setShowVideoExportDialog(false); handleExport('video'); }}
+                disabled={!exportRangeHasAllImages && !videoIncludeNoImage}
+                title={!exportRangeHasAllImages && !videoIncludeNoImage ? exportRangeMissingTip : undefined}
+                className="px-4 py-2 text-sm bg-banana-500 text-white rounded-lg hover:bg-banana-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                {t('preview.videoStartExport')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEditablePptxDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowEditablePptxDialog(false)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="editable-pptx-title"
+            className="bg-white dark:bg-background-secondary rounded-2xl p-6 w-full max-w-md mx-4 max-h-[90dvh] overflow-y-auto shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setShowEditablePptxDialog(false);
+              if (e.key === 'Tab') {
+                const controls = e.currentTarget.querySelectorAll<HTMLElement>(
+                  'input:not([type="radio"]), input[type="radio"]:checked, button:not(:disabled)',
+                );
+                const first = controls[0];
+                const last = controls[controls.length - 1];
+                if (e.shiftKey && document.activeElement === first) {
+                  e.preventDefault();
+                  last?.focus();
+                } else if (!e.shiftKey && document.activeElement === last) {
+                  e.preventDefault();
+                  first?.focus();
+                }
+              }
+            }}
+          >
+            <h3 id="editable-pptx-title" className="text-lg font-semibold">{t('preview.editablePptxDialogTitle')}</h3>
+            <p className="text-sm text-gray-500 dark:text-foreground-tertiary mt-1 mb-5">{t('preview.editablePptxDialogSubtitle')}</p>
+            <fieldset className="space-y-1 mb-4">
+              <legend className="text-sm font-medium mb-2">{t('preview.editablePptxMode')}</legend>
+              {(['simple', 'full'] as const).map((mode) => (
+                <div key={mode} className="flex items-start gap-2 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-background-hover">
+                <label className="flex flex-1 min-w-0 items-start gap-3 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="editable-pptx-mode"
+                    value={mode}
+                    checked={editablePptxMode === mode}
+                    autoFocus={editablePptxMode === mode}
+                    onChange={() => setEditablePptxMode(mode)}
+                    className="w-4 h-4 mt-0.5 border-gray-300 accent-banana-500 focus:ring-banana-500"
+                  />
+                  <span>
+                    <span className="block text-sm font-medium">{t(mode === 'simple' ? 'preview.editablePptxSimple' : 'preview.editablePptxFull')}</span>
+                    <span className="block text-xs text-gray-500 dark:text-foreground-tertiary mt-1 leading-relaxed">{t(mode === 'simple' ? 'preview.editablePptxSimpleDesc' : 'preview.editablePptxFullDesc')}</span>
+                  </span>
+                </label>
+                {mode === 'simple' && (
+                  <div className="relative group flex-shrink-0">
+                    <button
+                      type="button"
+                      aria-label={t('preview.editablePptxSimpleHelp')}
+                      aria-describedby="editable-pptx-text-only-tooltip"
+                      className="p-1 rounded-full text-gray-400 dark:text-foreground-tertiary hover:text-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-banana-500"
+                    >
+                      <HelpCircle size={16} />
+                    </button>
+                    <div
+                      id="editable-pptx-text-only-tooltip"
+                      role="tooltip"
+                      className="absolute right-0 top-full mt-2 w-64 max-w-[calc(100vw-4rem)] p-3 bg-gray-900 dark:bg-gray-700 text-white text-xs leading-relaxed rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-opacity z-50 pointer-events-none"
+                    >
+                      {t('preview.editablePptxSimpleHint')}
+                    </div>
+                  </div>
+                )}
+                </div>
+              ))}
+            </fieldset>
+            {editablePptxMode === 'full' && (
+              <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-background-hover">
+              <input
+                type="checkbox"
+                checked={editablePptxDialogIconTransparent}
+                onChange={(e) => setEditablePptxDialogIconTransparent(e.target.checked)}
+                className="w-4 h-4 mt-0.5 rounded border-gray-300 text-banana-500 focus:ring-banana-500"
+              />
+              <div className="flex-1">
+                <div className="text-sm font-medium">{t('preview.editablePptxIconTransparent')}</div>
+                <div className="text-xs text-gray-500 dark:text-foreground-tertiary mt-1">{t('preview.editablePptxIconTransparentDesc')}</div>
+                {editablePptxDialogIconTransparent && (
+                  <div className="text-xs text-amber-600 dark:text-amber-400 mt-2 leading-relaxed">
+                    {t('preview.editablePptxModelHint')}
+                  </div>
+                )}
+              </div>
+              </label>
+            )}
+            {(() => {
+              const totalPages = currentProject?.pages?.length ?? 0;
+              const isPartial = isMultiSelectMode && selectedPageIds.size > 0;
+              const selectedNumbers = isPartial && currentProject
+                ? currentProject.pages
+                    .map((p, i) => ({ id: p.id, num: i + 1 }))
+                    .filter(({ id }) => id && selectedPageIds.has(id))
+                    .map(({ num }) => num)
+                : [];
+              const rangeText = isPartial
+                ? t('preview.editablePptxRangePages', { pages: selectedNumbers.join(', '), count: selectedNumbers.length })
+                : t('preview.editablePptxRangeAll', { count: totalPages });
+              return (
+                <div className="mt-3 px-3 py-2.5 rounded-lg bg-gray-50 dark:bg-background-tertiary flex items-start gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium text-gray-500 dark:text-foreground-tertiary">{t('preview.editablePptxRangeLabel')}</div>
+                    <div className="text-sm mt-0.5 break-words">{rangeText}</div>
+                  </div>
+                  <span className="flex-shrink-0 text-gray-400 dark:text-foreground-tertiary cursor-help" title={t('preview.editablePptxRangeTip')}>
+                    <Info size={16} />
+                  </span>
+                </div>
+              );
+            })()}
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowEditablePptxDialog(false)}
+                className="px-4 py-2 text-sm text-gray-600 dark:text-foreground-tertiary hover:bg-gray-100 dark:hover:bg-background-hover rounded-lg transition-colors"
+              >
+                {t('preview.editablePptxCancel')}
+              </button>
+              <button
+                onClick={async () => {
+                  setShowEditablePptxDialog(false);
+                  if (editablePptxMode === 'full' && projectId && (currentProject?.enable_icon_subject_extraction ?? true) !== editablePptxDialogIconTransparent) {
+                    try {
+                      await updateProject(projectId, { enable_icon_subject_extraction: editablePptxDialogIconTransparent });
+                      await syncProject(projectId);
+                    } catch (error: any) {
+                      show({ message: t('slidePreview.saveFailed', { error: error?.message || t('slidePreview.unknownError') }), type: 'error' });
+                      return;
+                    }
+                  }
+                  handleExport('editable-pptx', { editableMode: editablePptxMode });
+                }}
+                className="px-4 py-2 text-sm bg-banana-500 text-gray-900 rounded-lg hover:bg-banana-600 transition-colors"
+              >
+                {t('preview.editablePptxStartExport')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 主内容区 */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-w-0 min-h-0">
         {/* 左侧：缩略图列表 */}
-        <aside className="w-full md:w-80 bg-white dark:bg-background-secondary border-b md:border-b-0 md:border-r border-gray-200 dark:border-border-primary flex flex-col flex-shrink-0">
-          <div className="p-3 md:p-4 border-b border-gray-200 dark:border-border-primary flex-shrink-0 space-y-2 md:space-y-3">
+        <aside className="w-full md:w-80 bg-white dark:bg-background-secondary border-b md:border-b-0 md:border-r border-gray-200 dark:border-border-primary flex flex-col flex-shrink-0 min-h-0">
+          {/* z-20：高于下方同为 sticky z-10 的多选行，否则质量控制的下弹 tooltip 会被它盖住 */}
+          <div className="p-3 md:p-4 border-b border-gray-200 dark:border-border-primary flex-shrink-0 space-y-2 md:space-y-3 md:sticky md:top-0 md:z-20">
             <Button
               variant="primary"
               icon={<Sparkles size={16} className="md:w-[18px] md:h-[18px]" />}
@@ -1442,17 +2914,28 @@ export const SlidePreview: React.FC = () => {
                 ? t('preview.generateSelected', { count: selectedPageIds.size })
                 : t('preview.batchGenerate', { count: currentProject.pages.length })}
             </Button>
+            {/* 桌面端：质量控制是项目级生成设置，与批量生成放在一起；窄屏时在底部控制栏 */}
+            <div className="hidden lg:block">
+              <QualityControlToggle
+                enabled={imageQualityControlEnabled}
+                saving={isSavingImageQualityControl}
+                onToggle={handleToggleImageQualityControl}
+                t={t}
+                className="w-full justify-between px-0.5"
+                tooltipPlacement="bottom"
+              />
+            </div>
           </div>
           
           {/* 缩略图列表：桌面端垂直，移动端横向滚动 */}
           <div className="flex-1 overflow-y-auto md:overflow-y-auto overflow-x-auto md:overflow-x-visible p-3 md:p-4 min-h-0">
             {/* 多选模式切换 - 紧凑布局 */}
-            <div className="flex items-center gap-2 text-xs mb-3">
+            <div className="flex items-center gap-2 text-xs mb-3 md:sticky md:top-0 md:z-10 md:pb-3">
               <button
                 onClick={toggleMultiSelectMode}
                 className={`px-2 py-1 rounded transition-colors flex items-center gap-1 ${
                   isMultiSelectMode 
-                    ? 'bg-banana-100 text-banana-700 hover:bg-banana-200' 
+                    ? 'bg-banana-100 dark:bg-banana-500/20 text-banana-700 dark:text-banana-300 hover:bg-banana-200 dark:hover:bg-banana-500/30' 
                     : 'text-gray-500 dark:text-foreground-tertiary hover:bg-gray-100 dark:hover:bg-background-hover'
                 }`}
               >
@@ -1463,7 +2946,7 @@ export const SlidePreview: React.FC = () => {
                 <>
                   <button
                     onClick={selectedPageIds.size === pagesWithImages.length ? deselectAllPages : selectAllPages}
-                    className="text-gray-500 dark:text-foreground-tertiary hover:text-banana-600 transition-colors"
+                    className="text-gray-500 dark:text-foreground-tertiary hover:text-banana-600 dark:hover:text-banana-300 transition-colors"
                   >
                     {selectedPageIds.size === pagesWithImages.length ? t('common.deselectAll') : t('common.selectAll')}
                   </button>
@@ -1568,11 +3051,11 @@ export const SlidePreview: React.FC = () => {
         </aside>
 
         {/* 右侧：大图预览 */}
-        <main className="flex-1 flex flex-col bg-gradient-to-br from-banana-50 dark:from-background-primary via-white dark:via-background-primary to-gray-50 dark:to-background-primary min-w-0 overflow-hidden">
+        <main className="relative flex-1 flex flex-col bg-gradient-to-br from-banana-50 dark:from-background-primary via-white dark:via-background-primary to-gray-50 dark:to-background-primary min-w-0 overflow-hidden">
           {currentProject.pages.length === 0 ? (
             <div className="flex-1 flex items-center justify-center overflow-y-auto">
               <div className="text-center">
-                <div className="text-4xl md:text-6xl mb-4">📊</div>
+                <Presentation size={56} className="mx-auto mb-4 text-gray-300 dark:text-foreground-tertiary" strokeWidth={1.5} />
                 <h3 className="text-lg md:text-xl font-semibold text-gray-700 dark:text-foreground-secondary mb-2">
                   {t('preview.noPages')}
                 </h3>
@@ -1590,21 +3073,36 @@ export const SlidePreview: React.FC = () => {
             </div>
           ) : (
             <>
-              {/* 预览区 */}
+              {/* 预览区：幻灯片与下方的悬浮工具栏/命令栏作为一组垂直居中。
+                  就地编辑态下幻灯片原地不动、不缩放，只加一圈高亮表示正在编辑；
+                  指令区从胶囊位置平滑展开，不再把幻灯片顶上去。 */}
               <div className="flex-1 overflow-y-auto min-h-0 flex items-center justify-center p-4 md:p-8">
                 <div className="max-w-5xl w-full">
-                  <div className="relative bg-white dark:bg-background-secondary rounded-lg shadow-xl overflow-hidden touch-manipulation" style={{ aspectRatio: aspectRatioStyle }}>
+                  <div
+                    className={`relative bg-white dark:bg-background-secondary rounded-lg shadow-xl overflow-hidden transition-shadow ${
+                      isInlineEditing ? 'ring-2 ring-banana-400' : ''
+                    } ${isInlineEditing && isRegionSelectionMode ? 'cursor-crosshair touch-none' : 'touch-manipulation'}`}
+                    style={{ aspectRatio: aspectRatioStyle }}
+                    onPointerDown={isInlineEditing ? handleSelectionPointerDown : undefined}
+                    onPointerMove={isInlineEditing ? handleSelectionPointerMove : undefined}
+                    onPointerUp={isInlineEditing ? handleSelectionPointerUp : undefined}
+                    onPointerCancel={isInlineEditing ? handleSelectionPointerCancel : undefined}
+                  >
                     {selectedPage?.generated_image_path ? (
                       <img
+                        ref={isInlineEditing ? imageRef : undefined}
                         src={imageUrl}
                         alt={`Slide ${selectedIndex + 1}`}
+                        // 桌面版 getImageUrl 指向 127.0.0.1:<port>，跨源；区域裁剪要把这张图
+                        // 画进 canvas，缺 crossOrigin 会污染 canvas 导致裁剪失败（同弹窗那张图）
+                        crossOrigin="anonymous"
                         className="w-full h-full object-cover select-none"
                         draggable={false}
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-background-secondary">
                         <div className="text-center">
-                          <div className="text-6xl mb-4">🍌</div>
+                          <ImageIcon size={48} className="mx-auto mb-4 text-gray-300 dark:text-foreground-tertiary" strokeWidth={1.5} />
                           <p className="text-gray-500 dark:text-foreground-tertiary mb-4">
                             {selectedPage?.status === 'QUEUED'
                               ? t('preview.queued')
@@ -1626,13 +3124,246 @@ export const SlidePreview: React.FC = () => {
                         </div>
                       </div>
                     )}
+                    {/* 就地编辑态：框选提示与选区框直接画在大图上 */}
+                    {isInlineEditing && (
+                      <>
+                        <button
+                          type="button"
+                          aria-pressed={isRegionSelectionMode}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={() => {
+                            resetRegionSelection(!isRegionSelectionMode);
+                          }}
+                          className={`absolute left-2 top-2 z-10 flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium shadow transition-colors ${
+                            isRegionSelectionMode
+                              ? 'bg-banana-500 text-black'
+                              : 'bg-white/90 text-gray-700 hover:bg-white dark:bg-background-elevated/90 dark:text-foreground-secondary'
+                          }`}
+                        >
+                          <Sparkles size={13} />
+                          {isRegionSelectionMode ? t('preview.endRegionSelect') : t('preview.regionSelect')}
+                        </button>
+                        {selectionRect && (
+                          <div
+                            data-testid="inline-edit-selection"
+                            className="absolute border-2 border-banana-500 bg-banana-500/20 pointer-events-none"
+                            style={{
+                              left: selectionRect.left,
+                              top: selectionRect.top,
+                              width: selectionRect.width,
+                              height: selectionRect.height,
+                            }}
+                          />
+                        )}
+                      </>
+                    )}
+                  </div>
+
+              {/* 预览态胶囊与编辑态命令栏叠在同一个居中 dock：靠可见性 + 透明度 + scale
+                  交叉过渡（Apple 风缓动 cubic-bezier(0.32,0.72,0,1)，同锚点、进退对称），
+                  而不是「一个瞬间消失、另一个从下方淡入」。 */}
+              <div className="hidden lg:grid mt-4">
+                {/* 预览态：悬浮工具栏 */}
+                <div
+                  data-testid="preview-floating-toolbar"
+                  className={`[grid-area:1/1] self-center justify-self-center flex items-center gap-1 rounded-full border border-gray-200 dark:border-border-primary bg-white/95 dark:bg-background-secondary/95 backdrop-blur px-2 py-1.5 shadow-lg origin-center transition-[opacity,transform,visibility] duration-[420ms] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-opacity motion-reduce:duration-200 [&_button]:whitespace-nowrap ${
+                    isInlineEditing
+                      ? 'invisible scale-[0.97] opacity-0 pointer-events-none'
+                      : 'visible scale-100 opacity-100'
+                  }`}
+                >
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={<ChevronLeft size={18} />}
+                    onClick={() => setSelectedIndex(Math.max(0, selectedIndex - 1))}
+                    disabled={selectedIndex === 0}
+                    className="rounded-full px-2"
+                    title={t('preview.prevPage')}
+                    aria-label={t('preview.prevPage')}
+                  />
+                  <span className="px-1.5 text-sm text-gray-600 dark:text-foreground-tertiary whitespace-nowrap tabular-nums">
+                    {selectedIndex + 1} / {currentProject.pages.length}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={<ChevronRight size={18} />}
+                    onClick={() =>
+                      setSelectedIndex(
+                        Math.min(currentProject.pages.length - 1, selectedIndex + 1)
+                      )
+                    }
+                    disabled={selectedIndex === currentProject.pages.length - 1}
+                    className="rounded-full px-2"
+                    title={t('preview.nextPage')}
+                    aria-label={t('preview.nextPage')}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={<Play size={18} />}
+                    data-play-trigger
+                    onClick={handleOpenPlayer}
+                    className="rounded-full px-2"
+                    title={t('preview.play')}
+                    aria-label={t('preview.play')}
+                  />
+                  <div className="mx-1 h-5 w-px bg-gray-200 dark:bg-border-primary" />
+                  {imageVersions.length > 1 && (
+                    <VersionHistoryMenu
+                      versions={imageVersions}
+                      open={showVersionMenu}
+                      onToggleOpen={() => setShowVersionMenu(!showVersionMenu)}
+                      onSwitchVersion={handleSwitchVersion}
+                      t={t}
+                      buttonClassName="rounded-full text-sm"
+                      menuAlign="center"
+                    />
+                  )}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleEditPage}
+                    disabled={!selectedPage}
+                    className="rounded-full text-sm"
+                  >
+                    {t('common.edit')}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleRegeneratePage}
+                    disabled={isCurrentPageGenerating}
+                    className="rounded-full text-sm"
+                  >
+                    {isCurrentPageGenerating ? t('preview.regenerating') : t('preview.regenerate')}
+                  </Button>
+                </div>
+
+                {/* 编辑态：单一命令栏 + 上方参考图缩略图 */}
+                <div
+                  className={`[grid-area:1/1] self-center w-full flex flex-col items-center gap-2 origin-center transition-[opacity,transform,visibility] duration-[420ms] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-opacity motion-reduce:duration-200 ${
+                    isInlineEditing
+                      ? 'visible scale-100 opacity-100'
+                      : 'invisible scale-[0.97] opacity-0 pointer-events-none'
+                  }`}
+                >
+                  {/* 只在编辑态渲染附件行：命令栏虽 visibility:hidden 但仍占据 grid 轨道，
+                      退出编辑后残留的参考图会把上面可见的胶囊往下顶出一段空隙 */}
+                  {isInlineEditing && selectedContextImages.uploadedFiles.length > 0 && (
+                    <div
+                      data-testid="inline-edit-attachments"
+                      className="flex flex-wrap items-center justify-center gap-2"
+                    >
+                      {selectedContextImages.uploadedFiles.map((file, idx) => (
+                        <div key={`${file.name}-${idx}`} className="group relative">
+                          <img
+                            src={uploadedPreviews[idx] || ''}
+                            alt={`${t('preview.uploadImages')} ${idx + 1}`}
+                            data-testid="inline-edit-attachment-thumb"
+                            className="h-12 w-12 rounded-lg border border-gray-200 object-cover shadow-sm dark:border-border-primary"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeUploadedFile(idx)}
+                            aria-label={t('common.delete')}
+                            className="no-min-touch-target absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-gray-900 text-white shadow transition-transform hover:scale-110 active:scale-95 dark:bg-background-elevated"
+                          >
+                            <X size={11} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div
+                    data-testid="inline-edit-panel"
+                    className="relative flex w-full max-w-2xl items-center gap-1 rounded-3xl border border-gray-200 bg-white/95 px-2 py-1.5 shadow-lg backdrop-blur dark:border-border-primary dark:bg-background-secondary/95"
+                  >
+                    {/* 加参考图：单个 + 图标开菜单（素材库 / 上传） */}
+                    <div className="relative flex-shrink-0" ref={attachMenuRef}>
+                      <button
+                        type="button"
+                        onClick={() => setShowAttachMenu((v) => !v)}
+                        aria-label={t('preview.addReference')}
+                        title={t('preview.addReference')}
+                        className="flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-100 active:scale-90 dark:text-foreground-tertiary dark:hover:bg-background-hover"
+                      >
+                        <ImagePlus size={18} />
+                      </button>
+                      {showAttachMenu && (
+                        <div className="absolute bottom-full left-0 z-20 mb-2 w-40 origin-bottom-left overflow-hidden rounded-xl border border-gray-200 bg-white/95 py-1 shadow-lg backdrop-blur animate-[popIn_140ms_cubic-bezier(0.32,0.72,0,1)] motion-reduce:animate-none dark:border-border-primary dark:bg-background-secondary/95">
+                          <button
+                            type="button"
+                            onClick={() => { setShowAttachMenu(false); setIsMaterialSelectorOpen(true); }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-foreground-secondary dark:hover:bg-background-hover"
+                          >
+                            <ImagePlus size={15} />
+                            {t('preview.selectFromMaterials')}
+                          </button>
+                          <label className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-foreground-secondary dark:hover:bg-background-hover">
+                            <Upload size={15} />
+                            {t('preview.uploadImages')}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              className="hidden"
+                              onChange={(e) => { setShowAttachMenu(false); handleFileUpload(e); }}
+                            />
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                    {/* 指令输入：单行、随内容长高，Cmd/Ctrl+Enter 提交 */}
+                    <textarea
+                      data-testid="inline-edit-prompt"
+                      rows={1}
+                      value={editPrompt}
+                      placeholder={t('preview.inlineEditPromptPlaceholder')}
+                      onChange={(e) => setEditPrompt(e.target.value)}
+                      onFocus={() => setShowAttachMenu(false)}
+                      onInput={(e) => {
+                        const el = e.currentTarget;
+                        el.style.height = 'auto';
+                        el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && editPrompt.trim() && !isCurrentPageGenerating) {
+                          e.preventDefault();
+                          handleSubmitEdit();
+                        }
+                      }}
+                      className="max-h-32 min-w-0 flex-1 resize-none self-center bg-transparent px-1.5 py-1.5 text-sm leading-6 text-gray-900 outline-none placeholder:text-gray-400 dark:text-foreground-primary dark:placeholder:text-foreground-tertiary"
+                    />
+                    <button
+                      type="button"
+                      onClick={exitInlineEditing}
+                      aria-label={t('common.cancel')}
+                      title={t('common.cancel')}
+                      className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 active:scale-90 dark:hover:bg-background-hover"
+                    >
+                      <X size={17} />
+                    </button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={handleSubmitEdit}
+                      disabled={!editPrompt.trim() || isCurrentPageGenerating}
+                      className="flex-shrink-0 rounded-full text-sm"
+                    >
+                      {isCurrentPageGenerating ? t('preview.regenerating') : t('preview.generateImage')}
+                    </Button>
                   </div>
                 </div>
               </div>
+                </div>
+              </div>
 
-              {/* 控制栏 */}
-              <div className="bg-white dark:bg-background-secondary border-t border-gray-200 dark:border-border-primary px-3 md:px-6 py-3 md:py-4 flex-shrink-0">
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 max-w-5xl mx-auto">
+              {/* 控制栏（lg 以下）：窄屏保持 docked 布局 */}
+              <div data-testid="preview-docked-toolbar" className="lg:hidden bg-white dark:bg-background-secondary border-t border-gray-200 dark:border-border-primary px-3 md:px-6 py-3 md:py-4 flex-shrink-0">
+                {/* flex-wrap + nowrap 按钮：抽屉拉宽后整块换行，而不是把按钮文字折断 */}
+                <div className="flex flex-col sm:flex-row flex-wrap items-center justify-between gap-3 max-w-5xl mx-auto [&_button]:whitespace-nowrap">
                   {/* 导航 */}
                   <div className="flex items-center gap-2 w-full sm:w-auto justify-center">
                     <Button
@@ -1652,6 +3383,18 @@ export const SlidePreview: React.FC = () => {
                     <Button
                       variant="ghost"
                       size="sm"
+                      icon={<Play size={16} className="md:w-[18px] md:h-[18px]" />}
+                      data-play-trigger
+                      onClick={handleOpenPlayer}
+                      className="text-xs md:text-sm"
+                      title={t('preview.play')}
+                      aria-label={t('preview.play')}
+                    >
+                      <span>{t('preview.play')}</span>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       icon={<ChevronRight size={16} className="md:w-[18px] md:h-[18px]" />}
                       onClick={() =>
                         setSelectedIndex(
@@ -1668,15 +3411,36 @@ export const SlidePreview: React.FC = () => {
 
                   {/* 操作 */}
                   <div className="flex items-center gap-1.5 md:gap-2 w-full sm:w-auto justify-center">
-                    {/* 手机端：模板更换按钮 */}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      icon={<Upload size={16} />}
-                      onClick={() => { setDraftTemplateStyle(templateStyle); setIsTemplateModalOpen(true); }}
-                      className="lg:hidden text-xs"
-                      title={t('preview.changeTemplate')}
+                    <QualityControlToggle
+                      enabled={imageQualityControlEnabled}
+                      saving={isSavingImageQualityControl}
+                      onToggle={handleToggleImageQualityControl}
+                      t={t}
+                      className="px-1.5 py-1"
+                      labelClassName="hidden md:inline"
+                      tooltipPlacement="top"
+                      tooltipTestId="quality-control-tooltip-docked"
                     />
+                    {/* 手机端：multi 模式进入模板配置，single 模式打开更换模板 */}
+                    {currentProject?.template_mode === 'multi' ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        icon={<LayoutTemplate size={16} />}
+                        onClick={() => navigate(`/project/${projectId}/template-setup`)}
+                        className="lg:hidden text-xs"
+                        title={t('preview.templateSetup')}
+                      />
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        icon={<Upload size={16} />}
+                        onClick={() => { setDraftTemplateStyle(templateStyle); setIsTemplateModalOpen(true); }}
+                        className="lg:hidden text-xs"
+                        title={t('preview.changeTemplate')}
+                      />
+                    )}
                     {/* 手机端：素材生成按钮 */}
                     <Button
                       variant="ghost"
@@ -1697,58 +3461,19 @@ export const SlidePreview: React.FC = () => {
                       title={t('preview.refresh')}
                     />
                     {imageVersions.length > 1 && (
-                      <div className="relative">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setShowVersionMenu(!showVersionMenu)}
-                          className="text-xs md:text-sm"
-                        >
-                          <span className="hidden md:inline">{t('preview.historyVersions')} ({imageVersions.length})</span>
-                          <span className="md:hidden">{t('preview.versions')}</span>
-                        </Button>
-                        {showVersionMenu && (
-                          <div className="absolute right-0 bottom-full mb-2 w-56 md:w-64 bg-white dark:bg-background-secondary rounded-lg shadow-lg border border-gray-200 dark:border-border-primary py-2 z-20 max-h-96 overflow-y-auto">
-                            {imageVersions.map((version) => (
-                              <button
-                                key={version.version_id}
-                                onClick={() => handleSwitchVersion(version.version_id)}
-                                className={`w-full px-3 md:px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors flex items-center justify-between text-xs md:text-sm ${
-                                  version.is_current ? 'bg-banana-50 dark:bg-background-secondary' : ''
-                                }`}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <span>
-                                    {t('preview.version')} {version.version_number}
-                                  </span>
-                                  {version.is_current && (
-                                    <span className="text-xs text-banana-600 font-medium">
-                                      ({t('preview.current')})
-                                    </span>
-                                  )}
-                                </div>
-                                <span className="text-xs text-gray-400 hidden md:inline">
-                                  {version.created_at
-                                    ? new Date(version.created_at).toLocaleString('zh-CN', {
-                                        month: 'short',
-                                        day: 'numeric',
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                      })
-                                    : ''}
-                                </span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                      <VersionHistoryMenu
+                        versions={imageVersions}
+                        open={showVersionMenu}
+                        onToggleOpen={() => setShowVersionMenu(!showVersionMenu)}
+                        onSwitchVersion={handleSwitchVersion}
+                        t={t}
+                      />
                     )}
                     <Button
                       variant="secondary"
                       size="sm"
                       onClick={handleEditPage}
-                      disabled={!selectedPage?.generated_image_path}
-                      title={!selectedPage?.generated_image_path ? t('preview.disabledEditTip') : undefined}
+                      disabled={!selectedPage}
                       className="text-xs md:text-sm flex-1 sm:flex-initial"
                     >
                       {t('common.edit')}
@@ -1757,12 +3482,10 @@ export const SlidePreview: React.FC = () => {
                       variant="ghost"
                       size="sm"
                       onClick={handleRegeneratePage}
-                      disabled={selectedPage?.id && pageGeneratingTasks[selectedPage.id] ? true : false}
+                      disabled={isCurrentPageGenerating}
                       className="text-xs md:text-sm flex-1 sm:flex-initial"
                     >
-                      {selectedPage?.id && pageGeneratingTasks[selectedPage.id]
-                        ? t('preview.regenerating')
-                        : t('preview.regenerate')}
+                      {isCurrentPageGenerating ? t('preview.regenerating') : t('preview.regenerate')}
                     </Button>
                   </div>
                 </div>
@@ -1770,40 +3493,67 @@ export const SlidePreview: React.FC = () => {
             </>
           )}
         </main>
+
+        {/* 右侧：页面属性抽屉（可拖拽调宽，桌面端就地推挤布局，窄屏浮层显示） */}
+        <PagePropertiesDrawer
+          page={selectedPage}
+          projectId={projectId}
+          pageIndex={selectedIndex}
+          pageCount={currentProject.pages.length}
+          versionCount={imageVersions.length}
+          templateMode={currentProject.template_mode}
+          templateAssets={templateAssets}
+          extraFieldNames={descriptionExtraFields}
+          imagePromptFields={imagePromptExtraFields}
+          isOpen={isPropertiesOpen}
+          isSaving={isSavingPages}
+          width={propertiesWidth}
+          onWidthChange={handlePropertiesWidthChange}
+          onOpen={() => setPropertiesOpen(true)}
+          onClose={() => setPropertiesOpen(false)}
+          onUpdate={updatePageLocal}
+          onUpdatePageTemplate={handleUpdatePageTemplate}
+          onUploadTemplateAsset={handleUploadTemplateAsset}
+          onOpenTemplateSetup={() => navigate(`/project/${projectId}/template-setup`)}
+          showToast={show}
+        />
       </div>
 
       {/* 编辑对话框 */}
       <Modal
         isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
+        onClose={closeEditModal}
         title={t('preview.editPage')}
         size="lg"
       >
         <div className="space-y-4">
           {/* 图片（支持矩形区域选择） */}
           <div
-            className="bg-gray-100 dark:bg-background-secondary rounded-lg overflow-hidden relative"
+            className={`bg-gray-100 dark:bg-background-secondary rounded-lg overflow-hidden relative ${
+              isRegionSelectionMode ? 'cursor-crosshair touch-none' : 'touch-manipulation'
+            }`}
             style={{ aspectRatio: aspectRatioStyle }}
-            onMouseDown={handleSelectionMouseDown}
-            onMouseMove={handleSelectionMouseMove}
-            onMouseUp={handleSelectionMouseUp}
-            onMouseLeave={handleSelectionMouseUp}
+            onPointerDown={handleSelectionPointerDown}
+            onPointerMove={handleSelectionPointerMove}
+            onPointerUp={handleSelectionPointerUp}
+            onPointerCancel={handleSelectionPointerCancel}
           >
             {imageUrl && (
               <>
                 {/* 左上角：区域选图模式开关 */}
                 <button
                   type="button"
+                  aria-pressed={isRegionSelectionMode}
                   onClick={(e) => {
                     e.stopPropagation();
-                    // 切换矩形选择模式
-                    setIsRegionSelectionMode((prev) => !prev);
-                    // 切模式时清空当前选区
-                    setSelectionStart(null);
-                    setSelectionRect(null);
-                    setIsSelectingRegion(false);
+                    resetRegionSelection(!isRegionSelectionMode);
                   }}
-                  className="absolute top-2 left-2 z-10 px-2 py-1 rounded bg-white/80 text-[10px] text-gray-700 dark:text-foreground-secondary hover:bg-banana-50 dark:hover:bg-background-hover shadow-sm dark:shadow-background-primary/30 flex items-center gap-1"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className={`absolute top-2 left-2 z-10 px-2 py-1 rounded text-[10px] shadow-sm dark:shadow-background-primary/30 flex items-center gap-1 ${
+                    isRegionSelectionMode
+                      ? 'bg-banana-500 text-black'
+                      : 'bg-white/80 text-gray-700 dark:text-foreground-secondary hover:bg-banana-50 dark:hover:bg-background-hover'
+                  }`}
                 >
                   <Sparkles size={12} />
                   <span>{isRegionSelectionMode ? t('preview.endRegionSelect') : t('preview.regionSelect')}</span>
@@ -1963,7 +3713,7 @@ export const SlidePreview: React.FC = () => {
                         {selectedContextImages.descImageUrls.includes(url) && (
                           <div className="absolute inset-0 bg-banana-500/20 border-2 border-banana-500 rounded flex items-center justify-center">
                             <div className="w-6 h-6 bg-banana-500 rounded-full flex items-center justify-center">
-                              <span className="text-white text-xs font-bold">✓</span>
+                              <Check size={12} className="text-white" strokeWidth={3} />
                             </div>
                           </div>
                         )}
@@ -1990,10 +3740,10 @@ export const SlidePreview: React.FC = () => {
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
-                {selectedContextImages.uploadedFiles.map((file, idx) => (
+                {selectedContextImages.uploadedFiles.map((_, idx) => (
                   <div key={idx} className="relative group">
                     <img
-                      src={uploadedFileUrls.current[idx] || ''}
+                      src={uploadedPreviews[idx] || ''}
                       alt={`Uploaded ${idx + 1}`}
                       className="w-20 h-20 object-cover rounded border border-gray-300 dark:border-border-primary"
                     />
@@ -2033,19 +3783,19 @@ export const SlidePreview: React.FC = () => {
               variant="secondary" 
               onClick={() => {
                 handleSaveOutlineAndDescription();
-                setIsEditModalOpen(false);
+                closeEditModal();
               }}
             >
               {t('preview.saveOutlineOnly')}
             </Button>
             <div className="flex gap-3">
-              <Button variant="ghost" onClick={() => setIsEditModalOpen(false)}>
+              <Button variant="ghost" onClick={closeEditModal}>
                 {t('common.cancel')}
               </Button>
               <Button
                 variant="primary"
                 onClick={handleSubmitEdit}
-                disabled={!editPrompt.trim()}
+                disabled={!editPrompt.trim() || !selectedPage?.generated_image_path}
               >
                 {t('preview.generateImage')}
               </Button>
@@ -2087,6 +3837,17 @@ export const SlidePreview: React.FC = () => {
               value={draftTemplateStyle}
               onChange={setDraftTemplateStyle}
               onToast={show}
+              sourceContent={
+                currentProject?.pages
+                  ?.map((p) => {
+                    const title = p.outline_content?.title || '';
+                    const points = p.outline_content?.points || [];
+                    const descText = p.description_content?.text || '';
+                    return [title, ...points, descText].filter(Boolean).join('\n');
+                  })
+                  .filter(Boolean)
+                  .join('\n\n') || currentProject?.idea_prompt || currentProject?.outline_text || currentProject?.description_text || ''
+              }
             />
           ) : (
             <>
@@ -2161,6 +3922,17 @@ export const SlidePreview: React.FC = () => {
             onClose={() => setIsProjectSettingsOpen(false)}
             extraRequirements={extraRequirements}
             templateStyle={templateStyle}
+            sourceContent={
+              currentProject?.pages
+                ?.map((p) => {
+                  const title = p.outline_content?.title || '';
+                  const points = p.outline_content?.points || [];
+                  const descText = p.description_content?.text || '';
+                  return [title, ...points, descText].filter(Boolean).join('\n');
+                })
+                .filter(Boolean)
+                .join('\n\n') || currentProject?.idea_prompt || currentProject?.outline_text || currentProject?.description_text || ''
+            }
             onExtraRequirementsChange={(value) => {
               isEditingRequirements.current = true;
               setExtraRequirements(value);
@@ -2177,9 +3949,11 @@ export const SlidePreview: React.FC = () => {
             exportExtractorMethod={exportExtractorMethod}
             exportInpaintMethod={exportInpaintMethod}
             exportAllowPartial={exportAllowPartial}
+            enableIconSubjectExtraction={enableIconSubjectExtraction}
             onExportExtractorMethodChange={setExportExtractorMethod}
             onExportInpaintMethodChange={setExportInpaintMethod}
             onExportAllowPartialChange={setExportAllowPartial}
+            onEnableIconSubjectExtractionChange={setEnableIconSubjectExtraction}
             onSaveExportSettings={handleSaveExportSettings}
             isSavingExportSettings={isSavingExportSettings}
             // 画面比例
@@ -2192,6 +3966,15 @@ export const SlidePreview: React.FC = () => {
         </>
       )}
 
+      {/* 每页独立→统一模板切换弹层 */}
+      <SwitchToSingleModeDialog
+        isOpen={isSwitchSingleOpen}
+        onClose={() => setIsSwitchSingleOpen(false)}
+        assets={templateAssets}
+        onConfirmExisting={handleSwitchToSingleExisting}
+        onConfirmUpload={handleSwitchToSingleUpload}
+      />
+
       {/* 1K分辨率警告对话框 */}
       <Modal
         isOpen={show1KWarningDialog}
@@ -2201,7 +3984,7 @@ export const SlidePreview: React.FC = () => {
       >
         <div className="space-y-4">
           <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-            <div className="text-2xl">⚠️</div>
+            <AlertTriangle size={22} className="text-amber-500 flex-shrink-0" />
             <div className="flex-1">
               <p className="text-sm text-amber-800">
                 {t('preview.resolution1KWarningText')}
@@ -2232,6 +4015,17 @@ export const SlidePreview: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      {/* 在线播放：近似全屏 overlay，支持切换浏览器原生全屏 */}
+      <SlidePlayer
+        key={isPlayerOpen ? 'open' : 'closed'}
+        open={isPlayerOpen}
+        initialIndex={selectedIndex}
+        pages={currentProject.pages}
+        aspectRatio={aspectRatio}
+        onClose={handleClosePlayer}
+        onIndexChange={setSelectedIndex}
+      />
 
     </div>
   );

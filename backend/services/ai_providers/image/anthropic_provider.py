@@ -181,7 +181,8 @@ class AnthropicImageProvider(ImageProvider):
                 {"role": "user", "content": openai_content},
             ],
             modalities=["text", "image"],
-            extra_body=extra_body
+            extra_body=extra_body,
+            stream=False,
         )
 
         # Extract image from response using same logic as OpenAIImageProvider

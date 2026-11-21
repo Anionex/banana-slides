@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { X, FileText, Settings as SettingsIcon, Download, Sparkles, AlertTriangle, HelpCircle } from 'lucide-react';
-import { Button, Textarea } from '@/components/shared';
+import { X, FileText, Settings as SettingsIcon, Download, Sparkles, AlertTriangle, HelpCircle, Lightbulb } from 'lucide-react';
+import { Button, Textarea, TextStyleSelector } from '@/components/shared';
 import { useT } from '@/hooks/useT';
 import { Settings } from '@/pages/Settings';
 import type { ExportExtractorMethod, ExportInpaintMethod } from '@/types';
@@ -33,6 +33,9 @@ const projectSettingsI18n = {
       backgroundBaidu: "百度抹除服务获取", backgroundBaiduDesc: "使用百度图像修复API，速度快但画质一般",
       usesAiModel: "使用文生图模型",
       costTip: "标有「使用文生图模型」的选项会调用AI图片生成API（如Gemini），每页会产生额外的API调用费用。如果需要控制成本，可选择「百度修复」方式。",
+      iconSubjectExtraction: "图标透明背景",
+      iconSubjectExtractionDesc: "开启后，导出时对识别为图标的图片调用本地 RMBG-2.0 模型抠图，获取透明背景 PNG 后再贴入 PPT，避免图标自带的原 PPT 背景在新底色上突兀显示。仅对识别为图标的元素生效，照片/插图保持原矩形裁剪。",
+      iconSubjectExtractionTip: "基于 RMBG-2.0 ONNX 模型本地推理，首次使用会自动下载约 512MB 模型；单张图标处理失败时会自动回退到原矩形裁剪，不影响导出。",
       errorHandling: "错误处理策略", errorHandlingDesc: "配置导出过程中遇到错误时的处理方式",
       allowPartialResult: "允许返回半成品", allowPartialResultDesc: "开启后，导出过程中遇到错误（如样式提取失败、文本渲染失败等）时会跳过错误继续导出，最终可能得到不完整的结果。关闭时，任何错误都会立即停止导出并提示具体原因。",
       allowPartialResultWarning: "开启此选项可能导致导出的 PPTX 文件中部分文字样式丢失、元素位置错误或内容缺失。建议仅在需要快速获取结果且可以接受质量损失时开启。",
@@ -66,6 +69,9 @@ const projectSettingsI18n = {
       backgroundBaidu: "Baidu Inpainting", backgroundBaiduDesc: "Use Baidu image repair API, fast but average quality",
       usesAiModel: "Uses AI Image Model",
       costTip: "Options marked \"Uses AI Image Model\" will call AI image generation API (like Gemini), incurring extra API costs per page. To control costs, choose \"Baidu Inpainting\".",
+      iconSubjectExtraction: "Icon Transparent Background",
+      iconSubjectExtractionDesc: "When enabled, images detected as icons during export are processed via the local RMBG-2.0 model to produce transparent-background PNGs before being placed in the PPT, avoiding the icon's original background clashing with the new slide background. Only applies to elements classified as icons; photos and illustrations keep the original rectangular crop.",
+      iconSubjectExtractionTip: "Powered by local RMBG-2.0 ONNX inference. The ~512MB model is downloaded automatically on first use. If extraction fails for an individual icon, it falls back silently to the original rectangular crop without affecting export.",
       errorHandling: "Error Handling Strategy", errorHandlingDesc: "Configure how to handle errors during export",
       allowPartialResult: "Allow Partial Results", allowPartialResultDesc: "When enabled, export will skip errors (like style extraction or text rendering failures) and continue, potentially resulting in incomplete output. When disabled, any error will stop export immediately with a specific reason.",
       allowPartialResultWarning: "Enabling this option may result in PPTX files with missing text styles, mispositioned elements, or missing content. Only enable when you need quick results and can accept quality loss.",
@@ -87,12 +93,15 @@ interface ProjectSettingsModalProps {
   onSaveTemplateStyle: () => void;
   isSavingRequirements: boolean;
   isSavingTemplateStyle: boolean;
+  sourceContent?: string;
   exportExtractorMethod?: ExportExtractorMethod;
   exportInpaintMethod?: ExportInpaintMethod;
   exportAllowPartial?: boolean;
+  enableIconSubjectExtraction?: boolean;
   onExportExtractorMethodChange?: (value: ExportExtractorMethod) => void;
   onExportInpaintMethodChange?: (value: ExportInpaintMethod) => void;
   onExportAllowPartialChange?: (value: boolean) => void;
+  onEnableIconSubjectExtractionChange?: (value: boolean) => void;
   onSaveExportSettings?: () => void;
   isSavingExportSettings?: boolean;
   aspectRatio?: string;
@@ -115,12 +124,15 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
   onSaveTemplateStyle,
   isSavingRequirements,
   isSavingTemplateStyle,
+  sourceContent,
   exportExtractorMethod = 'hybrid',
   exportInpaintMethod = 'hybrid',
   exportAllowPartial = false,
+  enableIconSubjectExtraction = true,
   onExportExtractorMethodChange,
   onExportInpaintMethodChange,
   onExportAllowPartialChange,
+  onEnableIconSubjectExtractionChange,
   onSaveExportSettings,
   isSavingExportSettings = false,
   aspectRatio = '16:9',
@@ -159,12 +171,12 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
           </button>
         </div>
 
-        <div className="flex-1 flex overflow-hidden min-h-0">
-          <aside className="w-64 bg-gray-50 dark:bg-background-primary border-r border-gray-200 dark:border-border-primary flex-shrink-0">
-            <nav className="p-4 space-y-2">
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
+          <aside className="w-full md:w-64 bg-gray-50 dark:bg-background-primary border-b md:border-b-0 md:border-r border-gray-200 dark:border-border-primary flex-shrink-0">
+            <nav className="grid grid-cols-3 gap-2 p-2 md:block md:p-4 md:space-y-2">
               <button
                 onClick={() => setActiveTab('project')}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                className={`w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-2 md:px-4 py-3 rounded-lg transition-all ${
                   activeTab === 'project'
                     ? 'bg-banana-500 text-white shadow-md'
                     : 'bg-white dark:bg-background-secondary text-gray-700 dark:text-foreground-secondary hover:bg-gray-100 dark:hover:bg-background-hover'
@@ -175,7 +187,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
               </button>
               <button
                 onClick={() => setActiveTab('export')}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                className={`w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-2 md:px-4 py-3 rounded-lg transition-all ${
                   activeTab === 'export'
                     ? 'bg-banana-500 text-white shadow-md'
                     : 'bg-white dark:bg-background-secondary text-gray-700 dark:text-foreground-secondary hover:bg-gray-100 dark:hover:bg-background-hover'
@@ -186,7 +198,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
               </button>
               <button
                 onClick={() => setActiveTab('global')}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                className={`w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-2 md:px-4 py-3 rounded-lg transition-all ${
                   activeTab === 'global'
                     ? 'bg-banana-500 text-white shadow-md'
                     : 'bg-white dark:bg-background-secondary text-gray-700 dark:text-foreground-secondary hover:bg-gray-100 dark:hover:bg-background-hover'
@@ -198,7 +210,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
             </nav>
           </aside>
 
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="flex-1 min-w-0 min-h-0 overflow-y-auto p-4 md:p-6">
             {activeTab === 'project' ? (
               <div className="max-w-3xl space-y-6">
                 <div>
@@ -209,7 +221,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                 </div>
 
                 {/* 画面比例 */}
-                <div className="bg-gray-50 dark:bg-background-primary rounded-lg p-6 space-y-4">
+                <div className="pb-6 border-b border-gray-200 dark:border-border-primary space-y-4">
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary">{t('projectSettings.aspectRatio')}</h4>
@@ -256,7 +268,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                   )}
                 </div>
 
-                <div className="bg-gray-50 dark:bg-background-primary rounded-lg p-6 space-y-4">
+                <div className="pb-6 border-b border-gray-200 dark:border-border-primary space-y-4">
                   <div>
                     <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('projectSettings.extraRequirements')}</h4>
                     <p className="text-sm text-gray-600 dark:text-foreground-tertiary">
@@ -281,19 +293,17 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                   </Button>
                 </div>
 
-                <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-6 space-y-4">
+                <div className="space-y-4">
                   <div>
                     <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('projectSettings.styleDescription')}</h4>
                     <p className="text-sm text-gray-600 dark:text-foreground-tertiary">
                       {t('projectSettings.styleDescriptionDesc')}
                     </p>
                   </div>
-                  <Textarea
+                  <TextStyleSelector
                     value={templateStyle}
-                    onChange={(e) => onTemplateStyleChange(e.target.value)}
-                    placeholder={t('projectSettings.styleDescriptionPlaceholder')}
-                    rows={5}
-                    className="text-sm"
+                    onChange={onTemplateStyleChange}
+                    sourceContent={sourceContent}
                   />
                   <div className="flex flex-col sm:flex-row gap-3">
                     <Button
@@ -306,9 +316,10 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                       {isSavingTemplateStyle ? t('shared.saving') : t('projectSettings.saveStyleDescription')}
                     </Button>
                   </div>
-                  <div className="bg-blue-100 dark:bg-blue-900/30 rounded-md p-3">
-                    <p className="text-xs text-blue-900 dark:text-blue-300">
-                      💡 <strong>{t('projectSettings.tip')}：</strong>{t('projectSettings.styleTip')}
+                  <div className="pl-4 border-l-4 border-blue-300 dark:border-blue-600">
+                    <p className="text-xs text-gray-700 dark:text-foreground-secondary flex items-start gap-1.5">
+                      <Lightbulb size={14} className="flex-shrink-0 mt-0.5" />
+                      <span><strong>{t('projectSettings.tip')}：</strong>{t('projectSettings.styleTip')}</span>
                     </p>
                   </div>
                 </div>
@@ -322,7 +333,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                   </p>
                 </div>
 
-                <div className="bg-gray-50 dark:bg-background-primary rounded-lg p-6 space-y-4">
+                <div className="pb-6 border-b border-gray-200 dark:border-border-primary space-y-4">
                   <div>
                     <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('projectSettings.extractorMethod')}</h4>
                     <p className="text-sm text-gray-600 dark:text-foreground-tertiary">
@@ -356,7 +367,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                   </div>
                 </div>
 
-                <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-6 space-y-4">
+                <div className="pb-6 border-b border-gray-200 dark:border-border-primary space-y-4">
                   <div>
                     <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('projectSettings.backgroundMethod')}</h4>
                     <p className="text-sm text-gray-600 dark:text-foreground-tertiary">
@@ -396,15 +407,41 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                       </label>
                     ))}
                   </div>
-                  <div className="bg-amber-100 dark:bg-amber-900/20 rounded-md p-3 flex items-start gap-2">
-                    <AlertTriangle size={16} className="text-amber-700 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-                    <p className="text-xs text-amber-900 dark:text-amber-300">
+                  <div className="pl-4 border-l-4 border-yellow-300 dark:border-yellow-600 flex items-start gap-2">
+                    <AlertTriangle size={16} className="text-yellow-600 dark:text-yellow-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-gray-700 dark:text-foreground-secondary">
                       <strong>{t('projectSettings.tip')}：</strong>{t('projectSettings.costTip')}
                     </p>
                   </div>
                 </div>
 
-                <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-6 space-y-4">
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('projectSettings.iconSubjectExtraction')}</h4>
+                  </div>
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={enableIconSubjectExtraction}
+                      onChange={(e) => onEnableIconSubjectExtractionChange?.(e.target.checked)}
+                      className="mt-1 w-4 h-4 text-banana-500 focus:ring-banana-500 rounded"
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900 dark:text-foreground-primary">{t('projectSettings.iconSubjectExtraction')}</div>
+                      <div className="text-sm text-gray-600 dark:text-foreground-tertiary mt-1">
+                        {t('projectSettings.iconSubjectExtractionDesc')}
+                      </div>
+                    </div>
+                  </label>
+                  <div className="pl-4 border-l-4 border-yellow-300 dark:border-yellow-600 flex items-start gap-2">
+                    <AlertTriangle size={16} className="text-yellow-600 dark:text-yellow-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-gray-700 dark:text-foreground-secondary">
+                      <strong>{t('projectSettings.tip')}：</strong>{t('projectSettings.iconSubjectExtractionTip')}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
                   <div>
                     <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('projectSettings.errorHandling')}</h4>
                     <p className="text-sm text-gray-600 dark:text-foreground-tertiary">
@@ -425,9 +462,9 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                       </div>
                     </div>
                   </label>
-                  <div className="bg-red-100 dark:bg-red-900/20 rounded-md p-3 flex items-start gap-2">
+                  <div className="pl-4 border-l-4 border-red-300 dark:border-red-600 flex items-start gap-2">
                     <AlertTriangle size={16} className="text-red-700 dark:text-red-400 flex-shrink-0 mt-0.5" />
-                    <p className="text-xs text-red-900 dark:text-red-300">
+                    <p className="text-xs text-gray-700 dark:text-foreground-secondary">
                       <strong>{t('common.warning')}：</strong>{t('projectSettings.allowPartialResultWarning')}
                     </p>
                   </div>

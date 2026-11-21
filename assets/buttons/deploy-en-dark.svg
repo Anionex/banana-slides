@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="132" height="38" viewBox="0 0 132 38" role="img" aria-label="Deployment">
+  <title>Deployment</title>
+  <rect x="0.5" y="3.5" width="131" height="31" rx="6" fill="#21262D" stroke="#30363D"/>
+  <g transform="translate(20.999999999999993 11.5) scale(.625)" fill="none" stroke="#EEEDE7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" x2="20" y1="19" y2="19"></line></g>
+  <text x="77.5" y="24" text-anchor="middle" fill="#EEEDE7" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="13" font-weight="600">Deployment</text>
+</svg>

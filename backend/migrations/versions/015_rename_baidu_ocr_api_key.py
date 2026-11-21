@@ -6,6 +6,7 @@ Create Date: 2026-02-26
 
 """
 from alembic import op
+from sqlalchemy import inspect
 
 
 # revision identifiers, used by Alembic.
@@ -15,11 +16,20 @@ branch_labels = None
 depends_on = None
 
 
+def _column_exists(table_name: str, column_name: str) -> bool:
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    columns = [col['name'] for col in inspector.get_columns(table_name)]
+    return column_name in columns
+
+
 def upgrade():
-    with op.batch_alter_table('settings') as batch_op:
-        batch_op.alter_column('baidu_ocr_api_key', new_column_name='baidu_api_key')
+    if _column_exists('settings', 'baidu_ocr_api_key') and not _column_exists('settings', 'baidu_api_key'):
+        with op.batch_alter_table('settings') as batch_op:
+            batch_op.alter_column('baidu_ocr_api_key', new_column_name='baidu_api_key')
 
 
 def downgrade():
-    with op.batch_alter_table('settings') as batch_op:
-        batch_op.alter_column('baidu_api_key', new_column_name='baidu_ocr_api_key')
+    if _column_exists('settings', 'baidu_api_key') and not _column_exists('settings', 'baidu_ocr_api_key'):
+        with op.batch_alter_table('settings') as batch_op:
+            batch_op.alter_column('baidu_api_key', new_column_name='baidu_ocr_api_key')

@@ -8,16 +8,28 @@
 4. 零具体实现依赖 - 完全依赖抽象接口
 """
 import logging
+import math
 import uuid
 from typing import List, Optional, Tuple
-from PIL import Image
+
+import cv2
+import numpy as np
+from PIL import Image, ImageChops
 
 from .data_models import BBox, EditableElement, EditableImage
 from .coordinate_mapper import CoordinateMapper
 from .extractors import ElementExtractor, ExtractionResult
 from .inpaint_providers import InpaintProvider
 from .factories import ServiceConfig
-from .helpers import collect_bboxes_from_elements, should_recurse_into_element, crop_element_from_image
+from .helpers import (
+    collect_bboxes_from_elements,
+    should_recurse_into_element,
+    crop_element_from_image,
+    should_extract_subject,
+)
+
+from export_runtime.control import current as current_export, check as check_export, StageFailure, ExportAborted, dependency_failed
+from export_runtime.checkpoints import cached, file_hash, digest
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +71,9 @@ class ImageEditabilityService:
         self._min_image_size = config.min_image_size
         self._min_image_area = config.min_image_area
         self._max_child_coverage_ratio = 0.85
+        self._segmentation_provider = config.segmentation_provider
+        self._enable_icon_subject_extraction = config.enable_icon_subject_extraction
+        self._text_only = config.text_only
         
         extractors = self._extractor_registry.get_all_extractors()
         inpaint_providers = self._inpaint_registry.get_all_providers()
@@ -68,7 +83,29 @@ class ImageEditabilityService:
             f"max_depth={self._max_depth}"
         )
     
-    def make_image_editable(
+    def make_image_editable(self, image_path, depth=0, parent_id=None, parent_bbox=None,
+                            root_image_size=None, element_type=None, root_image_path=None):
+        inputs = dict(image_path=image_path, depth=depth, parent_id=parent_id,
+                      parent_bbox=parent_bbox, root_image_size=root_image_size,
+                      element_type=element_type, root_image_path=root_image_path)
+        try:
+            from contextlib import nullcontext
+            control = current_export()
+            with control.node('page_analysis') if control else nullcontext(), \
+                    control.resource('pages') if control else nullcontext():
+                return cached('analysis', inputs, lambda: self._make_image_editable(**inputs),
+                              lambda result: not result.metadata.get('degraded'))
+        except Exception as exc:
+            check_export()
+            control = current_export()
+            if depth or not control or control.strict or isinstance(exc, ExportAborted):
+                raise
+            with Image.open(image_path) as image:
+                width, height = image.size
+            return EditableImage(file_hash(image_path)[:16], image_path, width, height,
+                                 metadata={'degraded': str(exc)})
+
+    def _make_image_editable(
         self,
         image_path: str,
         depth: int = 0,
@@ -99,7 +136,9 @@ class ImageEditabilityService:
             FileNotFoundError: 图片文件不存在
             ValueError: 图片格式不支持
         """
-        image_id = str(uuid.uuid4())[:8]
+        check_export()
+        image_id = digest({'source': file_hash(image_path), 'depth': depth,
+                           'parent': parent_id, 'region': parent_bbox.to_dict() if parent_bbox else None})[:24]
         logger.info(f"{'  ' * depth}[{image_id}] 开始处理")
         
         # 1. 加载图片
@@ -124,7 +163,7 @@ class ImageEditabilityService:
         )
 
         # 检查提取是否有错误（根层级必须成功，否则报错）
-        if extraction_result.has_error and depth == 0:
+        if extraction_result.has_error:
             raise RuntimeError(f"版面分析失败: {extraction_result.error}")
 
         # 从context获取image_size（提取器自己获取）
@@ -138,8 +177,16 @@ class ImageEditabilityService:
             root_image_size=root_image_size,
             source_image_path=image_path  # 传入源图片路径用于裁剪
         )
-        
+
         logger.info(f"{'  ' * depth}提取到 {len(elements)} 个元素")
+
+        # 2.5 对疑似图标的元素调用主体抠图模型，替换为透明背景 PNG
+        if self._enable_icon_subject_extraction and self._segmentation_provider is not None:
+            self._enhance_icon_elements_with_subject_extraction(
+                elements=elements,
+                image_id=image_id,
+                depth=depth,
+            )
         
         # 3. 生成clean background（根据元素类型选择重绘方法）
         clean_background = None
@@ -155,6 +202,9 @@ class ImageEditabilityService:
                 element_type=element_type  # 传递元素类型以选择对应的重绘方法
             )
         
+        if current_export() and elements and not clean_background:
+            raise StageFailure('背景擦除失败，不能在原图上叠加可编辑元素')
+
         # 4. 递归处理子元素
         # max_depth 语义：max_depth=1 表示只处理1层不递归，max_depth=2 递归一次
         if depth + 1 < self._max_depth:
@@ -196,12 +246,14 @@ class ImageEditabilityService:
         extractor = self._select_extractor(element_type)
         
         # 调用提取器（提取器自己处理所有细节，包括获取image_size）
-        return extractor.extract(
-            image_path=image_path,
-            element_type=element_type,
-            depth=depth
-        )
+        result = cached('extract', dict(image_path=image_path, element_type=element_type, depth=depth),
+                        lambda: extractor.extract(image_path=image_path, element_type=element_type, depth=depth,
+                                                  **({'recognize_granularity': 'small'} if self._text_only else {})),
+                        lambda result: not result.has_error)
+        check_export()
+        return result
     
+
     def _select_extractor(self, element_type: Optional[str]) -> ElementExtractor:
         """根据元素类型从注册表选择对应的提取器"""
         extractor = self._extractor_registry.get_extractor(element_type)
@@ -225,18 +277,23 @@ class ImageEditabilityService:
         这样所有元素（包括文字）都有 image_path，可用于样式提取。
         """
         elements = []
-        
+
         # 准备输出目录
         output_dir = None
         source_img = None
+        source_bgr = None
         if source_image_path:
             output_dir = self._upload_folder / 'editable_images' / image_id / 'elements'
             output_dir.mkdir(parents=True, exist_ok=True)
             try:
                 source_img = Image.open(source_image_path)
+                # 给 should_extract_subject 用的 BGR 视图（同源图片，避免再读盘）
+                source_bgr = cv2.cvtColor(
+                    np.asarray(source_img.convert('RGB')), cv2.COLOR_RGB2BGR
+                )
             except Exception as e:
                 logger.warning(f"无法加载源图片进行裁剪: {e}")
-        
+
         for idx, elem_dict in enumerate(element_dicts):
             bbox_list = elem_dict['bbox']
             local_bbox = BBox(
@@ -245,7 +302,17 @@ class ImageEditabilityService:
                 x1=bbox_list[2],
                 y1=bbox_list[3]
             )
-            
+            elem_type = elem_dict['type']
+
+            # 仅 image/figure 在源头跑 icon 分类。被判定为 icon 的 BBox 轻微外扩，
+            # 让裁图、下游 mask 区域、paste-back 一次同步扩张，避免边缘漏裁/漏擦。
+            is_icon: Optional[bool] = None
+            if source_bgr is not None and elem_type in ('image', 'figure'):
+                is_icon = should_extract_subject(source_bgr, local_bbox)
+                if is_icon is True and source_img is not None:
+                    pad = max(4, math.ceil(0.02 * min(local_bbox.width, local_bbox.height)))
+                    local_bbox = local_bbox.expand(pad, source_img.width, source_img.height)
+
             # 计算全局坐标
             if parent_bbox is None:
                 global_bbox = local_bbox
@@ -272,18 +339,19 @@ class ImageEditabilityService:
                     # 检查裁剪区域有效性
                     if crop_box[2] > crop_box[0] and crop_box[3] > crop_box[1]:
                         cropped = source_img.crop(crop_box)
-                        element_image_path = str(output_dir / f"{idx}_{elem_dict['type']}.png")
+                        element_image_path = str(output_dir / f"{idx}_{elem_type}.png")
                         cropped.save(element_image_path)
                 except Exception as e:
                     logger.warning(f"裁剪元素 {idx} 失败: {e}")
             
             element = EditableElement(
                 element_id=f"{image_id}_{idx}",
-                element_type=elem_dict['type'],
+                element_type=elem_type,
                 bbox=local_bbox,
                 bbox_global=global_bbox,
                 content=elem_dict.get('content'),
                 image_path=element_image_path,  # 使用自己裁剪的图片路径
+                is_icon=is_icon,
                 metadata=elem_dict.get('metadata', {})
             )
             
@@ -295,7 +363,58 @@ class ImageEditabilityService:
         
         return elements
     
-    def _generate_clean_background(
+    def _enhance_icon_elements_with_subject_extraction(
+        self,
+        elements: List[EditableElement],
+        image_id: str,
+        depth: int,
+    ) -> None:
+        """
+        对疑似图标的 image/figure 元素调用主体抠图模型，替换 image_path 为透明背景 PNG。
+
+        分类已在 _convert_to_editable_elements 源头完成（elem.is_icon），这里直接复用，
+        失败（含分类不确定、模型返回 None）保留原矩形 crop，不抛异常。
+        """
+        icons = [
+            elem for elem in elements
+            if elem.image_path
+            and elem.element_type in ('image', 'figure')
+            and elem.is_icon is True
+        ]
+        if not icons:
+            return
+
+        output_dir = self._upload_folder / 'editable_images' / image_id / 'icon_cutouts'
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        success = 0
+        for elem in icons:
+            try:
+                with Image.open(elem.image_path) as src:
+                    cutout = self._segmentation_provider.extract_subject(src)
+            except Exception as e:
+                check_export()
+                raise StageFailure(f'图标主体抠图失败: {e}') from e
+            if cutout is None:
+                raise StageFailure('图标主体抠图未返回结果')
+            cutout_path = output_dir / f"{elem.element_id}.png"
+            cutout.save(str(cutout_path))
+            elem.image_path = str(cutout_path)
+            elem.metadata['subject_extracted'] = True
+            success += 1
+
+        logger.info(f"{'  ' * depth}🎨 主体抠图: {success}/{len(icons)} 成功")
+
+    def _generate_clean_background(self, image_path, elements, image_id, depth,
+                                   parent_bbox, root_image_path, image_size, element_type=None):
+        inputs = dict(image_path=image_path, elements=elements, image_id=image_id,
+                      depth=depth, parent_bbox=parent_bbox, root_image_path=root_image_path,
+                      image_size=image_size, element_type=element_type)
+        if self._text_only:
+            return self._generate_clean_background_uncached(**inputs)
+        return cached('background', inputs, lambda: self._generate_clean_background_uncached(**inputs))
+
+    def _generate_clean_background_uncached(
         self,
         image_path: str,
         elements: List[EditableElement],
@@ -320,6 +439,15 @@ class ImageEditabilityService:
         if inpaint_provider is None:
             logger.warning(f"{'  ' * depth}未找到重绘方法，跳过")
             return None
+
+        from .inpaint_providers import GenerativeEditInpaintProvider
+        if self._text_only and isinstance(inpaint_provider, GenerativeEditInpaintProvider):
+            from .text_restoration import restore_text_background
+            return restore_text_background(
+                image_path, elements, inpaint_provider,
+                lambda path: self._extract_elements(path, element_type, depth),
+                self._upload_folder / 'editable_images' / image_id / 'erasure',
+            )
         
         try:
             bboxes = collect_bboxes_from_elements(elements)
@@ -373,18 +501,59 @@ class ImageEditabilityService:
                 expand_pixels=10,
                 save_mask_path=str(output_dir / 'mask.png'),
                 full_page_image=full_page_img,
-                crop_box=crop_box
+                crop_box=crop_box,
+                text_only=self._text_only,
+                **({'text_targets': [dict(text=e.content, bbox=list(e.bbox.to_tuple()))
+                                     for e in elements if e.content]}
+                   if self._text_only else {}),
             )
             
             if result_img is None:
                 return None
+
+            if self._text_only:
+                # Use the whole text-free image, including text missed by OCR.
+                result_img = result_img.convert('RGB').resize(img.size)
+                if ImageChops.difference(result_img, img.convert('RGB')).getbbox() is None:
+                    logger.error("文字擦除返回原图，不能叠加可编辑文字")
+                    return None
             
             # 保存结果
             output_path = output_dir / 'clean_background.png'
             result_img.save(str(output_path))
+            if self._text_only:
+                # A successful image request does not prove text was removed.
+                # Reuse the same OCR provider; never overlay text on a failed
+                # or unverified background (including partial-export mode).
+                check = self._extract_elements(str(output_path), element_type, depth)
+                if check.error:
+                    raise RuntimeError(f"去字结果校验失败: {check.error}")
+                remaining = []
+                for detected in check.elements:
+                    if not str(detected.get('content') or '').strip():
+                        continue
+                    x0, y0, x1, y1 = detected['bbox']
+                    area = max(1, (x1 - x0) * (y1 - y0))
+                    # OCR can mistake preserved birds/mountains for characters.
+                    # Reject residuals where editable text will actually overlay.
+                    for element in elements:
+                        box = element.bbox
+                        overlap = (
+                            max(0, min(x1, box.x1) - max(x0, box.x0))
+                            * max(0, min(y1, box.y1) - max(y0, box.y0))
+                        )
+                        if overlap / area >= .25:
+                            remaining.append(detected)
+                            break
+                if remaining:
+                    logger.error("去字背景仍识别到 %s 处文字，不能叠加可编辑文字", len(remaining))
+                    return None
             return str(output_path)
         
         except Exception as e:
+            check_export()
+            if current_export():
+                raise
             logger.error(f"生成clean background失败: {e}", exc_info=True)
             return None
     
@@ -416,9 +585,6 @@ class ImageEditabilityService:
         if not elements_to_process:
             return
         
-        # 并行处理多个子元素
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-        
         def process_single_element(element):
             """处理单个子元素"""
             try:
@@ -445,17 +611,10 @@ class ImageEditabilityService:
         
         logger.info(f"{'  ' * depth}  并行处理 {len(elements_to_process)} 个子元素...")
         
-        # 使用线程池并行处理
-        max_workers = min(8, len(elements_to_process))  # 限制并发数
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {executor.submit(process_single_element, elem): elem for elem in elements_to_process}
-            
-            for future in as_completed(futures):
-                element, child_editable, error = future.result()
-                
-                if error:
-                    logger.error(f"{'  ' * depth}  ✗ {element.element_id} 失败: {error}")
-                else:
-                    element.children = child_editable.elements
-                    element.inpainted_background_path = child_editable.clean_background
-                    logger.info(f"{'  ' * depth}  ✓ {element.element_id} 完成: {len(child_editable.elements)} 个子元素")
+        for element in elements_to_process:
+            check_export()
+            element, child_editable, error = process_single_element(element)
+            if error:
+                raise StageFailure(f'子元素还原失败: {error}') from error
+            element.children = child_editable.elements
+            element.inpainted_background_path = child_editable.clean_background

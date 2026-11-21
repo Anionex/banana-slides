@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "banana-slides"
-version = "0.3.0"
+version = "0.9.0"
 description = "Banana Slides – AI native PPT generator"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -16,6 +16,7 @@ dependencies = [
     "openai>=1.0.0",
     "anthropic>=0.30.0",
     "httpx>=0.25.0",
+    "requests[socks]>=2.31.0",
     "typer>=0.9.0",
     "rich>=13.0.0",
     "pydantic>=2.9.0",
@@ -30,10 +31,20 @@ dependencies = [
     "alembic>=1.13.0",
     "flask-migrate>=4.0.0",
     "img2pdf>=0.5.1",
-    "lazyllm[online-advanced]>=0.7.3",
+    "lazyllm>=0.7.3",
+    "dashscope>=1.25.0",
+    "zhipuai>=2.1.5.20250708",
     "volcengine-python-sdk[ark]>=5.0.9",
+    "PyJWT>=2.8.0",
     "PyPDF2>=3.0.0",
     "PyMuPDF>=1.24.0",
+    "edge-tts>=6.1.0",
+    "socksio>=1.0.0",
+    "opencv-python-headless>=4.13.0.92",
+    "elevenlabs>=2.45.0",
+    "onnxruntime>=1.18.0",
+    "fonttools>=4.0",
+    "filelock>=3.16",
 ]
 
 [project.optional-dependencies]
@@ -60,3 +71,8 @@ testpaths = ["backend/tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]

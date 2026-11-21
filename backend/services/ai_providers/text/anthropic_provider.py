@@ -5,7 +5,7 @@ import base64
 import logging
 from typing import Generator, Optional
 from anthropic import Anthropic
-from .base import TextProvider, strip_think_tags
+from .base import get_text_output_limit, TextProvider, strip_think_tags
 from config import get_config
 
 logger = logging.getLogger(__name__)
@@ -23,14 +23,16 @@ class AnthropicTextProvider(TextProvider):
             api_base: API base URL (e.g., https://api.anthropic.com)
             model: Model name to use
         """
+        config = get_config()
         self.client = Anthropic(
             api_key=api_key,
             base_url=api_base,
-            timeout=get_config().OPENAI_TIMEOUT,
-            max_retries=get_config().OPENAI_MAX_RETRIES
+            timeout=config.OPENAI_TIMEOUT,
+            max_retries=config.OPENAI_MAX_RETRIES
         )
         self.model = model
-        self.max_tokens = get_config().ANTHROPIC_MAX_TOKENS
+        self.request_timeout_seconds = config.OPENAI_TIMEOUT
+        self.max_attempts = config.OPENAI_MAX_RETRIES + 1
 
     def generate_text(self, prompt: str, thinking_budget: int = 0) -> str:
         """
@@ -45,7 +47,7 @@ class AnthropicTextProvider(TextProvider):
         """
         response = self.client.messages.create(
             model=self.model,
-            max_tokens=self.max_tokens,
+            max_tokens=get_text_output_limit(),
             messages=[
                 {"role": "user", "content": prompt}
             ]
@@ -57,7 +59,7 @@ class AnthropicTextProvider(TextProvider):
         """Stream text using Anthropic Claude SDK with stream=True."""
         with self.client.messages.stream(
             model=self.model,
-            max_tokens=self.max_tokens,
+            max_tokens=get_text_output_limit(),
             messages=[{"role": "user", "content": prompt}],
         ) as stream:
             for text in stream.text_stream:
@@ -80,7 +82,7 @@ class AnthropicTextProvider(TextProvider):
 
         response = self.client.messages.create(
             model=self.model,
-            max_tokens=self.max_tokens,
+            max_tokens=get_text_output_limit(),
             messages=[
                 {
                     "role": "user",

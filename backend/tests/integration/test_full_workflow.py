@@ -6,6 +6,10 @@
 
 import pytest
 import time
+import io
+from pathlib import Path
+from flask import current_app
+from PIL import Image
 from conftest import assert_success_response
 
 
@@ -50,6 +54,45 @@ class TestFullWorkflow:
         
         # 检查上传结果
         assert upload_response.status_code in [200, 201]
+
+    def test_invalid_template_upload_is_rejected_and_does_not_replace_existing(self, client, sample_image_file):
+        """扩展名正确但内容不是图片的模板上传应在保存阶段被拒绝"""
+        create_response = client.post('/api/projects', json={
+            'creation_type': 'idea',
+            'idea_prompt': '测试非法模板上传'
+        })
+        data = assert_success_response(create_response, 201)
+        project_id = data['data']['project_id']
+
+        upload_response = client.post(
+            f'/api/projects/{project_id}/template',
+            data={'template_image': (sample_image_file, 'template.png')},
+            content_type='multipart/form-data'
+        )
+        assert_success_response(upload_response)
+
+        template_path = Path(current_app.config['UPLOAD_FOLDER']) / project_id / 'template' / 'template.png'
+        assert template_path.exists()
+
+        invalid_response = client.post(
+            f'/api/projects/{project_id}/template',
+            data={'template_image': (io.BytesIO(b'<html>not an image</html>'), 'template.png')},
+            content_type='multipart/form-data'
+        )
+
+        assert invalid_response.status_code == 400
+        with Image.open(template_path) as image:
+            assert image.size == (100, 100)
+
+    def test_invalid_user_template_upload_is_rejected(self, client):
+        """用户模板库也不能保存扩展名伪装的非图片内容"""
+        response = client.post(
+            '/api/user-templates',
+            data={'template_image': (io.BytesIO(b'<html>not an image</html>'), 'template.png')},
+            content_type='multipart/form-data'
+        )
+
+        assert response.status_code == 400
     
     def test_project_lifecycle(self, client):
         """测试项目完整生命周期"""
@@ -126,4 +169,3 @@ class TestConcurrentRequests:
         # 清理
         for pid in project_ids:
             client.delete(f'/api/projects/{pid}')
-

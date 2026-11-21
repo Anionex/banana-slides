@@ -28,24 +28,34 @@ def success_response(data: Any = None, message: str = "Success", status_code: in
     return jsonify(response), status_code
 
 
-def error_response(error_code: str, message: str, status_code: int = 400):
+def error_response(error_code: str, message: str, status_code: int = 400,
+                   extra: Optional[Dict[str, Any]] = None):
     """
     Generate an error response
-    
+
     Args:
         error_code: Error code identifier
         message: Error message
         status_code: HTTP status code
-    
+        extra: Additional fields merged into the error object (e.g. context like
+            missing_page_ids). Reserved keys ``code`` and ``message`` cannot be
+            overridden.
+
     Returns:
         Flask response with JSON format
     """
+    error_payload: Dict[str, Any] = {
+        "code": error_code,
+        "message": message,
+    }
+    if extra:
+        for k, v in extra.items():
+            if k in error_payload:
+                continue
+            error_payload[k] = v
     return jsonify({
         "success": False,
-        "error": {
-            "code": error_code,
-            "message": message
-        }
+        "error": error_payload,
     }), status_code
 
 
