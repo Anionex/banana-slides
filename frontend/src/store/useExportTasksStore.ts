@@ -4,6 +4,7 @@ import * as api from '@/api/endpoints';
 import { devLog } from '@/utils/logger';
 import { getT } from '@/utils/i18nHelper';
 import { normalizeErrorMessage } from '@/utils';
+import { generateUuid } from '@/utils/uuid';
 
 const exportI18n = {
   zh: {
@@ -309,7 +310,7 @@ export const useExportTasksStore = create<ExportTasksState>()(
       },
 
       resumeTask: async (task) => {
-        const response = await api.resumeEditableExport(task.projectId, task.taskId, crypto.randomUUID());
+        const response = await api.resumeEditableExport(task.projectId, task.taskId, generateUuid());
         const taskId = response.data?.task_id;
         if (!taskId) throw new Error('Missing resumed task ID');
         get().addTask({ id: taskId, taskId, projectId: task.projectId,
