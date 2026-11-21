@@ -72,6 +72,31 @@ def _describe_json_response_text(text: str) -> str:
     return "plain_text"
 
 
+def _strip_json_fence(text: str) -> str:
+    return text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+
+
+def _load_json_response(text: str) -> Any:
+    """Read a JSON value, or an object or array surrounded by model commentary."""
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        opening = re.search(r"[\[{]", text)
+        if opening is None:
+            raise
+
+    start = opening.start()
+    if start:
+        # Prefer an explicit JSON block over bracketed text in the introduction.
+        fence = re.search(r"```(?:json)?\s*(?=[\[{])", text, re.IGNORECASE)
+        if fence is not None:
+            start = fence.end()
+
+    # Start at the outer value so an incomplete response still triggers a retry.
+    value, _ = json.JSONDecoder().raw_decode(text, start)
+    return value
+
+
 class ProjectContext:
     """项目上下文数据类，统一管理 AI 需要的所有项目信息"""
     
@@ -259,10 +284,10 @@ class AIService:
         response_text = self.text_provider.generate_text(prompt, thinking_budget=actual_budget)
         
         # 清理响应文本：移除markdown代码块标记和多余空白
-        cleaned_text = response_text.strip().strip("```json").strip("```").strip()
+        cleaned_text = _strip_json_fence(response_text or "")
         
         try:
-            return json.loads(cleaned_text)
+            return _load_json_response(cleaned_text)
         except json.JSONDecodeError as e:
             logger.warning(f"JSON解析失败，将重新生成。原始文本: {cleaned_text[:200]}... 错误: {str(e)}")
             raise
@@ -308,14 +333,14 @@ class AIService:
             raise ValueError("caption_provider 不支持图片输入")
 
         # 清理响应文本：移除markdown代码块标记和多余空白
-        cleaned_text = (response_text or "").strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        cleaned_text = _strip_json_fence(response_text or "")
 
         if not cleaned_text:
             logger.warning("视觉模型返回空响应（带图片），将重试")
             raise ValueError("视觉模型返回空响应")
 
         try:
-            return json.loads(cleaned_text)
+            return _load_json_response(cleaned_text)
         except json.JSONDecodeError as e:
             logger.warning(
                 "JSON解析失败（带图片），将重新生成。provider=%s image=%s response_kind=%s response_len=%s "
