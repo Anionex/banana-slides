@@ -192,6 +192,43 @@ def result_file(app, run):
             'warnings': [], 'warning_details': {}, 'reused_nodes': 2}
 
 
+@pytest.mark.parametrize('cleanup_fails', [False, True])
+def test_success_reclaims_only_own_workspace(client, app, monkeypatch, export_project, cleanup_fails):
+    from export_runtime.tasks import run_task
+
+    project, _, _ = export_project
+    parent_id = create(client, project).json['data']['task_id']
+    fail(parent_id, RuntimeError('injected failure'))
+    previous_result = workspace(app, project.id, parent_id) / 'retained-checkpoint.png'
+    previous_result.parent.mkdir(parents=True, exist_ok=True)
+    previous_result.write_bytes(b'failed attempt remains resumable')
+    task_id = create(client, project, resume_from_task_id=parent_id).json['data']['task_id']
+    run = db.session.get(ExportRun, task_id)
+    filename = run.artifact_filename
+    root = workspace(app, project.id, task_id)
+
+    def worker(payload, on_event, is_active):
+        on_event({'event': 'running'})
+        for directory in ('sources', 'nodes', 'assets', 'tmp'):
+            (root / directory).mkdir()
+            (root / directory / 'fixture.png').write_bytes(b'copied or generated page content')
+        return result_file(app, db.session.get(ExportRun, task_id))
+
+    monkeypatch.setattr('export_runtime.process.supervise', worker)
+    if cleanup_fails:
+        def deny_cleanup(_path):
+            raise PermissionError('injected cleanup failure')
+        monkeypatch.setattr('export_runtime.tasks.shutil.rmtree', deny_cleanup)
+    run_task(task_id, app)
+
+    db.session.expire_all()
+    assert db.session.get(Task, task_id).status == 'COMPLETED'
+    assert previous_result.is_file()
+    assert client.get(f'/files/{project.id}/exports/{filename}').data.startswith(b'PK')
+    if not cleanup_fails:
+        assert {path.name for path in root.iterdir()} <= {'supervisor.lock'}
+
+
 def test_terminal_fence_rejects_late_publish_and_uncommitted_files(client, app, export_project):
     project, _, _ = export_project
     task_id = create(client, project).json['data']['task_id']

@@ -1,8 +1,10 @@
 """Supervisor ownership, fenced DB writes and publication for editable exports."""
 from datetime import datetime
 import json
+import logging
 import os
 from pathlib import Path
+import shutil
 import time
 import zipfile
 
@@ -13,6 +15,7 @@ from .control import ExportAborted, ExportDeadline, DEFAULT_LIMITS
 
 ACTIVE = ('PENDING', 'RUNNING', 'PROCESSING')
 PREFIX = 'editable-run-'
+logger = logging.getLogger(__name__)
 
 
 def runtime_root(app):
@@ -202,10 +205,28 @@ def _worker_config(app):
             if isinstance(value, (str, int, float, bool, type(None), list, dict))}
 
 
+def _reclaim_completed_workspace(root):
+    # The supervisor lock stays in place until the caller releases it. Failed
+    # attempts have separate workspaces and remain available for resume.
+    try:
+        for path in root.iterdir():
+            if path.name == 'supervisor.lock':
+                continue
+            if path.is_dir() and not path.is_symlink():
+                shutil.rmtree(path)
+            else:
+                path.unlink(missing_ok=True)
+    except OSError:
+        logger.warning('Could not reclaim completed export workspace %s', root, exc_info=True)
+
+
 def _run_owned_task(task_id, app):
     from models import db, Task, ExportRun
     from .process import supervise
     with app.app_context():
+        task = db.session.get(Task, task_id)
+        if task is None or task.status not in ACTIVE:
+            return
         pending = None
         try:
             run = db.session.get(ExportRun, task_id)
@@ -281,3 +302,5 @@ def _run_owned_task(task_id, app):
             db.session.rollback()
             fail(task_id, exc, 'EXPORT_DEADLINE' if isinstance(exc, ExportDeadline) else None,
                  progress=pending)
+        else:
+            _reclaim_completed_workspace(Path(payload['workspace']))
