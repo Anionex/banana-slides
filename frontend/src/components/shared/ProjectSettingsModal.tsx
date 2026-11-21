@@ -4,7 +4,6 @@ import { X, FileText, Settings as SettingsIcon, Download, Sparkles, AlertTriangl
 import { Button, Textarea, TextStyleSelector } from '@/components/shared';
 import { useT } from '@/hooks/useT';
 import { PublicSettings } from '@/pages/PublicSettings';
-import { isPublicDemo } from '@/utils/publicDemo';
 import { Settings } from '@/pages/Settings';
 import type { ExportExtractorMethod, ExportInpaintMethod } from '@/types';
 import { ASPECT_RATIO_OPTIONS } from '@/config/aspectRatio';
@@ -28,6 +27,7 @@ const projectSettingsI18n = {
       saveStyleDescription: "保存风格描述",
       styleTip: "风格描述会在生成图片时自动添加到提示词中。如果同时上传了模板图片，风格描述会作为补充说明。",
       editablePptxExport: "可编辑 PPTX 导出设置", editablePptxExportDesc: "配置「导出可编辑 PPTX」功能的处理方式。这些设置影响导出质量和API调用成本。",
+      editablePptxPublicDesc: "官网仅支持文字可编辑模式。去字会调用图像模型。",
       extractorMethod: "组件提取方法", extractorMethodDesc: "选择如何从PPT图片中提取文字、表格等可编辑组件",
       extractorHybrid: "混合提取（推荐）", extractorHybridDesc: "MinerU版面分析 + 百度高精度OCR，文字识别更精确",
       extractorMineru: "MinerU提取", extractorMineruDesc: "仅使用MinerU进行版面分析和文字识别",
@@ -65,6 +65,7 @@ const projectSettingsI18n = {
       saveStyleDescription: "Save Style Description",
       styleTip: "Style description will be automatically added to the prompt when generating images. If a template image is also uploaded, the style description will serve as supplementary notes.",
       editablePptxExport: "Editable PPTX Export Settings", editablePptxExportDesc: "Configure how \"Export Editable PPTX\" works. These settings affect export quality and API call costs.",
+      editablePptxPublicDesc: "The public demo exports editable text. Removing text from the background uses the image model.",
       extractorMethod: "Component Extraction Method", extractorMethodDesc: "Choose how to extract editable components like text and tables from PPT images",
       extractorHybrid: "Hybrid Extraction (Recommended)", extractorHybridDesc: "MinerU layout analysis + Baidu high-precision OCR for more accurate text recognition",
       extractorMineru: "MinerU Extraction", extractorMineruDesc: "Use only MinerU for layout analysis and text recognition",
@@ -334,118 +335,120 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-foreground-primary mb-4">{t('projectSettings.editablePptxExport')}</h3>
                   <p className="text-sm text-gray-600 dark:text-foreground-tertiary mb-6">
-                    {t('projectSettings.editablePptxExportDesc')}
+                    {t(isPublicDemo ? 'projectSettings.editablePptxPublicDesc' : 'projectSettings.editablePptxExportDesc')}
                   </p>
                 </div>
 
-                <div className="pb-6 border-b border-gray-200 dark:border-border-primary space-y-4">
-                  <div>
-                    <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('projectSettings.extractorMethod')}</h4>
-                    <p className="text-sm text-gray-600 dark:text-foreground-tertiary">
-                      {t('projectSettings.extractorMethodDesc')}
-                    </p>
-                  </div>
-                  <div className="space-y-3">
-                    {EXTRACTOR_METHOD_OPTIONS.map((option) => (
-                      <label
-                        key={option.value}
-                        className={`flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                          exportExtractorMethod === option.value
-                            ? 'border-banana-500 bg-banana-50 dark:bg-background-secondary'
-                            : 'border-gray-200 dark:border-border-primary hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-background-secondary'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="extractorMethod"
-                          value={option.value}
-                          checked={exportExtractorMethod === option.value}
-                          onChange={(e) => onExportExtractorMethodChange?.(e.target.value as ExportExtractorMethod)}
-                          className="mt-1 w-4 h-4 text-banana-500 focus:ring-banana-500"
-                        />
-                        <div className="flex-1">
-                          <div className="font-medium text-gray-900 dark:text-foreground-primary">{t(option.labelKey)}</div>
-                          <div className="text-sm text-gray-600 dark:text-foreground-tertiary mt-1">{t(option.descKey)}</div>
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="pb-6 border-b border-gray-200 dark:border-border-primary space-y-4">
-                  <div>
-                    <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('projectSettings.backgroundMethod')}</h4>
-                    <p className="text-sm text-gray-600 dark:text-foreground-tertiary">
-                      {t('projectSettings.backgroundMethodDesc')}
-                    </p>
-                  </div>
-                  <div className="space-y-3">
-                    {INPAINT_METHOD_OPTIONS.map((option) => (
-                      <label
-                        key={option.value}
-                        className={`flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                          exportInpaintMethod === option.value
-                            ? 'border-banana-500 bg-banana-50 dark:bg-background-secondary'
-                            : 'border-gray-200 dark:border-border-primary hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-background-secondary'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="inpaintMethod"
-                          value={option.value}
-                          checked={exportInpaintMethod === option.value}
-                          onChange={(e) => onExportInpaintMethodChange?.(e.target.value as ExportInpaintMethod)}
-                          className="mt-1 w-4 h-4 text-banana-500 focus:ring-banana-500"
-                        />
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-gray-900 dark:text-foreground-primary">{t(option.labelKey)}</span>
-                            {option.usesAI && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300">
-                                <Sparkles size={12} />
-                                {t('projectSettings.usesAiModel')}
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-sm text-gray-600 dark:text-foreground-tertiary mt-1">{t(option.descKey)}</div>
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                  <div className="pl-4 border-l-4 border-yellow-300 dark:border-yellow-600 flex items-start gap-2">
-                    <AlertTriangle size={16} className="text-yellow-600 dark:text-yellow-500 flex-shrink-0 mt-0.5" />
-                    <p className="text-xs text-gray-700 dark:text-foreground-secondary">
-                      <strong>{t('projectSettings.tip')}：</strong>{t('projectSettings.costTip')}
-                    </p>
-                  </div>
-                </div>
-
                 {!isPublicDemo && (
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('projectSettings.iconSubjectExtraction')}</h4>
-                  </div>
-                  <label className="flex items-start gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={enableIconSubjectExtraction}
-                      onChange={(e) => onEnableIconSubjectExtractionChange?.(e.target.checked)}
-                      className="mt-1 w-4 h-4 text-banana-500 focus:ring-banana-500 rounded"
-                    />
-                    <div className="flex-1">
-                      <div className="font-medium text-gray-900 dark:text-foreground-primary">{t('projectSettings.iconSubjectExtraction')}</div>
-                      <div className="text-sm text-gray-600 dark:text-foreground-tertiary mt-1">
-                        {t('projectSettings.iconSubjectExtractionDesc')}
+                  <>
+                    <div className="pb-6 border-b border-gray-200 dark:border-border-primary space-y-4">
+                      <div>
+                        <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('projectSettings.extractorMethod')}</h4>
+                        <p className="text-sm text-gray-600 dark:text-foreground-tertiary">
+                          {t('projectSettings.extractorMethodDesc')}
+                        </p>
+                      </div>
+                      <div className="space-y-3">
+                        {EXTRACTOR_METHOD_OPTIONS.map((option) => (
+                          <label
+                            key={option.value}
+                            className={`flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                              exportExtractorMethod === option.value
+                                ? 'border-banana-500 bg-banana-50 dark:bg-background-secondary'
+                                : 'border-gray-200 dark:border-border-primary hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-background-secondary'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="extractorMethod"
+                              value={option.value}
+                              checked={exportExtractorMethod === option.value}
+                              onChange={(e) => onExportExtractorMethodChange?.(e.target.value as ExportExtractorMethod)}
+                              className="mt-1 w-4 h-4 text-banana-500 focus:ring-banana-500"
+                            />
+                            <div className="flex-1">
+                              <div className="font-medium text-gray-900 dark:text-foreground-primary">{t(option.labelKey)}</div>
+                              <div className="text-sm text-gray-600 dark:text-foreground-tertiary mt-1">{t(option.descKey)}</div>
+                            </div>
+                          </label>
+                        ))}
                       </div>
                     </div>
-                  </label>
-                  <div className="pl-4 border-l-4 border-yellow-300 dark:border-yellow-600 flex items-start gap-2">
-                    <AlertTriangle size={16} className="text-yellow-600 dark:text-yellow-500 flex-shrink-0 mt-0.5" />
-                    <p className="text-xs text-gray-700 dark:text-foreground-secondary">
-                      <strong>{t('projectSettings.tip')}：</strong>{t('projectSettings.iconSubjectExtractionTip')}
-                    </p>
-                  </div>
-                </div>
+
+                    <div className="pb-6 border-b border-gray-200 dark:border-border-primary space-y-4">
+                      <div>
+                        <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('projectSettings.backgroundMethod')}</h4>
+                        <p className="text-sm text-gray-600 dark:text-foreground-tertiary">
+                          {t('projectSettings.backgroundMethodDesc')}
+                        </p>
+                      </div>
+                      <div className="space-y-3">
+                        {INPAINT_METHOD_OPTIONS.map((option) => (
+                          <label
+                            key={option.value}
+                            className={`flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                              exportInpaintMethod === option.value
+                                ? 'border-banana-500 bg-banana-50 dark:bg-background-secondary'
+                                : 'border-gray-200 dark:border-border-primary hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-background-secondary'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="inpaintMethod"
+                              value={option.value}
+                              checked={exportInpaintMethod === option.value}
+                              onChange={(e) => onExportInpaintMethodChange?.(e.target.value as ExportInpaintMethod)}
+                              className="mt-1 w-4 h-4 text-banana-500 focus:ring-banana-500"
+                            />
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-gray-900 dark:text-foreground-primary">{t(option.labelKey)}</span>
+                                {option.usesAI && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300">
+                                    <Sparkles size={12} />
+                                    {t('projectSettings.usesAiModel')}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-sm text-gray-600 dark:text-foreground-tertiary mt-1">{t(option.descKey)}</div>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                      <div className="pl-4 border-l-4 border-yellow-300 dark:border-yellow-600 flex items-start gap-2">
+                        <AlertTriangle size={16} className="text-yellow-600 dark:text-yellow-500 flex-shrink-0 mt-0.5" />
+                        <p className="text-xs text-gray-700 dark:text-foreground-secondary">
+                          <strong>{t('projectSettings.tip')}：</strong>{t('projectSettings.costTip')}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('projectSettings.iconSubjectExtraction')}</h4>
+                      </div>
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={enableIconSubjectExtraction}
+                          onChange={(e) => onEnableIconSubjectExtractionChange?.(e.target.checked)}
+                          className="mt-1 w-4 h-4 text-banana-500 focus:ring-banana-500 rounded"
+                        />
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-900 dark:text-foreground-primary">{t('projectSettings.iconSubjectExtraction')}</div>
+                          <div className="text-sm text-gray-600 dark:text-foreground-tertiary mt-1">
+                            {t('projectSettings.iconSubjectExtractionDesc')}
+                          </div>
+                        </div>
+                      </label>
+                      <div className="pl-4 border-l-4 border-yellow-300 dark:border-yellow-600 flex items-start gap-2">
+                        <AlertTriangle size={16} className="text-yellow-600 dark:text-yellow-500 flex-shrink-0 mt-0.5" />
+                        <p className="text-xs text-gray-700 dark:text-foreground-secondary">
+                          <strong>{t('projectSettings.tip')}：</strong>{t('projectSettings.iconSubjectExtractionTip')}
+                        </p>
+                      </div>
+                    </div>
+                  </>
                 )}
 
                 <div className="space-y-4">
