@@ -149,6 +149,8 @@ $ffmpegExe = Join-Path $ffmpegDir "ffmpeg.exe"
 $ffprobeExe = Join-Path $ffmpegDir "ffprobe.exe"
 if (!(Test-Path $ffmpegExe)) { Fail "Packaged ffmpeg executable not found: $ffmpegExe" }
 if (!(Test-Path $ffprobeExe)) { Fail "Packaged ffprobe executable not found: $ffprobeExe" }
+& $ffmpegExe -version *> (Join-Path $OutDir "ffmpeg-version.txt")
+if ($LASTEXITCODE -ne 0) { Fail "Packaged ffmpeg executable failed with exit code $LASTEXITCODE" }
 & $ffprobeExe -version *> (Join-Path $OutDir "ffprobe-version.txt")
 if ($LASTEXITCODE -ne 0) { Fail "Packaged ffprobe executable failed with exit code $LASTEXITCODE" }
 Write-Step "PackagedFFprobe=$ffprobeExe"

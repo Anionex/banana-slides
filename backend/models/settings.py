@@ -20,6 +20,7 @@ class Settings(db.Model):
     api_key = db.Column(db.String(500), nullable=True)             # API密钥
     image_resolution = db.Column(db.String(20), nullable=True)     # 图像清晰度: 1K, 2K, 4K (NULL=use .env)
     image_aspect_ratio = db.Column(db.String(10), nullable=True)   # 图像比例: 16:9, 4:3, 1:1 (NULL=use .env)
+    image_quality = db.Column(db.String(10), nullable=True)        # 图像质量档位: auto/low/medium/high/xhigh/max (NULL=use .env)
     max_description_workers = db.Column(db.Integer, nullable=True)  # 描述生成最大工作线程数 (NULL=use .env)
     max_image_workers = db.Column(db.Integer, nullable=True)        # 图像生成最大工作线程数 (NULL=use .env)
 
@@ -33,6 +34,7 @@ class Settings(db.Model):
     
     # 推理模式配置（分别控制文本和图像生成）
     enable_text_reasoning = db.Column(db.Boolean, nullable=False, default=False)  # 文本生成是否开启推理
+    text_max_output_tokens = db.Column(db.Integer, nullable=True)  # NULL = environment/default 32768
     text_thinking_budget = db.Column(db.Integer, nullable=False, default=1024)  # 文本推理思考负载 (1-8192)
     enable_image_reasoning = db.Column(db.Boolean, nullable=False, default=False)  # 图像生成是否开启推理
     image_thinking_budget = db.Column(db.Integer, nullable=False, default=1024)  # 图像推理思考负载 (1-8192)
@@ -165,6 +167,7 @@ class Settings(db.Model):
             'api_key_length': len(api_key) if api_key else 0,
             'image_resolution': self._val('image_resolution', d),
             'image_aspect_ratio': self._val('image_aspect_ratio', d),
+            'image_quality': self._val('image_quality', d) or 'auto',
             'max_description_workers': self._val('max_description_workers', d),
             'max_image_workers': self._val('max_image_workers', d),
             'text_model': self._val('text_model', d),
@@ -177,6 +180,7 @@ class Settings(db.Model):
             'description_extra_fields': self.get_description_extra_fields(),
             'image_prompt_extra_fields': self.get_image_prompt_extra_fields(),
             'enable_text_reasoning': self.enable_text_reasoning,
+            'text_max_output_tokens': self._val('text_max_output_tokens', d),
             'text_thinking_budget': self.text_thinking_budget,
             'enable_image_reasoning': self.enable_image_reasoning,
             'image_thinking_budget': self.image_thinking_budget,
@@ -351,8 +355,10 @@ class Settings(db.Model):
             'api_key': api_key,
             'image_resolution': Config.DEFAULT_RESOLUTION,
             'image_aspect_ratio': Config.DEFAULT_ASPECT_RATIO,
+            'image_quality': Config.IMAGE_QUALITY,
             'max_description_workers': Config.MAX_DESCRIPTION_WORKERS,
             'max_image_workers': Config.MAX_IMAGE_WORKERS,
+            'text_max_output_tokens': Config.TEXT_MAX_OUTPUT_TOKENS,
             'text_model': Config.TEXT_MODEL,
             'image_model': Config.IMAGE_MODEL,
             'mineru_api_base': Config.MINERU_API_BASE,

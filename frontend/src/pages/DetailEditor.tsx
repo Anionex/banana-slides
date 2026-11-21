@@ -134,6 +134,7 @@ import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal,
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { refineDescriptions, getTaskStatus, addPages, updateProject, getSettings, updateSettings } from '@/api/endpoints';
+import { normalizeRenovationErrorMessage } from '@/utils';
 import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtils';
 
 // 详细程度图标 — 暂时屏蔽，效果不够理想
@@ -386,7 +387,10 @@ export const DetailEditor: React.FC = () => {
           localStorage.removeItem('renovationTaskId');
           setIsRenovationProcessing(false);
           setRenovationProgress(null);
-          show({ message: task.error_message || t('detail.renovationFailed'), type: 'error' });
+          show({
+            message: normalizeRenovationErrorMessage(task.error_message || t('detail.renovationFailed')),
+            type: 'error',
+          });
           return;
         }
 

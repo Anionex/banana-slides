@@ -1163,8 +1163,15 @@ def get_task_status(project_id, task_id):
         
         if not task or task.project_id != project_id:
             return not_found('Task')
+
+        # 后台任务只存在于本进程内（ThreadPoolExecutor）。进程重启后，
+        # 数据库里的 PENDING/PROCESSING 记录会永远停在最后一次进度上，
+        # 前端就会一直显示"进行中"（例如"88% 构建第 17/24 页"）。
+        # 这里按"任务是否真的还有 worker + 心跳是否新鲜"对账。
+        from services.task_watchdog import localize_watchdog_payload, reconcile_task_for_response
+        reconcile_task_for_response(task)
         
-        return success_response(task.to_dict())
+        return success_response(localize_watchdog_payload(task.to_dict()))
     
     except Exception as e:
         logger.error(f"get_task_status failed: {str(e)}", exc_info=True)
@@ -1681,3 +1688,40 @@ def extract_style():
     except Exception as e:
         logger.error(f"extract_style failed: {str(e)}", exc_info=True)
         return error_response('AI_SERVICE_ERROR', str(e), 503)
+
+
+@style_bp.route('/generate-style-from-content', methods=['POST'])
+def generate_style_from_content():
+    """
+    POST /api/generate-style-from-content - Generate style description based on PPT content/topic
+
+    JSON:
+        content: string (required)
+        language: string (optional, default 'zh')
+
+    Returns:
+        {style_description: "..."}
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        content = data.get('content', '')
+        if not isinstance(content, str) or not content.strip():
+            return bad_request("content is required and cannot be empty")
+
+        language = data.get('language', 'zh')
+        if not isinstance(language, str):
+            language = 'zh'
+
+        ai_service = get_ai_service()
+        style_description = ai_service.generate_style_from_content(
+            content=content.strip(),
+            language=language
+        )
+
+        return success_response({
+            'style_description': style_description
+        })
+    except Exception as e:
+        logger.error(f"generate_style_from_content failed: {str(e)}", exc_info=True)
+        return error_response('AI_SERVICE_ERROR', str(e), 503)
+

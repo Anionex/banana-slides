@@ -3,6 +3,8 @@ AI Service - handles all AI model interactions
 Based on demo.py and gemini_genai.py
 TODO: use structured output API
 """
+
+from export_runtime.control import export_call
 import os
 import json
 import re
@@ -26,6 +28,7 @@ from .prompts import (
     get_ppt_page_content_extraction_prompt,
     get_layout_caption_prompt,
     get_style_extraction_prompt,
+    get_style_from_content_prompt,
     get_outline_generation_prompt_markdown,
     get_outline_parsing_prompt_markdown,
     get_description_to_outline_prompt_markdown,
@@ -67,6 +70,31 @@ def _describe_json_response_text(text: str) -> str:
     if stripped[:1] in ("{", "["):
         return "json_like"
     return "plain_text"
+
+
+def _strip_json_fence(text: str) -> str:
+    return text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+
+
+def _load_json_response(text: str) -> Any:
+    """Read a JSON value, or an object or array surrounded by model commentary."""
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        opening = re.search(r"[\[{]", text)
+        if opening is None:
+            raise
+
+    start = opening.start()
+    if start:
+        # Prefer an explicit JSON block over bracketed text in the introduction.
+        fence = re.search(r"```(?:json)?\s*(?=[\[{])", text, re.IGNORECASE)
+        if fence is not None:
+            start = fence.end()
+
+    # Start at the outer value so an incomplete response still triggers a retry.
+    value, _ = json.JSONDecoder().raw_decode(text, start)
+    return value
 
 
 class ProjectContext:
@@ -240,96 +268,31 @@ class AIService:
     def generate_json(self, prompt: str, thinking_budget: int = 1000) -> Union[Dict, List]:
         """
         生成并解析JSON，如果解析失败则重新生成
-
+        
         Args:
             prompt: 生成提示词
-            thinking_budget: 思考预算
+            thinking_budget: 思考预算（会根据 enable_text_reasoning 配置自动调整）
             
         Returns:
             解析后的JSON对象（字典或列表）
-
+            
         Raises:
             json.JSONDecodeError: JSON解析失败（重试3次后仍失败）
         """
-        # 调用AI生成文本
-        response_text = self.text_provider.generate_text(prompt, thinking_budget=thinking_budget)
+        # 调用AI生成文本（根据 enable_text_reasoning 配置调整 thinking_budget）
+        actual_budget = self._get_text_thinking_budget()
+        response_text = self.text_provider.generate_text(prompt, thinking_budget=actual_budget)
         
         # 清理响应文本：移除markdown代码块标记和多余空白
-        cleaned_text = response_text.strip().strip("```json").strip("```").strip()
-
-        # 智能JSON提取：找到第一个有效的JSON结构
-        json_text = self._extract_json_from_text(cleaned_text)
-
+        cleaned_text = _strip_json_fence(response_text or "")
+        
         try:
-            return json.loads(json_text)
+            return _load_json_response(cleaned_text)
         except json.JSONDecodeError as e:
-            logger.warning(f"JSON解析失败，将重新生成。原始文本: {cleaned_text[:200]}... 提取的JSON: {json_text[:200]}... 错误: {str(e)}")
+            logger.warning(f"JSON解析失败，将重新生成。原始文本: {cleaned_text[:200]}... 错误: {str(e)}")
             raise
-
-    def _extract_json_from_text(self, text: str) -> str:
-        """
-        从文本中智能提取JSON部分
-
-        Args:
-            text: 包含JSON的文本
-
-        Returns:
-            提取的JSON字符串
-        """
-        import re
-
-        # 移除常见的AI解释前缀
-        text = re.sub(r'^(Here is|这是|以下是|The JSON|JSON格式|输出).*?[:：]\s*', '', text, flags=re.IGNORECASE | re.MULTILINE)
-
-        # 查找第一个有效的JSON开始符
-        start_idx = -1
-        if text.startswith('['):
-            start_idx = 0
-        elif text.startswith('{'):
-            start_idx = 0
-        else:
-            # 查找第一个[或{
-            for i, char in enumerate(text):
-                if char in '[{':
-                    start_idx = i
-                    break
-
-        if start_idx == -1:
-            return text  # 如果没找到，直接返回原文本
-
-        # 从开始位置尝试解析JSON
-        json_candidate = text[start_idx:]
-
-        # 简单括号匹配来找到JSON结束位置
-        bracket_count = 0
-        in_string = False
-        escape_next = False
-
-        for i, char in enumerate(json_candidate):
-            if escape_next:
-                escape_next = False
-                continue
-
-            if char == '\\':
-                escape_next = True
-                continue
-
-            if char == '"' and not escape_next:
-                in_string = not in_string
-                continue
-
-            if not in_string:
-                if char in '[{':
-                    bracket_count += 1
-                elif char in ']}':
-                    bracket_count -= 1
-                    if bracket_count == 0:
-                        # 找到了匹配的结束符
-                        return json_candidate[:i+1]
-
-        # 如果括号匹配失败，返回从开始符到文本结尾的内容
-        return json_candidate
     
+    @export_call('caption')
     @retry(
         stop=stop_after_attempt(3),
         retry=retry_if_exception_type((json.JSONDecodeError, ValueError)),
@@ -370,14 +333,14 @@ class AIService:
             raise ValueError("caption_provider 不支持图片输入")
 
         # 清理响应文本：移除markdown代码块标记和多余空白
-        cleaned_text = (response_text or "").strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        cleaned_text = _strip_json_fence(response_text or "")
 
         if not cleaned_text:
             logger.warning("视觉模型返回空响应（带图片），将重试")
             raise ValueError("视觉模型返回空响应")
 
         try:
-            return json.loads(cleaned_text)
+            return _load_json_response(cleaned_text)
         except json.JSONDecodeError as e:
             logger.warning(
                 "JSON解析失败（带图片），将重新生成。provider=%s image=%s response_kind=%s response_len=%s "
@@ -1256,10 +1219,12 @@ class AIService:
             logger.error(error_detail, exc_info=True)
             raise Exception(error_detail) from e
     
+    @export_call('image')
     def edit_image(self, prompt: str, current_image_path: str,
                   aspect_ratio: str = "16:9", resolution: str = "2K",
                   original_description: str = None,
-                  additional_ref_images: Optional[List[Union[str, Image.Image]]] = None) -> Optional[Image.Image]:
+                  additional_ref_images: Optional[List[Union[str, Image.Image]]] = None,
+                  mask_image: Optional[Image.Image] = None) -> Optional[Image.Image]:
         """
         Edit existing image with natural language instruction
         Uses current image as reference
@@ -1270,6 +1235,7 @@ class AIService:
             aspect_ratio: Image aspect ratio
             resolution: Image resolution
             original_description: Original page description to include in prompt
+            mask_image: 原生编辑的 RGBA 掩码，透明区域允许编辑；尺寸须与原图一致
             additional_ref_images: 额外的参考图片列表，可以是本地路径、URL 或 PIL Image 对象
         
         Returns:
@@ -1280,6 +1246,12 @@ class AIService:
             edit_instruction=prompt,
             original_description=original_description
         )
+        if mask_image is not None:
+            if additional_ref_images:
+                raise ValueError("Masked editing accepts one source image")
+            with Image.open(current_image_path) as source:
+                return self.image_provider.edit_image_with_mask(
+                    edit_instruction, source, mask_image, aspect_ratio, resolution)
         return self.generate_image(edit_instruction, current_image_path, aspect_ratio, resolution, additional_ref_images)
     
     def parse_description_to_outline(self, project_context: ProjectContext, language='zh') -> List[Dict]:
@@ -1451,6 +1423,14 @@ class AIService:
     def extract_style_description(self, image_path: str) -> str:
         """从图片中提取风格描述"""
         return self._generate_text_from_image(get_style_extraction_prompt(), image_path)
+
+    def generate_style_from_content(self, content: str, language: str = 'zh') -> str:
+        """根据内容/大纲生成 PPT 视觉风格描述"""
+        if not content or not content.strip():
+            raise ValueError("Content cannot be empty for style generation")
+        prompt = get_style_from_content_prompt(content=content, language=language)
+        response_text = self.text_provider.generate_text(prompt, thinking_budget=1000)
+        return response_text.strip()
 
     # =========================================================================
     # Per-page template (PRD §5.3 / §8) — analysis + auto-match

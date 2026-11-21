@@ -122,7 +122,7 @@ export const History: React.FC = () => {
 
   useEffect(() => {
     loadProjects(currentPage);
-  }, [currentPage, pageSize]);
+  }, [currentPage, loadProjects]);
 
   const handlePageChange = useCallback((page: number) => {
     setSelectedProjects(new Set());

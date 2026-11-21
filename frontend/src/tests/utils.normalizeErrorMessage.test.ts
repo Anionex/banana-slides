@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, test } from 'vitest';
-import { normalizeErrorMessage } from '@/utils';
+import { normalizeErrorMessage, normalizeRenovationErrorMessage } from '@/utils';
 
 describe('normalizeErrorMessage', () => {
   beforeEach(() => {
+    localStorage.setItem('banana-slides-language', 'zh-CN');
     localStorage.setItem('i18nextLng', 'zh-CN');
   });
 
@@ -40,5 +41,54 @@ describe('normalizeErrorMessage', () => {
     const message = normalizeErrorMessage("HTTPSConnectionPool(host='api.openai.com', port=443): Max retries exceeded");
     expect(message).not.toContain('Codex');
     expect(message).toContain('网络连接中断');
+  });
+
+  test('maps MinerU credential failures in the renovation workflow to a concrete recovery step', () => {
+    const message = normalizeRenovationErrorMessage(
+      'Failed to get upload URL: MinerU API returned 401 Unauthorized: token expired'
+    );
+    expect(message).toContain('MinerU Token');
+    expect(message).toContain('服务测试');
+    expect(message).toContain('重新创建翻新项目');
+  });
+
+  test('maps MinerU business auth responses without an HTTP status', () => {
+    const message = normalizeRenovationErrorMessage(
+      'MinerU parsing failed: Failed to get upload URL: user authenticate failed'
+    );
+    expect(message).toContain('MinerU Token');
+    expect(message).toContain('服务测试');
+  });
+
+  test('does not mislabel an unrelated provider authentication failure as MinerU', () => {
+    const message = normalizeRenovationErrorMessage('OpenAI API returned 401 Unauthorized');
+    expect(message).toContain('认证失败');
+    expect(message).not.toContain('MinerU Token');
+  });
+
+  test('does not mislabel an expired signed upload URL as a MinerU token failure', () => {
+    const message = normalizeRenovationErrorMessage(
+      'MinerU parsing failed: File upload failed: 403 Forbidden'
+    );
+    expect(message).toContain('访问被拒绝');
+    expect(message).not.toContain('MinerU Token');
+  });
+
+  test('uses the configured UI language for MinerU recovery guidance', () => {
+    localStorage.setItem('banana-slides-language', 'en');
+    const message = normalizeRenovationErrorMessage(
+      'MinerU parsing failed: Failed to get upload URL: user authenticate failed'
+    );
+    expect(message).toContain('PPT Renovation could not parse the PDF');
+    expect(message).toContain('MinerU Configuration');
+  });
+
+  test('uses the configured UI language for non-credential renovation failures', () => {
+    localStorage.setItem('banana-slides-language', 'en');
+    const message = normalizeRenovationErrorMessage(
+      'MinerU parsing failed: File upload failed: 403 Forbidden'
+    );
+    expect(message).toContain('Access denied');
+    expect(message).not.toContain('访问被拒绝');
   });
 });

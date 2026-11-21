@@ -26,12 +26,14 @@
 import { test, expect } from '@playwright/test'
 import * as fs from 'fs'
 import * as path from 'path'
+import { downloadPptx } from './helpers/download-pptx'
 
 test.describe('UI-driven E2E test: From user interface to PPT export', () => {
   // Increase timeout to 25 minutes (image generation may need retries on API disconnects)
   test.setTimeout(25 * 60 * 1000)
   
   test('User Full Flow: Create and export PPT in browser', async ({ page }) => {
+    const nightly = process.env.NIGHTLY_E2E === '1'
     console.log('\n========================================')
     console.log('🌐 Starting UI-driven E2E test (via frontend interface)')
     console.log('========================================\n')
@@ -70,7 +72,10 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     console.log('✍️  Step 3: Entering idea content...')
     const ideaInput = page.locator('[role="textbox"], textarea, input[type="text"]').first()
     await ideaInput.click()
-    await ideaInput.pressSequentially('创建一份关于人工智能基础的简短PPT，包含3页：什么是AI、AI的应用、AI的未来')
+    const idea = nightly
+      ? '创建恰好2页的人工智能基础PPT。第1页介绍什么是AI，第2页介绍AI的应用。每页一个简短要点。这两页是全部页面，封面和结语也计入总页数。'
+      : '创建一份关于人工智能基础的简短PPT，包含3页：什么是AI、AI的应用、AI的未来'
+    await ideaInput.pressSequentially(idea)
     
     console.log('🚀 Clicking "Next" button...')
     await page.click('button:has-text("下一步")')
@@ -139,6 +144,22 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
 
     // Wait for streaming to finish (button reverts from "生成中...")
     await expect(streamingBtn).toBeHidden({ timeout: 300000 })
+
+    if (nightly) {
+      // A model may add a cover or conclusion despite the requested page count.
+      const projectId = new URL(page.url()).pathname.split('/')[2]
+      const projectUrl = `/api/projects/${projectId}`
+      const project = await page.request.get(projectUrl)
+      await expect(project).toBeOK()
+      const { data: { pages } } = await project.json() as { data: { pages: { id: string }[] } }
+      for (const { id } of pages.slice(2)) {
+        await expect(await page.request.delete(`${projectUrl}/pages/${id}`)).toBeOK()
+      }
+      if (pages.length > 2) {
+        await page.reload()
+      }
+      await expect(outlineItems).toHaveCount(2)
+    }
     
     // Verify outline content
     outlineCount = await outlineItems.count()
@@ -445,13 +466,17 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     
     if (await generateImageBtn.count() > 0) {
       await generateImageBtn.first().click()
+      if (nightly) {
+        const warning = page.getByRole('dialog', { name: '1K分辨率警告' })
+        await warning.getByRole('button', { name: '仍然生成', exact: true }).click()
+      }
       console.log('✓ Clicked batch generate images button\n')
       
       // Wait for images to generate (should complete within 5 minutes)
       console.log('⏳ Step 13: Waiting for images to generate (should complete within 5 minutes)...')
       
       // Get expected page count from the button text (e.g., "批量生成图片 (3)")
-      let pageCount = 3 // default
+      let pageCount = nightly ? 2 : 3
       try {
         const buttonText = await generateImageBtn.first().textContent()
         const match = buttonText?.match(/\((\d+)\)/)
@@ -479,11 +504,11 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
       // Helper: Precise selector for "生成中" StatusBadge (orange background)
       // StatusBadge structure: <span class="bg-orange-100 text-orange-600 animate-pulse ...">生成中</span>
       // We use CSS class selector which is more reliable than text matching
-      const generatingBadgeSelector = 'span.bg-orange-100.text-orange-600'
+      const generatingBadgeSelector = 'aside:first-of-type span.bg-orange-100.text-orange-600'
       // Helper: Selector for failed status badges (red background)
-      const failedBadgeSelector = 'span.bg-red-100.text-red-600'
+      const failedBadgeSelector = 'aside:first-of-type span.bg-red-100.text-red-600'
       // Helper: Selector for completed status badges (green background)
-      const _completedBadgeSelector = 'span.bg-green-100.text-green-600'
+      const _completedBadgeSelector = 'aside:first-of-type span.bg-green-100.text-green-600'
       // Helper: Image selector for generated slide images
       // Generated images are stored at: /files/{project_id}/pages/{page_id}_v{version}.png
       // Template images are at: /files/{project_id}/template/template.png (excluded)
@@ -626,101 +651,12 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     // ====================================
     console.log('📦 Step 14: Exporting PPT file...')
     
-    const responsePromise = new Promise<{ kind: 'response', payload: { url: string, headers: Record<string, string> } }>((resolve, reject) => {
-      const onResponse = (response: any) => {
-        try {
-          const pathname = new URL(response.url()).pathname
-          const isPptxFileResponse = /\/files\/.*\/exports\/.*\.pptx/.test(pathname)
-          if (
-            response.request().method() === 'GET' &&
-            response.status() === 200 &&
-            isPptxFileResponse
-          ) {
-            page.context().off('response', onResponse)
-            clearTimeout(timeoutId)
-            resolve({
-              kind: 'response' as const,
-              payload: {
-                url: response.url(),
-                headers: response.headers()
-              }
-            })
-          }
-        } catch (error) {
-          // Ignore parse/URL errors and continue waiting
-          void error
-        }
-      }
+    const download = await downloadPptx(page)
+    const filename = nightly ? 'nightly.pptx' : path.basename(download.suggestedFilename())
+    const downloadPath = path.join('test-results', filename)
+    await download.saveAs(downloadPath)
+    expect(await download.failure()).toBeNull()
 
-      const timeoutId = setTimeout(() => {
-        page.context().off('response', onResponse)
-        reject(new Error('Timeout waiting for PPTX export response'))
-      }, 60000)
-
-      page.context().on('response', onResponse)
-    })
-    
-    // Step 1: Wait for export button to be enabled (it's disabled until all images are generated)
-    const exportBtn = page.locator('button:has-text("导出")')
-    await exportBtn.waitFor({ state: 'visible', timeout: 10000 })
-    await expect(exportBtn).toBeEnabled({ timeout: 5000 })
-    
-    await exportBtn.first().click()
-    console.log('✓ Clicked export button, opening menu...')
-    
-    // Wait for dropdown menu to appear
-    await page.waitForTimeout(500)
-    
-    // Step 2: Click "导出为 PPTX" in the dropdown menu
-    const exportPptxBtn = page.locator('button:has-text("导出为 PPTX")')
-    await exportPptxBtn.waitFor({ state: 'visible', timeout: 5000 })
-    await exportPptxBtn.click()
-    console.log('✓ Clicked "导出为 PPTX" button\n')
-
-    // Step 3: In the PPTX export settings panel, click "开始导出"
-    // The dropdown only opens export options; actual download request is sent after clicking this button.
-    await expect(page.getByText('PPTX 导出设置')).toBeVisible({ timeout: 5000 })
-    await page.getByRole('button', { name: '开始导出' }).click()
-    console.log('✓ Clicked "开始导出" button')
-    
-    // Wait for download to complete (prefer download event, fallback to direct response body)
-    console.log('⏳ Waiting for PPT file download...')
-    const downloadResult = await Promise.any([
-      page.context().waitForEvent('download', { timeout: 60000 }).then((download) => ({
-        kind: 'download' as const,
-        payload: download
-      })),
-      responsePromise
-    ]).catch((error) => {
-      throw new Error(`Timeout waiting for PPT export: ${error instanceof Error ? error.message : 'unknown error'}`)
-    })
-    
-    // Save file
-    let downloadPath = path.join('test-results', 'e2e-test-output.pptx')
-    if (downloadResult.kind === 'download') {
-      const suggestedFilename = downloadResult.payload.suggestedFilename?.()
-      if (suggestedFilename) {
-        downloadPath = path.join('test-results', path.basename(suggestedFilename))
-      }
-      await downloadResult.payload.saveAs(downloadPath)
-    } else {
-      const requestResponse = await page.request.get(downloadResult.payload.url)
-      if (!requestResponse.ok()) {
-        throw new Error(`Fallback export response request failed: HTTP ${requestResponse.status()}`)
-      }
-      const body = Buffer.from(await requestResponse.body())
-      const contentDisposition = downloadResult.payload.headers['content-disposition'] || requestResponse.headers()['content-disposition'] || ''
-      const filenameMatch = /filename\*?=['"]?(?:UTF-8''([^;"']+)|([^;"']+))/i.exec(contentDisposition)
-      const encodedFilename = filenameMatch?.[1] || filenameMatch?.[2]
-      if (encodedFilename) {
-        const decoded = decodeURIComponent(encodedFilename.replace(/"/g, '').replace(/^UTF-8''/i, ''))
-        if (decoded.trim().toLowerCase().endsWith('.pptx')) {
-          downloadPath = path.join('test-results', path.basename(decoded))
-        }
-      }
-      await fs.promises.writeFile(downloadPath, body)
-    }
-    
     // Verify file exists and is not empty
     const fileExists = fs.existsSync(downloadPath)
     expect(fileExists).toBeTruthy()
@@ -732,22 +668,23 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     console.log(`  Path: ${downloadPath}`)
     console.log(`  Size: ${(fileStats.size / 1024).toFixed(2)} KB\n`)
     
-    // Validate PPTX file content using python-pptx
-    console.log('🔍 Validating PPTX file content...')
-    const { execSync } = await import('child_process')
-    const { fileURLToPath } = await import('url')
-    try {
-      // Get current directory (ES module compatible)
-      const currentDir = path.dirname(fileURLToPath(import.meta.url))
-      const validateScript = path.join(currentDir, 'validate_pptx.py')
-      const result = execSync(
-        `python3 "${validateScript}" "${downloadPath}" 3 "人工智能" "AI"`,
-        { encoding: 'utf-8', stdio: 'pipe' }
-      )
-      console.log(`✓ ${result.trim()}\n`)
-    } catch (error: any) {
-      console.warn(`⚠️  PPTX validation warning: ${error.stdout || error.message}`)
-      console.log('  (Continuing test, but PPTX content validation had issues)\n')
+    // Nightly validates the downloaded deck in the backend container.
+    if (!nightly) {
+      console.log('🔍 Validating PPTX file content...')
+      const { execSync } = await import('child_process')
+      const { fileURLToPath } = await import('url')
+      try {
+        const currentDir = path.dirname(fileURLToPath(import.meta.url))
+        const validateScript = path.join(currentDir, 'validate_pptx.py')
+        const result = execSync(
+          `python3 "${validateScript}" "${downloadPath}" 3 "人工智能" "AI"`,
+          { encoding: 'utf-8', stdio: 'pipe' }
+        )
+        console.log(`✓ ${result.trim()}\n`)
+      } catch (error: any) {
+        console.warn(`⚠️  PPTX validation warning: ${error.stdout || error.message}`)
+        console.log('  (Continuing test, but PPTX content validation had issues)\n')
+      }
     }
     
     // ====================================

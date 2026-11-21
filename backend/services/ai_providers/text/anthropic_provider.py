@@ -5,7 +5,7 @@ import base64
 import logging
 from typing import Generator, Optional
 from anthropic import Anthropic
-from .base import TextProvider, strip_think_tags
+from .base import get_text_output_limit, TextProvider, strip_think_tags
 from config import get_config
 
 logger = logging.getLogger(__name__)
@@ -31,7 +31,6 @@ class AnthropicTextProvider(TextProvider):
             max_retries=config.OPENAI_MAX_RETRIES
         )
         self.model = model
-        self.max_tokens = config.ANTHROPIC_MAX_TOKENS
         self.request_timeout_seconds = config.OPENAI_TIMEOUT
         self.max_attempts = config.OPENAI_MAX_RETRIES + 1
 
@@ -48,7 +47,7 @@ class AnthropicTextProvider(TextProvider):
         """
         response = self.client.messages.create(
             model=self.model,
-            max_tokens=self.max_tokens,
+            max_tokens=get_text_output_limit(),
             messages=[
                 {"role": "user", "content": prompt}
             ]
@@ -60,7 +59,7 @@ class AnthropicTextProvider(TextProvider):
         """Stream text using Anthropic Claude SDK with stream=True."""
         with self.client.messages.stream(
             model=self.model,
-            max_tokens=self.max_tokens,
+            max_tokens=get_text_output_limit(),
             messages=[{"role": "user", "content": prompt}],
         ) as stream:
             for text in stream.text_stream:
@@ -83,7 +82,7 @@ class AnthropicTextProvider(TextProvider):
 
         response = self.client.messages.create(
             model=self.model,
-            max_tokens=self.max_tokens,
+            max_tokens=get_text_output_limit(),
             messages=[
                 {
                     "role": "user",

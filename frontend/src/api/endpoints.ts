@@ -752,6 +752,7 @@ export const exportEditablePPTX = async (
   filename?: string,
   pageIds?: string[],
   clientTaskId?: string,
+  exportMode: 'full' | 'simple' = 'full',
 ): Promise<ApiResponse<{ task_id: string }>> => {
   const response = await apiClient.post<
     ApiResponse<{ task_id: string }>
@@ -759,6 +760,7 @@ export const exportEditablePPTX = async (
     filename,
     page_ids: pageIds,
     client_task_id: clientTaskId,
+    export_mode: exportMode,
   });
   return response.data;
 };
@@ -776,6 +778,18 @@ export const listExports = async (
   download_url: string;
 }> }>> => {
   const response = await apiClient.get(`/api/projects/${projectId}/exports`);
+  return response.data;
+};
+
+export const resumeEditableExport = async (projectId: string, taskId: string, clientTaskId: string): Promise<ApiResponse<{ task_id: string }>> => {
+  const response = await apiClient.post(`/api/projects/${projectId}/export/editable-pptx`, {
+    resume_from_task_id: taskId, client_task_id: clientTaskId,
+  });
+  return response.data;
+};
+
+export const listEditableExportTasks = async (projectId: string): Promise<ApiResponse<{ tasks: Task[] }>> => {
+  const response = await apiClient.get(`/api/projects/${projectId}/export/editable-tasks`);
   return response.data;
 };
 
@@ -1402,6 +1416,7 @@ export interface TestSettingsOverride {
   baidu_api_key?: string;
   ai_provider_format?: string;
   image_resolution?: string;
+  image_quality?: string;
   enable_text_reasoning?: boolean;
   text_thinking_budget?: number;
   enable_image_reasoning?: boolean;
@@ -1554,6 +1569,20 @@ export const extractStyleFromImage = async (
   const response = await apiClient.post<ApiResponse<{ style_description: string }>>(
     '/api/extract-style',
     formData
+  );
+  return response.data;
+};
+
+/**
+ * 根据内容生成风格描述（通用，不绑定项目）
+ */
+export const generateStyleFromContent = async (
+  content: string,
+  language: string = 'zh'
+): Promise<ApiResponse<{ style_description: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ style_description: string }>>(
+    '/api/generate-style-from-content',
+    { content, language }
   );
   return response.data;
 };

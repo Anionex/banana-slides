@@ -140,7 +140,8 @@ def _generate_image_caption(filepath: str) -> str:
                         {"type": "text", "text": prompt}
                     ]
                 }],
-                temperature=0.3
+                temperature=0.3,
+                stream=False,
             )
             return response.choices[0].message.content.strip()
         else:

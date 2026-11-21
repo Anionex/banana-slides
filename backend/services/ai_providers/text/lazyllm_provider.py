@@ -10,8 +10,8 @@ Supports modes:
 - ...
 """
 import threading
-from .base import TextProvider, strip_think_tags
-from ..lazyllm_env import ensure_lazyllm_namespace_key
+from .base import get_text_output_limit, TextProvider, strip_think_tags
+from ..lazyllm_env import ensure_lazyllm_namespace_key, ensure_lazyllm_suppliers, resolve_lazyllm_source
 
 class LazyLLMTextProvider(TextProvider):
     """Text generation using lazyllm"""
@@ -32,6 +32,10 @@ class LazyLLMTextProvider(TextProvider):
                 "Please install backend dependencies including lazyllm."
             ) from exc
 
+        # PyInstaller-frozen desktop builds can miss the dynamic supplier
+        # discovery, so register every vendor explicitly before resolving.
+        ensure_lazyllm_suppliers()
+        source = resolve_lazyllm_source(source)
         self._source = source
         self._model = model
         self._vlm_client = None
@@ -50,13 +54,13 @@ class LazyLLMTextProvider(TextProvider):
         self._is_vlm_only = (self.client._type == LLMType.VLM)
 
     def generate_text(self, prompt, thinking_budget = 1000):
-        message = self.client(prompt)
+        message = self.client(prompt, max_tokens=get_text_output_limit())
         return strip_think_tags(message)
 
     def generate_with_image(self, prompt: str, image_path: str, thinking_budget: int = 0) -> str:
         if self._is_vlm_only:
             # Reuse the VLM client created during __init__
-            message = self.client(prompt, lazyllm_files=[image_path])
+            message = self.client(prompt, lazyllm_files=[image_path], max_tokens=get_text_output_limit())
             return strip_think_tags(message)
         if self._vlm_client is None:
             with self._vlm_lock:
@@ -66,5 +70,5 @@ class LazyLLMTextProvider(TextProvider):
                     self._vlm_client = lazyllm.namespace('BANANA').OnlineModule(
                         source=self._source, model=self._model, type='vlm',
                     )
-        message = self._vlm_client(prompt, lazyllm_files=[image_path])
+        message = self._vlm_client(prompt, lazyllm_files=[image_path], max_tokens=get_text_output_limit())
         return strip_think_tags(message)

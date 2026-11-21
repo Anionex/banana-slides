@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { isDesktop } from '@/utils';
+import i18n from '@/i18n';
 
 const DESKTOP_BACKEND_PORT_STORAGE_KEY = '__desktop_backend_port__';
 
@@ -74,7 +75,18 @@ export function triggerDownload(relativeOrAbsoluteUrl: string, filename?: string
     }
     (window as any).electronAPI.downloadFile(url, filename || fallbackFilename);
   } else {
-    window.open(relativeOrAbsoluteUrl, '_blank');
+    // Downloads may start after a long export request, when popup activation has expired.
+    const link = document.createElement('a');
+    link.href = relativeOrAbsoluteUrl;
+    link.rel = 'noopener';
+    link.download = filename || relativeOrAbsoluteUrl.split(/[?#]/)[0].split('/').pop() || '';
+    link.hidden = true;
+    document.body.appendChild(link);
+    try {
+      link.click();
+    } finally {
+      link.remove();
+    }
   }
 }
 
@@ -96,6 +108,11 @@ apiClient.interceptors.request.use(
     const accessCode = localStorage.getItem('banana-access-code');
     if (accessCode && config.headers) {
       config.headers['X-Access-Code'] = accessCode;
+    }
+
+    // 让后端按界面语言返回用户可见的错误文案（如后台任务被中断/卡住）
+    if (config.headers && !config.headers['Accept-Language']) {
+      config.headers['Accept-Language'] = i18n.language || 'zh';
     }
 
     // 如果请求体是 FormData，删除 Content-Type 让浏览器自动设置

@@ -1,6 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 import os
 import sys
+import importlib.util
 import setuptools
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
@@ -37,6 +38,9 @@ hiddenimports = [
     'controllers.openai_oauth_controller',
     'services', 'services.ai_service', 'services.ai_service_manager',
     'services.export_service', 'services.file_parser_service',
+    'export_worker', 'export_runtime', 'export_runtime.control',
+    'export_runtime.checkpoints', 'export_runtime.pipeline', 'export_runtime.process',
+    'export_runtime.tasks', 'models.export_run', 'controllers.export_runtime_controller', 'filelock',
     'services.file_service', 'services.task_manager', 'services.prompts',
     'services.pdf_service', 'services.inpainting_service',
     'services.ai_providers',
@@ -76,7 +80,7 @@ hiddenimports = [
     # Image processing
     'PIL._imagingtk', 'PIL._tkinter_finder', 'numpy',
     # Utilities
-    'requests', 'aiohttp', 'tenacity',
+    'requests', 'socks', 'aiohttp', 'tenacity',
     'concurrent', 'concurrent.futures',
 ]
 
@@ -84,8 +88,21 @@ hiddenimports = [
 hiddenimports += collect_submodules('google')
 hiddenimports += collect_submodules('openai')
 # LazyLLM discovers vendor adapters dynamically at runtime. PyInstaller cannot
-# see those imports, so desktop builds must collect the supplier package.
+# see those imports, so desktop builds must collect the supplier package plus
+# the vendor SDKs that lazyllm.thirdparty loads lazily via importlib
+# (PackageWrapper) - dashscope (qwen), zhipuai (glm), volcenginesdkarkruntime
+# (doubao) and PyJWT (sensenova). Without them the packaged backend re-fails
+# with "Unsupported source: ..." / ModuleNotFoundError at runtime.
 hiddenimports += collect_submodules('lazyllm.module.llms.onlinemodule.supplier')
+_LAZYLLM_VENDOR_SDKS = ('dashscope', 'zhipuai', 'volcenginesdkarkruntime', 'jwt')
+for _lazyllm_sdk in _LAZYLLM_VENDOR_SDKS:
+    if importlib.util.find_spec(_lazyllm_sdk) is None:
+        sys.exit(
+            f"ERROR: LazyLLM vendor SDK '{_lazyllm_sdk}' is missing; packaged "
+            "backend would fail at runtime for the corresponding vendor "
+            "(qwen/glm/doubao/sensenova). Install it and rebuild."
+        )
+    hiddenimports += collect_submodules(_lazyllm_sdk)
 hiddenimports += collect_submodules('anthropic')
 hiddenimports += collect_submodules('flask_migrate')
 hiddenimports += collect_submodules('flask_sqlalchemy')

@@ -78,6 +78,8 @@ docker-compose*.yml
 .env
 .env.local
 .env.*.local
+work/
+**/instance/*.db*
 
 # Others
 *.lock
@@ -96,3 +98,4 @@ dist/
 build/
 *.pptx
 *.pdf
+!frontend/public/**

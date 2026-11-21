@@ -19,6 +19,7 @@ def _make_b64_png() -> str:
 
 
 def _make_provider(model: str = 'gpt-image-2') -> OpenAIImageProvider:
+    client = MagicMock()
     with patch('services.ai_providers.image.openai_provider.OpenAI'):
         provider = OpenAIImageProvider(
             api_key='test',
@@ -26,17 +27,49 @@ def _make_provider(model: str = 'gpt-image-2') -> OpenAIImageProvider:
             model=model,
             image_api_protocol='auto',
         )
-    provider.client.images.edit = MagicMock(
-        return_value=SimpleNamespace(
-            data=[SimpleNamespace(b64_json=_make_b64_png(), url=None)]
-        )
-    )
+    raw_response = MagicMock()
+    raw_response.json.return_value = {'data': [{'b64_json': _make_b64_png(), 'url': None}]}
+    client.images.with_raw_response.edit.return_value = raw_response
+    provider.client = client
     return provider
 
 
 def _read_color(image_file: BytesIO) -> tuple[int, int, int]:
     image_file.seek(0)
     return Image.open(image_file).convert('RGB').getpixel((0, 0))
+
+
+def test_native_mask_is_uploaded_with_matching_size_and_alpha():
+    provider = _make_provider('gpt-image-2.5-flare')
+    source = Image.new('RGB', (80, 40), 'red')
+    mask = Image.new('RGBA', source.size, (255, 255, 255, 255))
+    mask.paste((255, 255, 255, 0), (0, 0, 40, 40))
+    provider.edit_image_with_mask('Erase listed text', source, mask, '2:1', '1K')
+    request = provider.client.images.with_raw_response.edit.call_args.kwargs
+    actual = Image.open(request['mask'])
+    reference = Image.open(request['image'])
+    assert actual.size == reference.size
+    assert actual.getpixel((0, 0))[3] == 0
+    assert actual.getpixel((actual.width - 1, 0))[3] == 255
+    assert reference.convert('RGB').getpixel((0, 0)) == (255, 0, 0)
+    assert request['mask'].name == 'mask.png'
+
+
+@pytest.mark.parametrize('mask', [Image.new('RGB', (80, 40)), Image.new('RGBA', (40, 40))])
+def test_invalid_native_mask_is_rejected_before_request(mask):
+    provider = _make_provider()
+    with pytest.raises(ValueError, match='alpha channel'):
+        provider.edit_image_with_mask('Erase', Image.new('RGB', (80, 40)), mask)
+    provider.client.images.with_raw_response.edit.assert_not_called()
+
+
+def test_chat_protocol_does_not_silently_drop_explicit_mask():
+    provider = _make_provider()
+    provider.image_api_protocol = 'chat'
+    assert not provider.supports_mask_edit
+    with pytest.raises(ValueError, match='does not support'):
+        provider.edit_image_with_mask('Erase', Image.new('RGB', (80, 40)), Image.new('RGBA', (80, 40)))
+    provider.client.images.with_raw_response.edit.assert_not_called()
 
 
 def test_gpt_image_forwards_template_and_material_references_in_order():
@@ -52,7 +85,7 @@ def test_gpt_image_forwards_template_and_material_references_in_order():
     )
 
     assert isinstance(result, Image.Image)
-    request = provider.client.images.edit.call_args.kwargs
+    request = provider.client.images.with_raw_response.edit.call_args.kwargs
     assert isinstance(request['image'], list)
     assert [image.name for image in request['image']] == ['image_1.png', 'image_2.png']
     assert [_read_color(image) for image in request['image']] == [
@@ -71,7 +104,7 @@ def test_gpt_image_keeps_single_reference_proxy_compatible():
         resolution='1K',
     )
 
-    request = provider.client.images.edit.call_args.kwargs
+    request = provider.client.images.with_raw_response.edit.call_args.kwargs
     assert isinstance(request['image'], BytesIO)
     assert request['image'].name == 'image.png'
 
@@ -88,7 +121,7 @@ def test_gpt_image_accepts_palette_mode_reference():
         resolution='1K',
     )
 
-    request = provider.client.images.edit.call_args.kwargs
+    request = provider.client.images.with_raw_response.edit.call_args.kwargs
     assert Image.open(request['image']).mode == 'RGBA'
 
 
@@ -106,7 +139,7 @@ def test_forced_images_protocol_preserves_refs_for_custom_proxy_model():
         resolution='1K',
     )
 
-    request = provider.client.images.edit.call_args.kwargs
+    request = provider.client.images.with_raw_response.edit.call_args.kwargs
     assert isinstance(request['image'], list)
     assert len(request['image']) == 2
 
@@ -123,7 +156,7 @@ def test_invalid_edit_size_falls_back_to_square(caplog, invalid_size):
         resolution='1K',
     )
 
-    request = provider.client.images.edit.call_args.kwargs
+    request = provider.client.images.with_raw_response.edit.call_args.kwargs
     assert request['size'] == '1024x1024'
     assert Image.open(request['image']).size == (1024, 1024)
     assert "falling back to 1024x1024" in caplog.text
@@ -141,7 +174,7 @@ def test_gpt_image_rejects_more_than_sixteen_references():
             resolution='1K',
         )
 
-    provider.client.images.edit.assert_not_called()
+    provider.client.images.with_raw_response.edit.assert_not_called()
 
 
 def test_dall_e_2_keeps_documented_single_reference_limit(caplog):
@@ -158,7 +191,7 @@ def test_dall_e_2_keeps_documented_single_reference_limit(caplog):
         resolution='1K',
     )
 
-    request = provider.client.images.edit.call_args.kwargs
+    request = provider.client.images.with_raw_response.edit.call_args.kwargs
     assert isinstance(request['image'], BytesIO)
     assert _read_color(request['image']) == (255, 0, 0)
     assert 'ignoring 1 additional image(s)' in caplog.text

@@ -467,6 +467,7 @@ class ServiceConfig:
         min_image_area: int = 40000,
         segmentation_provider: Optional[Any] = None,
         enable_icon_subject_extraction: bool = False,
+        text_only: bool = False,
     ):
         """
         初始化服务配置
@@ -480,6 +481,7 @@ class ServiceConfig:
             min_image_area: 最小图片面积
             segmentation_provider: 百度智能抠图 Provider（可选），用于图标主体提取
             enable_icon_subject_extraction: 是否启用图标主体提取（默认 False，需配合 provider）
+            text_only: 仅识别文字并保留背景中的图片和图表
         """
         self.upload_folder = upload_folder
         self.extractor_registry = extractor_registry
@@ -489,6 +491,7 @@ class ServiceConfig:
         self.min_image_area = min_image_area
         self.segmentation_provider = segmentation_provider
         self.enable_icon_subject_extraction = enable_icon_subject_extraction
+        self.text_only = text_only
     
     @classmethod
     def from_defaults(
@@ -540,6 +543,7 @@ class ServiceConfig:
                 - contain_threshold: 混合提取器包含判断阈值（默认0.8）
                 - intersection_threshold: 混合提取器交集判断阈值（默认0.3）
                 - enhance_quality: 混合Inpaint是否启用画质提升（默认True）
+                - text_only: 简单导出，仅使用百度OCR；不需要MinerU，不递归或抠图
         
         Returns:
             ServiceConfig实例
@@ -569,7 +573,8 @@ class ServiceConfig:
                 upload_folder = './uploads'
         
         # 验证必需配置
-        if not mineru_token:
+        text_only = kwargs.get('text_only', False)
+        if not text_only and not mineru_token:
             raise ValueError("MinerU token is required. Please configure MINERU_TOKEN.")
         
         from services.file_parser_service import FileParserService
@@ -585,7 +590,7 @@ class ServiceConfig:
         logger.info(f"Upload folder resolved to: {upload_path}")
         
         # 创建MinerU解析服务
-        parser_service = FileParserService(
+        parser_service = None if text_only else FileParserService(
             mineru_token=mineru_token,
             mineru_api_base=mineru_api_base
         )
@@ -593,7 +598,12 @@ class ServiceConfig:
         # 创建提取器注册表
         extractor_registry = ExtractorRegistry()
         
-        if use_hybrid_extractor:
+        if text_only:
+            ocr_extractor = ExtractorFactory.create_baidu_accurate_ocr_extractor()
+            if ocr_extractor is None:
+                raise ValueError("简单模式需要文字识别服务，请在设置中配置 Baidu API Key。")
+            extractor_registry.register_default(ocr_extractor)
+        elif use_hybrid_extractor:
             # 尝试创建混合提取器（MinerU + 百度高精度OCR）
             hybrid_extractor = ExtractorFactory.create_hybrid_extractor(
                 parser_service=parser_service,
@@ -620,7 +630,8 @@ class ServiceConfig:
         inpaint_registry = InpaintProviderRegistry()
         
         # 处理 inpaint_method 参数（优先于 use_hybrid_inpaint）
-        effective_inpaint_method = inpaint_method
+        # Simple export always asks the image model for a text-free slide.
+        effective_inpaint_method = 'generative' if text_only else inpaint_method
         if effective_inpaint_method is None:
             # 向后兼容：根据 use_hybrid_inpaint 转换
             effective_inpaint_method = 'hybrid' if use_hybrid_inpaint else 'generative'
@@ -669,7 +680,7 @@ class ServiceConfig:
             logger.info("✅ 重绘注册表已创建（GenerativeEdit通用）")
         
         # 创建主体抠图 Provider（默认 RMBG-2.0 ONNX 本地推理，用于图标透明背景）
-        enable_icon_subject_extraction = kwargs.get('enable_icon_subject_extraction', False)
+        enable_icon_subject_extraction = not text_only and kwargs.get('enable_icon_subject_extraction', False)
         segmentation_provider = None
         if enable_icon_subject_extraction:
             try:
@@ -683,11 +694,12 @@ class ServiceConfig:
             upload_folder=upload_path,
             extractor_registry=extractor_registry,
             inpaint_registry=inpaint_registry,
-            max_depth=kwargs.get('max_depth', 1),
+            max_depth=1 if text_only else kwargs.get('max_depth', 1),
             min_image_size=kwargs.get('min_image_size', 200),
             min_image_area=kwargs.get('min_image_area', 40000),
             segmentation_provider=segmentation_provider,
             enable_icon_subject_extraction=enable_icon_subject_extraction and segmentation_provider is not None,
+            text_only=text_only,
         )
 
 

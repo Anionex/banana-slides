@@ -3,6 +3,16 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  getUpdateState: () => ipcRenderer.invoke('get-update-state'),
+  getAutoUpdateSettings: () => ipcRenderer.invoke('get-auto-update-settings'),
+  setAutomaticUpdatesEnabled: (enabled) => ipcRenderer.invoke('set-automatic-updates-enabled', enabled),
+  downloadUpdate: () => ipcRenderer.invoke('download-update'),
+  installUpdate: () => ipcRenderer.invoke('install-update'),
+  onUpdateStatus: (callback) => {
+    const listener = (_event, state) => callback(state);
+    ipcRenderer.on('update-status-changed', listener);
+    return () => ipcRenderer.removeListener('update-status-changed', listener);
+  },
   getPlatform: () => process.platform,
   getBackendPort: () => {
     const params = new URLSearchParams(window.location.search);

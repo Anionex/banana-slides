@@ -67,6 +67,16 @@ def create_page(project_id):
         if not data or 'order_index' not in data:
             return bad_request("order_index is required")
         
+        # Only an omitted part inherits context. Explicit null/blank values
+        # intentionally create an ungrouped page, and batch imports stay literal.
+        if 'part' not in data:
+            previous_page = Page.query.filter(
+                Page.project_id == project_id,
+                Page.order_index < data['order_index'],
+            ).order_by(Page.order_index.desc()).first()
+            if previous_page is not None:
+                data = {**data, 'part': previous_page.part}
+
         page = _build_page_from_payload(project_id, data, data['order_index'])
         db.session.add(page)
         

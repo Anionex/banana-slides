@@ -19,6 +19,19 @@ const exportI18n = {
       pollServiceUnavailable: '导出状态服务暂时不可用',
       pollNetworkError: '状态查询网络连接中断',
       createConfirmationPending: '创建响应中断后暂未查到任务，可能仍在经过网关或写入队列',
+      taskInterrupted: '导出被中断：后台服务已重启或进程已退出，该任务不会继续执行（最后进度更新于 {{duration}}前）。',
+      taskInterruptedNoDuration: '导出被中断：后台服务已重启或进程已退出，该任务不会继续执行。',
+      taskStalled: '导出疑似卡住：已 {{duration}}没有进度更新（最后一步：{{step}}）。',
+      taskStalledNoStep: '导出疑似卡住：已 {{duration}}没有进度更新。',
+      durationHours: '{{value}} 小时',
+      durationMinutes: '{{value}} 分钟',
+      durationSeconds: '{{value}} 秒',
+      stepStarting: '开始执行',
+      stepPreparing: '准备',
+      stepLayoutAnalysis: '版面分析',
+      stepStyleExtraction: '样式提取',
+      stepBuildingPptx: '构建 PPTX',
+      stepSaving: '保存文件',
     },
   },
   en: {
@@ -34,6 +47,19 @@ const exportI18n = {
       pollServiceUnavailable: 'The export status service is temporarily unavailable',
       pollNetworkError: 'The status-check connection was interrupted',
       createConfirmationPending: 'The task is not visible yet after the create response was interrupted; it may still be passing through the gateway or queue',
+      taskInterrupted: 'Export interrupted: the backend restarted, so this task will not continue (last progress {{duration}} ago).',
+      taskInterruptedNoDuration: 'Export interrupted: the backend restarted, so this task will not continue.',
+      taskStalled: 'Export looks stuck: no progress for {{duration}} (last step: {{step}}).',
+      taskStalledNoStep: 'Export looks stuck: no progress for {{duration}}.',
+      durationHours: '{{value}} hours',
+      durationMinutes: '{{value}} minutes',
+      durationSeconds: '{{value}} seconds',
+      stepStarting: 'starting',
+      stepPreparing: 'preparing',
+      stepLayoutAnalysis: 'layout analysis',
+      stepStyleExtraction: 'style extraction',
+      stepBuildingPptx: 'building the PPTX',
+      stepSaving: 'saving the file',
     },
   },
 };
@@ -41,6 +67,61 @@ const t = getT(exportI18n);
 const EXPORT_POLL_INTERVAL_MS = 2000;
 const MAX_POLL_RETRY_DELAY_MS = 30000;
 const MAX_CREATE_CONFIRMATION_RETRIES = 6;
+// 后端看门狗写入的 error_code（见 backend/services/task_watchdog.py）。
+// 这类失败的文案完全由前端本地化 + 后端结构化细节拼装，
+// 不依赖后端的中文句子（避免中英混排与文案漂移导致的重复）。
+const TASK_INTERRUPTED_CODE = 'TASK_INTERRUPTED';
+const TASK_STALLED_CODE = 'TASK_STALLED';
+
+// 后端心跳里的阶段名（中文），映射成本地化文案；未知阶段不插入句子
+const STEP_LABEL_KEYS: Record<string, string> = {
+  '开始执行': 'exportStore.stepStarting',
+  '准备': 'exportStore.stepPreparing',
+  '配置': 'exportStore.stepPreparing',
+  '版面分析': 'exportStore.stepLayoutAnalysis',
+  '样式提取': 'exportStore.stepStyleExtraction',
+  '构建PPTX': 'exportStore.stepBuildingPptx',
+  '保存文件': 'exportStore.stepSaving',
+  '完成': 'exportStore.stepSaving',
+};
+
+const localizeStep = (step: string | undefined): string | undefined => {
+  if (!step) return undefined;
+  const key = STEP_LABEL_KEYS[step];
+  return key ? t(key) : undefined;
+};
+
+const formatDuration = (seconds: number): string => {
+  if (seconds >= 3600) {
+    return t('exportStore.durationHours', { value: (seconds / 3600).toFixed(1) });
+  }
+  if (seconds >= 60) {
+    return t('exportStore.durationMinutes', { value: Math.round(seconds / 60) });
+  }
+  return t('exportStore.durationSeconds', { value: Math.round(seconds) });
+};
+
+const describeWatchdogFailure = (
+  errorCode: string | undefined,
+  details: { idle_seconds?: number; last_step?: string } | undefined,
+): string | undefined => {
+  const idleSeconds = typeof details?.idle_seconds === 'number' ? details.idle_seconds : undefined;
+  const duration = idleSeconds !== undefined ? formatDuration(idleSeconds) : undefined;
+
+  if (errorCode === TASK_INTERRUPTED_CODE) {
+    return duration
+      ? t('exportStore.taskInterrupted', { duration })
+      : t('exportStore.taskInterruptedNoDuration');
+  }
+  if (errorCode === TASK_STALLED_CODE) {
+    if (!duration) return undefined;
+    const step = localizeStep(details?.last_step);
+    return step
+      ? t('exportStore.taskStalled', { duration, step })
+      : t('exportStore.taskStalledNoStep', { duration });
+  }
+  return undefined;
+};
 export const activePolls = new Set<string>();
 
 interface PollingIssue {
@@ -133,6 +214,9 @@ export interface ExportTask {
     completed: number;
     percent?: number;
     current_step?: string;
+    resumable?: boolean;
+    reused_nodes?: number;
+    page_ids?: string[];
     help_text?: string;
     backend_status?: string;
     error_code?: string;
@@ -179,6 +263,7 @@ export interface ExportTask {
 
 interface ExportTasksState {
   tasks: ExportTask[];
+  hiddenTaskIds: string[];
   
   // Actions
   addTask: (task: Omit<ExportTask, 'createdAt'>) => void;
@@ -187,12 +272,50 @@ interface ExportTasksState {
   clearCompleted: (projectId?: string | null) => void;
   pollTask: (id: string, projectId: string, taskId: string) => Promise<void>;
   restoreActiveTasks: () => void; // 恢复正在进行的任务并重新开始轮询
+  loadServerTasks: (projectId: string) => Promise<void>;
+  resumeTask: (task: ExportTask) => Promise<void>;
 }
 
 export const useExportTasksStore = create<ExportTasksState>()(
   persist(
     (set, get) => ({
       tasks: [],
+      hiddenTaskIds: [],
+
+      loadServerTasks: async (projectId) => {
+        try {
+          const response = await api.listEditableExportTasks(projectId);
+          for (const task of [...(response.data?.tasks || [])].reverse()) {
+            if (get().hiddenTaskIds.includes(task.task_id)) continue;
+            const existing = get().tasks.find(item => item.taskId === task.task_id && item.projectId === projectId);
+            if (existing && ['FAILED', 'COMPLETED'].includes(existing.status)
+                && ['PENDING', 'RUNNING', 'PROCESSING'].includes(task.status)) continue;
+            const progress = task.progress as ExportTask['progress'];
+            const id = existing?.id || task.task_id;
+            get().addTask({ id, taskId: task.task_id, projectId, type: 'editable-pptx',
+              status: task.status, progress, pageIds: progress?.page_ids,
+              errorMessage: task.error_message || undefined,
+              downloadUrl: (task.progress as Record<string, unknown>)?.download_url as string | undefined,
+              filename: (task.progress as Record<string, unknown>)?.filename as string | undefined,
+            });
+            get().updateTask(id, { createdAt: task.created_at, completedAt: task.completed_at || undefined });
+            if (['PENDING', 'RUNNING', 'PROCESSING'].includes(task.status)) {
+              void get().pollTask(id, projectId, task.task_id);
+            }
+          }
+        } catch (error) {
+          devLog('[ExportTasksStore] Could not load server export history', error);
+        }
+      },
+
+      resumeTask: async (task) => {
+        const response = await api.resumeEditableExport(task.projectId, task.taskId, crypto.randomUUID());
+        const taskId = response.data?.task_id;
+        if (!taskId) throw new Error('Missing resumed task ID');
+        get().addTask({ id: taskId, taskId, projectId: task.projectId,
+          type: 'editable-pptx', status: 'PENDING', pageIds: task.pageIds });
+        void get().pollTask(taskId, task.projectId, taskId);
+      },
 
       addTask: (task) => {
         set((state) => {
@@ -235,12 +358,16 @@ export const useExportTasksStore = create<ExportTasksState>()(
       removeTask: (id) => {
         unusableTaskResponseCounts.delete(id);
         set((state) => ({
+          hiddenTaskIds: [...new Set([...state.hiddenTaskIds, ...state.tasks.filter(task => task.id === id && task.taskId).map(task => task.taskId)])],
           tasks: state.tasks.filter((task) => task.id !== id),
         }));
       },
 
       clearCompleted: (projectId) => {
         set((state) => ({
+          hiddenTaskIds: [...new Set([...state.hiddenTaskIds, ...state.tasks.filter(task =>
+            (task.status === 'COMPLETED' || task.status === 'FAILED') && task.taskId
+            && (projectId == null || task.projectId === projectId)).map(task => task.taskId)])],
           tasks: state.tasks.filter(
             (task) => {
               const isCompleted = task.status === 'COMPLETED' || task.status === 'FAILED';
@@ -353,11 +480,16 @@ export const useExportTasksStore = create<ExportTasksState>()(
               get().updateTask(id, updates);
             } else if (task.status === 'FAILED') {
               const taskErrorMessage = task.error_message
-                || (typeof task.error === 'string' ? task.error : task.error?.message)
+                || (task.error ? normalizeErrorMessage(task.error) : '')
                 || t('exportStore.exportFailed');
-              updates.errorMessage = updates.progress?.error_code
-                ? taskErrorMessage
-                : normalizeErrorMessage(taskErrorMessage);
+              const watchdogMessage = describeWatchdogFailure(
+                updates.progress?.error_code,
+                updates.progress?.error_details as { idle_seconds?: number; last_step?: string } | undefined,
+              );
+              updates.errorMessage = watchdogMessage
+                || (updates.progress?.error_code
+                  ? taskErrorMessage
+                  : normalizeErrorMessage(taskErrorMessage));
               updates.completedAt = new Date().toISOString();
               activePolls.delete(id);
               get().updateTask(id, updates);
@@ -449,6 +581,7 @@ export const useExportTasksStore = create<ExportTasksState>()(
       partialize: (state) => ({
         // Persist all tasks (including active ones) so they can be restored after page refresh
         tasks: state.tasks.slice(0, 20), // Keep max 20 tasks
+        hiddenTaskIds: state.hiddenTaskIds,
       }),
     }
   )

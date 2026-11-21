@@ -225,7 +225,8 @@ class MinerUElementExtractor(ElementExtractor):
             # 调用MinerU解析
             image_id = str(uuid.uuid4())[:8]
             batch_id, markdown_content, extract_id, error_message, failed_image_count = \
-                self._parser_service.parse_file(pdf_path, f"image_{image_id}.pdf")
+                self._parser_service.parse_file(pdf_path, f"image_{image_id}.pdf",
+                                                enhance_captions=False, checkpoint_source=image_path)
 
             if error_message or not extract_id:
                 logger.error(f"{'  ' * depth}MinerU解析失败: {error_message}")
