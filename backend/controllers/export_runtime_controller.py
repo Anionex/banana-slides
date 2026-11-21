@@ -150,7 +150,7 @@ def create_export(project_id):
                             visitor_id=current_visitor['token'] if current_visitor else None,
                             request_json=json.dumps({'pages': inputs, 'options': options, 'filename': filename}),
                             request_hash=request_hash,
-                            artifact_filename=f'{PREFIX}{task_id}-{filename[:160]}',
+                            artifact_filename=f'{PREFIX}{task_id}-{filename.removesuffix(".pptx")[:155]}.pptx',
                             queue_deadline_at=time.time() + app.config.get('EXPORT_QUEUE_TIMEOUT', 900))
             db.session.add_all([task, run])
             db.session.commit()

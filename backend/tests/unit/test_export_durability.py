@@ -303,6 +303,19 @@ def test_published_artifact_requires_manifest_hash_and_exact_slide_count(client,
     assert client.get(f'/files/{project.id}/exports/{run.artifact_filename}').status_code == 404
 
 
+def test_managed_export_filename_keeps_extension_and_is_reserved(client, app, export_project):
+    project, _, _ = export_project
+    task_id = create(client, project, filename='a' * 220 + '.pptx').json['data']['task_id']
+    run = db.session.get(ExportRun, task_id)
+    assert run.artifact_filename.endswith('.pptx')
+    result = result_file(app, run)
+    publish(app, run, result, 2)
+    url = f'/api/projects/{project.id}/export/pptx'
+    response = client.get(url, query_string={'filename': run.artifact_filename})
+    assert response.status_code == 400
+    assert artifact_allowed(project.id, run.artifact_filename, verify=True)
+
+
 def test_deleted_artifact_no_longer_has_a_task_download_link(client, app, monkeypatch, export_project):
     project, _, _ = export_project
     monkeypatch.setitem(app.config, 'PUBLIC_DEMO', True)

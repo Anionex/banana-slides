@@ -134,6 +134,9 @@ def delete_export(project_id, filename):
 
         if not file_path.is_file():
             return not_found('File')
+        from export_runtime.tasks import artifact_allowed
+        if not artifact_allowed(project_id, safe_filename):
+            return not_found('File')
 
         file_path.unlink()
         return success_response(data={"filename": safe_filename}, message="Export file deleted")
@@ -196,6 +199,9 @@ def export_pptx(project_id):
         filename = secure_filename(request.args.get('filename', f'presentation_{project_id}.pptx'))
         if not filename.endswith('.pptx'):
             filename += '.pptx'
+        from export_runtime.tasks import is_managed_artifact
+        if is_managed_artifact(filename):
+            return bad_request('Filename is reserved for editable exports')
 
         output_path = os.path.join(exports_dir, filename)
 

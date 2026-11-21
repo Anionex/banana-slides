@@ -4,6 +4,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import re
 import shutil
 import time
 import zipfile
@@ -15,6 +16,7 @@ from .control import ExportAborted, ExportDeadline, DEFAULT_LIMITS
 
 ACTIVE = ('PENDING', 'RUNNING', 'PROCESSING')
 PREFIX = 'editable-run-'
+MANAGED_ARTIFACT = re.compile(rf'{PREFIX}[0-9a-f]{{8}}(?:-[0-9a-f]{{4}}){{3}}-[0-9a-f]{{12}}-.+\.pptx')
 logger = logging.getLogger(__name__)
 
 
@@ -108,8 +110,12 @@ def reconcile(task, app):
     return True
 
 
+def is_managed_artifact(filename):
+    return MANAGED_ARTIFACT.fullmatch(filename) is not None
+
+
 def artifact_allowed(project_id, filename, *, verify=False):
-    if not filename.startswith(PREFIX):
+    if not is_managed_artifact(filename):
         return True
     from flask import current_app
     from models import db, ExportRun, Task
