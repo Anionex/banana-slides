@@ -27,6 +27,8 @@ jobs:
       GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      NIGHTLY_TEXT_MODEL: gemini-3.1-flash-lite
+      NIGHTLY_IMAGE_MODEL: gemini-3.1-flash-lite-image
     steps:
       - uses: actions/checkout@v4
 
@@ -45,6 +47,8 @@ jobs:
           chmod +x scripts/setup-env-from-secrets.sh
           ./scripts/setup-env-from-secrets.sh
           sed -i 's/^AI_PROVIDER_FORMAT=.*/AI_PROVIDER_FORMAT=gemini/' .env || echo "AI_PROVIDER_FORMAT=gemini" >> .env
+          sed -i '/^TEXT_MODEL=/d; /^IMAGE_MODEL=/d' .env
+          printf '\nTEXT_MODEL=%s\nIMAGE_MODEL=%s\n' "$NIGHTLY_TEXT_MODEL" "$NIGHTLY_IMAGE_MODEL" >> .env
         env:
           AI_PROVIDER_FORMAT: gemini
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
@@ -53,8 +57,6 @@ jobs:
           OPENAI_API_BASE: ${{ secrets.OPENAI_API_BASE }}
           OPENAI_TIMEOUT: ${{ secrets.OPENAI_TIMEOUT }}
           OPENAI_MAX_RETRIES: ${{ secrets.OPENAI_MAX_RETRIES }}
-          TEXT_MODEL: ${{ secrets.TEXT_MODEL }}
-          IMAGE_MODEL: ${{ secrets.IMAGE_MODEL }}
           LOG_LEVEL: ${{ secrets.LOG_LEVEL }}
           FLASK_ENV: ${{ secrets.FLASK_ENV }}
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
@@ -105,6 +107,18 @@ jobs:
           test -w backend/instance/database.db
           sqlite3 backend/instance/database.db 'BEGIN IMMEDIATE; ROLLBACK;'
 
+      - name: Verify Nightly models and configure 1K generation
+        if: env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
+        run: |
+          curl --fail --silent --show-error -X PUT --json '{"image_resolution":"1K"}' \
+            http://localhost:5011/api/settings > /dev/null
+          curl --fail --silent --show-error http://localhost:5011/api/settings |
+            jq -e --arg text "$NIGHTLY_TEXT_MODEL" --arg image "$NIGHTLY_IMAGE_MODEL" '
+              .data | select(.ai_provider_format == "gemini" and .text_model == $text
+                and .image_model == $image and .image_resolution == "1K")
+              | {ai_provider_format, text_model, image_model, image_resolution}
+            '
+
       - name: Setup Node.js
         if: env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
         uses: actions/setup-node@v4
@@ -125,8 +139,39 @@ jobs:
         run: cd frontend && npx playwright test ui-full-flow.spec.ts page-properties-drawer.spec.ts pptx-download.spec.ts --workers=1
         env:
           CI: true
+          NIGHTLY_E2E: '1'
         # ui-full-flow（含真实生成等待）与 drawer 回归同 job 串行，留足余量
         timeout-minutes: 40
+
+      - name: Verify the downloaded two-page 1K PPTX
+        if: env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
+        run: |
+          docker compose exec -T backend /app/.venv/bin/python -c '
+          import sys
+          from io import BytesIO
+          from pptx import Presentation
+          from pptx.enum.shapes import MSO_SHAPE_TYPE
+
+          deck = Presentation(BytesIO(sys.stdin.buffer.read()))
+          assert len(deck.slides) == 2, f"Expected two slides, got {len(deck.slides)}"
+          assert abs(deck.slide_width / deck.slide_height - 16 / 9) < 0.02
+          for index, slide in enumerate(deck.slides, start=1):
+              pictures = [shape for shape in slide.shapes if shape.shape_type == MSO_SHAPE_TYPE.PICTURE]
+              assert len(pictures) == 1, f"Slide {index} should contain one generated image"
+              width, height = pictures[0].image.size
+              assert 800_000 <= width * height <= 1_500_000, f"Slide {index} image is {width}x{height}, expected 1K"
+              assert abs(width / height - 16 / 9) < 0.08, f"Slide {index} image is {width}x{height}, expected 16:9"
+              print(f"Slide {index}: {width}x{height}")
+          ' < frontend/test-results/nightly.pptx
+
+      - name: Upload the downloaded Nightly PPTX
+        if: env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-pptx
+          path: frontend/test-results/nightly.pptx
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Upload E2E reports
         if: always()
