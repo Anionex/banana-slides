@@ -57,6 +57,14 @@ def test_delete_export_missing_file_returns_404(client, app):
     assert_error_response(response, 404)
 
 
+def test_existing_prefixed_export_names_are_still_downloadable(client, app):
+    filename = 'editable-run-customer-deck.pptx'
+    project_id, _ = _create_project_with_export(app, filename)
+    files = client.get(f'/api/projects/{project_id}/exports').json['data']['files']
+    existing = next(file for file in files if file['filename'] == filename)
+    assert client.get(existing['download_url']).data == b'export file'
+
+
 def test_export_root_rejects_project_id_escape(app):
     from controllers.export_controller import _resolve_exports_root
 

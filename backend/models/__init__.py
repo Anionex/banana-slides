@@ -28,8 +28,9 @@ from .user_style_template import UserStyleTemplate
 from .project_template_asset import ProjectTemplateAsset
 from .feedback import Feedback, FeedbackImage
 from .gallery_submission import GallerySubmission
+from .export_run import ExportRun
 
-__all__ = ['db', 'Project', 'Page', 'Task', 'UserTemplate', 'PageImageVersion', 'Material', 'ReferenceFile', 'Settings', 'UserStyleTemplate', 'ProjectTemplateAsset', 'PublicVisitor', 'WaitlistSignup', 'Feedback', 'FeedbackImage', 'GallerySubmission']
+__all__ = ['db', 'Project', 'Page', 'Task', 'UserTemplate', 'PageImageVersion', 'Material', 'ReferenceFile', 'Settings', 'UserStyleTemplate', 'ProjectTemplateAsset', 'PublicVisitor', 'WaitlistSignup', 'Feedback', 'FeedbackImage', 'GallerySubmission', 'ExportRun']
 
 
 from .public_visitor import PublicVisitor

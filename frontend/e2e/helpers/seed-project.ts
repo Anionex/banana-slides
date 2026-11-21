@@ -13,8 +13,8 @@ import * as path from 'path'
 const cwd = process.cwd()
 const FRONTEND_DIR = cwd.endsWith('frontend') ? cwd : path.join(cwd, 'frontend')
 const PROJECT_ROOT = path.resolve(FRONTEND_DIR, '..')
-const DB_PATH = path.join(PROJECT_ROOT, 'backend', 'instance', 'database.db')
-const UPLOADS = path.join(PROJECT_ROOT, 'uploads')
+const DB_PATH = process.env.DATABASE_PATH || path.join(PROJECT_ROOT, 'backend', 'instance', 'database.db')
+const UPLOADS = process.env.UPLOAD_FOLDER || path.join(PROJECT_ROOT, 'uploads')
 const FIXTURES = path.join(FRONTEND_DIR, 'e2e', 'fixtures')
 
 function sql(query: string) {

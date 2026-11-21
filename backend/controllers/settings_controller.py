@@ -25,6 +25,8 @@ from services.update_check_service import check_for_update
 
 logger = logging.getLogger(__name__)
 ALLOWED_PROVIDER_FORMATS = {"openai", "gemini", "volcengine", "lazyllm", "codex"} | LAZYLLM_VENDORS
+# OpenAI 兼容图片模型的质量档位；xhigh / max 需要 gpt-image-2.5 及更新模型
+ALLOWED_IMAGE_QUALITIES = ("auto", "low", "medium", "high", "xhigh", "max")
 
 settings_bp = Blueprint(
     "settings", __name__, url_prefix="/api/settings"
@@ -158,9 +160,20 @@ def temporary_settings_override(settings_override: dict):
             original_values["DEFAULT_RESOLUTION"] = current_app.config.get("DEFAULT_RESOLUTION")
             current_app.config["DEFAULT_RESOLUTION"] = settings_override["image_resolution"]
 
+        if settings_override.get("image_quality"):
+            original_values["IMAGE_QUALITY"] = current_app.config.get("IMAGE_QUALITY")
+            current_app.config["IMAGE_QUALITY"] = settings_override["image_quality"]
+
         if "enable_text_reasoning" in settings_override:
             original_values["ENABLE_TEXT_REASONING"] = current_app.config.get("ENABLE_TEXT_REASONING")
             current_app.config["ENABLE_TEXT_REASONING"] = settings_override["enable_text_reasoning"]
+
+        if "text_max_output_tokens" in settings_override:
+            value = settings_override["text_max_output_tokens"]
+            if type(value) is not int or not 1 <= value <= 2147483647:
+                raise ValueError("text_max_output_tokens must be a positive 32-bit integer")
+            original_values["TEXT_MAX_OUTPUT_TOKENS"] = current_app.config.get("TEXT_MAX_OUTPUT_TOKENS")
+            current_app.config["TEXT_MAX_OUTPUT_TOKENS"] = value
 
         if "text_thinking_budget" in settings_override:
             original_values["TEXT_THINKING_BUDGET"] = current_app.config.get("TEXT_THINKING_BUDGET")
@@ -270,6 +283,15 @@ def update_settings():
                 return bad_request("Resolution must be 1K, 2K, or 4K")
             settings.image_resolution = resolution
 
+        if "image_quality" in data:
+            quality = data["image_quality"]
+            if quality not in ALLOWED_IMAGE_QUALITIES:
+                allowed_values = "', '".join(ALLOWED_IMAGE_QUALITIES)
+                return bad_request(f"image_quality must be one of '{allowed_values}'")
+            # Store 'auto' literally: an explicit choice in the UI must override
+            # an IMAGE_QUALITY value coming from .env, unlike NULL (= follow env).
+            settings.image_quality = quality
+
         if "image_aspect_ratio" in data:
             aspect_ratio = data["image_aspect_ratio"]
             settings.image_aspect_ratio = aspect_ratio
@@ -313,6 +335,12 @@ def update_settings():
                 settings.output_language = language
             else:
                 return bad_request("Output language must be 'zh', 'en', 'ja', or 'auto'")
+
+        if "text_max_output_tokens" in data:
+            value = data["text_max_output_tokens"]
+            if type(value) is not int or not 1 <= value <= 2147483647:
+                return bad_request("text_max_output_tokens must be a positive 32-bit integer")
+            settings.text_max_output_tokens = value
 
         # Update description generation mode
         if "description_generation_mode" in data:
@@ -452,6 +480,7 @@ def reset_settings():
         settings.image_caption_model = None
         settings.output_language = None
         settings.enable_text_reasoning = False
+        settings.text_max_output_tokens = None
         settings.text_thinking_budget = 1024
         settings.enable_image_reasoning = False
         settings.image_thinking_budget = 1024
@@ -467,6 +496,7 @@ def reset_settings():
         settings.image_model_source = None
         settings.image_caption_model_source = None
         settings.openai_image_api_protocol = None
+        settings.image_quality = None
         settings.lazyllm_api_keys = None
         for model_type in ('text', 'image', 'image_caption'):
             setattr(settings, f'{model_type}_api_key', None)
@@ -724,6 +754,13 @@ def _sync_settings_to_config(settings: Settings):
     # Sync image generation settings (fall back to Config when NULL)
     current_app.config["DEFAULT_RESOLUTION"] = settings.image_resolution or Config.DEFAULT_RESOLUTION
     current_app.config["DEFAULT_ASPECT_RATIO"] = settings.image_aspect_ratio or Config.DEFAULT_ASPECT_RATIO
+    new_quality = getattr(settings, "image_quality", None) or Config.IMAGE_QUALITY
+    if current_app.config.get("IMAGE_QUALITY") != new_quality:
+        # Image providers are cached per model name, so a quality change must
+        # invalidate the cache or generation keeps using the previous tier.
+        ai_config_changed = True
+        logger.info(f"Image quality changed: {current_app.config.get('IMAGE_QUALITY')} -> {new_quality}")
+    current_app.config["IMAGE_QUALITY"] = new_quality
 
     # Sync worker settings (fall back to Config when NULL)
     current_app.config["MAX_DESCRIPTION_WORKERS"] = settings.max_description_workers or Config.MAX_DESCRIPTION_WORKERS
@@ -756,6 +793,7 @@ def _sync_settings_to_config(settings: Settings):
         logger.info(f"Reasoning config changed: text={old_text_reasoning}({old_text_budget})->{settings.enable_text_reasoning}({settings.text_thinking_budget}), image={old_image_reasoning}({old_image_budget})->{settings.enable_image_reasoning}({settings.image_thinking_budget})")
     
     current_app.config["ENABLE_TEXT_REASONING"] = settings.enable_text_reasoning
+    current_app.config["TEXT_MAX_OUTPUT_TOKENS"] = getattr(settings, "text_max_output_tokens", None) or Config.TEXT_MAX_OUTPUT_TOKENS
     current_app.config["TEXT_THINKING_BUDGET"] = settings.text_thinking_budget
     current_app.config["ENABLE_IMAGE_REASONING"] = settings.enable_image_reasoning
     current_app.config["IMAGE_THINKING_BUDGET"] = settings.image_thinking_budget
@@ -1251,8 +1289,14 @@ def run_settings_test(test_name: str):
             test_settings["baidu_api_key"] = global_settings.baidu_api_key
         if global_settings.image_resolution:
             test_settings["image_resolution"] = global_settings.image_resolution
+        test_settings["image_quality"] = (
+            global_settings.image_quality
+            or current_app.config.get('IMAGE_QUALITY')
+            or 'auto'
+        )
         # 推理模式设置
         test_settings["enable_text_reasoning"] = global_settings.enable_text_reasoning
+        test_settings["text_max_output_tokens"] = global_settings.text_max_output_tokens or Config.TEXT_MAX_OUTPUT_TOKENS
         test_settings["text_thinking_budget"] = global_settings.text_thinking_budget
         test_settings["enable_image_reasoning"] = global_settings.enable_image_reasoning
         test_settings["image_thinking_budget"] = global_settings.image_thinking_budget

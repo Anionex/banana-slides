@@ -4,6 +4,7 @@ from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 
 
 def test_feedback_migration_preserves_existing_backport_table(tmp_path):
@@ -27,5 +28,7 @@ def test_feedback_migration_preserves_existing_backport_table(tmp_path):
     command.upgrade(config, 'head')
     with sqlite3.connect(database) as connection:
         assert connection.execute('SELECT message FROM feedback').fetchone()[0] == 'already received'
-        assert connection.execute('SELECT version_num FROM alembic_version').fetchone()[0] == 'd73e9f501ab2'
+        assert connection.execute('SELECT version_num FROM alembic_version').fetchone()[0] == (
+            ScriptDirectory.from_config(config).get_current_head()
+        )
         assert connection.execute("SELECT name FROM sqlite_master WHERE name = 'feedback_image'").fetchone()[0] == 'feedback_image'

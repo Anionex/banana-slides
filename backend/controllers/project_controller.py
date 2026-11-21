@@ -1219,6 +1219,12 @@ def get_task_status(project_id, task_id):
         if not task or task.project_id != project_id:
             return not_found('Task')
 
+        run = task.export_run if task.task_type == 'EXPORT_EDITABLE_PPTX' else None
+        if run is not None:
+            from controllers.export_runtime_controller import run_visible, task_payload
+            if not run_visible(run):
+                return not_found('Task')
+
         # 后台任务只存在于本进程内（ThreadPoolExecutor）。进程重启后，
         # 数据库里的 PENDING/PROCESSING 记录会永远停在最后一次进度上，
         # 前端就会一直显示"进行中"（例如"88% 构建第 17/24 页"）。
@@ -1226,7 +1232,8 @@ def get_task_status(project_id, task_id):
         from services.task_watchdog import localize_watchdog_payload, reconcile_task_for_response
         reconcile_task_for_response(task)
         
-        return success_response(localize_watchdog_payload(task.to_dict()))
+        payload = task_payload(task, run) if run is not None else task.to_dict()
+        return success_response(localize_watchdog_payload(payload))
     
     except Exception as e:
         logger.error(f"get_task_status failed: {str(e)}", exc_info=True)

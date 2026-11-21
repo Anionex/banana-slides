@@ -9,6 +9,8 @@ Two code paths:
 
 Resolution validation is handled at the task_manager level for all providers.
 """
+
+from export_runtime.control import export_call, check, sleep, current, RemoteJobFailed
 import logging
 from services.export_control import check_export, strict_export, export_request, retry_export_request, export_sleep
 import base64
@@ -32,11 +34,37 @@ APIMART_TASK_REQUEST_TIMEOUT = 30.0
 
 
 # Models that use the native OpenAI images API (images.generate / images.edit)
-# rather than the chat completions multimodal path.
-_GPT_IMAGE_MODELS = {'gpt-image-1', 'gpt-image-1.5', 'gpt-image-2'}
+# rather than the chat completions multimodal path. Match by prefix so new
+# releases (gpt-image-2.5-flare / -sunburst, dated snapshots, chatgpt-image-*)
+# keep routing correctly without another hardcoded list.
+_GPT_IMAGE_MODEL_PREFIXES = ('gpt-image', 'chatgpt-image')
 _DALLE_MODELS = {'dall-e-2', 'dall-e-3'}
-_NATIVE_IMAGES_API_MODELS = _GPT_IMAGE_MODELS | _DALLE_MODELS
 _MAX_GPT_IMAGE_INPUTS = 16
+
+# Quality tiers accepted by the OpenAI images API. 'xhigh' / 'max' were added
+# with gpt-image-2.5; older GPT Image models reject them.
+_IMAGE_QUALITY_TIERS = ('auto', 'low', 'medium', 'high', 'xhigh', 'max')
+_EXTENDED_IMAGE_QUALITY_TIERS = ('xhigh', 'max')
+
+
+def _is_gpt_image_model(model: str) -> bool:
+    """Return True for the GPT Image family (gpt-image-*, chatgpt-image-*)."""
+    return (model or '').strip().lower().startswith(_GPT_IMAGE_MODEL_PREFIXES)
+
+
+def _gpt_image_supports_extended_quality(model: str) -> bool:
+    """Return True when the model accepts the xhigh / max quality tiers.
+
+    Those tiers shipped with gpt-image-2.5, so parse the version out of the
+    model name (gpt-image-2.5-flare -> (2, 5)) and compare against it.
+    Aliases such as chatgpt-image-latest carry no version and stay capped.
+    """
+    match = re.match(r'^gpt-image-(\d+)(?:\.(\d+))?', (model or '').strip().lower())
+    if not match:
+        return False
+    major = int(match.group(1))
+    minor = int(match.group(2) or 0)
+    return (major, minor) >= (2, 5)
 
 # Volcengine Seedream models only accept the native images API (images/generations).
 # The Agent Plan endpoint does not expose a chat-completions image modality, so an
@@ -253,7 +281,7 @@ class OpenAIImageProvider(ImageProvider):
     The provider will try multiple parameter formats to maximize compatibility.
     """
     
-    def __init__(self, api_key: str, api_base: str = None, model: str = "gemini-3-pro-image-preview", image_api_protocol: str = 'auto'):
+    def __init__(self, api_key: str, api_base: str = None, model: str = "gemini-3-pro-image-preview", image_api_protocol: str = 'auto', image_quality: str = 'auto'):
         """
         Initialize OpenAI image provider
 
@@ -262,6 +290,10 @@ class OpenAIImageProvider(ImageProvider):
             api_base: API base URL (e.g., https://api.inferera.com/v1)
             model: Model name to use
             image_api_protocol: 'auto' (detect by model name), 'images' (force images.generate), 'chat' (force chat.completions)
+            image_quality: Quality tier for GPT Image / DALL-E models:
+                'auto' (default), 'low', 'medium', 'high', 'xhigh', 'max'.
+                'xhigh' / 'max' require gpt-image-2.5 or newer; older models
+                fall back to 'high' with a warning.
         """
         self.client = OpenAI(
             api_key=api_key,
@@ -273,6 +305,8 @@ class OpenAIImageProvider(ImageProvider):
         self.api_base = api_base or ""
         self.model = model
         self.image_api_protocol = image_api_protocol or 'auto'
+        self.image_quality = image_quality or 'auto'
+        self._quality_warning_logged = False
     
     def _request_client(self):
         check_export()
@@ -334,7 +368,8 @@ class OpenAIImageProvider(ImageProvider):
         """Return True when the model should use images.generate / images.edit."""
         model = self.model.lower()
         return (
-            model in _NATIVE_IMAGES_API_MODELS
+            _is_gpt_image_model(model)
+            or model in _DALLE_MODELS
             or model.startswith(_DOUBAO_SEEDREAM_PREFIX)
             or self._is_sensenova_image_model()
         )
@@ -442,6 +477,7 @@ class OpenAIImageProvider(ImageProvider):
         image.save(buf, format='PNG', optimize=True, compress_level=9)
         return buf.getvalue()
 
+    @export_call('image')
     @retry(
         stop=stop_after_attempt(_SENSENOVA_MAX_ATTEMPTS),
         wait=wait_exponential(multiplier=1, min=1, max=10),
@@ -580,7 +616,35 @@ class OpenAIImageProvider(ImageProvider):
             return None          # dall-e-2 has no quality param
         if model.startswith(_DOUBAO_SEEDREAM_PREFIX):
             return None          # Volcengine Seedream does not accept a quality param
-        return 'auto'            # gpt-image-* accepts auto / low / medium / high
+        if not _is_gpt_image_model(model):
+            # Non-GPT-Image models that reach the images API (forced protocol,
+            # Gemini via an OpenAI-compatible proxy) keep the previous default.
+            return 'auto'
+
+        # GPT Image / chatgpt-image accept auto / low / medium / high, and
+        # gpt-image-2.5+ additionally accepts xhigh / max.
+        requested = (self.image_quality or 'auto').strip().lower()
+        if requested not in _IMAGE_QUALITY_TIERS:
+            self._warn_quality_once(
+                "Unsupported image quality %r for %s; falling back to auto",
+                self.image_quality,
+                self.model,
+            )
+            return 'auto'
+        if requested in _EXTENDED_IMAGE_QUALITY_TIERS and not _gpt_image_supports_extended_quality(self.model):
+            self._warn_quality_once(
+                "%s does not support quality=%s; falling back to high",
+                self.model,
+                requested,
+            )
+            return 'high'
+        return requested
+
+    def _warn_quality_once(self, message: str, *args) -> None:
+        """Log a quality fallback once per provider instance (bulk jobs would spam)."""
+        if not self._quality_warning_logged:
+            logger.warning(message, *args)
+            self._quality_warning_logged = True
 
     def _is_apimart(self) -> bool:
         return "api.apimart.ai" in (self.api_base or "").lower()
@@ -745,7 +809,7 @@ class OpenAIImageProvider(ImageProvider):
         deadline = time.monotonic() + APIMART_TASK_TIMEOUT
 
         while True:
-            check_export()
+            check()
             response = requests.get(
                 endpoint,
                 headers=headers,
@@ -772,14 +836,48 @@ class OpenAIImageProvider(ImageProvider):
                 return self._decode_apimart_task_result(payload)
             if status in {"failed", "error", "cancelled", "canceled", "timeout"}:
                 detail = self._apimart_error_message(payload) or "unknown error"
-                raise RuntimeError(f"apimart image task failed for {task_id}: {detail}")
+                raise RemoteJobFailed(f"apimart image task failed for {task_id}: {detail}")
             if status and status not in {"submitted", "queued", "pending", "processing", "running", "in_progress"}:
                 raise RuntimeError(f"apimart image task returned unsupported status for {task_id}: {status}")
             if time.monotonic() >= deadline:
                 raise TimeoutError(f"apimart image task timed out after {APIMART_TASK_TIMEOUT:.0f}s")
 
             logger.debug("apimart image task %s still running (status=%s)", task_id, status or "unknown")
-            export_sleep(APIMART_TASK_POLL_INTERVAL)
+            sleep(APIMART_TASK_POLL_INTERVAL)
+
+    def _images_response(self, action, kwargs, ref_images=None, mask=None):
+        """Commit async job identity before polling; retry a known job in place."""
+        from hashlib import sha256
+        from export_runtime.checkpoints import cached
+        control = current()
+
+        def submit():
+            request_client = self.client if control else self._request_client()
+            raw = export_request(getattr(request_client.images.with_raw_response, action),
+                                 attempts=get_config().OPENAI_MAX_RETRIES + 1, **kwargs)
+            payload = self._raw_response_payload(raw)
+            task_id = self._image_task_id(payload)
+            return {'task_id': task_id} if task_id else {'response': payload}
+        identity = None
+        if control and control.store:
+            identity = {'endpoint': self.api_base, 'action': action,
+                        'parameters': {key: value for key, value in kwargs.items()
+                                       if key not in ('image', 'mask', 'extra_body')},
+                        'extra_body': {key: value for key, value in kwargs.get('extra_body', {}).items()
+                                       if key not in ('image', 'image_urls')},
+                        'images': [sha256(self._pil_to_png_bytes(image)).hexdigest() for image in (ref_images or [])],
+                        'mask_sha256': sha256(self._pil_to_png_bytes(mask)).hexdigest() if mask else None}
+            submitted = cached('image_submission', identity, submit, lambda value: bool(value.get('task_id')))
+        else:
+            submitted = submit()
+        if not submitted.get('task_id'):
+            return self._extract_from_images_result(submitted['response'])
+        try:
+            return self._poll_image_task(submitted['task_id'])
+        except RemoteJobFailed:
+            if identity is not None:
+                control.store.invalidate('image_submission', identity)
+            raise
 
     def _generate_with_apimart_images_api(
         self,
@@ -800,19 +898,35 @@ class OpenAIImageProvider(ImageProvider):
             size=aspect_ratio,
             extra_body=extra_body,
         )
+        # APIMart forwards the OpenAI images API quality tier, but only the GPT
+        # Image family documents it. Send it only when a tier is actually in
+        # effect so default (and invalid-value) requests keep the original shape.
+        quality = self._resolve_quality() if _is_gpt_image_model(self.model) else None
+        if quality == 'auto':
+            quality = None
+        if quality:
+            kwargs['quality'] = quality
         logger.debug(
-            "Calling APIMart images API for model=%s, size=%s, resolution=%s, refs=%s",
+            "Calling APIMart images API for model=%s, size=%s, resolution=%s, quality=%s, refs=%s",
             self.model,
             aspect_ratio,
             resolution,
+            quality,
             len(ref_images) if ref_images else 0,
         )
-        raw_response = export_request(self._request_client().images.with_raw_response.generate, attempts=get_config().OPENAI_MAX_RETRIES + 1, **kwargs)
-        payload = self._raw_response_payload(raw_response)
-        task_id = self._image_task_id(payload)
-        if task_id:
-            return self._poll_image_task(task_id)
-        return self._extract_from_images_result(payload)
+        return self._images_response('generate', kwargs, ref_images)
+
+    @property
+    def supports_mask_edit(self) -> bool:
+        return (self.model.strip().lower().startswith(('gpt-image-', 'chatgpt-image-')) and not self._is_apimart()
+                and self.image_api_protocol != 'chat')
+
+    def edit_image_with_mask(self, prompt, image, mask, aspect_ratio="16:9", resolution="2K"):
+        if not self.supports_mask_edit:
+            raise ValueError("The configured image endpoint does not support native mask edits")
+        if mask.size != image.size or 'A' not in mask.getbands():
+            raise ValueError("Edit mask must have an alpha channel and match the source image size")
+        return self._generate_with_images_api(prompt, [image], aspect_ratio, resolution, mask=mask)
 
     def _generate_with_images_api(
         self,
@@ -820,9 +934,10 @@ class OpenAIImageProvider(ImageProvider):
         ref_images: Optional[List[Image.Image]],
         aspect_ratio: str,
         resolution: str = '2K',
+        mask: Optional[Image.Image] = None,
     ) -> Optional[Image.Image]:
         """Use the native OpenAI images API (gpt-image-* / dall-e-*)."""
-        if self._is_apimart() and self.model.lower() in _GPT_IMAGE_MODELS:
+        if self._is_apimart() and _is_gpt_image_model(self.model):
             return self._generate_with_apimart_images_api(
                 prompt,
                 ref_images,
@@ -846,7 +961,7 @@ class OpenAIImageProvider(ImageProvider):
                     f'data:image/jpeg;base64,{self._encode_image_to_base64(img)}'
                     for img in ref_images
                 ]}
-            raw_response = export_request(self._request_client().images.with_raw_response.generate, attempts=get_config().OPENAI_MAX_RETRIES + 1, **kwargs)
+            return self._images_response('generate', kwargs, ref_images)
         elif ref_images and self.model.lower() != 'dall-e-3':
             # dall-e-3 does not support images.edit; all other native models do
             model = self.model.lower()
@@ -862,7 +977,7 @@ class OpenAIImageProvider(ImageProvider):
             else:
                 # GPT Image accepts multiple inputs. Also preserve all inputs for
                 # OpenAI-compatible custom models when the Images API is forced.
-                if model in _GPT_IMAGE_MODELS and len(ref_images) > _MAX_GPT_IMAGE_INPUTS:
+                if _is_gpt_image_model(model) and len(ref_images) > _MAX_GPT_IMAGE_INPUTS:
                     raise ValueError(
                         f"{self.model} supports at most {_MAX_GPT_IMAGE_INPUTS} "
                         f"reference images, got {len(ref_images)}"
@@ -907,11 +1022,17 @@ class OpenAIImageProvider(ImageProvider):
                 size,
             )
             kwargs = dict(model=self.model, image=image_input, prompt=prompt, n=1, size=size)
+            if mask is not None:
+                prepared_mask = mask.convert('RGBA').resize((w, h), Image.Resampling.NEAREST)
+                mask_file = BytesIO(self._pil_to_png_bytes(prepared_mask))
+                mask_file.name = 'mask.png'
+                kwargs['mask'] = mask_file
+                logger.info("Native image edit includes alpha mask, size=%sx%s", w, h)
             if quality:
                 kwargs['quality'] = quality
             if response_format:
                 kwargs['response_format'] = response_format
-            raw_response = export_request(self._request_client().images.with_raw_response.edit, attempts=get_config().OPENAI_MAX_RETRIES + 1, **kwargs)
+            return self._images_response('edit', kwargs, selected_ref_images, mask)
         else:
             if ref_images:
                 logger.warning("dall-e-3 does not support images.edit; ignoring ref_images")
@@ -921,14 +1042,7 @@ class OpenAIImageProvider(ImageProvider):
                 kwargs['quality'] = quality
             if response_format:
                 kwargs['response_format'] = response_format
-            raw_response = export_request(self._request_client().images.with_raw_response.generate, attempts=get_config().OPENAI_MAX_RETRIES + 1, **kwargs)
-
-        payload = self._raw_response_payload(raw_response)
-        task_id = self._image_task_id(payload)
-        if task_id:
-            return self._poll_image_task(task_id)
-
-        return self._extract_from_images_result(payload)
+            return self._images_response('generate', kwargs)
 
     def _generate_with_sensenova_images_api(
         self,
@@ -1048,7 +1162,7 @@ class OpenAIImageProvider(ImageProvider):
         Returns:
             Generated PIL Image object, or None if failed
         """
-        if self._is_apimart() and self.model.lower() in _GPT_IMAGE_MODELS:
+        if self._is_apimart() and _is_gpt_image_model(self.model):
             self._validate_apimart_reference_images(ref_images)
         try:
             # SenseNova U1 image models expose a JSON API, not the OpenAI SDK's
@@ -1206,7 +1320,7 @@ class OpenAIImageProvider(ImageProvider):
                     # Try to extract plain URL (not in Markdown format)
                     url_pattern = r'(https?://[^\s\)\]]+\.(?:png|jpg|jpeg|gif|webp|bmp)(?:\?[^\s\)\]]*)?)'
                     url_matches = re.findall(url_pattern, content_str, re.IGNORECASE)
-                    if url_matches:
+                    if url_matches and url_matches[0] not in markdown_matches:
                         image_url = url_matches[0]
                         logger.debug(f"Found plain image URL: {image_url}")
                         try:
@@ -1224,15 +1338,32 @@ class OpenAIImageProvider(ImageProvider):
                     base64_pattern = r'data:image/[^;]+;base64,([A-Za-z0-9+/=]+)'
                     base64_matches = re.findall(base64_pattern, content_str)
                     if base64_matches:
-                        base64_data = base64_matches[0]
                         logger.debug(f"Found base64 image data in string")
                         try:
-                            image_data = base64.b64decode(base64_data)
+                            image_data = base64.b64decode(base64_matches[0])
                             image = Image.open(BytesIO(image_data))
                             logger.debug(f"Successfully extracted base64 image from string: {image.size}, {image.mode}")
                             return image
                         except Exception as decode_error:
                             logger.warning(f"Failed to decode base64 image from string: {decode_error}")
+
+                    # Last resort: some relays (e.g. Adobe Firefly-backed proxies)
+                    # return a bare pre-signed URL whose path has no file extension.
+                    # If the whole content is a single URL, try downloading it —
+                    # Image.open below validates it is actually an image.
+                    bare_url = content_str.strip()
+                    if (bare_url.startswith(('http://', 'https://'))
+                            and not any(c.isspace() for c in bare_url)
+                            and bare_url not in markdown_matches + url_matches):
+                        try:
+                            response = requests.get(bare_url, timeout=60, stream=True)
+                            response.raise_for_status()
+                            image = Image.open(BytesIO(response.content))
+                            image.load()
+                            logger.debug(f"Successfully downloaded image from bare URL: {image.size}, {image.mode}")
+                            return image
+                        except Exception as download_error:
+                            logger.warning(f"Failed to download image from bare URL: {download_error}")
             
             # Log raw response for debugging
             logger.warning(f"Unable to extract image. Raw message type: {type(message)}")

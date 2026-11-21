@@ -7,7 +7,7 @@ from services.export_control import check_export, strict_export, retry_during_ex
 from time import monotonic
 from typing import Generator
 from openai import OpenAI
-from .base import TextProvider, strip_think_tags
+from .base import TextProvider, get_text_output_limit, strip_think_tags
 from .stream_control import stream_timeout, stream_stopped
 from config import get_config
 
@@ -49,6 +49,16 @@ class OpenAITextProvider(TextProvider):
             }}}
         return {}
     
+    def _output_limit_params(self) -> dict:
+        # OpenAI reasoning families use max_completion_tokens; compatible
+        # Claude/Gemini and older chat models use max_tokens.
+        limit = get_text_output_limit()
+        if limit is None:
+            return {}
+        model = self.model.lower().rsplit('/', 1)[-1]
+        key = 'max_completion_tokens' if model.startswith(('gpt-5', 'o1', 'o3', 'o4')) else 'max_tokens'
+        return {key: limit}
+
     def generate_text(self, prompt: str, thinking_budget: int = 0) -> str:
         """
         Generate text using OpenAI SDK
@@ -64,6 +74,7 @@ class OpenAITextProvider(TextProvider):
         client = self.client.with_options(max_retries=0) if strict_export() else self.client
         response = client.chat.completions.create(
             model=self.model,
+            **self._output_limit_params(),
             messages=[
                 {"role": "user", "content": prompt}
             ],
@@ -88,6 +99,7 @@ class OpenAITextProvider(TextProvider):
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 stream=True,
+                **self._output_limit_params(),
                 **self._thinking_options(thinking_budget),
             )
             request_id = getattr(response, '_request_id', None)
@@ -124,6 +136,7 @@ class OpenAITextProvider(TextProvider):
         client = self.client.with_options(max_retries=0) if strict_export() else self.client
         response = client.chat.completions.create(
             model=self.model,
+            **self._output_limit_params(),
             **self._thinking_options(thinking_budget),
             messages=[
                 {

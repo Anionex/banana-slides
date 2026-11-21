@@ -5,6 +5,8 @@ Operates in two authentication modes selected at construction time:
   * API-key mode  (Google AI Studio or compatible proxy)
   * Vertex AI mode (GCP service-account credentials via GOOGLE_APPLICATION_CREDENTIALS)
 """
+
+from export_runtime.control import export_call
 import logging
 from services.export_control import check_export, strict_export, retry_export_request, export_sleep
 import re
@@ -12,7 +14,7 @@ from typing import Generator
 from google import genai
 from google.genai import types
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
-from .base import TextProvider, strip_think_tags
+from .base import TextProvider, get_text_output_limit, strip_think_tags
 from .stream_control import stream_timeout, stream_stopped
 from config import get_config
 from ..genai_client import make_genai_client
@@ -72,6 +74,7 @@ class GenAITextProvider(TextProvider):
         Models that cannot disable thinking use their documented minimum.
         Leave unknown/legacy model aliases unchanged rather than send unsupported fields.
         """
+        limit = get_text_output_limit()
         if thinking_budget > 0:
             thinking = types.ThinkingConfig(thinking_budget=thinking_budget)
         elif thinking_budget == 0:
@@ -81,22 +84,30 @@ class GenAITextProvider(TextProvider):
                 model,
             )
             if not match:
-                return (types.GenerateContentConfig(http_options=types.HttpOptions(
-                    retry_options=types.HttpRetryOptions(attempts=1))) if strict_export() else None)
-            version, family = match.groups()
-            if version.startswith('3'):
-                thinking = types.ThinkingConfig(
-                    thinking_level='low' if family == 'pro' or version in ('3.7', '3.8') else 'minimal'
-                )
+                if limit is None and not strict_export():
+                    return None
+                thinking = None
             else:
-                thinking = types.ThinkingConfig(thinking_budget=128 if family == 'pro' else 0)
+                version, family = match.groups()
+                thinking = self._minimum_thinking_config(version, family)
         else:
             thinking = None
-        config = types.GenerateContentConfig(thinking_config=thinking)
+        config = types.GenerateContentConfig(
+            thinking_config=thinking, max_output_tokens=limit,
+        )
         if strict_export():
             config.http_options = types.HttpOptions(retry_options=types.HttpRetryOptions(attempts=1))
         return config
 
+    @staticmethod
+    def _minimum_thinking_config(version: str, family: str):
+        if version.startswith('3'):
+            return types.ThinkingConfig(
+                thinking_level='low' if family == 'pro' or version in ('3.7', '3.8') else 'minimal'
+            )
+        return types.ThinkingConfig(thinking_budget=128 if family == 'pro' else 0)
+
+    @export_call('caption')
     @retry(
         retry=retry_if_exception(retry_export_request),
         sleep=export_sleep,
@@ -126,6 +137,7 @@ class GenAITextProvider(TextProvider):
         check_export()
         return _validate_response(response)
     
+    @export_call('caption')
     @retry(
         retry=retry_if_exception(retry_export_request),
         sleep=export_sleep,

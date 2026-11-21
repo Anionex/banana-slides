@@ -12,6 +12,7 @@ from threading import Event, Lock
 import time
 
 from services.public_demo import VisitorThreadPoolExecutor
+from export_runtime import control as worker_control
 
 _current = ContextVar('editable_export_control', default=None)
 _tasks = {}
@@ -41,11 +42,12 @@ def current_export():
 
 
 def strict_export():
-    control = current_export()
+    control = worker_control.current() or current_export()
     return control is not None and control.strict
 
 
 def check_export():
+    worker_control.check()
     control = current_export()
     if control is not None:
         control.check()
@@ -113,7 +115,7 @@ def dependency_failed(message, stage, *, cause=None):
         help_text=('服务额度已耗尽，请等待额度恢复或联系管理员。' if quota
                    else '本次导出已终止，未生成半成品。请检查错误原因后重新导出。'),
     )
-    current_export().fail(error)
+    (worker_control.current() or current_export()).fail(error)
     raise error from cause if isinstance(cause, BaseException) else None
 
 
@@ -136,10 +138,14 @@ def permanent_error(exc):
 
 def retry_export_request(exc):
     check_export()
+    if worker_control.current():
+        return False  # The worker owns transport retries and resource budgets.
     return not (strict_export() and permanent_error(exc))
 
 
 def export_sleep(seconds):
+    if worker_control.current():
+        return worker_control.sleep(seconds)
     control = current_export()
     if control is None:
         time.sleep(seconds)
@@ -151,6 +157,8 @@ def export_sleep(seconds):
 def retry_during_export(fn):
     @wraps(fn)
     def run(self, *args, **kwargs):
+        if worker_control.current():
+            return worker_control.request('caption', lambda: fn(self, *args, **kwargs))
         if not strict_export():
             return fn(self, *args, **kwargs)
         return export_request(lambda: fn(self, *args, **kwargs),
@@ -159,7 +167,7 @@ def retry_during_export(fn):
 
 
 def export_request(fn, *args, attempts=3, **kwargs):
-    if not strict_export():
+    if worker_control.current() or not strict_export():
         return fn(*args, **kwargs)
     for attempt in range(attempts):
         check_export()

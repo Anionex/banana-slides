@@ -87,6 +87,8 @@ const getAllProviderSources = (isZh: boolean) => [
 
 // 需要 API Key + Base URL 的提供商（非 LazyLLM 厂商）
 const API_KEY_PROVIDERS = new Set(['gemini', 'openai', 'volcengine']);
+// The image quality control applies only to the GPT Image family.
+const GPT_IMAGE_MODEL_PATTERN = /^(gpt-image|chatgpt-image)/i;
 // 火山 Agent Plans（OpenAI 兼容）: 专属 Base URL 与模型名
 const VOLCENGINE_AGENTPLANS_BASE_URL = 'https://ark.cn-beijing.volces.com/api/plan/v3';
 const VOLCENGINE_AGENTPLANS_RECOMMENDED_MODELS = {
@@ -101,11 +103,12 @@ const VOLCENGINE_MODELARK_RECOMMENDED_MODELS = {
   image: 'doubao-seedream-5-0-260128',
 };
 // 各 provider 的默认端点: 切换到 Agent Plans 时用于识别并清除过时默认值
+const LEGACY_APIMART_BASE_URL = 'https://api.apimart.ai/v1';
 const KNOWN_DEFAULT_BASE_URLS = new Set([
   '',
   'https://api.inferera.com/v1',
   'https://api.openai.com/v1',
-  'https://api.apimart.ai/v1',
+  LEGACY_APIMART_BASE_URL,
   'https://api.inferera.com/gemini',
   'https://generativelanguage.googleapis.com',
   'https://ark.cn-beijing.volces.com/api/v3',
@@ -146,12 +149,14 @@ const initialFormData = {
   mineru_api_base: '',
   mineru_token: '',
   image_resolution: '2K',
+  image_quality: 'auto',
   enable_image_quality_control: false,
   max_description_workers: 5,
   max_image_workers: 8,
   output_language: 'zh' as OutputLanguage,
   // 推理模式配置（分别控制文本和图像）
   enable_text_reasoning: false,
+  text_max_output_tokens: 32768,
   text_thinking_budget: 1024,
   enable_image_reasoning: false,
   image_thinking_budget: 1024,
@@ -573,6 +578,7 @@ const formDataFromSettings = (data: SettingsType): typeof initialFormData => {
     api_base_url: data.api_base_url || '',
     api_key: '',
     image_resolution: data.image_resolution || '2K',
+    image_quality: data.image_quality || 'auto',
     enable_image_quality_control: data.enable_image_quality_control ?? false,
     max_description_workers: data.max_description_workers || 5,
     max_image_workers: data.max_image_workers || 8,
@@ -583,6 +589,7 @@ const formDataFromSettings = (data: SettingsType): typeof initialFormData => {
     image_caption_model: data.image_caption_model || '',
     output_language: data.output_language || 'zh',
     enable_text_reasoning: data.enable_text_reasoning || false,
+    text_max_output_tokens: data.text_max_output_tokens ?? 32768,
     text_thinking_budget: data.text_thinking_budget || 1024,
     enable_image_reasoning: data.enable_image_reasoning || false,
     image_thinking_budget: data.image_thinking_budget || 1024,
@@ -632,6 +639,9 @@ export const Settings: React.FC = () => {
   const [formData, setFormData] = useState(initialFormData);
   const [serviceTestStates, setServiceTestStates] = useState<Record<string, ServiceTestState>>({});
   const [oauthConnecting, setOauthConnecting] = useState(false);
+  const [oauthDialogOpen, setOauthDialogOpen] = useState(false);
+  const pendingCodexSelection = useRef<(() => void) | null>(null);
+  const oauthPopupRef = useRef<Window | null>(null);
   const [manualCallbackUrl, setManualCallbackUrl] = useState('');
   const [manualCallbackOpen, setManualCallbackOpen] = useState(false);
   const [manualCallbackSubmitting, setManualCallbackSubmitting] = useState(false);
@@ -682,6 +692,11 @@ export const Settings: React.FC = () => {
   }, [settings]);
 
   const applyOAuthStatus = useCallback((connected: boolean, accountId: string | null) => {
+    if (connected && pendingCodexSelection.current) {
+      pendingCodexSelection.current();
+      pendingCodexSelection.current = null;
+      setOauthDialogOpen(false);
+    }
     setSettings(prev => {
       if (!prev) return prev;
       return {
@@ -696,6 +711,14 @@ export const Settings: React.FC = () => {
     stopOAuthMonitor();
     const attemptId = oauthAttemptRef.current;
     setOauthConnecting(true);
+    // Reserve the browser popup while the login button still has user activation.
+    const reservedPopup = isDesktop ? null : window.open('about:blank', 'openai-oauth', 'width=600,height=700');
+    oauthPopupRef.current = reservedPopup;
+    if (!isDesktop && (!reservedPopup || reservedPopup.closed)) {
+      setOauthConnecting(false);
+      show({ message: t('settings.openaiOAuth.popupBlocked'), type: 'error' });
+      return;
+    }
     try {
       const resp = await api.getOpenAIOAuthUrl();
       if (attemptId !== oauthAttemptRef.current) return;
@@ -704,7 +727,10 @@ export const Settings: React.FC = () => {
           setManualCallbackOpen(true);
           show({ message: t('settings.openaiOAuth.callbackPortBusy'), type: 'warning' });
         }
-        const popup = window.open(resp.data.auth_url, 'openai-oauth', 'width=600,height=700');
+        const popup = isDesktop
+          ? window.open(resp.data.auth_url, 'openai-oauth', 'width=600,height=700')
+          : reservedPopup;
+        if (reservedPopup) reservedPopup.location.href = resp.data.auth_url;
         if ((!popup || popup.closed) && !isDesktop) {
           setOauthConnecting(false);
           show({ message: t('settings.openaiOAuth.popupBlocked'), type: 'error' });
@@ -735,12 +761,14 @@ export const Settings: React.FC = () => {
         });
         oauthMonitorStopRef.current = monitor.stop;
       } else {
+        reservedPopup?.close();
         setOauthConnecting(false);
         show({ message: t('settings.openaiOAuth.connectFailed'), type: 'error' });
       }
     } catch {
       if (attemptId !== oauthAttemptRef.current) return;
       stopOAuthMonitor();
+      reservedPopup?.close();
       setOauthConnecting(false);
       show({ message: t('settings.openaiOAuth.connectFailed'), type: 'error' });
     }
@@ -837,6 +865,14 @@ export const Settings: React.FC = () => {
       title: t('settings.sections.performanceConfig'),
       icon: <Zap size={20} />,
       fields: [
+        {
+          key: 'text_max_output_tokens',
+          label: t('settings.fields.textMaxOutputTokens'),
+          type: 'number',
+          min: 1,
+          max: 2147483647,
+          description: t('settings.fields.textMaxOutputTokensDesc'),
+        },
         {
           key: 'max_description_workers',
           label: t('settings.fields.maxDescriptionWorkers'),
@@ -1061,7 +1097,12 @@ export const Settings: React.FC = () => {
     );
   };
 
-  const handleFieldChange = (key: string, value: any) => {
+  const handleFieldChange = (key: string, value: any, oauthConnected = settings?.openai_oauth_connected) => {
+    if (value === 'codex' && ['ai_provider_format', 'text_model_source', 'image_model_source', 'image_caption_model_source'].includes(key) && !oauthConnected) {
+      pendingCodexSelection.current = () => handleFieldChange(key, value, true);
+      setOauthDialogOpen(true);
+      return;
+    }
     setFormData(prev => {
       const next = { ...prev, [key]: value };
 
@@ -1073,15 +1114,16 @@ export const Settings: React.FC = () => {
       };
 
       if (key === 'ai_provider_format') {
+        const previousBase = next.api_base_url.trim().replace(/\/+$/, '');
         if (value === 'volcengine') {
           // Agent Plans 需要专属端点: 空值或其他 provider 的默认端点会被替换,
           // 用户显式填写的自定义 Base URL 保留
           if (KNOWN_DEFAULT_BASE_URLS.has(next.api_base_url)) {
             next.api_base_url = VOLCENGINE_AGENTPLANS_BASE_URL;
           }
-        } else if (VOLCENGINE_DEFAULT_BASE_URLS.has(next.api_base_url)) {
-          // 离开 Agent Plans: plan/v3 端点对新 provider 是过时默认值, 清空以
-          // 回退到新 provider 的环境变量/默认端点, 自定义 URL 保留
+        } else if (VOLCENGINE_DEFAULT_BASE_URLS.has(previousBase) ||
+                   (value === 'codex' && previousBase === LEGACY_APIMART_BASE_URL)) {
+          // A different provider cannot reuse a previous provider's default endpoint.
           next.api_base_url = '';
         }
       } else if (perModelBaseKeys[key]) {
@@ -1194,6 +1236,7 @@ export const Settings: React.FC = () => {
       if (formData.mineru_token) testSettings.mineru_token = formData.mineru_token;
       if (formData.baidu_api_key) testSettings.baidu_api_key = formData.baidu_api_key;
       if (formData.image_resolution) testSettings.image_resolution = formData.image_resolution;
+      if (formData.image_quality) testSettings.image_quality = formData.image_quality;
 
       // Per-model provider source overrides (always send, even empty, to clear saved values)
       testSettings.text_model_source = formData.text_model_source || '';
@@ -1212,6 +1255,7 @@ export const Settings: React.FC = () => {
       if (formData.enable_text_reasoning !== undefined) {
         testSettings.enable_text_reasoning = formData.enable_text_reasoning;
       }
+      testSettings.text_max_output_tokens = formData.text_max_output_tokens;
       if (formData.text_thinking_budget !== undefined) {
         testSettings.text_thinking_budget = formData.text_thinking_budget;
       }
@@ -1329,6 +1373,16 @@ export const Settings: React.FC = () => {
     const sourceValue = formData[item.sourceKey] as string;
     const isApiKeyProvider = API_KEY_PROVIDERS.has(sourceValue);
     const isLazyllm = sourceValue && isLazyllmVendor(sourceValue);
+    // Image generation options: the images/chat protocol only applies to
+    // OpenAI-compatible HTTP providers, while the quality tier also applies to
+    // Codex (OAuth), which builds its own image_generation request.
+    const imageProviderValue = sourceValue || formData.ai_provider_format;
+    const isOpenAiCompatibleImageSource = item.sourceKey === 'image_model_source'
+      && (imageProviderValue === 'openai' || imageProviderValue === 'volcengine');
+    const isCodexImageSource = item.sourceKey === 'image_model_source'
+      && imageProviderValue === 'codex';
+    const showsQualityTier = (isOpenAiCompatibleImageSource || isCodexImageSource)
+      && GPT_IMAGE_MODEL_PATTERN.test(formData.image_model || '');
     // 'openai' in source dropdown means OpenAI format (API key provider), not lazyllm openai vendor
     // lazyllm openai vendor is handled separately
 
@@ -1367,7 +1421,6 @@ export const Settings: React.FC = () => {
                 <option
                   key={option.value}
                   value={option.value}
-                  disabled={option.value === 'codex' && !settings?.openai_oauth_connected}
                 >
                   {option.label}{option.value === 'codex' && !settings?.openai_oauth_connected ? ` (${t('settings.openaiOAuth.disconnected')})` : ''}
                 </option>
@@ -1430,30 +1483,57 @@ export const Settings: React.FC = () => {
           </div>
         )}
 
-        {/* Image API Protocol: for image model when effective provider is OpenAI-compatible */}
-        {item.sourceKey === 'image_model_source' && (
-          sourceValue === 'openai'
-          || sourceValue === 'volcengine'
-          || (!sourceValue && ['openai', 'volcengine'].includes(formData.ai_provider_format))
-        ) && (
-          <div className="pl-3 border-l-2 border-banana-300 dark:border-banana-600">
-            <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">
-              {t('settings.fields.imageApiProtocol')}
-            </label>
-            <select
-              data-testid="openai-image-api-protocol-select"
-              value={formData.openai_image_api_protocol}
-              onChange={(e) => handleFieldChange('openai_image_api_protocol', e.target.value)}
-              className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
-            >
-              <option value="auto">{t('settings.fields.imageApiProtocolAuto')}</option>
-              <option value="images">{t('settings.fields.imageApiProtocolImages')}</option>
-              <option value="chat">{t('settings.fields.imageApiProtocolChat')}</option>
-            </select>
-            <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">
-              {t('settings.fields.imageApiProtocolDesc')}
-            </p>
-          </div>
+        {/* Image request options for the effective image provider */}
+        {(isOpenAiCompatibleImageSource || isCodexImageSource) && (
+          <>
+            {/* Image API Protocol: OpenAI-compatible HTTP endpoints only */}
+            {isOpenAiCompatibleImageSource && (
+              <div className="pl-3 border-l-2 border-banana-300 dark:border-banana-600">
+                <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">
+                  {t('settings.fields.imageApiProtocol')}
+                </label>
+                <select
+                  data-testid="openai-image-api-protocol-select"
+                  value={formData.openai_image_api_protocol}
+                  onChange={(e) => handleFieldChange('openai_image_api_protocol', e.target.value)}
+                  className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
+                >
+                  <option value="auto">{t('settings.fields.imageApiProtocolAuto')}</option>
+                  <option value="images">{t('settings.fields.imageApiProtocolImages')}</option>
+                  <option value="chat">{t('settings.fields.imageApiProtocolChat')}</option>
+                </select>
+                <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">
+                  {t('settings.fields.imageApiProtocolDesc')}
+                </p>
+              </div>
+            )}
+
+            {/* Quality tier: only GPT Image models accept this parameter, so hide
+                the control for Seedream and other models where it has no effect. */}
+            {showsQualityTier && (
+              <div className="pl-3 border-l-2 border-banana-300 dark:border-banana-600">
+                <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">
+                  {t('settings.fields.imageQuality')}
+                </label>
+                <select
+                  data-testid="openai-image-quality-select"
+                  value={formData.image_quality}
+                  onChange={(e) => handleFieldChange('image_quality', e.target.value)}
+                  className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
+                >
+                  <option value="auto">{t('settings.fields.imageQualityAuto')}</option>
+                  <option value="low">{t('settings.fields.imageQualityLow')}</option>
+                  <option value="medium">{t('settings.fields.imageQualityMedium')}</option>
+                  <option value="high">{t('settings.fields.imageQualityHigh')}</option>
+                  <option value="xhigh">{t('settings.fields.imageQualityXhigh')}</option>
+                  <option value="max">{t('settings.fields.imageQualityMax')}</option>
+                </select>
+                <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">
+                  {t('settings.fields.imageQualityDesc')}
+                </p>
+              </div>
+            )}
+          </>
         )}
 
         {/* LazyLLM 厂商：显示厂商 API Key */}
@@ -1487,6 +1567,85 @@ export const Settings: React.FC = () => {
     );
   };
 
+  const oauthPanel = (<>
+              {/* OpenAI OAuth 连接区块 */}
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-1 flex items-center">
+                  <Link2 size={20} />
+                  <span className="ml-2">{t('settings.openaiOAuth.title')}</span>
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-foreground-tertiary mb-4">{t('settings.openaiOAuth.description')}</p>
+                <div className="p-4 border border-gray-200 dark:border-border-primary rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-2.5 h-2.5 rounded-full ${settings?.openai_oauth_connected ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
+                      <div>
+                        <span className="text-sm font-medium text-gray-700 dark:text-foreground-secondary">
+                          {settings?.openai_oauth_connected ? t('settings.openaiOAuth.connected') : t('settings.openaiOAuth.disconnected')}
+                        </span>
+                        {settings?.openai_oauth_connected && settings?.openai_oauth_account_id && (
+                          <span className="ml-2 text-sm text-gray-500 dark:text-foreground-tertiary">
+                            ({settings.openai_oauth_account_id})
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      {settings?.openai_oauth_connected ? (
+                        <button
+                          onClick={handleOAuthDisconnect}
+                          className="px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                        >
+                          {t('settings.openaiOAuth.disconnectBtn')}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleOAuthLogin}
+                          disabled={oauthConnecting}
+                          className="px-4 py-2 text-sm font-medium text-white bg-gray-900 dark:bg-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors disabled:opacity-50"
+                        >
+                          {oauthConnecting ? t('settings.openaiOAuth.connecting') : t('settings.openaiOAuth.loginBtn')}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs text-gray-500 dark:text-foreground-tertiary">{t('settings.openaiOAuth.hint')}</p>
+                  {!settings?.openai_oauth_connected && (
+                    <div className="mt-3">
+                      <button
+                        onClick={() => setManualCallbackOpen(v => !v)}
+                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        {t('settings.openaiOAuth.manualCallbackLabel')}
+                      </button>
+                      {manualCallbackOpen && (
+                        <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                          <p className="text-xs text-amber-700 dark:text-amber-300 mb-2">{t('settings.openaiOAuth.manualCallbackHint')}</p>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={manualCallbackUrl}
+                              onChange={(e) => setManualCallbackUrl(e.target.value)}
+                              placeholder={t('settings.openaiOAuth.manualCallbackPlaceholder')}
+                              className="flex-1 px-3 py-1.5 text-xs border border-gray-300 dark:border-border-primary rounded-md bg-white dark:bg-background-secondary text-gray-900 dark:text-foreground-primary placeholder-gray-400"
+                            />
+                            <button
+                              onClick={handleManualCallback}
+                              disabled={manualCallbackSubmitting || !manualCallbackUrl.trim()}
+                              className="px-3 py-1.5 text-xs font-medium text-white bg-gray-900 dark:bg-white dark:text-gray-900 rounded-md hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors disabled:opacity-50"
+                            >
+                              {t('settings.openaiOAuth.manualCallbackSubmit')}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+  </>);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -1499,6 +1658,15 @@ export const Settings: React.FC = () => {
     <>
       <ToastContainer />
       {ConfirmDialog}
+      <Modal isOpen={oauthDialogOpen} title={t('settings.openaiOAuth.title')} onClose={() => {
+        pendingCodexSelection.current = null;
+        stopOAuthMonitor();
+        oauthPopupRef.current?.close();
+        setOauthConnecting(false);
+        setOauthDialogOpen(false);
+      }}>
+        {oauthPanel}
+      </Modal>
       <div className="space-y-8">
         {/* 默认 API 配置区块 */}
         <div data-testid="global-api-config-section">
@@ -1516,7 +1684,6 @@ export const Settings: React.FC = () => {
               <SettingsProviderPicker
                 label={t('settings.fields.aiProviderFormat')}
                 globalProviderSources={globalProviderSources.map(option => ({ ...option,
-                  disabled: option.value === 'codex' && !settings?.openai_oauth_connected,
                   hint: option.value === 'volcengine' ? t('settings.volcenginePromo.providerHint')
                     : null,
                 }))}
@@ -1625,81 +1792,7 @@ export const Settings: React.FC = () => {
         <SettingsAdvanced open={advancedOpen} onToggle={() => setAdvancedOpen(!advancedOpen)} label={t('settings.sections.advancedSettings')}>
               {isDesktop && <DataStorageSettings />}
 
-              {/* OpenAI OAuth 连接区块 */}
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-1 flex items-center">
-                  <Link2 size={20} />
-                  <span className="ml-2">{t('settings.openaiOAuth.title')}</span>
-                </h2>
-                <p className="text-sm text-gray-500 dark:text-foreground-tertiary mb-4">{t('settings.openaiOAuth.description')}</p>
-                <div className="p-4 border border-gray-200 dark:border-border-primary rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-2.5 h-2.5 rounded-full ${settings?.openai_oauth_connected ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
-                      <div>
-                        <span className="text-sm font-medium text-gray-700 dark:text-foreground-secondary">
-                          {settings?.openai_oauth_connected ? t('settings.openaiOAuth.connected') : t('settings.openaiOAuth.disconnected')}
-                        </span>
-                        {settings?.openai_oauth_connected && settings?.openai_oauth_account_id && (
-                          <span className="ml-2 text-sm text-gray-500 dark:text-foreground-tertiary">
-                            ({settings.openai_oauth_account_id})
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div>
-                      {settings?.openai_oauth_connected ? (
-                        <button
-                          onClick={handleOAuthDisconnect}
-                          className="px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-                        >
-                          {t('settings.openaiOAuth.disconnectBtn')}
-                        </button>
-                      ) : (
-                        <button
-                          onClick={handleOAuthLogin}
-                          disabled={oauthConnecting}
-                          className="px-4 py-2 text-sm font-medium text-white bg-gray-900 dark:bg-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors disabled:opacity-50"
-                        >
-                          {oauthConnecting ? t('settings.openaiOAuth.connecting') : t('settings.openaiOAuth.loginBtn')}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <p className="mt-3 text-xs text-gray-500 dark:text-foreground-tertiary">{t('settings.openaiOAuth.hint')}</p>
-                  {!settings?.openai_oauth_connected && (
-                    <div className="mt-3">
-                      <button
-                        onClick={() => setManualCallbackOpen(v => !v)}
-                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                      >
-                        {t('settings.openaiOAuth.manualCallbackLabel')}
-                      </button>
-                      {manualCallbackOpen && (
-                        <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                          <p className="text-xs text-amber-700 dark:text-amber-300 mb-2">{t('settings.openaiOAuth.manualCallbackHint')}</p>
-                          <div className="flex gap-2">
-                            <input
-                              type="text"
-                              value={manualCallbackUrl}
-                              onChange={(e) => setManualCallbackUrl(e.target.value)}
-                              placeholder={t('settings.openaiOAuth.manualCallbackPlaceholder')}
-                              className="flex-1 px-3 py-1.5 text-xs border border-gray-300 dark:border-border-primary rounded-md bg-white dark:bg-background-secondary text-gray-900 dark:text-foreground-primary placeholder-gray-400"
-                            />
-                            <button
-                              onClick={handleManualCallback}
-                              disabled={manualCallbackSubmitting || !manualCallbackUrl.trim()}
-                              className="px-3 py-1.5 text-xs font-medium text-white bg-gray-900 dark:bg-white dark:text-gray-900 rounded-md hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors disabled:opacity-50"
-                            >
-                              {t('settings.openaiOAuth.manualCallbackSubmit')}
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
+              {!oauthDialogOpen && oauthPanel}
 
               {/* 并发性能配置 + 推理模式 */}
               {settingsSections.filter((section) =>

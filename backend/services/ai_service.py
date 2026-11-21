@@ -3,6 +3,8 @@ AI Service - handles all AI model interactions
 Based on demo.py and gemini_genai.py
 TODO: use structured output API
 """
+
+from export_runtime.control import export_call
 import os
 import json
 import re
@@ -70,6 +72,31 @@ def _describe_json_response_text(text: str) -> str:
     if stripped[:1] in ("{", "["):
         return "json_like"
     return "plain_text"
+
+
+def _strip_json_fence(text: str) -> str:
+    return text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+
+
+def _load_json_response(text: str) -> Any:
+    """Read a JSON value, or an object or array surrounded by model commentary."""
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        opening = re.search(r"[\[{]", text)
+        if opening is None:
+            raise
+
+    start = opening.start()
+    if start:
+        # Prefer an explicit JSON block over bracketed text in the introduction.
+        fence = re.search(r"```(?:json)?\s*(?=[\[{])", text, re.IGNORECASE)
+        if fence is not None:
+            start = fence.end()
+
+    # Start at the outer value so an incomplete response still triggers a retry.
+    value, _ = json.JSONDecoder().raw_decode(text, start)
+    return value
 
 
 class ProjectContext:
@@ -261,14 +288,15 @@ class AIService:
         response_text = self.text_provider.generate_text(prompt, thinking_budget=actual_budget)
         
         # 清理响应文本：移除markdown代码块标记和多余空白
-        cleaned_text = response_text.strip().strip("```json").strip("```").strip()
+        cleaned_text = _strip_json_fence(response_text or "")
         
         try:
-            return json.loads(cleaned_text)
+            return _load_json_response(cleaned_text)
         except json.JSONDecodeError as e:
             logger.warning(f"JSON解析失败，将重新生成。原始文本: {cleaned_text[:200]}... 错误: {str(e)}")
             raise
     
+    @export_call('caption')
     @retry(
         stop=stop_after_attempt(3),
         retry=(retry_if_exception_type((json.JSONDecodeError, ValueError)) & retry_if_exception(retry_export_request)),
@@ -313,14 +341,14 @@ class AIService:
 
         # 清理响应文本：移除markdown代码块标记和多余空白
         check_export()
-        cleaned_text = (response_text or "").strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        cleaned_text = _strip_json_fence(response_text or "")
 
         if not cleaned_text:
             logger.warning("视觉模型返回空响应（带图片），将重试")
             raise ValueError("视觉模型返回空响应")
 
         try:
-            return json.loads(cleaned_text)
+            return _load_json_response(cleaned_text)
         except json.JSONDecodeError as e:
             logger.warning(
                 "JSON解析失败（带图片），将重新生成。provider=%s image=%s response_kind=%s response_len=%s "
@@ -1199,10 +1227,12 @@ class AIService:
             logger.error(error_detail, exc_info=True)
             raise Exception(error_detail) from e
     
+    @export_call('image')
     def edit_image(self, prompt: str, current_image_path: str,
                   aspect_ratio: str = "16:9", resolution: str = "2K",
                   original_description: str = None,
-                  additional_ref_images: Optional[List[Union[str, Image.Image]]] = None) -> Optional[Image.Image]:
+                  additional_ref_images: Optional[List[Union[str, Image.Image]]] = None,
+                  mask_image: Optional[Image.Image] = None) -> Optional[Image.Image]:
         """
         Edit existing image with natural language instruction
         Uses current image as reference
@@ -1213,6 +1243,7 @@ class AIService:
             aspect_ratio: Image aspect ratio
             resolution: Image resolution
             original_description: Original page description to include in prompt
+            mask_image: 原生编辑的 RGBA 掩码，透明区域允许编辑；尺寸须与原图一致
             additional_ref_images: 额外的参考图片列表，可以是本地路径、URL 或 PIL Image 对象
         
         Returns:
@@ -1223,6 +1254,12 @@ class AIService:
             edit_instruction=prompt,
             original_description=original_description
         )
+        if mask_image is not None:
+            if additional_ref_images:
+                raise ValueError("Masked editing accepts one source image")
+            with Image.open(current_image_path) as source:
+                return self.image_provider.edit_image_with_mask(
+                    edit_instruction, source, mask_image, aspect_ratio, resolution)
         return self.generate_image(edit_instruction, current_image_path, aspect_ratio, resolution, additional_ref_images)
     
     def parse_description_to_outline(self, project_context: ProjectContext, language='zh') -> List[Dict]:

@@ -15,6 +15,14 @@ description: "环境变量与服务商设置"
 | `vertex` | Google Cloud Vertex AI |
 | `lazyllm` | 多厂商国产模型路由 |
 
+## 文本输出上限
+
+在 **设置 → 高级设置 → 性能配置** 中设置 **文本最大输出 Token 数**，默认 **32768**。此全局上限用于文本生成和图片理解，包括流式大纲与描述；保存后对后续请求生效，重置设置后恢复环境默认值。
+
+可在 `.env` 中用 `TEXT_MAX_OUTPUT_TOKENS=32768` 指定环境默认值。未设置该变量时，兼容已有的 `ANTHROPIC_MAX_TOKENS` 配置；页面保存的值优先。
+
+OpenAI 兼容接口使用 `max_tokens`（GPT-5 和 o1/o3/o4 使用 `max_completion_tokens`），Anthropic 和 LazyLLM 使用 `max_tokens`，Gemini/Vertex 使用 `max_output_tokens`。Codex OAuth 保留服务端上限。这个值是允许输出的上限，不会强制模型生成到指定长度；实际支持范围仍由模型和服务商决定。实际输出更长时，费用和耗时也可能增加。长描述被上游默认额度截断时，可适当调大。
+
 ## Gemini（默认）
 
 ```env
@@ -34,6 +42,26 @@ AI_PROVIDER_FORMAT=openai
 OPENAI_API_KEY=your-api-key
 OPENAI_API_BASE=https://api.openai.com/v1
 ```
+
+### 图片质量档位（GPT Image）
+
+使用 OpenAI 兼容的图片模型时，可在「设置 → 图像生成模型 → 图片质量档位」选择生成质量。该选项在图片提供商为 OpenAI、火山 Agent Plan 或 Codex（OpenAI OAuth），且模型属于 GPT Image 系列（`gpt-image-*`、`chatgpt-image-*`）时显示；DALL·E、Seedream 等其他模型不显示，因为档位对它们无效。Codex 走 Responses API，不需要也不显示 images/chat 协议选择。
+
+| 档位 | 说明 |
+| --- | --- |
+| `auto` | 默认，由模型自行决定 |
+| `low` / `medium` | 更省成本，适合草稿 |
+| `high` | 旧版 GPT Image 的最高档 |
+| `xhigh` / `max` | 仅 `gpt-image-2.5` 及更新模型支持，画质更高、耗时更长 |
+
+注意事项：
+
+- `gpt-image-2.5-flare` 与 `gpt-image-2.5-sunburst` 支持全部六档；`gpt-image-2`、`gpt-image-1.5`、`gpt-image-1`、`chatgpt-image-*` 只支持到 `high`，选择 `xhigh` / `max` 时会自动回落到 `high` 并在日志中给出提示。
+- Codex（OpenAI OAuth）同样读取该设置：`auto` 保持 Codex 原有的 `high`，`low` / `medium` / `high` 与 2.5 的 `xhigh` / `max` 会原样传给 Codex 的 `image_generation` 工具，旧模型上的 `xhigh` / `max` 同样回落到 `high`。
+- `dall-e-3` 固定使用 `standard`，`dall-e-2` 与火山 Seedream 不发送质量参数。
+- 成本提醒：2.5 的档位语义相比 2 代整体下移（2.5 的 `high` 约等于旧 `gpt-image-2` 的 `medium` 用量）。想保持旧版 `high` 的观感请选 `max`，成本也会回到旧版 `high` 的水平。
+- 模型名按 `gpt-image` / `chatgpt-image` 前缀识别，因此带日期快照的模型名（如 `gpt-image-2.5-flare-2026-09-08`）也会自动走图片接口，无需额外配置。
+- 也可以通过环境变量设置默认值：`IMAGE_QUALITY=high`（可选 `auto` / `low` / `medium` / `high` / `xhigh` / `max`）。设置页保存的值（包括显式选择 `auto`）优先级更高，重启后依然生效；只有从未保存过时才回落到环境变量。
 
 ## 商汤日日新（OpenAI 兼容）
 
