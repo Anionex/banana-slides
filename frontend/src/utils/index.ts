@@ -95,7 +95,7 @@ export function downloadFromUrl(url: string, filename?: string) {
 export function formatDate(dateString: string): string {
   const date = new Date(dateString);
   const lang = localStorage.getItem('i18nextLng') || navigator.language || 'zh-CN';
-  const locale = lang.startsWith('zh') ? 'zh-CN' : 'en-US';
+  const locale = lang.startsWith('zh') ? 'zh-CN' : lang.startsWith('vi') ? 'vi-VN' : 'en-US';
   return date.toLocaleString(locale, {
     year: 'numeric',
     month: '2-digit',

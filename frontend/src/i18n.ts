@@ -4,6 +4,7 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 
 import zh from './locales/zh.json';
 import en from './locales/en.json';
+import vi from './locales/vi.json';
 
 i18n
   .use(LanguageDetector)
@@ -12,6 +13,7 @@ i18n
     resources: {
       zh: { translation: zh },
       en: { translation: en },
+      vi: { translation: vi },
     },
     fallbackLng: 'zh',
     debug: false,
