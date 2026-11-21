@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="118" height="38" viewBox="0 0 118 38" role="img" aria-label="anion_ex">
+  <title>anion_ex</title>
+  <rect x="0.5" y="3.5" width="117" height="31" rx="6" fill="#F3F4F6" stroke="#ECEEF1"/>
+  <g transform="translate(20.699999999999996 11.5) scale(.625)" fill="none" stroke="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path fill="#24262B" d="M14.234 10.162L22.977 0h-2.072l-7.591 8.824L7.251 0H.258l9.168 13.343L.258 24H2.33l8.016-9.318L16.749 24h6.993zm-2.837 3.299l-.929-1.329L3.076 1.56h3.182l5.965 8.532l.929 1.329l7.754 11.09h-3.182z"/></g>
+  <text x="70.5" y="24" text-anchor="middle" fill="#24262B" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="13" font-weight="600">anion_ex</text>
+</svg>

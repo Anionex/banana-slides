@@ -1,0 +1,266 @@
+name: Nightly
+
+# Every day at 03:00 UTC, or manual trigger
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+env:
+  UV_INDEX_URL: https://pypi.org/simple
+  PYPI_INDEX_URL: ${{ vars.NIGHTLY_PYPI_INDEX_URL || 'https://pypi.org/simple' }}
+
+jobs:
+  workflow-check:
+    uses: ./.github/workflows/check-browser-runners.yml
+
+  e2e-test:
+    name: Docker E2E Tests
+    needs: workflow-check
+    # Keep browser jobs aligned with the locked Playwright version.
+    runs-on: ubuntu-24.04
+    env:
+      GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      NIGHTLY_TEXT_MODEL: gemini-3.1-flash-lite
+      NIGHTLY_IMAGE_MODEL: gemini-3.1-flash-lite-image
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare locked PyPI URLs
+        run: python3 scripts/prepare_nightly_lock.py
+
+      - name: Login to Docker Hub
+        if: env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != ''
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
+
+      - name: Setup environment
+        run: |
+          chmod +x scripts/setup-env-from-secrets.sh
+          ./scripts/setup-env-from-secrets.sh
+          sed -i 's/^AI_PROVIDER_FORMAT=.*/AI_PROVIDER_FORMAT=gemini/' .env || echo "AI_PROVIDER_FORMAT=gemini" >> .env
+          sed -i '/^TEXT_MODEL=/d; /^IMAGE_MODEL=/d' .env
+          printf '\nTEXT_MODEL=%s\nIMAGE_MODEL=%s\n' "$NIGHTLY_TEXT_MODEL" "$NIGHTLY_IMAGE_MODEL" >> .env
+        env:
+          AI_PROVIDER_FORMAT: gemini
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GOOGLE_API_BASE: ${{ secrets.GOOGLE_API_BASE }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_BASE: ${{ secrets.OPENAI_API_BASE }}
+          OPENAI_TIMEOUT: ${{ secrets.OPENAI_TIMEOUT }}
+          OPENAI_MAX_RETRIES: ${{ secrets.OPENAI_MAX_RETRIES }}
+          LOG_LEVEL: ${{ secrets.LOG_LEVEL }}
+          FLASK_ENV: ${{ secrets.FLASK_ENV }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          BACKEND_PORT: ${{ secrets.BACKEND_PORT }}
+          CORS_ORIGINS: ${{ secrets.CORS_ORIGINS }}
+          MAX_DESCRIPTION_WORKERS: ${{ secrets.MAX_DESCRIPTION_WORKERS }}
+          MAX_IMAGE_WORKERS: ${{ secrets.MAX_IMAGE_WORKERS }}
+          MINERU_TOKEN: ${{ secrets.MINERU_TOKEN }}
+          MINERU_API_BASE: ${{ secrets.MINERU_API_BASE }}
+          IMAGE_CAPTION_MODEL: ${{ secrets.IMAGE_CAPTION_MODEL }}
+          OUTPUT_LANGUAGE: ${{ secrets.OUTPUT_LANGUAGE }}
+
+      - name: Build Docker images
+        run: |
+          for attempt in 1 2 3; do
+            if docker compose build --no-cache; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              sleep_seconds=$((attempt * 30))
+              echo "Docker build failed; retrying in ${sleep_seconds}s..."
+              sleep "$sleep_seconds"
+            fi
+          done
+          exit 1
+
+      - name: Start services
+        run: docker compose up -d
+
+      - name: Wait for services
+        run: |
+          chmod +x scripts/wait-for-health.sh
+          ./scripts/wait-for-health.sh http://localhost:5011/health 60 2
+          ./scripts/wait-for-health.sh http://localhost:3011 60 2
+
+      - name: Docker environment tests
+        run: |
+          chmod +x scripts/test_docker_environment.sh
+          AUTO_CLEANUP=false ./scripts/test_docker_environment.sh
+
+      - name: Prepare E2E fixture storage
+        run: |
+          # Docker creates these bind mounts and SQLite files as root. The host
+          # runner seeds images and DB rows after the environment test restarts it.
+          sudo chown -R "$(id -u):$(id -g)" uploads backend/instance
+          test -w uploads
+          test -w backend/instance
+          test -w backend/instance/database.db
+          sqlite3 backend/instance/database.db 'BEGIN IMMEDIATE; ROLLBACK;'
+
+      - name: Verify Nightly models and configure 1K generation
+        if: env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
+        run: |
+          curl --fail --silent --show-error -X PUT --json '{"image_resolution":"1K"}' \
+            http://localhost:5011/api/settings > /dev/null
+          curl --fail --silent --show-error http://localhost:5011/api/settings |
+            jq -e --arg text "$NIGHTLY_TEXT_MODEL" --arg image "$NIGHTLY_IMAGE_MODEL" '
+              .data | select(.ai_provider_format == "gemini" and .text_model == $text
+                and .image_model == $image and .image_resolution == "1K")
+              | {ai_provider_format, text_model, image_model, image_resolution}
+            '
+
+      - name: Setup Node.js
+        if: env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Playwright
+        if: env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
+        run: |
+          cd frontend
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        if: env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
+        run: cd frontend && npx playwright test ui-full-flow.spec.ts page-properties-drawer.spec.ts pptx-download.spec.ts --workers=1
+        env:
+          CI: true
+          NIGHTLY_E2E: '1'
+        # ui-full-flow（含真实生成等待）与 drawer 回归同 job 串行，留足余量
+        timeout-minutes: 40
+
+      - name: Verify the downloaded two-page 1K PPTX
+        if: env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
+        run: |
+          docker compose exec -T backend /app/.venv/bin/python -c '
+          import sys
+          from io import BytesIO
+          from pptx import Presentation
+          from pptx.enum.shapes import MSO_SHAPE_TYPE
+
+          deck = Presentation(BytesIO(sys.stdin.buffer.read()))
+          assert len(deck.slides) == 2, f"Expected two slides, got {len(deck.slides)}"
+          assert abs(deck.slide_width / deck.slide_height - 16 / 9) < 0.02
+          for index, slide in enumerate(deck.slides, start=1):
+              pictures = [shape for shape in slide.shapes if shape.shape_type == MSO_SHAPE_TYPE.PICTURE]
+              assert len(pictures) == 1, f"Slide {index} should contain one generated image"
+              width, height = pictures[0].image.size
+              assert 800_000 <= width * height <= 1_500_000, f"Slide {index} image is {width}x{height}, expected 1K"
+              assert abs(width / height - 16 / 9) < 0.08, f"Slide {index} image is {width}x{height}, expected 16:9"
+              print(f"Slide {index}: {width}x{height}")
+          ' < frontend/test-results/nightly.pptx
+
+      - name: Upload the downloaded Nightly PPTX
+        if: env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-pptx
+          path: frontend/test-results/nightly.pptx
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload E2E reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 7
+
+      - name: View logs on failure
+        if: failure()
+        run: |
+          docker compose logs backend
+          docker compose logs frontend
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose down -v
+          docker system prune -f
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Backend dependency scan
+        run: |
+          uv pip install safety
+          uv run safety check --json || echo "Vulnerabilities found (warning)"
+        continue-on-error: true
+
+      - name: Frontend dependency scan
+        run: cd frontend && npm audit --audit-level=moderate || true
+        continue-on-error: true
+
+      - name: Dockerfile scan
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: backend/Dockerfile
+        continue-on-error: true
+
+  push-nightly:
+    name: Push Nightly Images
+    needs: e2e-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare locked PyPI URLs
+        run: python3 scripts/prepare_nightly_lock.py
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./backend/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/banana-slides-backend:nightly
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/banana-slides-backend:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/banana-slides-backend:buildcache,mode=max
+          build-args: |
+            DOCKER_REGISTRY=${{ secrets.DOCKER_REGISTRY }}
+            GHCR_REGISTRY=${{ secrets.GHCR_REGISTRY || 'ghcr.io/' }}
+            APT_MIRROR=${{ secrets.APT_MIRROR }}
+            PYPI_INDEX_URL=${{ env.PYPI_INDEX_URL }}
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./frontend/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/banana-slides-frontend:nightly
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/banana-slides-frontend:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/banana-slides-frontend:buildcache,mode=max
+          build-args: |
+            DOCKER_BUILDKIT=1
+            DOCKER_REGISTRY=${{ secrets.DOCKER_REGISTRY }}
+            NPM_REGISTRY=${{ secrets.NPM_REGISTRY }}

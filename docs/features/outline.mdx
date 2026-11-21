@@ -1,0 +1,88 @@
+---
+title: "Edit the Outline"
+description: "Review and adjust the AI-generated outline, or build one from scratch"
+---
+
+The Outline Editor is the second step. The AI-generated outline is presented as page cards in the form of **title + key points**, ready for you to adjust — no visuals yet.
+
+## The Outline Carries Each Page's Takeaway
+
+For content pages, the **first key point is that page's takeaway** — one sentence stating what the audience should remember after seeing the page, not what topic the page covers:
+
+- ✅ `Compute bottlenecks were the root cause of every AI winter` (takeaway)
+- ❌ `A look back at AI winters` (topic)
+
+Functional pages — cover, table of contents, section transitions, Q&A — don't need a takeaway; just describe the page content.
+
+This pays off twice: read all the takeaways in order and you get a complete line of argument, so you can spot a broken storyline while you're still at the outline stage; and when descriptions are generated, that sentence becomes the preferred source for the page title and determines which element on the page gets scaled up for emphasis.
+
+<Tip>
+  If a page's takeaway reads as empty (like "this part is important"), it usually means you haven't worked out what that page is arguing yet — worth fixing before moving on to the next step.
+</Tip>
+
+## Refine with AI
+
+The top input bar is the fastest way to edit the outline. Describe what you want in plain language and press **Ctrl+Enter**.
+
+**Common commands:**
+- `Add a competitive analysis section after the introduction`
+- `Merge pages 4 and 5, keep the key points`
+- `Move the conclusion before the Q&A page`
+- `Change the title of page 2 to "Core Advantages"`
+- `Delete page 6`
+
+<Tip>
+  You can chain multiple instructions — AI remembers context. For example: "Add a case study section", then "Move it to page 3".
+</Tip>
+
+## Edit Cards Manually
+
+Click any card to edit its title or key points inline:
+
+1. Click the title or bullet text on a card
+2. Edit directly
+3. Click elsewhere to auto-save
+
+The delete button is in the top-right corner of each card — requires confirmation.
+
+## Add a New Page
+
+Click **Add Page** in the toolbar to insert a blank page at the end of the list.
+
+## Reorder by Dragging
+
+Grab the drag handle (⠿ icon) on the left side of a card and drag it to the target position — the order updates immediately.
+
+## Regenerate the Outline
+
+Not happy with the current outline? Click **Regenerate Outline** to have AI start fresh.
+
+You can keep browsing or switch projects while generation runs. Each project's streamed result is shown and saved only in that project; it will not appear in a project opened later.
+
+<Warning>
+  Regenerating overwrites all existing outline content. A confirmation dialog appears before proceeding. This cannot be undone.
+</Warning>
+
+## Set Generation Requirements
+
+Expand **Outline Generation Requirements** in the toolbar to add overall constraints. These apply to every generation and regeneration.
+
+**Example requirements:**
+- `No more than 4 bullet points per page`
+- `Use a timeline structure ordered by year`
+- `Emphasize data and case studies`
+
+Click **Custom** to save frequently used requirements as presets and append them later with one click. Presets are stored in the current browser. If an upgrade or interrupted session leaves that cache malformed, the editor keeps valid presets and removes bad records automatically instead of blocking outline editing.
+
+## Import / Export
+
+Click the **Import/Export** button:
+
+- **Export Outline**: Save the current outline as a `.md` file — edit it in any text editor and reimport
+- **Import**: Load an outline from a `.md` or `.txt` file, **appended** to the end of existing pages
+
+See [Import/Export Format](/features/import-export) for the file format spec.
+
+## Next Step
+
+Once the outline looks good, click **Next →** in the top-right to go to the [Description Editor](/features/descriptions).

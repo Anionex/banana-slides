@@ -6,10 +6,13 @@ db = SQLAlchemy(
     engine_options={
         'connect_args': {
             'check_same_thread': False,  # 允许跨线程使用（仅SQLite）
-            'timeout': 30,  # 增加超时时间到30秒
+            'timeout': 30,  # 数据库锁定超时（秒）- SQLite特定
         },
-        'pool_pre_ping': True,  # 连接前检查
-        'pool_recycle': 3600,  # 1小时回收连接
+        'pool_pre_ping': True,  # 连接前检查，确保连接有效
+        'pool_recycle': 3600,  # 1小时回收连接，释放文件句柄
+        'pool_size': 10,
+        'max_overflow': 50,
+        'pool_timeout': 30,  # 获取连接的超时时间（秒）
     }
 )
 
@@ -21,6 +24,8 @@ from .page_image_version import PageImageVersion
 from .material import Material
 from .reference_file import ReferenceFile
 from .settings import Settings
+from .user_style_template import UserStyleTemplate
+from .project_template_asset import ProjectTemplateAsset
+from .export_run import ExportRun
 
-__all__ = ['db', 'Project', 'Page', 'Task', 'UserTemplate', 'PageImageVersion', 'Material', 'ReferenceFile', 'Settings']
-
+__all__ = ['db', 'Project', 'Page', 'Task', 'UserTemplate', 'PageImageVersion', 'Material', 'ReferenceFile', 'Settings', 'UserStyleTemplate', 'ProjectTemplateAsset']

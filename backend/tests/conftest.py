@@ -11,8 +11,11 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-# 确保backend目录在Python路径中
+# 确保backend目录和仓库根目录都在Python路径中
+# CLI 测试需要从仓库根目录导入 `cli.*`
 backend_path = Path(__file__).parent.parent
+project_root = backend_path.parent
+sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(backend_path))
 
 # 设置测试环境变量 - 必须在导入app之前设置
@@ -30,7 +33,9 @@ def app():
     temp_db = os.path.join(temp_dir, 'test.db')
     
     # 设置测试数据库路径
-    os.environ['DATABASE_URL'] = f'sqlite:///{temp_db}'
+    os.environ['DATABASE_PATH'] = temp_db
+    os.environ.pop('DATABASE_URL', None)
+    os.environ.pop('ACCESS_CODE', None)
     
     # 现在导入app
     from app import create_app
@@ -78,13 +83,21 @@ def client(app):
 
 @pytest.fixture(scope='function')
 def db_session(app):
-    """创建数据库会话"""
+    """创建数据库会话。
+
+    清理时只删除行、不 drop_all：app fixture 是 session 级，表只建一次，
+    若在此处 drop_all 会把表删掉，导致后续依赖 client fixture 的测试
+    报 "no such table"。
+    """
     with app.app_context():
         from models import db
         db.create_all()
         yield db.session
+        db.session.rollback()
+        for table in reversed(db.metadata.sorted_tables):
+            db.session.execute(table.delete())
+        db.session.commit()
         db.session.remove()
-        db.drop_all()
 
 
 @pytest.fixture
@@ -124,7 +137,7 @@ def mock_ai_service():
         mock_instance.generate_page_description.return_value = {
             'title': '测试标题',
             'text_content': ['内容1', '内容2'],
-            'layout_suggestion': '居中布局'
+            'extra_fields': {'排版布局': '居中布局'}
         }
         
         # Mock图片生成 - 返回一个简单的测试图片
@@ -178,4 +191,3 @@ def assert_error_response(response, expected_status=None):
     assert data is not None
     assert data.get('success') is False or 'error' in data
     return data
-
