@@ -586,23 +586,21 @@ Open your browser to access and use the application.
 <!-- i18n:community -->
 ## Communication Groups
 
-<a name="community#gh-light-mode-only"> </a> <a name="community#gh-dark-mode-only"> </a>
+<a name="community#gh-light-mode-only"></a><a name="community#gh-dark-mode-only"></a>
 
-<a name="community"> </a>
+<a name="community"></a>
 
-<p align="right"> <a href="#user-content-readme-top"> ↑ Back to the top </a> </p>
+<p align="right"><a href="#user-content-readme-top"> ↑ Back to the top </a></p>
 
 Feel free to suggest new features or provide feedback in the group!
 
-<img width="312" alt="image" src="https://github.com/user-attachments/assets/28210fdb-a72e-47f6-8e9c-6fb721928732" />
-
-
+<img width="312" alt="image" src="https://github.com/user-attachments/assets/0d861ee6-ab31-48b8-851d-11c6eb6d8669" />
 
 
 Feel free to follow the author on social media, where I will share updates about this project and information regarding AI:
 
 <p>
-  <a href="https://x.com/anion_ex"> <img src="https://img.shields.io/badge/X-@anion__ex-000000?style=flat-square&logo=x&logoColor=white" alt="X (Twitter)"> </a>
+  <a href="https://x.com/anion_ex"><img src="https://img.shields.io/badge/X-@anion__ex-000000?style=flat-square&logo=x&logoColor=white" alt="X (Twitter)"></a>
 </p>
 
 <!-- i18n:faq -->

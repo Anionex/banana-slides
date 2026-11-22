@@ -574,9 +574,7 @@ npm run dev
 
 새로운 기능 제안이나 피드백은 언제나 환영합니다~
 
-<img width="312" alt="image" src="https://github.com/user-attachments/assets/28210fdb-a72e-47f6-8e9c-6fb721928732" />
-
-
+<img width="312" alt="image" src="https://github.com/user-attachments/assets/0d861ee6-ab31-48b8-851d-11c6eb6d8669" />
 
 
 작가의 소셜 미디어를 팔로우해 보세요. 본 프로젝트 및 AI와 관련된 정보를 공유합니다:

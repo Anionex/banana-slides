@@ -586,9 +586,7 @@ Abra o navegador e acesse para usar a aplicação.
 
 Sinta-se à vontade para sugerir novas funcionalidades ou dar feedback no grupo~
 
-<img width="312" alt="image" src="https://github.com/user-attachments/assets/28210fdb-a72e-47f6-8e9c-6fb721928732" />
-
-
+<img width="312" alt="image" src="https://github.com/user-attachments/assets/0d861ee6-ab31-48b8-851d-11c6eb6d8669" />
 
 
 Siga o autor nas redes sociais, onde compartilharei informações sobre este projeto e sobre IA:
