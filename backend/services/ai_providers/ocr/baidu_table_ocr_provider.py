@@ -4,6 +4,8 @@
 
 API文档: https://ai.baidu.com/ai-doc/OCR/1k3h7y3db
 """
+
+from export_runtime.control import export_call
 import logging
 import base64
 import requests
@@ -34,6 +36,7 @@ class BaiduTableOCRProvider:
         else:
             logger.info("✅ 初始化百度表格OCR Provider (使用Access Token)")
     
+    @export_call('ocr')
     @retry(
         stop=stop_after_attempt(3),  # 最多重试3次
         wait=wait_exponential(multiplier=0.5, min=1, max=5),  # 指数避让: 1s, 2s, 4s
@@ -273,8 +276,7 @@ def create_baidu_table_ocr_provider(
         except RuntimeError:
             pass  # 不在 Flask 上下文中
         if not api_key:
-            from services.public_demo import enabled
-            api_key = None if enabled() else Config.BAIDU_API_KEY
+            api_key = Config.BAIDU_API_KEY
 
     if not api_key:
         logger.warning("⚠️ 未配置百度API Key, 跳过百度表格识别")

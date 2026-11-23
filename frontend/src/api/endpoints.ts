@@ -1,4 +1,3 @@
-import { visitorHeaders } from '@/utils/publicDemo';
 import { apiClient, getBaseURL } from './client';
 import type { Project, Task, ApiResponse, CreateProjectRequest, Page, Material, TemplateAsset } from '@/types';
 import type { Settings } from '../types/index';
@@ -163,7 +162,6 @@ export const generateOutlineStream = async (
   const response = await fetch(`${getBaseURL()}/api/projects/${projectId}/generate/outline/stream`, {
     method: 'POST',
     headers: {
-      ...visitorHeaders(),
       'Content-Type': 'application/json',
       ...(accessCode ? { 'X-Access-Code': accessCode } : {}),
     },
@@ -277,7 +275,6 @@ export const generateDescriptionsStream = async (
   const response = await fetch(`${getBaseURL()}/api/projects/${projectId}/generate/descriptions/stream`, {
     method: 'POST',
     headers: {
-      ...visitorHeaders(),
       'Content-Type': 'application/json',
       ...(accessCode ? { 'X-Access-Code': accessCode } : {}),
     },
@@ -755,6 +752,7 @@ export const exportEditablePPTX = async (
   filename?: string,
   pageIds?: string[],
   clientTaskId?: string,
+  exportMode: 'full' | 'simple' = 'full',
 ): Promise<ApiResponse<{ task_id: string }>> => {
   const response = await apiClient.post<
     ApiResponse<{ task_id: string }>
@@ -762,6 +760,7 @@ export const exportEditablePPTX = async (
     filename,
     page_ids: pageIds,
     client_task_id: clientTaskId,
+    export_mode: exportMode,
   });
   return response.data;
 };
@@ -779,6 +778,18 @@ export const listExports = async (
   download_url: string;
 }> }>> => {
   const response = await apiClient.get(`/api/projects/${projectId}/exports`);
+  return response.data;
+};
+
+export const resumeEditableExport = async (projectId: string, taskId: string, clientTaskId: string): Promise<ApiResponse<{ task_id: string }>> => {
+  const response = await apiClient.post(`/api/projects/${projectId}/export/editable-pptx`, {
+    resume_from_task_id: taskId, client_task_id: clientTaskId,
+  });
+  return response.data;
+};
+
+export const listEditableExportTasks = async (projectId: string): Promise<ApiResponse<{ tasks: Task[] }>> => {
+  const response = await apiClient.get(`/api/projects/${projectId}/export/editable-tasks`);
   return response.data;
 };
 

@@ -68,6 +68,21 @@ class Config:
     ATLASCLOUD_API_KEY = os.getenv('ATLASCLOUD_API_KEY', '')
     ATLASCLOUD_API_BASE = os.getenv('ATLASCLOUD_API_BASE', 'https://api.atlascloud.ai/v1')
 
+    # Editable export deployment budgets (shared local storage across workers).
+    EXPORT_QUEUE_LIMIT = int(os.getenv('EXPORT_QUEUE_LIMIT', '16'))
+    EXPORT_QUEUE_TIMEOUT = float(os.getenv('EXPORT_QUEUE_TIMEOUT', '900'))
+    EXPORT_RUN_TIMEOUT = float(os.getenv('EXPORT_RUN_TIMEOUT', '3600'))
+    EXPORT_NODE_TIMEOUT = float(os.getenv('EXPORT_NODE_TIMEOUT', '600'))
+    EXPORT_LIMIT_EXPORTS = int(os.getenv('EXPORT_LIMIT_EXPORTS', '1'))
+    EXPORT_LIMIT_PAGES = int(os.getenv('EXPORT_LIMIT_PAGES', '4'))
+    EXPORT_LIMIT_CAPTION = int(os.getenv('EXPORT_LIMIT_CAPTION', '8'))
+    EXPORT_LIMIT_IMAGE = int(os.getenv('EXPORT_LIMIT_IMAGE', '4'))
+    EXPORT_LIMIT_OCR = int(os.getenv('EXPORT_LIMIT_OCR', '2'))
+    EXPORT_LIMIT_INFERENCE = int(os.getenv('EXPORT_LIMIT_INFERENCE', '1'))
+
+    # Global output limit for text and image-understanding responses.
+    TEXT_MAX_OUTPUT_TOKENS = int(os.getenv("TEXT_MAX_OUTPUT_TOKENS", os.getenv("ANTHROPIC_MAX_TOKENS", "32768")))
+
     # 火山方舟 Agent Plans（OpenAI-compatible）
     VOLCENGINE_API_KEY = os.getenv('VOLCENGINE_API_KEY', '') or os.getenv('ARK_API_KEY', '')
     VOLCENGINE_API_BASE = os.getenv('VOLCENGINE_API_BASE') or 'https://ark.cn-beijing.volces.com/api/plan/v3'
@@ -78,7 +93,7 @@ class Config:
     ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY', '') or os.getenv('ANTHROPIC_AUTH_TOKEN', '')
     ANTHROPIC_API_BASE = os.getenv('ANTHROPIC_API_BASE', '') or os.getenv('ANTHROPIC_BASE_URL', 'https://api.anthropic.com')
     ANTHROPIC_VERSION = os.getenv('ANTHROPIC_VERSION', '2023-06-01')
-    ANTHROPIC_MAX_TOKENS = int(os.getenv('ANTHROPIC_MAX_TOKENS', '8192'))
+    ANTHROPIC_MAX_TOKENS = TEXT_MAX_OUTPUT_TOKENS  # legacy alias
 
     # Lazyllm 格式专用配置（当 AI_PROVIDER_FORMAT=lazyllm 时使用）
     TEXT_MODEL_SOURCE = os.getenv('TEXT_MODEL_SOURCE', '')                   # 文本生成模型厂商（留空则跟随全局 AI_PROVIDER_FORMAT）

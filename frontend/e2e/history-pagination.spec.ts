@@ -83,13 +83,16 @@ async function setupMockRoutes(
 // ───────────────── Mock tests ─────────────────
 
 test.describe('History pagination — mock', () => {
-  test('should not show pagination when projects fit on one page', async ({
+  test('single-page history keeps page size available and disables navigation', async ({
     page,
   }) => {
-    await setupMockRoutes(page, 3) // 3 < PAGE_SIZE, no pagination
+    await setupMockRoutes(page, 3) // 3 < PAGE_SIZE, only one page
     await page.goto('/history')
     await expect(page.getByRole('heading', { name: 'P-01', exact: true })).toBeVisible()
-    await expect(page.locator('nav[aria-label="Pagination"]')).not.toBeVisible()
+    const pagination = page.getByRole('navigation', { name: 'Pagination' })
+    await expect(pagination.getByRole('button', { name: 'Previous page' })).toBeDisabled()
+    await expect(pagination.getByRole('button', { name: 'Next page' })).toBeDisabled()
+    await expect(pagination.getByRole('combobox')).toHaveValue(String(PAGE_SIZE))
   })
 
   test('should show pagination when projects exceed one page', async ({

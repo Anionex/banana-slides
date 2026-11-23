@@ -80,6 +80,9 @@ def list_exports(project_id):
             # 跳过临时目录和隐藏文件
             if name.startswith('.') or name.startswith('_'):
                 continue
+            from export_runtime.tasks import artifact_allowed
+            if not artifact_allowed(project_id, name):
+                continue
 
             stat = filepath.stat()
             ext = os.path.splitext(name)[1].lower()
@@ -369,202 +372,14 @@ def export_images(project_id):
 
 @export_bp.route('/<project_id>/export/editable-pptx', methods=['POST'])
 def export_editable_pptx(project_id):
-    """
-    POST /api/projects/{project_id}/export/editable-pptx - 导出可编辑PPTX（异步）
-    
-    使用递归分析方法（支持任意尺寸、递归子图分析）
-    
-    这个端点创建一个异步任务来执行以下操作：
-    1. 递归分析图片（支持任意尺寸和分辨率）
-    2. 转换为PDF并上传MinerU识别
-    3. 提取元素bbox和生成clean background（inpainting）
-    4. 递归处理图片/图表中的子元素
-    5. 创建可编辑PPTX
-    
-    Request body (JSON):
-        {
-            "filename": "optional_custom_name.pptx",
-            "page_ids": ["id1", "id2"],  // 可选，要导出的页面ID列表（不提供则导出所有）
-            "client_task_id": "uuid",     // 可选，用于安全重试创建请求
-            "max_depth": 1,      // 可选，递归深度（默认1=不递归，2=递归一层）
-            "max_workers": 4     // 可选，并发数（默认4）
-        }
-    
-    Returns:
-        JSON with task_id, e.g.
-        {
-            "success": true,
-            "data": {
-                "task_id": "uuid-here",
-                "method": "recursive_analysis",
-                "max_depth": 2,
-                "max_workers": 4
-            },
-            "message": "Export task created"
-        }
-    
-    轮询 /api/projects/{project_id}/tasks/{task_id} 获取进度和下载链接
-    """
-    try:
-        project = Project.query.get(project_id)
-        
-        if not project:
-            return not_found('Project')
-        
-        # Get parameters from request body
-        data = request.get_json() or {}
+    from controllers.export_runtime_controller import create_export
+    return create_export(project_id)
 
-        client_task_id = data.get('client_task_id')
-        if client_task_id is not None:
-            try:
-                client_task_id = str(uuid.UUID(str(client_task_id)))
-            except (ValueError, TypeError, AttributeError):
-                return bad_request("client_task_id must be a valid UUID")
 
-            existing_task = db.session.get(Task, client_task_id)
-            if existing_task:
-                if (
-                    existing_task.project_id != project_id
-                    or existing_task.task_type != 'EXPORT_EDITABLE_PPTX'
-                ):
-                    return error_response(
-                        'EXPORT_TASK_ID_CONFLICT',
-                        'client_task_id is already used by another task',
-                        409,
-                    )
-                return success_response(
-                    data={
-                        "task_id": existing_task.id,
-                        "method": "recursive_analysis",
-                        "reused": True,
-                    },
-                    message="Existing export task returned",
-                )
-        
-        # Get page_ids from request body and fetch filtered pages
-        selected_page_ids = parse_page_ids_from_body(data)
-        pages = get_filtered_pages(project_id, selected_page_ids if selected_page_ids else None)
-        
-        if not pages:
-            return bad_request("No pages found for project")
-        
-        # Check if pages have generated images
-        has_images = any(page.generated_image_path for page in pages)
-        if not has_images:
-            return bad_request("No generated images found for project")
-        
-        # Get parameters from request body
-        data = request.get_json() or {}
-        filename = data.get('filename', f'presentation_editable_{project_id}.pptx')
-        if not filename.endswith('.pptx'):
-            filename += '.pptx'
-        
-        # 递归分析参数
-        # max_depth 语义：1=只处理表层不递归，2=递归一层（处理图片/图表中的子元素）
-        max_depth = data.get('max_depth', 1)  # 默认不递归，与测试脚本一致
-        max_workers = data.get('max_workers', 4)
-        
-        # Validate parameters
-        # max_depth >= 1: 至少处理表层元素
-        if not isinstance(max_depth, int) or max_depth < 1 or max_depth > 5:
-            return bad_request("max_depth must be an integer between 1 and 5")
-        
-        if not isinstance(max_workers, int) or max_workers < 1 or max_workers > 16:
-            return bad_request("max_workers must be an integer between 1 and 16")
-        
-        # Create task record
-        task_kwargs = {
-            'project_id': project_id,
-            'task_type': 'EXPORT_EDITABLE_PPTX',
-            'status': 'PENDING',
-        }
-        if client_task_id:
-            task_kwargs['id'] = client_task_id
-        task = Task(**task_kwargs)
-        db.session.add(task)
-        db.session.commit()
-        
-        logger.info(f"Created export task {task.id} for project {project_id} (recursive analysis: depth={max_depth}, workers={max_workers})")
-        
-        try:
-            # Get services
-            from services.file_service import FileService
-            from services.task_manager import task_manager, export_editable_pptx_with_recursive_analysis_task
-
-            file_service = FileService(current_app.config['UPLOAD_FOLDER'])
-
-            # Get Flask app instance for background task
-            app = current_app._get_current_object()
-
-            # 读取项目的导出设置
-            export_extractor_method = project.export_extractor_method or 'hybrid'
-            export_inpaint_method = project.export_inpaint_method or 'hybrid'
-            enable_icon_subject_extraction = (
-                True if project.enable_icon_subject_extraction is None
-                else bool(project.enable_icon_subject_extraction)
-            )
-            logger.info(
-                f"Export settings: extractor={export_extractor_method}, "
-                f"inpaint={export_inpaint_method}, "
-                f"icon_subject_extraction={enable_icon_subject_extraction}"
-            )
-
-            # 使用递归分析任务（不需要 ai_service，使用 ImageEditabilityService）
-            task_manager.submit_task(
-                task.id,
-                export_editable_pptx_with_recursive_analysis_task,
-                project_id=project_id,
-                filename=filename,
-                file_service=file_service,
-                page_ids=selected_page_ids if selected_page_ids else None,
-                max_depth=max_depth,
-                max_workers=max_workers,
-                export_extractor_method=export_extractor_method,
-                export_inpaint_method=export_inpaint_method,
-                enable_icon_subject_extraction=enable_icon_subject_extraction,
-                app=app
-            )
-        except Exception as submission_error:
-            logger.exception("Failed to submit editable export task %s", task.id)
-            failure_message = "可编辑导出任务未能进入后台队列"
-            task.status = 'FAILED'
-            task.error_message = failure_message
-            task.completed_at = datetime.utcnow()
-            task.set_progress({
-                'total': 100,
-                'completed': 0,
-                'failed': 1,
-                'current_step': '任务提交失败',
-                'percent': 0,
-                'backend_status': 'FAILED',
-                'error_code': 'EXPORT_TASK_SUBMISSION_FAILED',
-                'error_type': 'internal',
-                'error_stage': 'queue_submission',
-                'error_details': {
-                    'stage': 'queue_submission',
-                    'retryable': True,
-                    'technical_message': ExportService._safe_technical_message(submission_error),
-                },
-                'help_text': '后台任务队列暂时不可用，请稍后重新导出。',
-            })
-            db.session.commit()
-            return error_response('EXPORT_TASK_SUBMISSION_FAILED', failure_message, 503)
-        
-        logger.info(f"Submitted recursive export task {task.id} to task manager")
-        
-        return success_response(
-            data={
-                "task_id": task.id,
-                "method": "recursive_analysis",
-                "max_depth": max_depth,
-                "max_workers": max_workers
-            },
-            message="Export task created (using recursive analysis)"
-        )
-    
-    except Exception as e:
-        logger.exception("Error creating export task")
-        return error_response('SERVER_ERROR', str(e), 500)
+@export_bp.route('/<project_id>/export/editable-tasks', methods=['GET'])
+def list_editable_export_tasks(project_id):
+    from controllers.export_runtime_controller import list_tasks
+    return list_tasks(project_id)
 
 
 @export_bp.route('/<project_id>/export/video', methods=['POST'])

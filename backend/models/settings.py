@@ -34,6 +34,7 @@ class Settings(db.Model):
     
     # 推理模式配置（分别控制文本和图像生成）
     enable_text_reasoning = db.Column(db.Boolean, nullable=False, default=False)  # 文本生成是否开启推理
+    text_max_output_tokens = db.Column(db.Integer, nullable=True)  # NULL = environment/default 32768
     text_thinking_budget = db.Column(db.Integer, nullable=False, default=1024)  # 文本推理思考负载 (1-8192)
     enable_image_reasoning = db.Column(db.Boolean, nullable=False, default=False)  # 图像生成是否开启推理
     image_thinking_budget = db.Column(db.Integer, nullable=False, default=1024)  # 图像推理思考负载 (1-8192)
@@ -121,9 +122,6 @@ class Settings(db.Model):
 
     def to_dict(self):
         """Convert to dictionary, merging .env defaults for None fields."""
-        from services.public_demo import enabled, settings_json
-        if enabled():
-            return settings_json()
         d = Settings._get_config_defaults()
         effective_provider = self._val('ai_provider_format', d)
         provider_defaults = Settings._get_api_defaults_for_provider(effective_provider)
@@ -182,6 +180,7 @@ class Settings(db.Model):
             'description_extra_fields': self.get_description_extra_fields(),
             'image_prompt_extra_fields': self.get_image_prompt_extra_fields(),
             'enable_text_reasoning': self.enable_text_reasoning,
+            'text_max_output_tokens': self._val('text_max_output_tokens', d),
             'text_thinking_budget': self.text_thinking_budget,
             'enable_image_reasoning': self.enable_image_reasoning,
             'image_thinking_budget': self.image_thinking_budget,
@@ -364,6 +363,7 @@ class Settings(db.Model):
             'image_quality': Config.IMAGE_QUALITY,
             'max_description_workers': Config.MAX_DESCRIPTION_WORKERS,
             'max_image_workers': Config.MAX_IMAGE_WORKERS,
+            'text_max_output_tokens': Config.TEXT_MAX_OUTPUT_TOKENS,
             'text_model': Config.TEXT_MODEL,
             'image_model': Config.IMAGE_MODEL,
             'mineru_api_base': Config.MINERU_API_BASE,
@@ -386,9 +386,6 @@ class Settings(db.Model):
         defaults for ``None`` fields are merged only at serialisation
         time in ``to_dict()``, so this method has no write side-effects.
         """
-        from services.public_demo import enabled, as_settings
-        if enabled():
-            return as_settings()
         settings = Settings.query.first()
 
         if settings is None:

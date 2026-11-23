@@ -1,4 +1,9 @@
 import sys
+if __name__ == '__main__' and '--editable-export-worker' in sys.argv:
+    from export_worker import main as run_export_worker
+    run_export_worker()
+    raise SystemExit(0)
+
 if sys.platform == 'win32':
     if sys.stdout is not None and hasattr(sys.stdout, 'reconfigure'):
         sys.stdout.reconfigure(encoding='utf-8', errors='replace')
@@ -62,15 +67,9 @@ def set_sqlite_pragma(dbapi_conn, connection_record):
 def create_app():
     """Application factory"""
     app = Flask(__name__)
-    from services.public_demo import PublicConfig
-    app.config = PublicConfig(app.root_path, dict(app.config))
     
     # Load configuration from Config class
     app.config.from_object(Config)
-    app.config['PUBLIC_DEMO'] = os.getenv('PUBLIC_DEMO', '').lower() == 'true'
-    app.config['PUBLIC_DEMO_ADMIN_PASSWORD'] = os.getenv('PUBLIC_DEMO_ADMIN_PASSWORD', '')
-    app.config['PUBLIC_DEMO_MINERU_TOKEN'] = os.getenv('PUBLIC_DEMO_MINERU_TOKEN', '')
-    app.config['PUBLIC_DEMO_BAIDU_API_KEY'] = os.getenv('PUBLIC_DEMO_BAIDU_API_KEY', '')
 
     # Desktop DATABASE_PATH must win over any DATABASE_URL left in .env.
     db_path_env = os.environ.get('DATABASE_PATH')
@@ -195,8 +194,7 @@ def create_app():
                 from desktop_bootstrap import repair_desktop_settings_schema
                 repair_desktop_settings_schema(db)
         # Load settings from database and sync to app.config
-        if not app.config['PUBLIC_DEMO']:
-            _load_settings_to_config(app)
+        _load_settings_to_config(app)
 
     # Access code enforcement on all /api/ routes
     @app.before_request
@@ -207,15 +205,12 @@ def create_app():
             return  # not enabled
         if not request.path.startswith('/api/'):
             return  # non-API routes (health, static, etc.)
-        if request.path.startswith('/api/access-code/') or request.path == '/api/public-config':
+        if request.path.startswith('/api/access-code/'):
             return  # allow check/verify endpoints
         code = request.headers.get('X-Access-Code', '')
         if hmac.compare_digest(code, expected):
             return
         return jsonify({'error': 'Access code required'}), 403
-
-    from services.public_demo import install as install_public_demo
-    install_public_demo(app)
 
     # Health check endpoint
     @app.route('/health')
@@ -339,6 +334,12 @@ def _load_settings_to_config(app):
         if settings.image_model:
             app.config['IMAGE_MODEL'] = settings.image_model
             logging.info(f"Loaded IMAGE_MODEL from settings: {settings.image_model}")
+
+        # Load OpenAI image API protocol (与保存时 settings_controller 的同步保持一致,
+        # 否则重启后回落 'auto', gpt-image-2-high 等带后缀模型会误走 chat 路径)
+        if settings.openai_image_api_protocol:
+            app.config['OPENAI_IMAGE_API_PROTOCOL'] = settings.openai_image_api_protocol
+            logging.info(f"Loaded OPENAI_IMAGE_API_PROTOCOL from settings: {settings.openai_image_api_protocol}")
         
         # Load MinerU settings
         if settings.mineru_api_base:
@@ -361,6 +362,7 @@ def _load_settings_to_config(app):
         
         # Load reasoning mode settings (separate for text and image)
         app.config['ENABLE_TEXT_REASONING'] = settings.enable_text_reasoning
+        app.config['TEXT_MAX_OUTPUT_TOKENS'] = settings.text_max_output_tokens or Config.TEXT_MAX_OUTPUT_TOKENS
         app.config['TEXT_THINKING_BUDGET'] = settings.text_thinking_budget
         app.config['ENABLE_IMAGE_REASONING'] = settings.enable_image_reasoning
         app.config['IMAGE_THINKING_BUDGET'] = settings.image_thinking_budget

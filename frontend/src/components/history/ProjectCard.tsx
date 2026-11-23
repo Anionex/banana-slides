@@ -16,7 +16,6 @@ const projectCardI18n = {
 };
 
 export interface ProjectCardProps {
-  readOnly?: boolean;
   project: Project;
   isSelected: boolean;
   isEditing: boolean;
@@ -32,7 +31,6 @@ export interface ProjectCardProps {
 }
 
 export const ProjectCard: React.FC<ProjectCardProps> = ({
-  readOnly = false,
   project,
   isSelected,
   isEditing,
@@ -83,14 +81,14 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
     >
       <div className="flex items-start gap-3 md:gap-4">
         {/* 复选框 */}
-        {!readOnly && <div className="pt-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+        <div className="pt-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
           <input
             type="checkbox"
             checked={isSelected}
             onChange={() => onToggleSelect(projectId)}
             className="w-4 h-4 text-banana-600 border-gray-300 dark:border-border-primary rounded focus:ring-banana-500 cursor-pointer"
           />
-        </div>}
+        </div>
         
         {/* 中间：项目信息 */}
         <div className="flex-1 min-w-0">
@@ -113,8 +111,8 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
                     ? 'cursor-default' 
                     : 'cursor-pointer hover:text-banana-600 transition-colors'
                 }`}
-                onClick={readOnly ? undefined : (e) => onStartEdit(e, project)}
-                title={readOnly || isBatchMode ? undefined : t('common.edit')}
+                onClick={(e) => onStartEdit(e, project)}
+                title={isBatchMode ? undefined : t('common.edit')}
               >
                 {title}
               </h3>
@@ -152,13 +150,13 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
         
         {/* 右侧：操作按钮 */}
         <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3 flex-shrink-0">
-          {!readOnly && <button
+          <button
             onClick={(e) => onDelete(e, project)}
             className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
             title={t('common.delete')}
           >
             <Trash2 size={16} className="md:w-[18px] md:h-[18px]" />
-          </button>}
+          </button>
           <ChevronRight size={18} className="text-gray-400 md:w-5 md:h-5" />
         </div>
       </div>

@@ -1,0 +1,65 @@
+name: Refresh README metrics
+
+on:
+  schedule:
+    # 11:17 Asia/Shanghai and Asia/Singapore; avoid the top-of-hour queue.
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/refresh-readme-metrics.yml'
+      - 'scripts/refresh_readme_metrics.py'
+      - 'scripts/render_readme_hero.py'
+      - 'scripts/translate_readme_incremental.py'
+      - 'scripts/tests/test_readme*.py'
+      - 'assets/readme/metric-*.svg'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: readme-metrics-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'main' }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m unittest discover -s scripts/tests -p 'test_readme*.py'
+
+  refresh:
+    if: github.event_name != 'pull_request' && github.repository == 'Anionex/banana-slides' && github.ref == 'refs/heads/main'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Refresh statistics from GitHub
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/refresh_readme_metrics.py
+      - name: Commit changed display values
+        run: |
+          git diff --check
+          git add assets/readme/metric-{star,fork,eye}-{light,dark}.svg
+          if git diff --cached --quiet; then
+            echo "Displayed statistics are unchanged."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "docs(readme): refresh repository statistics"
+          # Preserve concurrent upstream work; the next run checks out fresh main.
+          git push origin HEAD:main

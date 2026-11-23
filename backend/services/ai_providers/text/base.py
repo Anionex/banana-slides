@@ -6,6 +6,16 @@ from abc import ABC, abstractmethod
 from typing import Generator
 
 
+def get_text_output_limit() -> int:
+    """Read per-request so cached providers pick up saved settings immediately."""
+    from flask import current_app, has_app_context
+    from config import Config
+
+    if has_app_context():
+        return current_app.config.get('TEXT_MAX_OUTPUT_TOKENS') or Config.TEXT_MAX_OUTPUT_TOKENS
+    return Config.TEXT_MAX_OUTPUT_TOKENS
+
+
 def strip_think_tags(text: str) -> str:
     """Remove <think>...</think> blocks (including multiline) from AI responses."""
     if not text:

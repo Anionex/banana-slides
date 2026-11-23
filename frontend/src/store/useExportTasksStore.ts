@@ -214,6 +214,9 @@ export interface ExportTask {
     completed: number;
     percent?: number;
     current_step?: string;
+    resumable?: boolean;
+    reused_nodes?: number;
+    page_ids?: string[];
     help_text?: string;
     backend_status?: string;
     error_code?: string;
@@ -260,6 +263,7 @@ export interface ExportTask {
 
 interface ExportTasksState {
   tasks: ExportTask[];
+  hiddenTaskIds: string[];
   
   // Actions
   addTask: (task: Omit<ExportTask, 'createdAt'>) => void;
@@ -268,12 +272,50 @@ interface ExportTasksState {
   clearCompleted: (projectId?: string | null) => void;
   pollTask: (id: string, projectId: string, taskId: string) => Promise<void>;
   restoreActiveTasks: () => void; // 恢复正在进行的任务并重新开始轮询
+  loadServerTasks: (projectId: string) => Promise<void>;
+  resumeTask: (task: ExportTask) => Promise<void>;
 }
 
 export const useExportTasksStore = create<ExportTasksState>()(
   persist(
     (set, get) => ({
       tasks: [],
+      hiddenTaskIds: [],
+
+      loadServerTasks: async (projectId) => {
+        try {
+          const response = await api.listEditableExportTasks(projectId);
+          for (const task of [...(response.data?.tasks || [])].reverse()) {
+            if (get().hiddenTaskIds.includes(task.task_id)) continue;
+            const existing = get().tasks.find(item => item.taskId === task.task_id && item.projectId === projectId);
+            if (existing && ['FAILED', 'COMPLETED'].includes(existing.status)
+                && ['PENDING', 'RUNNING', 'PROCESSING'].includes(task.status)) continue;
+            const progress = task.progress as ExportTask['progress'];
+            const id = existing?.id || task.task_id;
+            get().addTask({ id, taskId: task.task_id, projectId, type: 'editable-pptx',
+              status: task.status, progress, pageIds: progress?.page_ids,
+              errorMessage: task.error_message || undefined,
+              downloadUrl: (task.progress as Record<string, unknown>)?.download_url as string | undefined,
+              filename: (task.progress as Record<string, unknown>)?.filename as string | undefined,
+            });
+            get().updateTask(id, { createdAt: task.created_at, completedAt: task.completed_at || undefined });
+            if (['PENDING', 'RUNNING', 'PROCESSING'].includes(task.status)) {
+              void get().pollTask(id, projectId, task.task_id);
+            }
+          }
+        } catch (error) {
+          devLog('[ExportTasksStore] Could not load server export history', error);
+        }
+      },
+
+      resumeTask: async (task) => {
+        const response = await api.resumeEditableExport(task.projectId, task.taskId, crypto.randomUUID());
+        const taskId = response.data?.task_id;
+        if (!taskId) throw new Error('Missing resumed task ID');
+        get().addTask({ id: taskId, taskId, projectId: task.projectId,
+          type: 'editable-pptx', status: 'PENDING', pageIds: task.pageIds });
+        void get().pollTask(taskId, task.projectId, taskId);
+      },
 
       addTask: (task) => {
         set((state) => {
@@ -316,12 +358,16 @@ export const useExportTasksStore = create<ExportTasksState>()(
       removeTask: (id) => {
         unusableTaskResponseCounts.delete(id);
         set((state) => ({
+          hiddenTaskIds: [...new Set([...state.hiddenTaskIds, ...state.tasks.filter(task => task.id === id && task.taskId).map(task => task.taskId)])],
           tasks: state.tasks.filter((task) => task.id !== id),
         }));
       },
 
       clearCompleted: (projectId) => {
         set((state) => ({
+          hiddenTaskIds: [...new Set([...state.hiddenTaskIds, ...state.tasks.filter(task =>
+            (task.status === 'COMPLETED' || task.status === 'FAILED') && task.taskId
+            && (projectId == null || task.projectId === projectId)).map(task => task.taskId)])],
           tasks: state.tasks.filter(
             (task) => {
               const isCompleted = task.status === 'COMPLETED' || task.status === 'FAILED';
@@ -434,7 +480,7 @@ export const useExportTasksStore = create<ExportTasksState>()(
               get().updateTask(id, updates);
             } else if (task.status === 'FAILED') {
               const taskErrorMessage = task.error_message
-                || (typeof task.error === 'string' ? task.error : task.error?.message)
+                || (task.error ? normalizeErrorMessage(task.error) : '')
                 || t('exportStore.exportFailed');
               const watchdogMessage = describeWatchdogFailure(
                 updates.progress?.error_code,
@@ -535,6 +581,7 @@ export const useExportTasksStore = create<ExportTasksState>()(
       partialize: (state) => ({
         // Persist all tasks (including active ones) so they can be restored after page refresh
         tasks: state.tasks.slice(0, 20), // Keep max 20 tasks
+        hiddenTaskIds: state.hiddenTaskIds,
       }),
     }
   )

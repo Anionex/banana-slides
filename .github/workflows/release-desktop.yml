@@ -91,12 +91,17 @@ jobs:
       - name: Package backend
         run: cd backend && uv run pyinstaller banana-slides.spec --noconfirm
 
+      - name: Verify Windows editable export worker
+        if: matrix.platform == 'win'
+        timeout-minutes: 3
+        run: uv run python scripts/verify_export_windows.py --worker-exe backend/dist/banana-backend/banana-backend.exe
+
       - name: Cache Windows FFmpeg download
         if: matrix.os == 'windows-latest'
         uses: actions/cache@v4
         with:
           path: desktop/.cache/ffmpeg
-          key: windows-ffmpeg-btbn-7.1-907ae59ae94d39561b9e03f6d5b0ec4a2778df1e75c763c9a0ddbae266415860
+          key: windows-ffmpeg-rc7-97f45c9f1aab3e343c9a0108383292ce2379f185eb8b1dce9e999e0f6240de3c
 
       - name: Install Electron dependencies
         run: cd desktop && npm ci

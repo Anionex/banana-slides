@@ -44,6 +44,8 @@ def _get_openai_oauth_token() -> Optional[str]:
         from flask import current_app
         if not current_app:
             return None
+        if current_app.config.get('EXPORT_WORKER'):
+            return current_app.config.get('EXPORT_OAUTH_TOKEN')
         from models import Settings
         settings = Settings.get_settings()
         return settings.get_openai_oauth_token()
@@ -92,11 +94,6 @@ def _resolve_setting(key: str, fallback: Optional[str] = None) -> Optional[str]:
         2. OS environment variable
         3. *fallback* argument (may be ``None``)
     """
-    from services.public_demo import enabled
-    if enabled():
-        from flask import current_app
-        return current_app.config.get(key, fallback)
-
     # 1) Try Flask app.config
     try:
         from flask import current_app

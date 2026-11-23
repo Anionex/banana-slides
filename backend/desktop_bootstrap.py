@@ -22,6 +22,7 @@ def repair_desktop_settings_schema(db):
             'image_caption_model': 'VARCHAR(100)',
             'output_language': 'VARCHAR(10)',
             'enable_text_reasoning': 'BOOLEAN NOT NULL DEFAULT 0',
+            'text_max_output_tokens': 'INTEGER',
             'text_thinking_budget': 'INTEGER NOT NULL DEFAULT 1024',
             'enable_image_reasoning': 'BOOLEAN NOT NULL DEFAULT 0',
             'image_thinking_budget': 'INTEGER NOT NULL DEFAULT 1024',

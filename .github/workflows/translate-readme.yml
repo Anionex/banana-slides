@@ -1,87 +1,94 @@
-name: Auto Translate README
-
-# 当主分支的 README.md 改动时自动翻译到 README_EN.md
+name: Sync README translations
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
-      - 'README.md'
-  workflow_dispatch:  # 允许手动触发
+      - 'README*.md'
+      - 'docs/i18n/**'
+      - 'scripts/translate_readme*.py'
+      - 'scripts/generate_readme_buttons.mjs'
+      - 'scripts/render_readme_hero.py'
+      - '.github/workflows/translate-readme.yml'
+  pull_request:
+    paths:
+      - 'README*.md'
+      - 'docs/i18n/**'
+      - 'scripts/translate_readme*.py'
+      - 'scripts/tests/test_readme_i18n.py'
+      - 'scripts/generate_readme_buttons.mjs'
+      - 'assets/buttons/**'
+      - 'assets/readme/**'
+      - 'scripts/render_readme_hero.py'
+      - '.github/workflows/translate-readme.yml'
+  workflow_dispatch:
 
-# 防止多个翻译任务同时运行
+# Finish each sync; the next queued run checks out the latest main.
 concurrency:
-  group: translate-readme
-  cancel-in-progress: true
+  group: readme-i18n-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'main' }}
+  cancel-in-progress: false
 
-# 授予工作流推送权限
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  translate:
-    name: Translate README to English
+  validate:
     runs-on: ubuntu-latest
-
+    timeout-minutes: 5
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          fetch-depth: 0
-          # 使用 GitHub Token 推送改动
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
         with:
-          python-version: '3.10'
+          node-version: '22'
+      - run: python -m unittest discover -s scripts/tests -p 'test_readme_i18n.py'
+      - run: node scripts/generate_readme_buttons.mjs --check
+      # Source changes may legitimately await translation. No API/secrets on PRs.
+      - run: python scripts/translate_readme_incremental.py --plan
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
+  translate:
+    if: github.event_name != 'pull_request'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
         with:
-          enable-cache: true
-
-      - name: Install dependencies
-        run: |
-          uv sync
-
-      - name: Translate README
+          ref: main
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Generate language buttons
+        run: node scripts/generate_readme_buttons.mjs
+      - name: Translate changed sections
         env:
-          # 从仓库 secrets 读取 API 密钥
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           GOOGLE_API_BASE: ${{ secrets.GOOGLE_API_BASE }}
-          AI_PROVIDER_FORMAT: gemini
           TEXT_MODEL: gemini-3-flash-preview
+        run: uv run --no-project scripts/translate_readme_incremental.py
+      - name: Assemble localized README heroes
+        run: python3 scripts/render_readme_hero.py
+      - name: Verify completed sync offline
         run: |
-          echo "开始增量翻译 README.md（仅翻译修改的部分）..."
-          uv run python scripts/translate_readme_incremental.py
-          echo "翻译完成！"
-
-      - name: Check for changes
-        id: check_changes
+          python3 scripts/translate_readme_incremental.py --check
+          node scripts/generate_readme_buttons.mjs --check
+          python3 scripts/render_readme_hero.py --check
+          # Markdown hard breaks and protected source code may contain trailing spaces.
+          git -c core.whitespace=-blank-at-eol diff --check
+      - name: Commit complete translations and source snapshots together
         run: |
-          if git diff --quiet README_EN.md; then
-            echo "changed=false" >> $GITHUB_OUTPUT
-            echo "README_EN.md 无变化，跳过提交"
-          else
-            echo "changed=true" >> $GITHUB_OUTPUT
-            echo "README_EN.md 已更新"
+          git add README.md README_*.md docs/i18n/readme-state.json assets/buttons/ assets/readme/
+          if git diff --cached --quiet; then
+            echo "README translations are already up to date."
+            exit 0
           fi
-
-      - name: Commit and push changes
-        if: steps.check_changes.outputs.changed == 'true'
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add README_EN.md
-          git commit -m "docs: auto translate README to English [skip ci]"
-          git push
-
-      - name: Summary
-        run: |
-          if [ "${{ steps.check_changes.outputs.changed }}" == "true" ]; then
-            echo "✅ README_EN.md 已自动更新并推送"
-          else
-            echo "ℹ️ README_EN.md 无变化"
-          fi
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git commit -m "文档：增量同步多语言 README 与翻译状态"
+          # Reject concurrent upstream edits; never rebase stale generated translations.
+          git push origin HEAD:main

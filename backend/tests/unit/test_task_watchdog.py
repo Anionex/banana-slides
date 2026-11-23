@@ -650,19 +650,18 @@ def test_limiter_wait_keeps_the_heartbeat_alive(app):
 
 
 def test_watchdog_failure_stays_terminal_when_export_finishes(app, db_session, tmp_path, monkeypatch):
-    """看门狗判失败后 worker 又跑完：保持 FAILED，但保留产物信息（Codex P2）。"""
-    from PIL import Image
-    from models import Page
-    from services.export_service import ExportService
-    from services.task_manager import export_editable_pptx_with_recursive_analysis_task
-
-    image_path = tmp_path / 'page.png'
-    Image.new('RGB', (320, 180), 'white').save(image_path)
+    """看门狗判失败后晚到的产物不得发布，也不得覆盖失败原因。"""
+    from pathlib import Path
+    import pytest
+    from pptx import Presentation
+    from models import ExportRun
+    from export_runtime.checkpoints import file_hash
+    from export_runtime.control import ExportAborted
+    from export_runtime.tasks import publish, workspace
 
     project = Project(creation_type='idea', idea_prompt='demo')
     db.session.add(project)
     db.session.flush()
-    db.session.add(Page(project_id=project.id, order_index=0, generated_image_path='pages/page.png'))
     task = Task(
         project_id=project.id,
         task_type='EXPORT_EDITABLE_PPTX',
@@ -678,41 +677,28 @@ def test_watchdog_failure_stays_terminal_when_export_finishes(app, db_session, t
     db.session.add(task)
     db.session.commit()
     task_id = task.id
-
-    class FileServiceStub:
-        def get_absolute_path(self, _relative_path):
-            return str(image_path)
-
-    monkeypatch.setattr(
-        'services.image_editability.TextAttributeExtractorFactory.create_caption_model_extractor',
-        lambda: None,
-    )
-
-    def fake_export(*_args, progress_callback=None, heartbeat_callback=None, **_kwargs):
-        progress_callback('构建PPTX', '构建第 24/24 页...', 94)
-        return b'pptx-bytes', None
-
-    monkeypatch.setattr(
-        ExportService,
-        'create_editable_pptx_with_recursive_analysis',
-        staticmethod(fake_export),
-    )
-
-    export_editable_pptx_with_recursive_analysis_task(
-        task_id=task_id,
-        project_id=project.id,
-        filename='demo.pptx',
-        file_service=FileServiceStub(),
-        app=app,
-    )
+    run = ExportRun(task_id=task_id, project_id=project.id, request_json='{}',
+                    request_hash='fixture', artifact_filename=f'editable-run-{task_id}-demo.pptx',
+                    queue_deadline_at=time.time() + 60)
+    db.session.add(run)
+    db.session.commit()
+    root = workspace(app, project.id, task_id)
+    root.mkdir(parents=True)
+    source = root / 'result.pptx'
+    deck = Presentation()
+    deck.slides.add_slide(deck.slide_layouts[6])
+    deck.save(source)
+    with pytest.raises(ExportAborted):
+        publish(app, run, {'path': str(source), 'sha256': file_hash(source), 'pages': 1,
+                          'warnings': [], 'warning_details': {}, 'reused_nodes': 0}, 1)
 
     db.session.expire_all()
     stored = Task.query.get(task_id)
     assert stored.status == 'FAILED'
     progress = stored.get_progress()
     assert progress['error_code'] == STALLED_ERROR_CODE
-    assert progress['download_url'].endswith('demo.pptx')
-    assert progress['filename'] == 'demo.pptx'
+    assert not progress.get('download_url')
+    assert not (Path(app.config['UPLOAD_FOLDER']) / project.id / 'exports' / run.artifact_filename).exists()
 
 
 def test_watchdog_failure_is_terminal_for_every_task_type(app, db_session):

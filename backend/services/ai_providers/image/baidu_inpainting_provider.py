@@ -4,6 +4,8 @@
 
 API文档: https://ai.baidu.com/ai-doc/IMAGEPROCESS/Mk4i6o3w3
 """
+
+from export_runtime.control import export_call
 import logging
 import base64
 import requests
@@ -43,6 +45,7 @@ class BaiduInpaintingProvider:
         else:
             logger.info("✅ 初始化百度图像修复 Provider (使用Access Token)")
     
+    @export_call('image')
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=0.5, min=1, max=5),
@@ -244,10 +247,9 @@ def create_baidu_inpainting_provider(
         except RuntimeError:
             pass  # 不在 Flask 上下文中
         if not api_key:
-            from services.public_demo import enabled
-            api_key = None if enabled() else Config.BAIDU_API_KEY
+            api_key = Config.BAIDU_API_KEY
         if not api_key:
-            api_key = None if enabled() else os.getenv('BAIDU_API_KEY')
+            api_key = os.getenv('BAIDU_API_KEY')
 
     if not api_key:
         logger.warning("⚠️ 未配置百度API Key (BAIDU_API_KEY), 跳过百度图像修复")

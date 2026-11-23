@@ -11,7 +11,8 @@ env:
 jobs:
   quick-check:
     name: Quick Check (Lint + Unit Tests + Build)
-    runs-on: ubuntu-latest
+    # Playwright 1.57 does not support Ubuntu 26.04 yet.
+    runs-on: ubuntu-24.04
     timeout-minutes: 12
 
     steps:
@@ -40,6 +41,9 @@ jobs:
 
       - name: Backend unit tests
         run: uv run pytest backend/tests/unit -v
+
+      - name: Nightly lockfile preparation tests
+        run: python -m unittest discover -s scripts/tests -p 'test_prepare_nightly_lock.py'
 
       # Frontend checks
       - name: Setup Node.js
@@ -81,7 +85,7 @@ jobs:
       - name: Test built web deep links against real backend
         run: |
           cp .env.example .env
-          printf '\nPUBLIC_DEMO=true\nBACKEND_PORT=5011\nFRONTEND_PORT=3488\n' >> .env
+          printf '\nBACKEND_PORT=5011\nFRONTEND_PORT=3488\n' >> .env
           uv run --directory backend alembic upgrade head
           uv run --directory backend python app.py > /tmp/web-build-backend.log 2>&1 &
           BACKEND_PID=$!
@@ -94,7 +98,7 @@ jobs:
           done
           curl -fsS http://127.0.0.1:3488/health > /dev/null
           cd frontend
-          if ! npx playwright test e2e/web-build-deep-links.spec.ts --reporter=list; then
+          if ! npx playwright test e2e/web-build-deep-links.spec.ts e2e/pptx-download.spec.ts --reporter=list; then
             cat /tmp/web-build-backend.log /tmp/web-build-preview.log
             exit 1
           fi

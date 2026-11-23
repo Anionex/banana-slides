@@ -554,21 +554,43 @@ export const useProjectStore = create<ProjectState>((set, get) => {
   // 轮询任务状态
   pollTask: async (taskId) => {
     devLog(`[轮询] 开始轮询任务: ${taskId}`);
-    const { currentProject } = get();
-    if (!currentProject) {
+    const clearActiveTask = (error?: string) => {
+      set(state => {
+        if (state.activeTaskId !== taskId) return state;
+        return {
+          activeTaskId: null,
+          taskProgress: null,
+          isGlobalLoading: false,
+          ...(error ? { error } : {}),
+        };
+      });
+    };
+    const projectId = get().currentProject?.id;
+    if (!projectId) {
       console.warn('[轮询] 没有当前项目，停止轮询');
+      clearActiveTask();
       return;
     }
-    const projectId = currentProject.id!;
+
+    const stopIfInactive = () => {
+      const { activeTaskId, currentProject } = get();
+      if (activeTaskId !== taskId) return true;
+      if (currentProject?.id === projectId) return false;
+      clearActiveTask();
+      return true;
+    };
 
     const poll = async () => {
+      if (stopIfInactive()) return;
       try {
         devLog(`[轮询] 查询任务状态: ${taskId}`);
         const response = await api.getTaskStatus(projectId, taskId);
+        if (stopIfInactive()) return;
         const task = response.data;
         
         if (!task) {
           console.warn('[轮询] 响应中没有任务数据');
+          clearActiveTask();
           return;
         }
 
@@ -601,21 +623,12 @@ export const useProjectStore = create<ProjectState>((set, get) => {
             }
           }
           
-          set({ 
-            activeTaskId: null, 
-            taskProgress: null, 
-            isGlobalLoading: false 
-          });
+          clearActiveTask();
           // 刷新项目数据
           await get().syncProject();
         } else if (task.status === 'FAILED') {
           console.error(`[轮询] Task ${taskId} 失败:`, task.error_message || task.error);
-          set({ 
-            error: normalizeErrorMessage(task.error_message || task.error || t('store.taskFailed')),
-            activeTaskId: null,
-            taskProgress: null,
-            isGlobalLoading: false
-          });
+          clearActiveTask(normalizeErrorMessage(task.error_message || task.error || t('store.taskFailed')));
         } else if (task.status === 'PENDING' || task.status === 'PROCESSING') {
           // 继续轮询（PENDING 或 PROCESSING）
           devLog(`[轮询] Task ${taskId} 处理中，2秒后继续轮询...`);
@@ -623,20 +636,12 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         } else {
           // 未知状态，停止轮询
           console.warn(`[轮询] Task ${taskId} 未知状态: ${task.status}，停止轮询`);
-          set({ 
-            error: `${t('store.unknownTaskStatus', { status: task.status })}`,
-            activeTaskId: null,
-            taskProgress: null,
-            isGlobalLoading: false
-          });
+          clearActiveTask(t('store.unknownTaskStatus', { status: task.status }));
         }
       } catch (error: any) {
+        if (stopIfInactive()) return;
         console.error('任务轮询错误:', error);
-        set({ 
-          error: normalizeErrorMessage(error.message || t('store.taskQueryFailed')),
-          activeTaskId: null,
-          isGlobalLoading: false
-        });
+        clearActiveTask(normalizeErrorMessage(error.message || t('store.taskQueryFailed')));
       }
     };
 
@@ -1168,12 +1173,20 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
   // 轮询图片生成任务（非阻塞，支持单页和批量）
   pollImageTask: async (taskId: string, pageIds: string[]) => {
-    const { currentProject } = get();
-    if (!currentProject) {
+    const clearPageTasks = () => {
+      const { pageGeneratingTasks } = get();
+      const ownedPageIds = pageIds.filter(id => pageGeneratingTasks[id] === taskId);
+      if (ownedPageIds.length === 0) return;
+      const newTasks = { ...pageGeneratingTasks };
+      ownedPageIds.forEach(id => delete newTasks[id]);
+      set({ pageGeneratingTasks: newTasks });
+    };
+    const projectId = get().currentProject?.id;
+    if (!projectId) {
       console.warn('[批量轮询] 没有当前项目，停止轮询');
+      clearPageTasks();
       return;
     }
-    const projectId = currentProject.id!;
 
     const poll = async () => {
       try {
@@ -1182,6 +1195,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         
         if (!task) {
           console.warn('[批量轮询] 响应中没有任务数据');
+          clearPageTasks();
           return;
         }
 
@@ -1288,26 +1302,12 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         } else {
           // 未知状态，停止轮询
           console.warn(`[批量轮询] Task ${taskId} 未知状态: ${task.status}，停止轮询`);
-          const { pageGeneratingTasks } = get();
-          const newTasks = { ...pageGeneratingTasks };
-          pageIds.forEach(id => {
-            if (newTasks[id] === taskId) {
-              delete newTasks[id];
-            }
-          });
-          set({ pageGeneratingTasks: newTasks });
+          clearPageTasks();
         }
       } catch (error: any) {
         console.error('[批量轮询] 轮询错误:', error);
         // 清除所有相关页面的任务记录
-        const { pageGeneratingTasks } = get();
-        const newTasks = { ...pageGeneratingTasks };
-        pageIds.forEach(id => {
-          if (newTasks[id] === taskId) {
-            delete newTasks[id];
-          }
-        });
-        set({ pageGeneratingTasks: newTasks });
+        clearPageTasks();
       }
     };
 
