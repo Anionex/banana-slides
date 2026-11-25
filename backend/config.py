@@ -64,6 +64,10 @@ class Config:
     OPENAI_TIMEOUT = float(os.getenv('OPENAI_TIMEOUT', '480.0'))  # 8 分钟：留出 gpt-image-2 生图(~225s)+传输的余量
     OPENAI_MAX_RETRIES = int(os.getenv('OPENAI_MAX_RETRIES', '2'))  # 减少重试次数，避免过多重试导致累积超时
 
+    # Atlas Cloud OpenAI-compatible text API
+    ATLASCLOUD_API_KEY = os.getenv('ATLASCLOUD_API_KEY', '')
+    ATLASCLOUD_API_BASE = os.getenv('ATLASCLOUD_API_BASE', 'https://api.atlascloud.ai/v1')
+
     # Editable export deployment budgets (shared local storage across workers).
     EXPORT_QUEUE_LIMIT = int(os.getenv('EXPORT_QUEUE_LIMIT', '16'))
     EXPORT_QUEUE_TIMEOUT = float(os.getenv('EXPORT_QUEUE_TIMEOUT', '900'))
